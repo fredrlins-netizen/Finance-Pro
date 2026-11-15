@@ -1,0 +1,1629 @@
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  ArrowDownUp,
+  ArrowLeft,
+  Ban,
+  CalendarPlus,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  Download,
+  Eye,
+  Filter,
+  FolderOpen,
+  History,
+  Lock,
+  MessageSquare,
+  Pencil,
+  PhoneCall,
+  Plus,
+  RefreshCw,
+  Save,
+  Search,
+  Send,
+  Settings2,
+  ShieldAlert,
+  Trash2,
+  Upload,
+  X,
+} from 'lucide-react';
+import { apiFetch, formatBytes, formatDateBR, formatDateTimeBR, getAuthToken } from '../../../lib/api.ts';
+import { Admission, AuthUser, Client, DocumentObject, ModuleId, NavigationIntent, Unit } from '../../../types.ts';
+import {
+  AdmissionQuickViewerModal,
+  BlockClientModal,
+  BRAZILIAN_UFS,
+  DeleteClientModal,
+  EntityAuditModal,
+  formatCepMask,
+  formatCpfCnpjMask,
+  formatPhoneMask,
+  isValidCpfOrCnpj,
+  MaritalStatusModal,
+} from './CadastrosShared.tsx';
+
+type ClientRow = Client & { docsCount?: number; admissionsCount?: number };
+
+interface WaThread {
+  id: number;
+  provider: string;
+  contactName: string;
+  contactPhone: string;
+  lastMessagePreview: string;
+  updatedAt: string;
+  instanceLabel?: string | null;
+}
+
+interface WaMsg {
+  id: number;
+  threadId: number;
+  provider?: string;
+  direction: string;
+  senderName: string;
+  body: string;
+  contentType: string;
+  attachmentUrl?: string | null;
+  attachmentName?: string | null;
+  createdAt: string;
+}
+
+interface CadastrosClientsViewProps {
+  units: Unit[];
+  activeUnitId: number;
+  currentUser: AuthUser;
+  maritalStatuses: string[];
+  onMaritalStatusesChange: (next: string[]) => void;
+  onCatalogUpdated?: () => void;
+  onNavigate: (mod: ModuleId, intent?: NavigationIntent) => void;
+}
+
+export const CadastrosClientsView: React.FC<CadastrosClientsViewProps> = ({
+  units,
+  activeUnitId,
+  currentUser,
+  maritalStatuses,
+  onMaritalStatusesChange,
+  onCatalogUpdated,
+  onNavigate,
+}) => {
+  const [mode, setMode] = useState<'list' | 'form'>('list');
+  const [formTab, setFormTab] = useState<'dados' | 'whatsapp' | 'documentos'>('dados');
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingClientObj, setEditingClientObj] = useState<ClientRow | null>(null);
+
+  // List state (50/page server-side pagination)
+  const [rows, setRows] = useState<ClientRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(false);
+
+  // Filters & sorting
+  const [qInput, setQInput] = useState('');
+  const [qDebounced, setQDebounced] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterNature, setFilterNature] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterCpf, setFilterCpf] = useState('');
+  const [filterCity, setFilterCity] = useState('');
+  const [filterState, setFilterState] = useState('');
+  const [sortKey, setSortKey] = useState<'fullName' | 'cpfCnpj' | 'phone' | 'city'>('fullName');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+  // Form fields
+  const [personNature, setPersonNature] = useState<'PF' | 'PJ'>('PF');
+  const [fullName, setFullName] = useState('');
+  const [cpfCnpj, setCpfCnpj] = useState('');
+  const [rg, setRg] = useState('');
+  const [phone, setPhone] = useState('');
+  const [isWhatsapp, setIsWhatsapp] = useState(true);
+  const [secondaryPhone, setSecondaryPhone] = useState('');
+  const [secondaryIsWhatsapp, setSecondaryIsWhatsapp] = useState(false);
+  const [maritalStatus, setMaritalStatus] = useState('');
+  const [birthDate, setBirthDate] = useState('');
+  const [email, setEmail] = useState('');
+  const [profession, setProfession] = useState('');
+  const [zipCode, setZipCode] = useState('');
+  const [address, setAddress] = useState('');
+  const [addressNumber, setAddressNumber] = useState('');
+  const [complement, setComplement] = useState('');
+  const [neighborhood, setNeighborhood] = useState('');
+  const [city, setCity] = useState('');
+  const [stateUf, setStateUf] = useState('');
+  const [unitId, setUnitId] = useState(activeUnitId || 1);
+  const [notes, setNotes] = useState('');
+  const [cepLoading, setCepLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // Global admissions & documents reference for links & tabs
+  const [allClients, setAllClients] = useState<Client[]>([]);
+  const [allAdmissions, setAllAdmissions] = useState<Admission[]>([]);
+  const [allDocs, setAllDocs] = useState<DocumentObject[]>([]);
+
+  // WhatsApp & Docs inside form
+  const [waLoading, setWaLoading] = useState(false);
+  const [waSyncing, setWaSyncing] = useState(false);
+  const [waThreads, setWaThreads] = useState<WaThread[]>([]);
+  const [waMsgs, setWaMsgs] = useState<WaMsg[]>([]);
+  const [waSelectedThread, setWaSelectedThread] = useState<number | 'all'>('all');
+  const [waDraft, setWaDraft] = useState('');
+  const [waSending, setWaSending] = useState(false);
+  const [docCategory, setDocCategory] = useState('pessoal');
+  const [docUploading, setDocUploading] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState<{ doc: DocumentObject; blobUrl: string; loading: boolean } | null>(null);
+
+  // Modals & notifications
+  const [feedback, setFeedback] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [auditTarget, setAuditTarget] = useState<{ id: number; label: string } | null>(null);
+  const [blockTarget, setBlockTarget] = useState<ClientRow | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ClientRow | null>(null);
+  const [maritalModalOpen, setMaritalModalOpen] = useState(false);
+  const [viewerAdmission, setViewerAdmission] = useState<Admission | null>(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setQDebounced(qInput.trim());
+      setPage(1);
+    }, 280);
+    return () => clearTimeout(t);
+  }, [qInput]);
+
+  const loadList = useCallback(async () => {
+    setLoading(true);
+    try {
+      const qs = new URLSearchParams({
+        page: String(page),
+        limit: '50',
+        sortKey,
+        sortDir,
+      });
+      if (qDebounced) qs.set('q', qDebounced);
+      if (filterNature) qs.set('personNature', filterNature);
+      if (filterStatus) qs.set('status', filterStatus);
+      if (filterCpf) qs.set('cpfCnpj', filterCpf);
+      if (filterCity) qs.set('city', filterCity);
+      if (filterState) qs.set('state', filterState);
+
+      const [res, refs] = await Promise.all([
+        apiFetch<{ data: ClientRow[]; total: number; page: number; totalPages: number }>(
+          `/api/cadastros/clients?${qs.toString()}`
+        ),
+        apiFetch<{ clients: Client[]; admissions: Admission[]; documents: DocumentObject[] }>('/api/clients'),
+      ]);
+      setRows(res.data || []);
+      setTotal(res.total || 0);
+      setTotalPages(res.totalPages || 1);
+      setAllClients(refs.clients || []);
+      setAllAdmissions(refs.admissions || []);
+      setAllDocs(refs.documents || []);
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : 'Erro ao carregar clientes.');
+    } finally {
+      setLoading(false);
+    }
+  }, [page, sortKey, sortDir, qDebounced, filterNature, filterStatus, filterCpf, filterCity, filterState]);
+
+  useEffect(() => {
+    loadList();
+  }, [loadList]);
+
+  const clientAdmissions = useMemo(() => {
+    if (!editingId) return [];
+    return allAdmissions.filter((a) => a.clientId === editingId || a.assetOwnerId === editingId);
+  }, [allAdmissions, editingId]);
+
+  const clientDocs = useMemo(() => {
+    if (!editingId) return [];
+    return allDocs.filter((d) => d.clientId === editingId);
+  }, [allDocs, editingId]);
+
+  const resetForm = (source?: ClientRow, isDuplicate = false) => {
+    setErrorMsg('');
+    setFeedback('');
+    setFormTab('dados');
+    if (source) {
+      setEditingId(isDuplicate ? null : source.id);
+      setEditingClientObj(isDuplicate ? null : source);
+      const nat = source.personNature === 'PJ' ? 'PJ' : 'PF';
+      setPersonNature(nat);
+      setFullName(isDuplicate ? `${source.fullName} (Cópia)` : source.fullName);
+      setCpfCnpj(isDuplicate ? '' : source.cpfCnpj || '');
+      setRg(isDuplicate ? '' : source.rg || '');
+      setPhone(source.phone || '');
+      setIsWhatsapp(Boolean(source.whatsapp || source.phone));
+      setSecondaryPhone(source.secondaryPhone || '');
+      setSecondaryIsWhatsapp(Boolean(source.secondaryIsWhatsapp));
+      setMaritalStatus(source.maritalStatus || '');
+      setBirthDate(source.birthDate || '');
+      setEmail(source.email || '');
+      setProfession(source.profession || '');
+      setZipCode(source.zipCode || '');
+      setAddress(source.address || '');
+      setAddressNumber(source.addressNumber || '');
+      setComplement(source.complement || '');
+      setNeighborhood(source.neighborhood || '');
+      setCity(source.city || '');
+      setStateUf(source.state || '');
+      setUnitId(source.unitId || activeUnitId || 1);
+      setNotes(source.notes || '');
+    } else {
+      setEditingId(null);
+      setEditingClientObj(null);
+      setPersonNature('PF');
+      setFullName('');
+      setCpfCnpj('');
+      setRg('');
+      setPhone('');
+      setIsWhatsapp(true);
+      setSecondaryPhone('');
+      setSecondaryIsWhatsapp(false);
+      setMaritalStatus('');
+      setBirthDate('');
+      setEmail('');
+      setProfession('');
+      setZipCode('');
+      setAddress('');
+      setAddressNumber('');
+      setComplement('');
+      setNeighborhood('');
+      setCity('');
+      setStateUf('');
+      setUnitId(activeUnitId || 1);
+      setNotes('');
+    }
+    setMode('form');
+  };
+
+  const handleLookupCep = async () => {
+    const clean = zipCode.replace(/\D/g, '');
+    if (clean.length !== 8) {
+      setErrorMsg('Informe um CEP válido com 8 dígitos.');
+      return;
+    }
+    setCepLoading(true);
+    setErrorMsg('');
+    try {
+      const data = await apiFetch<{
+        zipCode: string;
+        address: string;
+        complement?: string;
+        neighborhood: string;
+        city: string;
+        state: string;
+      }>(`/api/cadastros/cep/${clean}`);
+      if (data.address) setAddress(data.address);
+      if (data.complement && !complement) setComplement(data.complement);
+      if (data.neighborhood) setNeighborhood(data.neighborhood);
+      if (data.city) setCity(data.city);
+      if (data.state) setStateUf(data.state);
+      setFeedback('Endereço preenchido via ViaCEP.');
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : 'CEP não localizado.');
+    } finally {
+      setCepLoading(false);
+    }
+  };
+
+  const handleSaveClient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+    setFeedback('');
+    if (!fullName.trim()) {
+      setErrorMsg('Nome / Razão social é obrigatório.');
+      return;
+    }
+    if (!isValidCpfOrCnpj(cpfCnpj, personNature)) {
+      setErrorMsg(personNature === 'PJ' ? 'CNPJ inválido (deve conter 14 dígitos).' : 'CPF/CNPJ inválido (11 ou 14 dígitos).');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const payload = {
+        personNature,
+        fullName: fullName.trim(),
+        cpfCnpj: cpfCnpj.trim(),
+        rg: personNature === 'PJ' ? '' : rg.trim(),
+        birthDate: personNature === 'PJ' ? '' : birthDate.trim(),
+        profession: profession.trim(),
+        maritalStatus: personNature === 'PJ' ? '' : maritalStatus.trim(),
+        phone: phone.trim(),
+        isWhatsapp,
+        secondaryPhone: secondaryPhone.trim(),
+        secondaryIsWhatsapp,
+        email: email.trim(),
+        zipCode: zipCode.trim(),
+        address: address.trim(),
+        addressNumber: addressNumber.trim(),
+        complement: complement.trim(),
+        neighborhood: neighborhood.trim(),
+        city: city.trim(),
+        state: stateUf.trim().toUpperCase(),
+        unitId,
+        notes: notes.trim(),
+      };
+
+      if (editingId) {
+        const res = await apiFetch<{ client: ClientRow }>(`/api/clients/${editingId}`, {
+          method: 'PATCH',
+          body: JSON.stringify(payload),
+        });
+        setEditingClientObj(res.client);
+        setFeedback(`Cliente "${res.client.fullName}" atualizado com sucesso.`);
+      } else {
+        const res = await apiFetch<{ client: ClientRow }>('/api/clients', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+        setEditingId(res.client.id);
+        setEditingClientObj(res.client);
+        setFeedback(`Cliente "${res.client.fullName}" cadastrado com sucesso. Guias WhatsApp e Documentos liberadas!`);
+      }
+      await loadList();
+      onCatalogUpdated?.();
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : 'Erro ao salvar cliente.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Load client WhatsApp conversations (GoTalk + UaZapi)
+  const loadClientWhatsapp = useCallback(async (cid: number) => {
+    setWaLoading(true);
+    try {
+      const res = await apiFetch<{ threads: WaThread[]; messages: WaMsg[] }>(`/api/clients/${cid}/interactions`);
+      setWaThreads(res.threads || []);
+      setWaMsgs(res.messages || []);
+    } catch {
+      // ignore empty history error
+    } finally {
+      setWaLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (mode === 'form' && formTab === 'whatsapp' && editingId) {
+      loadClientWhatsapp(editingId);
+    }
+  }, [mode, formTab, editingId, loadClientWhatsapp]);
+
+  const handleSyncWhatsapp = async () => {
+    if (!editingId) return;
+    setWaSyncing(true);
+    setErrorMsg('');
+    try {
+      const res = await apiFetch<{ threads: WaThread[]; messages: WaMsg[]; syncedMessages?: number }>(
+        `/api/clients/${editingId}/sync-whatsapp`,
+        { method: 'POST', body: JSON.stringify({ unitId }) }
+      );
+      setWaThreads(res.threads || []);
+      setWaMsgs(res.messages || []);
+      setFeedback(`Sincronização concluída (${res.threads?.length || 0} conversa(s), ${res.syncedMessages || 0} novas mensagens).`);
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : 'Erro ao sincronizar conversas.');
+    } finally {
+      setWaSyncing(false);
+    }
+  };
+
+  const handleStartWhatsapp = async (provider: 'gotalk' | 'uazapi') => {
+    if (!editingId) return;
+    setErrorMsg('');
+    try {
+      const res = await apiFetch<{ thread: WaThread }>(`/api/clients/${editingId}/whatsapp/start`, {
+        method: 'POST',
+        body: JSON.stringify({ provider, unitId }),
+      });
+      await loadClientWhatsapp(editingId);
+      setWaSelectedThread(res.thread.id);
+      setFeedback(`Conversa ${provider.toUpperCase()} aberta para ${res.thread.contactPhone}.`);
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : 'Não foi possível iniciar conversa.');
+    }
+  };
+
+  const handleSendWaMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!waDraft.trim() || waSelectedThread === 'all' || !editingId) return;
+    setWaSending(true);
+    setErrorMsg('');
+    try {
+      await apiFetch(`/api/whatsapp/threads/${waSelectedThread}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({ body: waDraft.trim(), contentType: 'text', direction: 'outbound' }),
+      });
+      setWaDraft('');
+      await loadClientWhatsapp(editingId);
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : 'Erro ao enviar mensagem.');
+    } finally {
+      setWaSending(false);
+    }
+  };
+
+  const handleUploadClientDoc = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !editingId) return;
+    setDocUploading(true);
+    setErrorMsg('');
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('clientId', String(editingId));
+      form.append('docCategory', docCategory);
+      const resp = await fetch('/api/documents/upload', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
+        body: form,
+      });
+      const data = (await resp.json().catch(() => ({}))) as { error?: string };
+      if (!resp.ok) throw new Error(data.error || 'Falha no upload para Cloudflare R2.');
+      setFeedback(`Documento "${file.name}" armazenado com criptografia AES-256-GCM no bucketdainvicta.`);
+      await loadList();
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Erro ao enviar documento.');
+    } finally {
+      setDocUploading(false);
+    }
+  };
+
+  const handlePreviewDoc = async (doc: DocumentObject) => {
+    setPreviewDoc({ doc, blobUrl: '', loading: true });
+    try {
+      const resp = await fetch(`/api/documents/${doc.id}/download`, {
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
+      });
+      if (!resp.ok) throw new Error('Falha ao descriptografar arquivo do bucket.');
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      setPreviewDoc({ doc, blobUrl: url, loading: false });
+    } catch (e) {
+      setPreviewDoc(null);
+      setErrorMsg(e instanceof Error ? e.message : 'Erro ao abrir documento.');
+    }
+  };
+
+  const handleDownloadDoc = async (doc: DocumentObject) => {
+    try {
+      const resp = await fetch(`/api/documents/${doc.id}/download`, {
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
+      });
+      if (!resp.ok) throw new Error('Falha ao baixar documento.');
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = doc.fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : 'Erro ao baixar documento.');
+    }
+  };
+
+  const toggleSort = (k: typeof sortKey) => {
+    if (sortKey === k) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else {
+      setSortKey(k);
+      setSortDir('asc');
+    }
+    setPage(1);
+  };
+
+  return (
+    <div className="space-y-4">
+      {feedback && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-medium text-emerald-900 flex items-center justify-between gap-2">
+          <span>{feedback}</span>
+          <button type="button" onClick={() => setFeedback('')} className="text-emerald-700 hover:text-emerald-950">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+      {errorMsg && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-800 flex items-center justify-between gap-2">
+          <span>{errorMsg}</span>
+          <button type="button" onClick={() => setErrorMsg('')} className="text-red-700 hover:text-red-950">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* ===================================================================
+          GRADE PRINCIPAL (LISTAGEM PAGINADA 50/PÁG)
+         =================================================================== */}
+      {mode === 'list' && (
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h1 className="font-display text-xl font-bold text-slate-900">Cadastros Comuns · Clientes</h1>
+              <p className="text-xs text-slate-500">
+                Pessoas Físicas e Jurídicas utilizadas em Admissões, Atendimentos GoTalk/UaZapi e Cofre R2 ({total} registros)
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => resetForm()}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 whitespace-nowrap"
+            >
+              <Plus className="w-3.5 h-3.5" /> Novo Cliente
+            </button>
+          </div>
+
+          {/* Barra de Busca + Filtros */}
+          <div className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative flex-1 min-w-[220px]">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={qInput}
+                  onChange={(e) => setQInput(e.target.value)}
+                  placeholder="Buscar por nome, código, CPF/CNPJ ou telefone..."
+                  className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-2 text-xs text-slate-800"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowFilters((s) => !s)}
+                className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold ${
+                  showFilters ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <Filter className="w-3.5 h-3.5" />
+                Filtros Avançados
+              </button>
+              <button
+                type="button"
+                onClick={loadList}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                Atualizar
+              </button>
+            </div>
+
+            {showFilters && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 pt-2 border-t border-slate-100 text-xs">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">Natureza</label>
+                  <select
+                    value={filterNature}
+                    onChange={(e) => {
+                      setFilterNature(e.target.value);
+                      setPage(1);
+                    }}
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                  >
+                    <option value="">Todas</option>
+                    <option value="PF">Pessoa Física (PF)</option>
+                    <option value="PJ">Pessoa Jurídica (PJ)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">Status</label>
+                  <select
+                    value={filterStatus}
+                    onChange={(e) => {
+                      setFilterStatus(e.target.value);
+                      setPage(1);
+                    }}
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                  >
+                    <option value="">Todos</option>
+                    <option value="ativo">Ativo</option>
+                    <option value="suspenso">Suspenso</option>
+                    <option value="cancelado">Bloqueado/Cancelado</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">CPF / CNPJ</label>
+                  <input
+                    type="text"
+                    value={filterCpf}
+                    onChange={(e) => {
+                      setFilterCpf(e.target.value);
+                      setPage(1);
+                    }}
+                    placeholder="Somente dígitos ou máscara"
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">Cidade</label>
+                  <input
+                    type="text"
+                    value={filterCity}
+                    onChange={(e) => {
+                      setFilterCity(e.target.value);
+                      setPage(1);
+                    }}
+                    placeholder="Recife..."
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">UF</label>
+                  <select
+                    value={filterState}
+                    onChange={(e) => {
+                      setFilterState(e.target.value);
+                      setPage(1);
+                    }}
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                  >
+                    <option value="">Todas</option>
+                    {BRAZILIAN_UFS.map((uf) => (
+                      <option key={uf} value={uf}>
+                        {uf}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Tabela */}
+          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600">
+                    <th className="py-3 px-4">
+                      <button type="button" onClick={() => toggleSort('fullName')} className="inline-flex items-center gap-1 hover:text-slate-900">
+                        Descrição <ArrowDownUp className="w-3 h-3" />
+                      </button>
+                    </th>
+                    <th className="py-3 px-4">Natureza</th>
+                    <th className="py-3 px-4">
+                      <button type="button" onClick={() => toggleSort('cpfCnpj')} className="inline-flex items-center gap-1 hover:text-slate-900">
+                        CPF / CNPJ <ArrowDownUp className="w-3 h-3" />
+                      </button>
+                    </th>
+                    <th className="py-3 px-4">
+                      <button type="button" onClick={() => toggleSort('phone')} className="inline-flex items-center gap-1 hover:text-slate-900">
+                        Telefone (GoTalk) <ArrowDownUp className="w-3 h-3" />
+                      </button>
+                    </th>
+                    <th className="py-3 px-4">
+                      <button type="button" onClick={() => toggleSort('city')} className="inline-flex items-center gap-1 hover:text-slate-900">
+                        Cidade/UF <ArrowDownUp className="w-3 h-3" />
+                      </button>
+                    </th>
+                    <th className="py-3 px-4 text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {rows.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-slate-500">
+                        {loading ? 'Consultando clientes...' : 'Nenhum cliente localizado para os filtros selecionados.'}
+                      </td>
+                    </tr>
+                  ) : (
+                    rows.map((c) => {
+                      const isBlocked = c.status === 'suspenso' || c.status === 'cancelado';
+                      return (
+                        <tr key={c.id} className="hover:bg-slate-50/70">
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-[10px] text-slate-400">#{c.id}</span>
+                              <span className="font-semibold text-slate-900">{c.fullName}</span>
+                              {isBlocked && (
+                                <span
+                                  title={c.suspensionReason || c.cancelledReason || 'Cliente com restrição'}
+                                  className="inline-flex items-center gap-1 text-[10px] font-bold text-red-700 uppercase"
+                                >
+                                  <Ban className="w-3 h-3" /> {c.status}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-slate-500 mt-0.5">
+                              {c.admissionsCount ? `${c.admissionsCount} admissão(ões)` : 'Sem admissão'} ·{' '}
+                              {c.docsCount ? `${c.docsCount} doc(s) no R2` : 'Sem anexos'}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 font-mono font-semibold text-slate-700">
+                            {c.personNature === 'PJ' ? 'Jurídica (PJ)' : 'Física (PF)'}
+                          </td>
+                          <td className="py-3 px-4 font-mono text-slate-700 whitespace-nowrap">{c.cpfCnpj || '—'}</td>
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            {c.phone ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  resetForm(c, false);
+                                  setFormTab('whatsapp');
+                                }}
+                                title="Abrir conversas GoTalk / UaZapi do cliente"
+                                className="inline-flex items-center gap-1.5 font-mono font-semibold text-emerald-700 hover:underline"
+                              >
+                                <MessageSquare className="w-3.5 h-3.5" />
+                                {c.phone}
+                              </button>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-slate-700 whitespace-nowrap">
+                            {c.city ? `${c.city}/${c.state || '—'}` : '—'}
+                          </td>
+                          <td className="py-3 px-4 text-right whitespace-nowrap">
+                            <div className="inline-flex items-center gap-1">
+                              <button
+                                type="button"
+                                title="Novo Agendamento para este Cliente"
+                                onClick={() => onNavigate('appointments', { clientId: c.id, triggerNew: true })}
+                                className="rounded-md border border-emerald-200 p-1.5 text-emerald-700 hover:bg-emerald-50"
+                              >
+                                <CalendarPlus className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                title="Histórico de Auditoria"
+                                onClick={() => setAuditTarget({ id: c.id, label: c.fullName })}
+                                className="rounded-md border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-100"
+                              >
+                                <History className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                title="Editar Cliente"
+                                onClick={() => resetForm(c, false)}
+                                className="rounded-md border border-slate-200 p-1.5 text-blue-700 hover:bg-blue-50"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                title="Duplicar Cadastro"
+                                onClick={() => resetForm(c, true)}
+                                className="rounded-md border border-slate-200 p-1.5 text-slate-700 hover:bg-slate-100"
+                              >
+                                <Copy className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                title={isBlocked ? 'Administrar Bloqueio/Restrição' : 'Bloquear / Suspender Cliente'}
+                                onClick={() => setBlockTarget(c)}
+                                className={`rounded-md border p-1.5 ${
+                                  isBlocked
+                                    ? 'border-red-300 bg-red-50 text-red-700 hover:bg-red-100'
+                                    : 'border-slate-200 text-amber-700 hover:bg-amber-50'
+                                }`}
+                              >
+                                <Lock className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                title="Excluir Cliente"
+                                onClick={() => setDeleteTarget(c)}
+                                className="rounded-md border border-red-200 p-1.5 text-red-600 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="px-4 py-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
+              <span>
+                Exibindo {rows.length} de {total} clientes (página {page} de {totalPages})
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2.5 py-1 disabled:opacity-40"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" /> Anterior
+                </button>
+                <button
+                  type="button"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2.5 py-1 disabled:opacity-40"
+                >
+                  Próxima <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================
+          FORMULÁRIO INLINE NA PÁGINA COM 3 ABAS (DADOS | WHATSAPP | DOCUMENTOS)
+         =================================================================== */}
+      {mode === 'form' && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => setMode('list')}
+                className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-50"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+              <div>
+                <h1 className="font-display text-xl font-bold text-slate-900">
+                  {editingId ? `Editar Cliente #${editingId}` : 'Novo Cliente'}
+                </h1>
+                <p className="text-xs text-slate-500">
+                  {editingClientObj?.fullName || 'Preencha os dados cadastrais. ViaCEP e bloqueios administrativos integrados.'}
+                </p>
+              </div>
+            </div>
+
+            {editingClientObj && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAuditTarget({ id: editingClientObj.id, label: editingClientObj.fullName })}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  <History className="w-3.5 h-3.5" /> Auditoria
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBlockTarget(editingClientObj)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100"
+                >
+                  <ShieldAlert className="w-3.5 h-3.5" />
+                  {editingClientObj.status === 'ativo' ? 'Suspender / Bloquear' : `Restrição (${editingClientObj.status})`}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {editingClientObj && (editingClientObj.status === 'suspenso' || editingClientObj.status === 'cancelado') && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-900 flex items-center justify-between gap-3">
+              <div>
+                <strong className="uppercase">Cliente com restrição ({editingClientObj.status}):</strong>{' '}
+                {editingClientObj.suspensionReason || editingClientObj.cancelledReason || 'Sem motivo registrado.'}
+              </div>
+              <button
+                type="button"
+                onClick={() => setBlockTarget(editingClientObj)}
+                className="font-bold underline shrink-0"
+              >
+                Administrar Restrição
+              </button>
+            </div>
+          )}
+
+          {/* Abas do Cliente */}
+          <div className="flex flex-wrap items-center gap-1 border-b border-slate-200 bg-white rounded-t-xl px-4 pt-2">
+            {[
+              { id: 'dados', label: 'Dados do Cliente', icon: Pencil, disabled: false },
+              {
+                id: 'whatsapp',
+                label: `Conversas WhatsApp (${waThreads.length})`,
+                icon: MessageSquare,
+                disabled: !editingId,
+              },
+              {
+                id: 'documentos',
+                label: `Documentos R2 (${clientDocs.length})`,
+                icon: FolderOpen,
+                disabled: !editingId,
+              },
+            ].map((t) => {
+              const Icon = t.icon;
+              const active = formTab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  disabled={t.disabled}
+                  onClick={() => setFormTab(t.id as typeof formTab)}
+                  className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors disabled:opacity-40 ${
+                    active ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  {t.label}
+                </button>
+              );
+            })}
+            {!editingId && (
+              <span className="ml-auto text-[11px] text-slate-400 px-2">
+                Salve o cliente para liberar Conversas WhatsApp e Documentos R2
+              </span>
+            )}
+          </div>
+
+          {/* ABA 1: DADOS DO CLIENTE */}
+          {formTab === 'dados' && (
+            <form onSubmit={handleSaveClient} className="space-y-4">
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3.5">
+                  <div className="lg:col-span-2">
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">Código</label>
+                    <input
+                      type="text"
+                      readOnly
+                      value={editingId ? `#${editingId}` : 'Automático'}
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-slate-600"
+                    />
+                  </div>
+                  <div className="lg:col-span-2">
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">Natureza *</label>
+                    <select
+                      value={personNature}
+                      onChange={(e) => {
+                        const next = e.target.value as 'PF' | 'PJ';
+                        setPersonNature(next);
+                        if (cpfCnpj) setCpfCnpj(formatCpfCnpjMask(cpfCnpj, next));
+                      }}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 font-semibold"
+                    >
+                      <option value="PF">Pessoa Física (PF)</option>
+                      <option value="PJ">Pessoa Jurídica (PJ)</option>
+                    </select>
+                  </div>
+                  <div className="lg:col-span-5">
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+                      {personNature === 'PJ' ? 'Razão Social *' : 'Nome Completo *'}
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 font-semibold text-slate-900"
+                    />
+                  </div>
+                  <div className="lg:col-span-3">
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+                      {personNature === 'PJ' ? 'CNPJ' : 'CPF / CNPJ'}
+                    </label>
+                    <input
+                      type="text"
+                      value={cpfCnpj}
+                      onChange={(e) => setCpfCnpj(formatCpfCnpjMask(e.target.value, personNature))}
+                      placeholder={personNature === 'PJ' ? '00.000.000/0001-00' : '000.000.000-00'}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3.5">
+                  <div className="lg:col-span-2">
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">RG</label>
+                    <input
+                      type="text"
+                      disabled={personNature === 'PJ'}
+                      value={personNature === 'PJ' ? '' : rg}
+                      onChange={(e) => setRg(e.target.value)}
+                      placeholder={personNature === 'PJ' ? 'Não aplicável (PJ)' : ''}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono disabled:bg-slate-50"
+                    />
+                  </div>
+                  <div className="lg:col-span-3">
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">Telefone Principal</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={phone}
+                        onChange={(e) => setPhone(formatPhoneMask(e.target.value))}
+                        placeholder="(81) 99999-0000"
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                      />
+                      <label className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 whitespace-nowrap cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={isWhatsapp}
+                          onChange={(e) => setIsWhatsapp(e.target.checked)}
+                        />
+                        Zap
+                      </label>
+                    </div>
+                  </div>
+                  <div className="lg:col-span-3">
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">Telefone Secundário</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={secondaryPhone}
+                        onChange={(e) => setSecondaryPhone(formatPhoneMask(e.target.value))}
+                        placeholder="(81) 3333-0000"
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                      />
+                      <label className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 whitespace-nowrap cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={secondaryIsWhatsapp}
+                          onChange={(e) => setSecondaryIsWhatsapp(e.target.checked)}
+                        />
+                        Zap
+                      </label>
+                    </div>
+                  </div>
+                  <div className="lg:col-span-2">
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">Data de Nascimento</label>
+                    <input
+                      type="date"
+                      disabled={personNature === 'PJ'}
+                      value={personNature === 'PJ' ? '' : birthDate}
+                      onChange={(e) => setBirthDate(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono disabled:bg-slate-50"
+                    />
+                  </div>
+                  <div className="lg:col-span-2">
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">Unidade</label>
+                    <select
+                      value={unitId}
+                      onChange={(e) => setUnitId(Number(e.target.value))}
+                      className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-semibold"
+                    >
+                      {units.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.code} · {u.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3.5">
+                  <div className="lg:col-span-4">
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">E-mail</label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                    />
+                  </div>
+                  <div className="lg:col-span-4">
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">Profissão / Ramo</label>
+                    <input
+                      type="text"
+                      value={profession}
+                      onChange={(e) => setProfession(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                    />
+                  </div>
+                  <div className="lg:col-span-4">
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">Estado Civil</label>
+                    <div className="flex gap-1.5">
+                      <select
+                        disabled={personNature === 'PJ'}
+                        value={personNature === 'PJ' ? '' : maritalStatus}
+                        onChange={(e) => setMaritalStatus(e.target.value)}
+                        className="flex-1 rounded-lg border border-slate-200 px-3 py-2 disabled:bg-slate-50"
+                      >
+                        <option value="">Selecione...</option>
+                        {maritalStatuses.map((opt) => (
+                          <option key={opt} value={opt}>
+                            {opt}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setMaritalModalOpen(true)}
+                        title="Gerenciar opções de Estado Civil"
+                        className="rounded-lg border border-slate-200 px-2.5 py-2 text-slate-600 hover:bg-slate-100"
+                      >
+                        <Settings2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Endereço & ViaCEP */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3.5 pt-2 border-t border-slate-100">
+                  <div className="lg:col-span-3">
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">CEP (ViaCEP)</label>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        value={zipCode}
+                        onChange={(e) => setZipCode(formatCepMask(e.target.value))}
+                        placeholder="50000-000"
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                      />
+                      <button
+                        type="button"
+                        disabled={cepLoading}
+                        onClick={handleLookupCep}
+                        className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-semibold text-slate-700 hover:bg-slate-100 whitespace-nowrap"
+                      >
+                        {cepLoading ? '...' : 'Buscar'}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="lg:col-span-5">
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">Endereço / Logradouro</label>
+                    <input
+                      type="text"
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                    />
+                  </div>
+                  <div className="lg:col-span-2">
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">Número</label>
+                    <input
+                      type="text"
+                      value={addressNumber}
+                      onChange={(e) => setAddressNumber(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                    />
+                  </div>
+                  <div className="lg:col-span-2">
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">Complemento</label>
+                    <input
+                      type="text"
+                      value={complement}
+                      onChange={(e) => setComplement(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                    />
+                  </div>
+                  <div className="lg:col-span-4">
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">Bairro</label>
+                    <input
+                      type="text"
+                      value={neighborhood}
+                      onChange={(e) => setNeighborhood(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                    />
+                  </div>
+                  <div className="lg:col-span-6">
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">Cidade</label>
+                    <input
+                      type="text"
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                    />
+                  </div>
+                  <div className="lg:col-span-2">
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">UF</label>
+                    <select
+                      value={stateUf}
+                      onChange={(e) => setStateUf(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                    >
+                      <option value="">UF</option>
+                      {BRAZILIAN_UFS.map((uf) => (
+                        <option key={uf} value={uf}>
+                          {uf}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">Anotações Internas</label>
+                  <textarea
+                    rows={3}
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Observações de atendimento, preferências de horário ou referências..."
+                    className="w-full rounded-lg border border-slate-200 p-3"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setMode('list')}
+                    className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    Voltar para Grade
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-5 py-2 font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    {saving ? 'Salvando...' : editingId ? 'Salvar Alterações' : 'Cadastrar Cliente'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Vínculos de Admissão */}
+              {editingId && (
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3 text-xs">
+                  <div className="flex items-center justify-between">
+                    <h2 className="font-display text-sm font-bold text-slate-900">
+                      Vínculos em Admissão &amp; Dossiês ({clientAdmissions.length})
+                    </h2>
+                    <button
+                      type="button"
+                      onClick={() => onNavigate('admission', { triggerNew: true })}
+                      className="text-xs font-semibold text-blue-700 hover:underline"
+                    >
+                      + Nova Admissão
+                    </button>
+                  </div>
+                  {clientAdmissions.length === 0 ? (
+                    <p className="text-slate-500 py-2">Este cliente ainda não possui fichas de admissão vinculadas.</p>
+                  ) : (
+                    <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600">
+                            <th className="py-2.5 px-3">Contrato</th>
+                            <th className="py-2.5 px-3">Data</th>
+                            <th className="py-2.5 px-3">Papel</th>
+                            <th className="py-2.5 px-3">Outro Cliente Vinculado</th>
+                            <th className="py-2.5 px-3">Status</th>
+                            <th className="py-2.5 px-3 text-right">Ação</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {clientAdmissions.map((adm) => {
+                            const isResp = adm.clientId === editingId;
+                            const otherId = isResp ? adm.assetOwnerId : adm.clientId;
+                            const otherClient = otherId ? allClients.find((x) => x.id === otherId) : undefined;
+                            return (
+                              <tr key={adm.id} className="hover:bg-slate-50">
+                                <td className="py-2.5 px-3 font-mono font-bold text-slate-900">
+                                  {adm.series || 'ADM'} · {adm.contractNumber}
+                                </td>
+                                <td className="py-2.5 px-3 font-mono text-slate-500">{formatDateBR(adm.createdAt)}</td>
+                                <td className="py-2.5 px-3 font-semibold text-slate-700">
+                                  {isResp ? 'Responsável' : 'Titular'}
+                                </td>
+                                <td className="py-2.5 px-3 text-slate-600">{otherClient?.fullName || '—'}</td>
+                                <td className="py-2.5 px-3 uppercase font-semibold text-slate-700">{adm.status}</td>
+                                <td className="py-2.5 px-3 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => setViewerAdmission(adm)}
+                                    className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2.5 py-1 font-semibold text-blue-700 hover:bg-blue-50"
+                                  >
+                                    <Eye className="w-3 h-3" /> Visualizar
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+            </form>
+          )}
+
+          {/* ABA 2: CONVERSAS WHATSAPP (GOTALK + UAZAPI UNIFICADAS) */}
+          {formTab === 'whatsapp' && editingId && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                <div>
+                  <h2 className="font-display text-sm font-bold text-slate-900">
+                    Conversas WhatsApp · GoTalk &amp; UaZapi
+                  </h2>
+                  <p className="text-[11px] text-slate-500">
+                    Atendimentos associados aos telefones do cliente neste workspace
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={waSyncing}
+                    onClick={handleSyncWhatsapp}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${waSyncing ? 'animate-spin' : ''}`} />
+                    Sincronizar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleStartWhatsapp('gotalk')}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 font-semibold text-white hover:bg-emerald-700"
+                  >
+                    <PhoneCall className="w-3.5 h-3.5" /> Iniciar GoTalk
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleStartWhatsapp('uazapi')}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 font-semibold text-white hover:bg-slate-800"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" /> Iniciar UaZapi
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                <div className="lg:col-span-4 border border-slate-200 rounded-xl divide-y divide-slate-100 max-h-96 overflow-y-auto">
+                  {waLoading ? (
+                    <div className="p-4 text-center text-slate-500">Buscando atendimentos...</div>
+                  ) : waThreads.length === 0 ? (
+                    <div className="p-4 text-center text-slate-500">
+                      Nenhuma conversa vinculada ainda. Clique em Sincronizar ou inicie um canal acima.
+                    </div>
+                  ) : (
+                    waThreads.map((th) => (
+                      <button
+                        key={th.id}
+                        type="button"
+                        onClick={() => setWaSelectedThread(th.id)}
+                        className={`w-full text-left p-3 space-y-1 transition-colors ${
+                          waSelectedThread === th.id ? 'bg-slate-900 text-white' : 'hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-bold uppercase text-[10px]">
+                            {th.provider} {th.instanceLabel ? `· ${th.instanceLabel}` : ''}
+                          </span>
+                          <span className="font-mono text-[10px] opacity-75">{formatDateBR(th.updatedAt)}</span>
+                        </div>
+                        <div className="font-semibold truncate">{th.contactName || th.contactPhone}</div>
+                        <div className="text-[11px] opacity-80 truncate">{th.lastMessagePreview}</div>
+                      </button>
+                    ))
+                  )}
+                </div>
+
+                <div className="lg:col-span-8 border border-slate-200 rounded-xl flex flex-col h-96 bg-slate-50">
+                  <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                    {waMsgs
+                      .filter((m) => waSelectedThread === 'all' || m.threadId === waSelectedThread)
+                      .map((m) => {
+                        const out = m.direction === 'outbound';
+                        return (
+                          <div key={m.id} className={`flex ${out ? 'justify-end' : 'justify-start'}`}>
+                            <div
+                              className={`max-w-[80%] rounded-xl px-3 py-2 space-y-1 ${
+                                out ? 'bg-emerald-600 text-white' : 'bg-white border border-slate-200 text-slate-800'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-3 text-[10px] opacity-80">
+                                <span className="font-bold">{m.senderName}</span>
+                                <span className="font-mono">{formatDateTimeBR(m.createdAt)}</span>
+                              </div>
+                              <p className="whitespace-pre-wrap leading-relaxed">{m.body}</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    {waMsgs.length === 0 && (
+                      <div className="h-full flex items-center justify-center text-slate-400">
+                        Nenhuma mensagem carregada.
+                      </div>
+                    )}
+                  </div>
+                  <form onSubmit={handleSendWaMessage} className="p-2.5 bg-white border-t border-slate-200 flex gap-2">
+                    <input
+                      type="text"
+                      disabled={waSelectedThread === 'all' || waSending}
+                      value={waDraft}
+                      onChange={(e) => setWaDraft(e.target.value)}
+                      placeholder={
+                        waSelectedThread === 'all'
+                          ? 'Selecione uma conversa à esquerda para responder...'
+                          : 'Escreva sua mensagem WhatsApp...'
+                      }
+                      className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-xs disabled:bg-slate-50"
+                    />
+                    <button
+                      type="submit"
+                      disabled={waSelectedThread === 'all' || waSending || !waDraft.trim()}
+                      className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white hover:bg-emerald-700 disabled:opacity-40"
+                    >
+                      <Send className="w-3.5 h-3.5" /> Enviar
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ABA 3: DOCUMENTOS (BUCKET CLOUDFLARE R2 BUCKETDAINVICTA) */}
+          {formTab === 'documentos' && editingId && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                <div>
+                  <h2 className="font-display text-sm font-bold text-slate-900">
+                    Cofre de Documentos do Cliente · bucketdainvicta
+                  </h2>
+                  <p className="text-[11px] text-slate-500">
+                    Todos os anexos ficam armazenados exclusivamente no bucket privado criptografado (AES-256-GCM).
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={docCategory}
+                    onChange={(e) => setDocCategory(e.target.value)}
+                    className="rounded-lg border border-slate-200 px-2.5 py-2 font-semibold"
+                  >
+                    <option value="pessoal">CNH / RG / CPF</option>
+                    <option value="comprovante_residencia">Comprovante Residência</option>
+                    <option value="contrato">Contrato / Financiamento</option>
+                    <option value="procuracao">Procuração</option>
+                    <option value="crlv">CRLV / Veículo</option>
+                    <option value="outros">Outros Anexos</option>
+                  </select>
+                  <label className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 cursor-pointer">
+                    <Upload className="w-3.5 h-3.5" />
+                    {docUploading ? 'Enviando...' : 'Anexar no Bucket R2'}
+                    <input type="file" className="hidden" disabled={docUploading} onChange={handleUploadClientDoc} />
+                  </label>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600">
+                      <th className="py-2.5 px-3">Arquivo</th>
+                      <th className="py-2.5 px-3">Categoria</th>
+                      <th className="py-2.5 px-3">Tamanho</th>
+                      <th className="py-2.5 px-3">Data</th>
+                      <th className="py-2.5 px-3 text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {clientDocs.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-6 text-center text-slate-500">
+                          Nenhum documento anexado para este cliente no bucketdainvicta.
+                        </td>
+                      </tr>
+                    ) : (
+                      clientDocs.map((doc) => (
+                        <tr key={doc.id} className="hover:bg-slate-50">
+                          <td className="py-2.5 px-3">
+                            <div className="font-semibold text-slate-900">{doc.fileName}</div>
+                            <div className="font-mono text-[10px] text-slate-400">{doc.folderPath}</div>
+                          </td>
+                          <td className="py-2.5 px-3 font-medium text-slate-700">{doc.docCategory}</td>
+                          <td className="py-2.5 px-3 font-mono tabular-nums">{formatBytes(doc.sizeBytes)}</td>
+                          <td className="py-2.5 px-3 font-mono text-slate-500">{formatDateBR(doc.createdAt)}</td>
+                          <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                            <div className="inline-flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handlePreviewDoc(doc)}
+                                className="rounded border border-slate-200 p-1.5 text-slate-700 hover:bg-slate-100"
+                                title="Pré-visualizar"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDownloadDoc(doc)}
+                                className="rounded border border-slate-200 p-1.5 text-blue-700 hover:bg-blue-50"
+                                title="Baixar"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  await apiFetch(`/api/documents/${doc.id}`, { method: 'DELETE' });
+                                  setFeedback(`Arquivo "${doc.fileName}" movido para a Lixeira do bucket.`);
+                                  await loadList();
+                                }}
+                                className="rounded border border-red-200 p-1.5 text-red-600 hover:bg-red-50"
+                                title="Mover para lixeira"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* MODAIS DE APOIO */}
+      <EntityAuditModal
+        open={Boolean(auditTarget)}
+        title={auditTarget?.label || ''}
+        entityType="client"
+        entityId={auditTarget?.id || 0}
+        onClose={() => setAuditTarget(null)}
+      />
+
+      <BlockClientModal
+        open={Boolean(blockTarget)}
+        client={blockTarget}
+        isAdmin={currentUser.role === 'admin'}
+        onClose={() => setBlockTarget(null)}
+        onUpdated={(updated) => {
+          setFeedback(`Status de "${updated.fullName}" alterado para ${updated.status.toUpperCase()}.`);
+          if (editingId === updated.id) {
+            setEditingClientObj({ ...editingClientObj, ...updated });
+          }
+          loadList();
+          onCatalogUpdated?.();
+        }}
+      />
+
+      <MaritalStatusModal
+        open={maritalModalOpen}
+        options={maritalStatuses}
+        onClose={() => setMaritalModalOpen(false)}
+        onUpdated={(next) => {
+          onMaritalStatusesChange(next);
+          onCatalogUpdated?.();
+        }}
+      />
+
+      <DeleteClientModal
+        open={Boolean(deleteTarget)}
+        client={deleteTarget}
+        clientDocs={deleteTarget ? allDocs.filter((d) => d.clientId === deleteTarget.id) : []}
+        onClose={() => setDeleteTarget(null)}
+        onGoToDocs={() => {
+          if (deleteTarget) {
+            resetForm(deleteTarget, false);
+            setFormTab('documentos');
+          }
+        }}
+        onDeleted={() => {
+          setFeedback('Cliente excluído com sucesso.');
+          loadList();
+          onCatalogUpdated?.();
+        }}
+      />
+
+      <AdmissionQuickViewerModal
+        open={Boolean(viewerAdmission)}
+        admission={viewerAdmission}
+        units={units}
+        clients={allClients}
+        onClose={() => setViewerAdmission(null)}
+        onOpenInAdmissionModule={(admissionId) => onNavigate('admission', { admissionId })}
+      />
+
+      {previewDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4">
+          <div className="w-full max-w-4xl rounded-2xl bg-white p-5 shadow-2xl space-y-3 text-xs max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div className="font-display text-sm font-bold text-slate-900 truncate">{previewDoc.doc.fileName}</div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (previewDoc.blobUrl) URL.revokeObjectURL(previewDoc.blobUrl);
+                  setPreviewDoc(null);
+                }}
+                className="rounded-lg border border-slate-200 p-1.5 text-slate-500 hover:text-slate-900"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 min-h-[380px] rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden">
+              {previewDoc.loading ? (
+                <div className="text-slate-500">Descriptografando objeto do bucketdainvicta...</div>
+              ) : previewDoc.doc.mimeType.startsWith('image/') ? (
+                <img src={previewDoc.blobUrl} alt={previewDoc.doc.fileName} className="max-h-[70vh] object-contain" />
+              ) : (
+                <iframe title={previewDoc.doc.fileName} src={previewDoc.blobUrl} className="w-full h-[68vh] border-0" />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};

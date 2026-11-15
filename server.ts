@@ -1,0 +1,7593 @@
+import 'dotenv/config';
+import express from 'express';
+import http from 'node:http';
+import path from 'node:path';
+import fs from 'node:fs';
+import crypto from 'node:crypto';
+import multer from 'multer';
+import { WebSocketServer, WebSocket } from 'ws';
+import { createServer as createViteServer } from 'vite';
+import { db, pool } from './src/db/index.ts';
+import {
+  units,
+  userGroups,
+  users,
+  workSchedules,
+  customFields,
+  clients,
+  clientAssetLinks,
+  admissions,
+  documentObjects,
+  prospectionLeads,
+  iviKnowledgeArticles,
+  appointments,
+  legalProcesses,
+  legalMovements,
+  negotiations,
+  paymentCategories,
+  financialTitles,
+  collectionCases,
+  bearers,
+  documentTypes,
+  chartOfAccounts,
+  bankAccounts,
+  bankMovements,
+  unitWhatsappCredentials,
+  whatsappThreads,
+  whatsappMessages,
+  gotalkChannels,
+  gotalkOperators,
+  gotalkHsmTemplates,
+  internalMessages,
+  systemSettings,
+  auditLogs,
+  recalcScenarios,
+  scheduleBlocks,
+  collaborators,
+  whatsappCallLogs,
+  communicationArchives,
+  type AdmissionScenarioCol,
+  type AuditCritiqueRound,
+} from './src/db/schema.ts';
+import { fillDocxTemplateBuffer, generateAdmissionDocx } from './src/services/docx.ts';
+import { ensureCommonCadastrosSeed, ensureInitialSeed } from './src/db/seed.ts';
+import { registerCadastrosRoutes, syncFebrabanBanksFromBrasilApi } from './src/routes/cadastrosRoutes.ts';
+import { registerConfigRoutes } from './src/routes/configRoutes.ts';
+import { registerAppointmentsRoutes } from './src/routes/appointmentsRoutes.ts';
+import { registerFinancialRoutes } from './src/routes/financialRoutes.ts';
+import { registerAuditRoutes } from './src/routes/auditRoutes.ts';
+import { registerCollectionRoutes } from './src/routes/collectionRoutes.ts';
+import { registerCollectionTasksRoutes } from './src/routes/collectionTasksRoutes.ts';
+import { registerManagerialRoutes } from './src/routes/managerialRoutes.ts';
+import { syncClientLegalAndEscavadorStatus } from './src/services/legalSync.ts';
+import {
+  AuthRequest,
+  checkUserScheduleWindow,
+  hashPassword,
+  normalizeModulePermissions,
+  requireAdmin,
+  requireAuth,
+  requireModule,
+  signCorporateToken,
+  verifyPassword,
+} from './src/middleware/auth.ts';
+import {
+  getIviChainConfig,
+  iviDraftCollectionMessage,
+  iviRespondProspection,
+  iviSummarizeConversation,
+  iviTranscribeAudioNote,
+  iviTranslateLegalDispatch,
+  runIviOrchestrator,
+} from './src/services/ivi.ts';
+import {
+  authenticate as authenticateGotalk,
+  fetchGotalkAllChannels,
+  fetchGotalkHsmTemplates,
+  fetchGotalkOperators,
+  getGotalkStatus,
+  markGotalkWebhookReceived,
+  normalizePhone,
+  parseAckValue,
+  phonesMatchBR,
+  runGotalkPostmanParityProbe,
+  sendGotalkActiveNotification,
+  sendGotalkFile,
+  sendGotalkMessage,
+  sendGotalkTemplateByName,
+  timingSafeEqualStr,
+  toGotalkPhone,
+} from './src/services/gotalk.ts';
+import {
+  connectUazapiInstance,
+  DEFAULT_UAZAPI_SERVER_URL,
+  decryptUazapiToken,
+  disconnectUazapiInstance,
+  encryptUazapiToken,
+  fetchUazapiInstancesWithAdminToken,
+  findUazapiChats,
+  findUazapiMessages,
+  getEnvUazapiCredentials,
+  getUazapiGlobalRuntimeState,
+  getUazapiInstanceStatus,
+  getUazapiWebhookConfig,
+  makeUazapiCall,
+  markUazapiWebhookReceived,
+  registerUazapiWebhook,
+  sendUazapiMedia,
+  sendUazapiText,
+  terminateUazapiCall,
+  UazapiCredentials,
+} from './src/services/uazapi.ts';
+import {
+  canPreviewInline,
+  deletePhysicalBucketObjectIfUnreferenced,
+  getBucketObjectBuffer,
+  getBucketRuntimeStats,
+  putBucketObject,
+  sanitizeFileName,
+  tryProvisionCloudBucket,
+  validateUploadFile,
+} from './src/services/bucketStorage.ts';
+import { and, asc, count, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 },
+});
+
+const CAPTCHA_SECRET = crypto
+  .createHash('sha256')
+  .update(process.env.SQL_PASSWORD || 'financepro-captcha-secret')
+  .digest('hex');
+
+interface CaptchaChallenge {
+  id: string;
+  mathQuestion: string;
+  mathAnswer: number;
+  imagePrompt: string;
+  targetCategory: string;
+  tiles: Array<{ id: string; category: string; label: string }>;
+  exp: number;
+}
+
+const IMAGE_CATEGORIES = [
+  { category: 'veiculo', prompt: 'Selecione todos os blocos de VEÍCULO', labels: ['Veículo Sedan', 'Veículo SUV', 'Pickup'] },
+  { category: 'contrato', prompt: 'Selecione todos os blocos de CONTRATO', labels: ['Contrato PDF', 'Procuração', 'Aditivo'] },
+  { category: 'seguranca', prompt: 'Selecione todos os blocos de SEGURANÇA', labels: ['Cadeado', 'Chave Digital', 'Escudo'] },
+  { category: 'banco', prompt: 'Selecione todos os blocos de BANCO / BOLETO', labels: ['Banco Central', 'Boleto', 'Cofre'] },
+];
+
+function createCaptchaChallenge(): { token: string; mathQuestion: string; imagePrompt: string; tiles: Array<{ id: string; category: string; label: string }> } {
+  const a = Math.floor(Math.random() * 14) + 4;
+  const b = Math.floor(Math.random() * 9) + 2;
+  const targetIdx = Math.floor(Math.random() * IMAGE_CATEGORIES.length);
+  const target = IMAGE_CATEGORIES[targetIdx];
+  const others = IMAGE_CATEGORIES.filter((_, i) => i !== targetIdx);
+
+  const tiles = [
+    { id: 't1', category: target.category, label: target.labels[0] },
+    { id: 't2', category: target.category, label: target.labels[1] },
+    { id: 't3', category: others[0].category, label: others[0].labels[0] },
+    { id: 't4', category: others[1].category, label: others[1].labels[0] },
+    { id: 't5', category: others[2].category, label: others[2].labels[1] },
+    { id: 't6', category: others[0].category, label: others[0].labels[2] },
+  ].sort(() => Math.random() - 0.5);
+
+  const challenge: CaptchaChallenge = {
+    id: crypto.randomUUID(),
+    mathQuestion: `${a} + ${b} = ?`,
+    mathAnswer: a + b,
+    imagePrompt: target.prompt,
+    targetCategory: target.category,
+    tiles,
+    exp: Date.now() + 10 * 60 * 1000,
+  };
+
+  const payload = Buffer.from(JSON.stringify(challenge)).toString('base64url');
+  const sig = crypto.createHmac('sha256', CAPTCHA_SECRET).update(payload).digest('base64url');
+  return {
+    token: `${payload}.${sig}`,
+    mathQuestion: challenge.mathQuestion,
+    imagePrompt: challenge.imagePrompt,
+    tiles,
+  };
+}
+
+function verifyCaptchaChallenge(token: string, mathInput: string, selectedTileIds: string[]): { ok: boolean; error?: string } {
+  if (!token || !token.includes('.')) return { ok: false, error: 'Desafio CAPTCHA ausente.' };
+  const [payload, sig] = token.split('.');
+  const expected = crypto.createHmac('sha256', CAPTCHA_SECRET).update(payload).digest('base64url');
+  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
+    return { ok: false, error: 'Token CAPTCHA inválido.' };
+  }
+  const challenge = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as CaptchaChallenge;
+  if (challenge.exp < Date.now()) return { ok: false, error: 'CAPTCHA expirado. Atualize o desafio.' };
+  if (Number(mathInput) !== challenge.mathAnswer) {
+    return { ok: false, error: 'Resposta do CAPTCHA matemático incorreta.' };
+  }
+  const expectedIds = challenge.tiles.filter((t) => t.category === challenge.targetCategory).map((t) => t.id).sort();
+  const receivedIds = [...new Set(selectedTileIds)].sort();
+  if (expectedIds.length !== receivedIds.length || expectedIds.some((id, idx) => id !== receivedIds[idx])) {
+    return { ok: false, error: 'Seleção do CAPTCHA de imagens incorreta.' };
+  }
+  return { ok: true };
+}
+
+async function startServer() {
+  const app = express();
+  const server = http.createServer(app);
+  const wss = new WebSocketServer({ noServer: true });
+  server.on('upgrade', (request, socket, head) => {
+    const pathname = new URL(request.url || '/', 'http://localhost').pathname;
+    if (pathname === '/ws') {
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        wss.emit('connection', ws, request);
+      });
+    }
+  });
+
+  const broadcast = (event: string, payload: unknown) => {
+    const msg = JSON.stringify({ event, payload, ts: Date.now() });
+    wss.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(msg);
+      }
+    });
+  };
+
+  wss.on('connection', (ws) => {
+    ws.send(JSON.stringify({ event: 'connected', payload: { status: 'online' } }));
+  });
+
+  app.use(express.json({ limit: '15mb' }));
+
+  // Public health check
+  app.get('/api/health', (_req, res) => {
+    res.json({ status: 'ok', service: 'FinancePro Assessoria' });
+  });
+
+  // Public CAPTCHA endpoint
+  app.get('/api/auth/captcha', (_req, res) => {
+    res.json(createCaptchaChallenge());
+  });
+
+  // Public Corporate Login (Email + Password + Math CAPTCHA + Image CAPTCHA + Schedule Enforcement)
+  app.post('/api/auth/login', async (req, res) => {
+    try {
+      await ensureInitialSeed();
+      const { email, password, captchaToken, mathAnswer, selectedTiles } = req.body as {
+        email: string;
+        password: string;
+        captchaToken: string;
+        mathAnswer: string;
+        selectedTiles: string[];
+      };
+
+      const cap = verifyCaptchaChallenge(captchaToken, mathAnswer, selectedTiles || []);
+      if (!cap.ok) {
+        return res.status(400).json({ error: cap.error });
+      }
+
+      const rows = await db.select().from(users).where(eq(users.email, (email || '').trim().toLowerCase())).limit(1);
+      const user = rows[0];
+      if (!user || !user.active) {
+        return res.status(401).json({ error: 'E-mail não cadastrado ou usuário inativo.' });
+      }
+
+      if (user.lockedUntil && new Date(user.lockedUntil).getTime() > Date.now()) {
+        const minsLeft = Math.max(1, Math.ceil((new Date(user.lockedUntil).getTime() - Date.now()) / 60000));
+        return res.status(423).json({
+          error: `Conta temporariamente bloqueada por tentativas inválidas. Aguarde ${minsLeft} min ou use "Esqueci a senha".`,
+        });
+      }
+
+      const matchesPassword = verifyPassword(password || '', user.passwordHash);
+      const matchesTemp = Boolean(user.tempPassword && password === user.tempPassword);
+      if (!matchesPassword && !matchesTemp) {
+        const nextAttempts = (user.failedLoginAttempts || 0) + 1;
+        const lockUntil = nextAttempts >= 5 ? new Date(Date.now() + 15 * 60 * 1000) : null;
+        await db
+          .update(users)
+          .set({ failedLoginAttempts: nextAttempts, ...(lockUntil ? { lockedUntil: lockUntil } : {}) })
+          .where(eq(users.id, user.id));
+        return res.status(401).json({
+          error: lockUntil
+            ? 'Limite de 5 tentativas atingido. Conta bloqueada por 15 minutos.'
+            : `Senha incorreta. Tentativa ${nextAttempts}/5.`,
+        });
+      }
+
+      const scheduleCheck = await checkUserScheduleWindow(user, user.defaultUnitId || 1);
+      if (!scheduleCheck.allowed) {
+        return res.status(403).json({ error: scheduleCheck.message });
+      }
+
+      if (user.failedLoginAttempts > 0 || user.lockedUntil) {
+        await db
+          .update(users)
+          .set({ failedLoginAttempts: 0, lockedUntil: null })
+          .where(eq(users.id, user.id));
+      }
+
+      const token = signCorporateToken({
+        userId: user.id,
+        uid: user.uid,
+        email: user.email,
+        role: user.role,
+        sessionVersion: user.sessionVersion || 1,
+      });
+
+      await db.insert(auditLogs).values({
+        userId: user.id,
+        userName: user.name,
+        action: 'LOGIN_CORPORATIVO',
+        entityType: 'user',
+        entityId: String(user.id),
+        details: { method: matchesTemp ? 'temp_password' : 'password_dual_captcha' },
+        unitId: user.defaultUnitId,
+      });
+
+      res.json({
+        token,
+        user: {
+          id: user.id,
+          uid: user.uid,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          groupId: user.groupId,
+          defaultUnitId: user.defaultUnitId,
+          allowedUnitIds: user.allowedUnitIds,
+          mustChangePassword: user.mustChangePassword || matchesTemp,
+          points: user.points,
+        },
+      });
+    } catch (error) {
+      console.error('Login failed:', error);
+      res.status(500).json({ error: 'Falha interna ao autenticar.' });
+    }
+  });
+
+  // Public Forgot Password (generates temp password, dispatches email log + Admin WhatsApp notification)
+  app.post('/api/auth/forgot-password', async (req, res) => {
+    try {
+      await ensureInitialSeed();
+      const { email } = req.body as { email: string };
+      const cleanEmail = (email || '').trim().toLowerCase();
+      const rows = await db.select().from(users).where(eq(users.email, cleanEmail)).limit(1);
+      const targetUser = rows[0];
+      if (!targetUser) {
+        return res.status(404).json({ error: 'E-mail não localizado no cadastro de colaboradores.' });
+      }
+
+      const tempPassword = `FP-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+      await db
+        .update(users)
+        .set({ tempPassword, mustChangePassword: true })
+        .where(eq(users.id, targetUser.id));
+
+      // Notify Admin via Internal Message + WhatsApp Thread log
+      const admins = await db.select().from(users).where(eq(users.role, 'admin'));
+      const adminTarget = admins[0];
+      const alertText = `[ALERTA SEGURANÇA] Colaborador ${targetUser.name} (${targetUser.email}) solicitou redefinição de senha em ${new Date().toLocaleString('pt-BR')}.`;
+
+      if (adminTarget) {
+        await db.insert(internalMessages).values({
+          senderId: targetUser.id,
+          senderName: 'Segurança FinancePro',
+          recipientId: adminTarget.id,
+          targetSector: 'administracao',
+          subject: 'Solicitação de Esqueci a Senha',
+          body: alertText,
+        });
+      }
+
+      const threads = await db.select().from(whatsappThreads).limit(1);
+      if (threads[0]) {
+        await db.insert(whatsappMessages).values({
+          threadId: threads[0].id,
+          direction: 'outbound',
+          contentType: 'text',
+          body: `[WhatsApp Admin ${adminTarget?.whatsappPhone || '5581999990001'}] ${alertText}`,
+          senderName: 'Ivi Segurança',
+        });
+      }
+
+      await db.insert(auditLogs).values({
+        userId: targetUser.id,
+        userName: targetUser.name,
+        action: 'FORGOT_PASSWORD_REQUEST',
+        entityType: 'user',
+        entityId: String(targetUser.id),
+        details: { emailDispatchedTo: targetUser.email, adminWhatsappNotified: adminTarget?.whatsappPhone || '5581999990001' },
+      });
+
+      broadcast('internal:message', { subject: 'Solicitação de Esqueci a Senha', body: alertText });
+
+      res.json({
+        message: `Senha temporária enviada para ${targetUser.email}. O administrador foi notificado via WhatsApp (${adminTarget?.whatsappPhone || '5581999990001'}).`,
+        demoTempPasswordPreview: tempPassword,
+      });
+    } catch (error) {
+      console.error('Forgot password error:', error);
+      res.status(500).json({ error: 'Falha ao processar recuperação de senha.' });
+    }
+  });
+
+  // Protected: Change password (required after temp password login)
+  app.post('/api/auth/change-password', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const { newPassword } = req.body as { newPassword: string };
+      if (!newPassword || newPassword.length < 6) {
+        return res.status(400).json({ error: 'A nova senha deve ter pelo menos 6 caracteres.' });
+      }
+      await db
+        .update(users)
+        .set({
+          passwordHash: hashPassword(newPassword),
+          tempPassword: null,
+          mustChangePassword: false,
+          sessionVersion: sql`${users.sessionVersion} + 1`,
+        })
+        .where(eq(users.id, req.authUser!.id));
+      res.json({ ok: true });
+    } catch (error) {
+      console.error('Change password error:', error);
+      res.status(500).json({ error: 'Erro ao atualizar senha.' });
+    }
+  });
+
+  // Protected: Current session + allowed units + group permissions
+  app.get('/api/auth/me', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      await ensureInitialSeed();
+      const allUnits = await db.select().from(units).orderBy(units.id);
+      const allowedUnits =
+        req.authUser!.role === 'admin'
+          ? allUnits
+          : allUnits.filter((u) => req.authUser!.allowedUnitIds.includes(u.id));
+      const groups = req.authUser!.groupId
+        ? await db.select().from(userGroups).where(eq(userGroups.id, req.authUser!.groupId))
+        : [];
+      const group = groups[0]
+        ? { ...groups[0], modulePermissions: normalizeModulePermissions(groups[0].modulePermissions) }
+        : null;
+      res.json({
+        user: req.authUser,
+        activeUnitId: req.activeUnitId,
+        units: allowedUnits,
+        allUnits,
+        group,
+      });
+    } catch (error) {
+      console.error('Auth me error:', error);
+      res.status(500).json({ error: 'Erro ao carregar perfil.' });
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // LOOKUPS EXTERNOS (ViaCEP & BrasilAPI / FEBRABAN) - PRD Seção 8
+  // ---------------------------------------------------------------------------
+  app.get('/api/lookup/cep/:cep', requireAuth, async (req: AuthRequest, res) => {
+    const cleanCep = (req.params.cep || '').replace(/\D/g, '');
+    if (cleanCep.length !== 8) {
+      return res.status(400).json({ error: 'CEP deve conter 8 dígitos.' });
+    }
+    try {
+      const resp = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`, {
+        signal: AbortSignal.timeout(5000),
+      });
+      const data = (await resp.json()) as { erro?: boolean; logradouro?: string; bairro?: string; localidade?: string; uf?: string; cep?: string };
+      if (data.erro) return res.status(404).json({ error: 'CEP não localizado na base ViaCEP.' });
+      res.json({
+        cep: data.cep || cleanCep,
+        address: [data.logradouro, data.bairro].filter(Boolean).join(' - '),
+        city: data.localidade || '',
+        state: data.uf || '',
+      });
+    } catch {
+      res.status(502).json({ error: 'Serviço ViaCEP indisponível no momento.' });
+    }
+  });
+
+  app.get('/api/lookup/banks', requireAuth, async (_req: AuthRequest, res) => {
+    const fallbackBanks = [
+      { code: 33, name: 'Banco Santander (Brasil) S.A.' },
+      { code: 655, name: 'Banco Votorantim / BV Financeira' },
+      { code: 341, name: 'Itaú Unibanco / Itaucard' },
+      { code: 237, name: 'Banco Bradesco Financiamentos' },
+      { code: 1, name: 'Banco do Brasil S.A.' },
+      { code: 104, name: 'Caixa Econômica Federal' },
+      { code: 623, name: 'Banco Pan S.A.' },
+      { code: 336, name: 'Banco C6 S.A.' },
+      { code: 260, name: 'Nu Pagamentos S.A. (Nubank)' },
+      { code: 403, name: 'Cora SCD S.A.' },
+    ];
+    try {
+      const resp = await fetch('https://brasilapi.com.br/api/banks/v1', {
+        signal: AbortSignal.timeout(4000),
+      });
+      if (!resp.ok) return res.json({ banks: fallbackBanks, source: 'febraban_cache' });
+      const raw = (await resp.json()) as Array<{ code: number | null; name: string; fullName?: string }>;
+      const banks = raw
+        .filter((b) => b.code && b.name)
+        .slice(0, 80)
+        .map((b) => ({ code: b.code!, name: b.fullName || b.name }));
+      res.json({ banks: banks.length ? banks : fallbackBanks, source: 'brasilapi' });
+    } catch {
+      res.json({ banks: fallbackBanks, source: 'febraban_cache' });
+    }
+  });
+
+  // Protected: Bootstrap / Overview Dashboard
+  app.get('/api/overview', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      await ensureInitialSeed();
+      const [allUnits, allClients, allAdmissions, allLeads, allAppointments, allProcesses, allNegotiations, allTitles, allCases, allDocs, allUsers, allMsgs] =
+        await Promise.all([
+          db.select().from(units).orderBy(units.id),
+          db.select().from(clients).orderBy(desc(clients.id)),
+          db.select().from(admissions).orderBy(desc(admissions.id)),
+          db.select().from(prospectionLeads).orderBy(desc(prospectionLeads.id)),
+          db.select().from(appointments).orderBy(desc(appointments.scheduledFor)),
+          db.select().from(legalProcesses).orderBy(desc(legalProcesses.id)),
+          db.select().from(negotiations).orderBy(desc(negotiations.id)),
+          db.select().from(financialTitles).orderBy(desc(financialTitles.dueDate)),
+          db.select().from(collectionCases).orderBy(desc(collectionCases.id)),
+          db.select().from(documentObjects).orderBy(desc(documentObjects.id)),
+          db.select({ id: users.id, name: users.name, email: users.email, role: users.role, points: users.points, defaultUnitId: users.defaultUnitId }).from(users),
+          db.select().from(internalMessages).orderBy(desc(internalMessages.id)).limit(15),
+        ]);
+
+      res.json({
+        units: allUnits,
+        clientsCount: allClients.length,
+        admissions: allAdmissions,
+        leads: allLeads,
+        appointments: allAppointments,
+        processes: allProcesses,
+        negotiations: allNegotiations,
+        titles: allTitles,
+        collectionCases: allCases,
+        documentsCount: allDocs.length,
+        totalVaultBytes: allDocs.reduce((acc, d) => acc + Number(d.sizeBytes || 0), 0),
+        collaborators: allUsers,
+        internalMessages: allMsgs,
+      });
+    } catch (error) {
+      console.error('Overview error:', error);
+      res.status(500).json({ error: 'Erro ao carregar resumo executivo.' });
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // 1. PROSPECÇÃO, AGENDA & BLOQUEIOS (schedule_blocks) + IVI
+  // ---------------------------------------------------------------------------
+  function formatPhoneWithPlus55(raw: string): string {
+    const trimmed = String(raw || '').trim();
+    const digits = trimmed.replace(/\D/g, '');
+    if (!digits) return '+55 ';
+    const local = digits.startsWith('55') && digits.length >= 12 ? digits.slice(2) : digits;
+    if (local.length === 11) {
+      return `+55 (${local.slice(0, 2)}) ${local.slice(2, 7)}-${local.slice(7)}`;
+    }
+    if (local.length === 10) {
+      return `+55 (${local.slice(0, 2)}) ${local.slice(2, 6)}-${local.slice(6)}`;
+    }
+    return `+55 ${local}`;
+  }
+
+  function parseDataUriBuffer(dataUri: string, defaultMime = 'audio/webm'): { buffer: Buffer; mimeType: string } | null {
+    const m = /^data:([^;,]+)?;base64,(.+)$/i.exec(String(dataUri || '').trim());
+    if (!m) return null;
+    try {
+      const mimeType = m[1] || defaultMime;
+      const buffer = Buffer.from(m[2], 'base64');
+      if (!buffer.length) return null;
+      return { buffer, mimeType };
+    } catch {
+      return null;
+    }
+  }
+
+  async function downloadMediaToBucket(
+    url: string,
+    opts: { folderPath: string; fileName: string; fallbackMime: string; headers?: Record<string, string> }
+  ): Promise<{
+    sha256Hash: string;
+    storageUri: string;
+    mimeType: string;
+    sizeBytes: number;
+    dataUri: string;
+  } | null> {
+    if (!url || !/^https?:\/\//i.test(url)) return null;
+    try {
+      const resp = await fetch(url, {
+        headers: opts.headers,
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!resp.ok) return null;
+      const arr = await resp.arrayBuffer();
+      const buffer = Buffer.from(arr);
+      if (!buffer.length || buffer.length > 25 * 1024 * 1024) return null;
+      const mimeType = (resp.headers.get('content-type') || opts.fallbackMime).split(';')[0].trim();
+      const stored = await putBucketObject(buffer, {
+        folderPath: opts.folderPath,
+        mimeType,
+        originalName: sanitizeFileName(opts.fileName),
+      });
+      return {
+        sha256Hash: stored.sha256Hash,
+        storageUri: stored.storageUri,
+        mimeType,
+        sizeBytes: stored.sizeBytes,
+        dataUri: `data:${mimeType};base64,${buffer.toString('base64')}`,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  async function archiveLeadConversationSnapshot(
+    leadId: number,
+    providerOverride?: string,
+    actorName = 'Sistema'
+  ): Promise<{ archive: typeof communicationArchives.$inferSelect; lead: typeof prospectionLeads.$inferSelect } | null> {
+    const leadRows = await db.select().from(prospectionLeads).where(eq(prospectionLeads.id, leadId)).limit(1);
+    const lead = leadRows[0];
+    if (!lead) return null;
+
+    const callRows = await db
+      .select()
+      .from(whatsappCallLogs)
+      .where(eq(whatsappCallLogs.leadId, lead.id))
+      .orderBy(desc(whatsappCallLogs.createdAt));
+
+    const threadRows = lead.primaryThreadId
+      ? await db
+          .select()
+          .from(whatsappMessages)
+          .where(eq(whatsappMessages.threadId, lead.primaryThreadId))
+          .orderBy(whatsappMessages.createdAt)
+      : [];
+
+    const snapshotObj = {
+      schemaVersion: '1.0',
+      archivedAt: new Date().toISOString(),
+      archivedBy: actorName,
+      lead: {
+        id: lead.id,
+        name: lead.name,
+        phone: lead.phone,
+        channel: lead.channel,
+        stage: lead.stage,
+        unitId: lead.unitId,
+        summaryText: lead.summaryText,
+        summaryAuthor: lead.summaryAuthor,
+        summaryUpdatedAt: lead.summaryUpdatedAt,
+      },
+      timeline: lead.aiTranscript || [],
+      callLogs: callRows,
+      whatsappMessages: threadRows,
+    };
+
+    const jsonBuffer = Buffer.from(JSON.stringify(snapshotObj, null, 2), 'utf8');
+    const fileName = `conversa-lead-${lead.id}-${Date.now()}.json`;
+    const stored = await putBucketObject(jsonBuffer, {
+      folderPath: `bucketdainvicta/U${lead.unitId}/CONVERSATIONS/L${lead.id}`,
+      mimeType: 'application/json',
+      originalName: fileName,
+    });
+
+    const provider =
+      providerOverride ||
+      (lead.channel === 'whatsapp_uazapi'
+        ? 'uazapi'
+        : lead.channel === 'whatsapp_gotalk'
+        ? 'gotalk'
+        : 'telefone');
+
+    const [archive] = await db
+      .insert(communicationArchives)
+      .values({
+        unitId: lead.unitId,
+        leadId: lead.id,
+        threadId: lead.primaryThreadId ?? null,
+        callLogId: callRows[0]?.id ?? null,
+        provider,
+        archiveType: 'conversation_snapshot',
+        contactName: lead.name || 'Cliente WhatsApp',
+        contactPhone: lead.phone,
+        fileName,
+        mimeType: 'application/json',
+        sizeBytes: stored.sizeBytes,
+        sha256Hash: stored.sha256Hash,
+        storageUri: stored.storageUri,
+        transcriptText: lead.summaryText || '',
+        createdByName: actorName,
+      })
+      .returning();
+
+    const [updatedLead] = await db
+      .update(prospectionLeads)
+      .set({
+        lastArchiveSha256: stored.sha256Hash,
+        lastArchiveAt: new Date(),
+      })
+      .where(eq(prospectionLeads.id, lead.id))
+      .returning();
+
+    return { archive, lead: updatedLead || lead };
+  }
+
+  async function mirrorCommunicationToProspection(params: {
+    unitId: number;
+    phone: string;
+    contactName: string;
+    channel: 'whatsapp_gotalk' | 'whatsapp_uazapi' | 'telefone';
+    provider: 'gotalk' | 'uazapi' | 'telefone';
+    threadId?: number | null;
+    direction: 'inbound' | 'outbound';
+    contentType: 'text' | 'audio' | 'image' | 'document' | 'call';
+    body: string;
+    audioTranscript?: string | null;
+    authorName?: string;
+    externalMessageId?: string | null;
+    callId?: string | null;
+    mediaSha256?: string | null;
+    mediaStorageUri?: string | null;
+    mediaMimeType?: string | null;
+    mediaFileName?: string | null;
+    timestamp?: Date;
+    triggerIviAutoSummarize?: boolean;
+  }): Promise<typeof prospectionLeads.$inferSelect | null> {
+    try {
+      const allLeads = await db.select().from(prospectionLeads);
+      let lead =
+        (params.threadId && allLeads.find((l) => l.primaryThreadId === params.threadId)) ||
+        allLeads.find((l) => phonesMatchBR(l.phone, params.phone));
+
+      const rawNameClean = String(params.contactName || '').trim();
+      const nameIsDigitsOnly =
+        !rawNameClean || rawNameClean.replace(/\D/g, '').length >= 8 && rawNameClean.replace(/[\s()+-]/g, '') === rawNameClean.replace(/\D/g, '');
+      const formattedPhone = formatPhoneWithPlus55(params.phone);
+
+      const newItem = {
+        sender: params.direction === 'inbound' ? 'cliente' : 'operador',
+        text: params.body || `[${params.contentType.toUpperCase()}]`,
+        provider: params.provider,
+        type: (params.contentType === 'audio' ? 'audio' : params.contentType === 'call' ? 'call' : 'text') as 'text' | 'audio' | 'call',
+        audioTranscript: params.audioTranscript || undefined,
+        authorName: params.authorName || undefined,
+        callId: params.callId || undefined,
+        mediaSha256: params.mediaSha256 || undefined,
+        mediaStorageUri: params.mediaStorageUri || undefined,
+        mediaMimeType: params.mediaMimeType || undefined,
+        mediaFileName: params.mediaFileName || undefined,
+        sourceProvider: params.provider,
+        externalMessageId: params.externalMessageId || undefined,
+        timestamp: (params.timestamp || new Date()).toISOString(),
+      };
+
+      if (!lead) {
+        const initialTranscript = [newItem];
+        let summaryText = '';
+        let summaryAuthor = '';
+        let summaryUpdatedAt: Date | null = null;
+        if (params.triggerIviAutoSummarize !== false && params.contentType !== 'call') {
+          const sumRes = await iviSummarizeConversation({
+            leadName: nameIsDigitsOnly ? 'Cliente WhatsApp' : rawNameClean,
+            channel: params.channel,
+            transcript: initialTranscript,
+          });
+          summaryText = sumRes.summary;
+          summaryAuthor = 'Ivi IA';
+          summaryUpdatedAt = new Date();
+        }
+        const [created] = await db
+          .insert(prospectionLeads)
+          .values({
+            name: nameIsDigitsOnly ? '' : rawNameClean,
+            phone: formattedPhone,
+            email: '',
+            channel: params.channel,
+            unitId: params.unitId || 1,
+            stage: params.direction === 'inbound' ? 'em_atendimento_ivi' : 'escalado_humano',
+            iviProviderUsed: 'gemini',
+            aiTranscript: initialTranscript,
+            summaryText,
+            summaryAuthor,
+            summaryUpdatedAt,
+            hasPhoneCall: params.contentType === 'call',
+            primaryThreadId: params.threadId ?? null,
+            lastMessageAt: params.timestamp || new Date(),
+          })
+          .returning();
+        lead = created;
+      } else {
+        const existingTranscript = Array.isArray(lead.aiTranscript) ? lead.aiTranscript : [];
+        if (
+          params.externalMessageId &&
+          existingTranscript.some((item) => item.externalMessageId === params.externalMessageId)
+        ) {
+          return lead;
+        }
+        const nextTranscript = [...existingTranscript, newItem];
+        let nextSummaryText = lead.summaryText;
+        let nextSummaryAuthor = lead.summaryAuthor;
+        let nextSummaryUpdatedAt = lead.summaryUpdatedAt;
+
+        if (params.triggerIviAutoSummarize && params.contentType !== 'call') {
+          const sumRes = await iviSummarizeConversation({
+            leadName: lead.name || 'Cliente sem nome',
+            channel: lead.channel,
+            transcript: nextTranscript,
+          });
+          nextSummaryText = sumRes.summary;
+          nextSummaryAuthor = params.authorName || 'Ivi IA';
+          nextSummaryUpdatedAt = new Date();
+        }
+
+        const [updated] = await db
+          .update(prospectionLeads)
+          .set({
+            primaryThreadId: lead.primaryThreadId ?? params.threadId ?? null,
+            hasPhoneCall: lead.hasPhoneCall || params.contentType === 'call',
+            aiTranscript: nextTranscript,
+            summaryText: nextSummaryText,
+            summaryAuthor: nextSummaryAuthor,
+            summaryUpdatedAt: nextSummaryUpdatedAt,
+            lastMessageAt: params.timestamp || new Date(),
+          })
+          .where(eq(prospectionLeads.id, lead.id))
+          .returning();
+        lead = updated || lead;
+      }
+
+      if (lead) {
+        await archiveLeadConversationSnapshot(lead.id, params.provider, params.authorName || 'Sistema');
+      }
+      return lead;
+    } catch (err) {
+      console.warn('mirrorCommunicationToProspection warning:', err);
+      return null;
+    }
+  }
+
+  app.get('/api/prospection', requireAuth, requireModule('prospection'), async (_req: AuthRequest, res) => {
+    try {
+      await ensureInitialSeed();
+      const [leads, kb, appts, allUsers, blocks, callLogs, archives] = await Promise.all([
+        db.select().from(prospectionLeads).orderBy(desc(prospectionLeads.lastMessageAt)),
+        db.select().from(iviKnowledgeArticles).orderBy(desc(iviKnowledgeArticles.hitCount)),
+        db.select().from(appointments).orderBy(desc(appointments.scheduledFor)),
+        db.select({ id: users.id, name: users.name, role: users.role, defaultUnitId: users.defaultUnitId, whatsappPhone: users.whatsappPhone }).from(users),
+        db.select().from(scheduleBlocks).orderBy(desc(scheduleBlocks.startAt)),
+        db.select().from(whatsappCallLogs).orderBy(desc(whatsappCallLogs.createdAt)).limit(150),
+        db.select().from(communicationArchives).orderBy(desc(communicationArchives.createdAt)).limit(250),
+      ]);
+      res.json({
+        leads,
+        knowledgeBase: kb,
+        appointments: appts,
+        consultants: allUsers,
+        scheduleBlocks: blocks,
+        callLogs,
+        archives,
+      });
+    } catch (error) {
+      console.error('Prospection get error:', error);
+      res.status(500).json({ error: 'Erro ao carregar prospecção.' });
+    }
+  });
+
+  app.post('/api/prospection/schedule-blocks', requireAuth, requireModule('prospection'), async (req: AuthRequest, res) => {
+    try {
+      const { consultantId, unitId, startAt, endAt, reason } = req.body as {
+        consultantId: number;
+        unitId?: number;
+        startAt: string;
+        endAt: string;
+        reason: string;
+      };
+      if (!reason?.trim()) return res.status(400).json({ error: 'Informe o motivo do bloqueio de agenda.' });
+      const [block] = await db
+        .insert(scheduleBlocks)
+        .values({
+          consultantId: Number(consultantId),
+          unitId: unitId || req.activeUnitId || 1,
+          startAt: new Date(startAt),
+          endAt: new Date(endAt),
+          reason,
+          createdBy: req.authUser!.name,
+        })
+        .returning();
+      res.json({ block });
+    } catch (error) {
+      console.error('Schedule block error:', error);
+      res.status(500).json({ error: 'Erro ao registrar bloqueio de agenda.' });
+    }
+  });
+
+  app.post('/api/prospection/leads', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const { name, phone, email, channel, unitId, initialMessage, mode } = req.body as {
+        name?: string;
+        phone: string;
+        email?: string;
+        channel: string;
+        unitId?: number;
+        initialMessage?: string;
+        mode?: 'ivi' | 'human';
+      };
+      const targetUnit = unitId || req.activeUnitId || 1;
+      const cleanName = String(name || '').trim();
+      const formattedPhone = formatPhoneWithPlus55(phone);
+      const isPhoneChannel = channel === 'telefone';
+      const transcript: Array<{
+        sender: string;
+        text: string;
+        provider?: string;
+        timestamp: string;
+        type?: 'text' | 'audio' | 'call';
+        authorName?: string;
+      }> = [];
+      let stage = mode === 'human' ? 'escalado_humano' : 'novo';
+      let providerUsed = 'gemini';
+      let summaryText = '';
+      let summaryAuthor = '';
+      let summaryUpdatedAt: Date | null = null;
+
+      if (initialMessage?.trim()) {
+        transcript.push({
+          sender: 'cliente',
+          text: initialMessage.trim(),
+          type: isPhoneChannel ? 'call' : 'text',
+          timestamp: new Date().toISOString(),
+        });
+        if (mode !== 'human' && !isPhoneChannel) {
+          const iviRes = await iviRespondProspection(initialMessage, channel, cleanName || 'Cliente WhatsApp');
+          providerUsed = iviRes.provider;
+          stage = iviRes.needsHuman ? 'escalado_humano' : 'em_atendimento_ivi';
+          transcript.push({
+            sender: 'ivi',
+            text: iviRes.reply,
+            provider: iviRes.provider,
+            type: 'text',
+            authorName: 'Ivi IA',
+            timestamp: new Date().toISOString(),
+          });
+          const sumRes = await iviSummarizeConversation({
+            leadName: cleanName || 'Cliente sem nome',
+            channel,
+            transcript,
+          });
+          summaryText = sumRes.summary;
+          summaryAuthor = 'Ivi IA';
+          summaryUpdatedAt = new Date();
+        }
+      }
+
+      const [lead] = await db
+        .insert(prospectionLeads)
+        .values({
+          name: cleanName,
+          phone: formattedPhone,
+          email: email || '',
+          channel,
+          unitId: targetUnit,
+          stage,
+          iviProviderUsed: providerUsed,
+          aiTranscript: transcript,
+          summaryText,
+          summaryAuthor,
+          summaryUpdatedAt,
+          hasPhoneCall: isPhoneChannel,
+        })
+        .returning();
+
+      res.json({ lead });
+    } catch (error) {
+      console.error('Create lead error:', error);
+      res.status(500).json({ error: 'Erro ao cadastrar lead.' });
+    }
+  });
+
+  app.post('/api/prospection/leads/:id/ivi-reply', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const leadId = Number(req.params.id);
+      const { message, mode } = req.body as { message: string; mode?: 'ivi' | 'human' };
+      const rows = await db.select().from(prospectionLeads).where(eq(prospectionLeads.id, leadId)).limit(1);
+      const lead = rows[0];
+      if (!lead) return res.status(404).json({ error: 'Lead não encontrado.' });
+
+      if (mode === 'human') {
+        const nextTranscript = [
+          ...(Array.isArray(lead.aiTranscript) ? lead.aiTranscript : []),
+          {
+            sender: 'operador',
+            text: message,
+            type: 'text' as const,
+            authorName: req.authUser!.name,
+            timestamp: new Date().toISOString(),
+          },
+        ];
+        const sumRes = await iviSummarizeConversation({
+          leadName: lead.name || 'Cliente sem nome',
+          channel: lead.channel,
+          transcript: nextTranscript,
+        });
+        const [updated] = await db
+          .update(prospectionLeads)
+          .set({
+            aiTranscript: nextTranscript,
+            stage: 'escalado_humano',
+            summaryText: sumRes.summary,
+            summaryAuthor: req.authUser!.name,
+            summaryUpdatedAt: new Date(),
+            lastMessageAt: new Date(),
+          })
+          .where(eq(prospectionLeads.id, leadId))
+          .returning();
+
+        const snap = await archiveLeadConversationSnapshot(leadId, undefined, req.authUser!.name);
+        return res.json({ lead: snap?.lead || updated, ivi: { provider: sumRes.provider, needsHuman: true } });
+      }
+
+      const iviRes = await iviRespondProspection(message, lead.channel, lead.name || 'Cliente WhatsApp');
+      const nextTranscript = [
+        ...(Array.isArray(lead.aiTranscript) ? lead.aiTranscript : []),
+        { sender: 'cliente', text: message, type: 'text' as const, timestamp: new Date().toISOString() },
+        {
+          sender: 'ivi',
+          text: iviRes.reply,
+          provider: iviRes.provider,
+          type: 'text' as const,
+          authorName: 'Ivi IA',
+          timestamp: new Date().toISOString(),
+        },
+      ];
+      const sumRes = await iviSummarizeConversation({
+        leadName: lead.name || 'Cliente sem nome',
+        channel: lead.channel,
+        transcript: nextTranscript,
+      });
+
+      const [updated] = await db
+        .update(prospectionLeads)
+        .set({
+          aiTranscript: nextTranscript,
+          iviProviderUsed: iviRes.provider,
+          stage: iviRes.needsHuman ? 'escalado_humano' : 'em_atendimento_ivi',
+          summaryText: sumRes.summary,
+          summaryAuthor: 'Ivi IA',
+          summaryUpdatedAt: new Date(),
+          lastMessageAt: new Date(),
+        })
+        .where(eq(prospectionLeads.id, leadId))
+        .returning();
+
+      const snap = await archiveLeadConversationSnapshot(leadId, undefined, 'Ivi IA');
+      res.json({ lead: snap?.lead || updated, ivi: iviRes });
+    } catch (error) {
+      console.error('Ivi reply error:', error);
+      res.status(500).json({ error: 'Erro ao acionar Ivi.' });
+    }
+  });
+
+  app.post('/api/prospection/leads/:id/transcribe-audio', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const leadId = Number(req.params.id);
+      const { audioDataUri, mimeType, audioDescription, sender } = req.body as {
+        audioDataUri?: string;
+        mimeType?: string;
+        audioDescription?: string;
+        sender?: 'cliente' | 'operador';
+      };
+      const rows = await db.select().from(prospectionLeads).where(eq(prospectionLeads.id, leadId)).limit(1);
+      const lead = rows[0];
+      if (!lead) return res.status(404).json({ error: 'Lead não encontrado.' });
+
+      const payload = audioDataUri || audioDescription || '';
+      if (!payload.trim()) return res.status(400).json({ error: 'Envie o áudio ou descrição para transcrição.' });
+
+      const trans = await iviTranscribeAudioNote(payload, mimeType || 'audio/webm');
+
+      // Store binary audio securely inside bucketdainvicta + communication_archives
+      let mediaSha256: string | undefined;
+      let mediaStorageUri: string | undefined;
+      let mediaMimeType: string | undefined;
+      let mediaFileName: string | undefined;
+      const parsedAudio = audioDataUri ? parseDataUriBuffer(audioDataUri, mimeType || 'audio/webm') : null;
+      const provider =
+        lead.channel === 'whatsapp_uazapi'
+          ? 'uazapi'
+          : lead.channel === 'whatsapp_gotalk'
+          ? 'gotalk'
+          : 'telefone';
+
+      if (parsedAudio) {
+        const ext = parsedAudio.mimeType.includes('ogg')
+          ? 'ogg'
+          : parsedAudio.mimeType.includes('mpeg') || parsedAudio.mimeType.includes('mp3')
+          ? 'mp3'
+          : parsedAudio.mimeType.includes('wav')
+          ? 'wav'
+          : 'webm';
+        mediaFileName = sanitizeFileName(
+          audioDescription && audioDescription.includes('.') ? audioDescription : `audio-lead-${lead.id}-${Date.now()}.${ext}`
+        );
+        const stored = await putBucketObject(parsedAudio.buffer, {
+          folderPath: `bucketdainvicta/U${lead.unitId}/PROSPECTION/L${lead.id}/AUDIO`,
+          mimeType: parsedAudio.mimeType,
+          originalName: mediaFileName,
+        });
+        mediaSha256 = stored.sha256Hash;
+        mediaStorageUri = stored.storageUri;
+        mediaMimeType = parsedAudio.mimeType;
+
+        await db.insert(communicationArchives).values({
+          unitId: lead.unitId,
+          leadId: lead.id,
+          threadId: lead.primaryThreadId ?? null,
+          provider,
+          archiveType: 'audio_message',
+          contactName: lead.name || 'Cliente WhatsApp',
+          contactPhone: lead.phone,
+          fileName: mediaFileName,
+          mimeType: mediaMimeType,
+          sizeBytes: stored.sizeBytes,
+          sha256Hash: stored.sha256Hash,
+          storageUri: stored.storageUri,
+          transcriptText: trans.transcript,
+          createdByName: req.authUser!.name,
+        });
+      }
+
+      const nextTranscript = [
+        ...(Array.isArray(lead.aiTranscript) ? lead.aiTranscript : []),
+        {
+          sender: sender || 'cliente',
+          text: audioDescription?.trim() ? `[Áudio]: ${audioDescription.trim()}` : '[Mensagem de Áudio WhatsApp]',
+          type: 'audio' as const,
+          audioTranscript: trans.transcript,
+          provider: trans.provider,
+          authorName: req.authUser!.name,
+          mediaSha256,
+          mediaStorageUri,
+          mediaMimeType,
+          mediaFileName,
+          sourceProvider: provider,
+          timestamp: new Date().toISOString(),
+        },
+      ];
+      const sumRes = await iviSummarizeConversation({
+        leadName: lead.name || 'Cliente sem nome',
+        channel: lead.channel,
+        transcript: nextTranscript,
+      });
+
+      await db
+        .update(prospectionLeads)
+        .set({
+          aiTranscript: nextTranscript,
+          summaryText: sumRes.summary,
+          summaryAuthor: `Ivi IA (${req.authUser!.name})`,
+          summaryUpdatedAt: new Date(),
+          lastMessageAt: new Date(),
+        })
+        .where(eq(prospectionLeads.id, leadId));
+
+      const snap = await archiveLeadConversationSnapshot(leadId, provider, req.authUser!.name);
+      res.json({ lead: snap?.lead, transcript: trans.transcript, provider: trans.provider, mediaSha256 });
+    } catch (error) {
+      console.error('Transcribe audio error:', error);
+      res.status(500).json({ error: 'Erro ao transcrever áudio pela Ivi.' });
+    }
+  });
+
+  app.post('/api/prospection/leads/:id/summarize', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const leadId = Number(req.params.id);
+      const rows = await db.select().from(prospectionLeads).where(eq(prospectionLeads.id, leadId)).limit(1);
+      const lead = rows[0];
+      if (!lead) return res.status(404).json({ error: 'Lead não encontrado.' });
+
+      const sumRes = await iviSummarizeConversation({
+        leadName: lead.name || 'Cliente sem nome',
+        channel: lead.channel,
+        transcript: Array.isArray(lead.aiTranscript) ? lead.aiTranscript : [],
+      });
+      const [updated] = await db
+        .update(prospectionLeads)
+        .set({
+          summaryText: sumRes.summary,
+          summaryAuthor: `Ivi IA (${req.authUser!.name})`,
+          summaryUpdatedAt: new Date(),
+        })
+        .where(eq(prospectionLeads.id, leadId))
+        .returning();
+
+      res.json({ lead: updated });
+    } catch (error) {
+      console.error('Summarize lead error:', error);
+      res.status(500).json({ error: 'Erro ao gerar resumo com a Ivi.' });
+    }
+  });
+
+  app.put('/api/prospection/leads/:id/summary', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const leadId = Number(req.params.id);
+      const { summaryText } = req.body as { summaryText: string };
+      const [updated] = await db
+        .update(prospectionLeads)
+        .set({
+          summaryText: String(summaryText || '').trim(),
+          summaryAuthor: req.authUser!.name,
+          summaryUpdatedAt: new Date(),
+        })
+        .where(eq(prospectionLeads.id, leadId))
+        .returning();
+      if (!updated) return res.status(404).json({ error: 'Lead não encontrado.' });
+      res.json({ lead: updated });
+    } catch (error) {
+      console.error('Save summary error:', error);
+      res.status(500).json({ error: 'Erro ao salvar resumo da conversa.' });
+    }
+  });
+
+  app.patch('/api/prospection/leads/:id/contact', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const leadId = Number(req.params.id);
+      const { name, phone } = req.body as { name: string; phone: string };
+      if (!String(name || '').trim()) return res.status(400).json({ error: 'Informe o nome do cliente.' });
+      const formattedPhone = formatPhoneWithPlus55(phone);
+      const [updated] = await db
+        .update(prospectionLeads)
+        .set({
+          name: name.trim(),
+          phone: formattedPhone,
+        })
+        .where(eq(prospectionLeads.id, leadId))
+        .returning();
+      if (!updated) return res.status(404).json({ error: 'Lead não encontrado.' });
+      res.json({ lead: updated });
+    } catch (error) {
+      console.error('Update contact error:', error);
+      res.status(500).json({ error: 'Erro ao atualizar contato.' });
+    }
+  });
+
+  app.post('/api/prospection/leads/:id/call', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const leadId = Number(req.params.id);
+      const { isVideo, provider } = (req.body || {}) as { isVideo?: boolean; provider?: 'uazapi' | 'gotalk' };
+      const rows = await db.select().from(prospectionLeads).where(eq(prospectionLeads.id, leadId)).limit(1);
+      const lead = rows[0];
+      if (!lead) return res.status(404).json({ error: 'Lead não encontrado.' });
+
+      const chosenProvider =
+        provider === 'gotalk' || (provider !== 'uazapi' && lead.channel === 'whatsapp_gotalk')
+          ? 'gotalk'
+          : 'uazapi';
+
+      let callRes: { dispatched: boolean; callId: string | null; status: string; detail: string };
+      let fromNumber = '';
+
+      if (chosenProvider === 'gotalk') {
+        const ch = await db.select().from(gotalkChannels).where(eq(gotalkChannels.isActive, true)).limit(1);
+        fromNumber = ch[0]?.phoneNumber || ch[0]?.name || 'GoTalk';
+        callRes = {
+          dispatched: true,
+          callId: `gt-call-${Date.now()}`,
+          status: 'initiated',
+          detail: 'Ligação GoTalk registrada para acompanhamento. Após concluir, grave ou anexe o áudio para transcrição da Ivi.',
+        };
+      } else {
+        const creds = await resolveUazapiCredentials({ unitId: lead.unitId, moduleId: 'prospection' });
+        fromNumber = creds?.instanceId || '';
+        callRes = await makeUazapiCall(creds, lead.phone, Boolean(isVideo));
+      }
+
+      const [callLog] = await db
+        .insert(whatsappCallLogs)
+        .values({
+          unitId: lead.unitId,
+          leadId: lead.id,
+          threadId: lead.primaryThreadId ?? null,
+          callId: callRes.callId || '',
+          direction: 'outbound',
+          fromNumber,
+          toNumber: formatPhoneWithPlus55(lead.phone),
+          callType: isVideo ? 'video' : 'voice',
+          status: callRes.status,
+          provider: chosenProvider,
+          errorDetail: callRes.dispatched ? '' : callRes.detail,
+          initiatedByName: req.authUser!.name,
+        })
+        .returning();
+
+      const nextTranscript = [
+        ...(Array.isArray(lead.aiTranscript) ? lead.aiTranscript : []),
+        {
+          sender: 'operador',
+          type: 'call' as const,
+          text: callRes.dispatched
+            ? `Ligação de voz via ${chosenProvider.toUpperCase()} (${formatPhoneWithPlus55(lead.phone)}). Você pode gravar ou anexar o áudio da chamada para arquivar no BucketDaInvicta e transcrever com a Ivi.`
+            : `Tentativa de ligação ${chosenProvider.toUpperCase()} (${callRes.detail}). Utilize discagem direta e anexe/grave a chamada ou preencha o resumo lateral.`,
+          authorName: req.authUser!.name,
+          callId: callRes.callId || String(callLog.id),
+          sourceProvider: chosenProvider,
+          timestamp: new Date().toISOString(),
+        },
+      ];
+
+      await db
+        .update(prospectionLeads)
+        .set({
+          hasPhoneCall: true,
+          aiTranscript: nextTranscript,
+          lastMessageAt: new Date(),
+        })
+        .where(eq(prospectionLeads.id, leadId));
+
+      const snap = await archiveLeadConversationSnapshot(leadId, chosenProvider, req.authUser!.name);
+      res.json({ lead: snap?.lead, callLog, callResult: callRes });
+    } catch (error) {
+      console.error('Prospection call error:', error);
+      res.status(500).json({ error: 'Erro ao iniciar ligação.' });
+    }
+  });
+
+  app.post('/api/prospection/leads/:id/call/terminate', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const leadId = Number(req.params.id);
+      const { callId, durationSeconds } = req.body as { callId: string; durationSeconds?: number };
+      const rows = await db.select().from(prospectionLeads).where(eq(prospectionLeads.id, leadId)).limit(1);
+      const lead = rows[0];
+      if (!lead) return res.status(404).json({ error: 'Lead não encontrado.' });
+
+      const creds = await resolveUazapiCredentials({ unitId: lead.unitId, moduleId: 'prospection' });
+      const result = callId?.startsWith('gt-call-')
+        ? { ok: true, detail: 'Ligação GoTalk encerrada.' }
+        : await terminateUazapiCall(creds, callId);
+      if (callId) {
+        await db
+          .update(whatsappCallLogs)
+          .set({
+            status: 'ended',
+            durationSeconds: Number(durationSeconds || 0),
+            endedAt: new Date(),
+          })
+          .where(eq(whatsappCallLogs.callId, callId));
+      }
+      await archiveLeadConversationSnapshot(leadId, undefined, req.authUser!.name);
+      res.json(result);
+    } catch (error) {
+      console.error('UaZapi terminate call error:', error);
+      res.status(500).json({ error: 'Erro ao encerrar ligação.' });
+    }
+  });
+
+  app.post('/api/prospection/leads/:id/calls/:callLogId/recording', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const leadId = Number(req.params.id);
+      const callLogId = Number(req.params.callLogId);
+      const { audioDataUri, mimeType, fileName, durationSeconds } = req.body as {
+        audioDataUri: string;
+        mimeType?: string;
+        fileName?: string;
+        durationSeconds?: number;
+      };
+      const [leadRows, callRows] = await Promise.all([
+        db.select().from(prospectionLeads).where(eq(prospectionLeads.id, leadId)).limit(1),
+        db.select().from(whatsappCallLogs).where(eq(whatsappCallLogs.id, callLogId)).limit(1),
+      ]);
+      const lead = leadRows[0];
+      const callLog = callRows[0];
+      if (!lead || !callLog) return res.status(404).json({ error: 'Lead ou registro de ligação não encontrado.' });
+
+      const parsed = parseDataUriBuffer(audioDataUri, mimeType || 'audio/webm');
+      if (!parsed) return res.status(400).json({ error: 'Arquivo de áudio da gravação inválido.' });
+
+      const ext = parsed.mimeType.includes('mp3') || parsed.mimeType.includes('mpeg')
+        ? 'mp3'
+        : parsed.mimeType.includes('ogg')
+        ? 'ogg'
+        : parsed.mimeType.includes('wav')
+        ? 'wav'
+        : 'webm';
+      const safeName = sanitizeFileName(fileName || `gravacao-ligacao-${callLog.id}-${Date.now()}.${ext}`);
+
+      const stored = await putBucketObject(parsed.buffer, {
+        folderPath: `bucketdainvicta/U${lead.unitId}/CALLS/L${lead.id}`,
+        mimeType: parsed.mimeType,
+        originalName: safeName,
+      });
+
+      const trans = await iviTranscribeAudioNote(audioDataUri, parsed.mimeType);
+
+      const [updatedCall] = await db
+        .update(whatsappCallLogs)
+        .set({
+          status: 'ended',
+          durationSeconds: Number(durationSeconds || callLog.durationSeconds || 0),
+          recordingSha256: stored.sha256Hash,
+          recordingStorageUri: stored.storageUri,
+          recordingMimeType: parsed.mimeType,
+          recordingFileName: safeName,
+          audioTranscript: trans.transcript,
+          endedAt: callLog.endedAt || new Date(),
+        })
+        .where(eq(whatsappCallLogs.id, callLog.id))
+        .returning();
+
+      await db.insert(communicationArchives).values({
+        unitId: lead.unitId,
+        leadId: lead.id,
+        threadId: lead.primaryThreadId ?? null,
+        callLogId: callLog.id,
+        provider: callLog.provider,
+        archiveType: 'call_recording',
+        contactName: lead.name || 'Cliente WhatsApp',
+        contactPhone: lead.phone,
+        fileName: safeName,
+        mimeType: parsed.mimeType,
+        sizeBytes: stored.sizeBytes,
+        sha256Hash: stored.sha256Hash,
+        storageUri: stored.storageUri,
+        transcriptText: trans.transcript,
+        createdByName: req.authUser!.name,
+      });
+
+      const nextTranscript = [
+        ...(Array.isArray(lead.aiTranscript) ? lead.aiTranscript : []),
+        {
+          sender: 'operador',
+          type: 'audio' as const,
+          text: `[Gravação de Ligação ${callLog.provider.toUpperCase()}]: ${safeName}`,
+          audioTranscript: trans.transcript,
+          provider: trans.provider,
+          authorName: req.authUser!.name,
+          callId: callLog.callId || String(callLog.id),
+          mediaSha256: stored.sha256Hash,
+          mediaStorageUri: stored.storageUri,
+          mediaMimeType: parsed.mimeType,
+          mediaFileName: safeName,
+          sourceProvider: callLog.provider,
+          timestamp: new Date().toISOString(),
+        },
+      ];
+
+      const sumRes = await iviSummarizeConversation({
+        leadName: lead.name || 'Cliente sem nome',
+        channel: lead.channel,
+        transcript: nextTranscript,
+      });
+
+      await db
+        .update(prospectionLeads)
+        .set({
+          hasPhoneCall: true,
+          aiTranscript: nextTranscript,
+          summaryText: sumRes.summary,
+          summaryAuthor: `Ivi IA (${req.authUser!.name})`,
+          summaryUpdatedAt: new Date(),
+          lastMessageAt: new Date(),
+        })
+        .where(eq(prospectionLeads.id, leadId));
+
+      const snap = await archiveLeadConversationSnapshot(leadId, callLog.provider, req.authUser!.name);
+      res.json({ lead: snap?.lead, callLog: updatedCall, archive: snap?.archive, transcript: trans.transcript });
+    } catch (error) {
+      console.error('Save call recording error:', error);
+      res.status(500).json({ error: 'Erro ao gravar e transcrever ligação no BucketDaInvicta.' });
+    }
+  });
+
+  app.post('/api/prospection/leads/:id/archive', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const leadId = Number(req.params.id);
+      const snap = await archiveLeadConversationSnapshot(leadId, undefined, req.authUser!.name);
+      if (!snap) return res.status(404).json({ error: 'Lead não encontrado.' });
+      res.json(snap);
+    } catch (error) {
+      console.error('Archive lead snapshot error:', error);
+      res.status(500).json({ error: 'Erro ao arquivar conversa no BucketDaInvicta.' });
+    }
+  });
+
+  app.post('/api/prospection/appointments', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const { leadId, clientName, clientPhone, unitId, modality, scheduledFor, notes } = req.body as {
+        leadId?: number;
+        clientName: string;
+        clientPhone: string;
+        unitId?: number;
+        modality: string;
+        scheduledFor: string;
+        notes?: string;
+      };
+      const targetUnit = unitId || req.activeUnitId || 1;
+
+      const targetDate = new Date(scheduledFor || Date.now() + 86400000);
+
+      // Load lead summary if leadId provided so Observações receives full discussion summary + user/date/time
+      let finalNotes = String(notes || '').trim();
+      if (leadId) {
+        const leadRows = await db.select().from(prospectionLeads).where(eq(prospectionLeads.id, leadId)).limit(1);
+        const leadRow = leadRows[0];
+        if (leadRow?.summaryText?.trim() && !finalNotes.includes(leadRow.summaryText.trim())) {
+          const whenStr = leadRow.summaryUpdatedAt ? new Date(leadRow.summaryUpdatedAt).toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR');
+          const summaryHeader = `[Resumo Prospecção · ${leadRow.summaryAuthor || 'Ivi IA'} · ${whenStr}]\n${leadRow.summaryText.trim()}`;
+          finalNotes = finalNotes ? `${summaryHeader}\n\n${finalNotes}` : summaryHeader;
+        }
+      }
+
+      // Round-robin queue among unblocked consultants for this unit
+      const [allConsultants, activeBlocks, allCollabs] = await Promise.all([
+        db.select().from(users).where(eq(users.role, 'consultant')),
+        db.select().from(scheduleBlocks),
+        db.select().from(collaborators),
+      ]);
+      const blockedIds = new Set(
+        activeBlocks
+          .filter((b) => b.consultantId !== null && targetDate >= new Date(b.startAt) && targetDate <= new Date(b.endAt))
+          .map((b) => b.consultantId as number)
+      );
+      const unitConsultants = allConsultants.filter(
+        (c) => !blockedIds.has(c.id) && (c.defaultUnitId === targetUnit || (c.allowedUnitIds || []).includes(targetUnit))
+      );
+      const unblockedFallback = allConsultants.filter((c) => !blockedIds.has(c.id));
+      const poolList = unitConsultants.length > 0 ? unitConsultants : unblockedFallback.length > 0 ? unblockedFallback : allConsultants;
+      const existingAppts = await db.select().from(appointments);
+      const counts = new Map<number, number>();
+      poolList.forEach((c) => counts.set(c.id, 0));
+      existingAppts.forEach((a) => {
+        if (counts.has(a.consultantId)) counts.set(a.consultantId, (counts.get(a.consultantId) || 0) + 1);
+      });
+      const chosenConsultant = [...poolList].sort((a, b) => (counts.get(a.id) || 0) - (counts.get(b.id) || 0))[0];
+      const linkedCollab = chosenConsultant
+        ? allCollabs.find((col) => col.userId === chosenConsultant.id)
+        : undefined;
+      const startAtDate = new Date(scheduledFor || Date.now() + 86400000);
+      const endAtDate = new Date(startAtDate.getTime() + 30 * 60000);
+
+      const [appt] = await db
+        .insert(appointments)
+        .values({
+          leadId: leadId || null,
+          clientName,
+          clientPhone,
+          unitId: targetUnit,
+          attendantId: req.authUser!.id,
+          consultantId: chosenConsultant?.id || req.authUser!.id,
+          collaboratorId: linkedCollab?.id ?? null,
+          modality: modality || 'presencial',
+          scheduledFor: startAtDate,
+          endAt: endAtDate,
+          status: 'agendado',
+          notifiedInternal: true,
+          notifiedWhatsapp: true,
+          notes: finalNotes,
+          createdByName: req.authUser!.name,
+          updatedByName: req.authUser!.name,
+          updatedAt: new Date(),
+        })
+        .returning();
+
+      if (leadId) {
+        await db.update(prospectionLeads).set({ stage: 'agendado', assignedUserId: chosenConsultant?.id }).where(eq(prospectionLeads.id, leadId));
+      }
+
+      // Notify assigned consultant via internal message + WhatsApp log
+      if (chosenConsultant) {
+        await db.insert(internalMessages).values({
+          senderId: req.authUser!.id,
+          senderName: 'Agenda Ivi',
+          recipientId: chosenConsultant.id,
+          targetSector: 'comercial',
+          subject: `Novo Agendamento (${modality.toUpperCase()}) · ${clientName}`,
+          body: `Cliente ${clientName} (${clientPhone}) agendado para ${new Date(appt.scheduledFor).toLocaleString('pt-BR')}. Notificação enviada para seu WhatsApp (${chosenConsultant.whatsappPhone || 'cadastrado'}). Convide o cliente para confirmação presencial!`,
+        });
+        broadcast('internal:message', { recipientId: chosenConsultant.id, clientName, modality });
+      }
+
+      res.json({ appointment: appt, consultant: chosenConsultant });
+    } catch (error) {
+      console.error('Appointment create error:', error);
+      res.status(500).json({ error: 'Erro ao confirmar agendamento.' });
+    }
+  });
+
+  app.patch('/api/prospection/appointments/:id/status', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { status } = req.body as { status: string };
+      const [updated] = await db.update(appointments).set({ status }).where(eq(appointments.id, id)).returning();
+      res.json({ appointment: updated });
+    } catch (error) {
+      console.error('Appointment status error:', error);
+      res.status(500).json({ error: 'Erro ao atualizar status do agendamento.' });
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // 2. CLIENTES (TITULAR <-> RESPONSÁVEL), ADMISSÕES, RECÁLCULOS & BUCKETDAINVICTA ACL
+  // ---------------------------------------------------------------------------
+  app.get('/api/clients', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      await ensureInitialSeed();
+      const [allClients, links, allAdmissions, allDocs, scenarios, allUsers, allThreads, bucketStats] = await Promise.all([
+        db.select().from(clients).orderBy(desc(clients.id)),
+        db.select().from(clientAssetLinks),
+        db.select().from(admissions).orderBy(desc(admissions.id)),
+        db.select().from(documentObjects).orderBy(desc(documentObjects.id)),
+        db.select().from(recalcScenarios).orderBy(desc(recalcScenarios.id)),
+        db.select({ id: users.id, name: users.name, role: users.role, allowedUnitIds: users.allowedUnitIds }).from(users),
+        db.select({ id: whatsappThreads.id, contactPhone: whatsappThreads.contactPhone, provider: whatsappThreads.provider }).from(whatsappThreads),
+        getBucketRuntimeStats(),
+      ]);
+      const isAdmin = req.authUser!.role === 'admin';
+      const allowedUnits = req.authUser!.allowedUnitIds || [];
+      const permittedDocs = allDocs.filter((d) => isAdmin || allowedUnits.includes(d.unitId));
+      const threadPhones = Array.from(
+        new Set(allThreads.map((t) => String(t.contactPhone || '').replace(/\D/g, '').slice(-8)).filter(Boolean))
+      );
+      res.json({
+        clients: allClients,
+        assetLinks: links,
+        admissions: allAdmissions,
+        documents: permittedDocs.filter((d) => !d.deletedAt),
+        trashedDocuments: permittedDocs.filter((d) => Boolean(d.deletedAt)),
+        recalcScenarios: scenarios,
+        consultants: allUsers,
+        threadPhones,
+        bucketStats,
+      });
+    } catch (error) {
+      console.error('Clients fetch error:', error);
+      res.status(500).json({ error: 'Erro ao carregar clientes e vínculos.' });
+    }
+  });
+
+  app.get('/api/clients/search', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const q = String(req.query.q || '').trim().toLowerCase();
+      const offset = Math.max(0, Number(req.query.offset || 0));
+      const limit = Math.min(50, Math.max(1, Number(req.query.limit || 15)));
+      const all = await db.select().from(clients).orderBy(desc(clients.id));
+      const matched =
+        q.length < 3
+          ? all
+          : all.filter((c) => {
+              const digits = q.replace(/\D/g, '');
+              return (
+                c.fullName.toLowerCase().includes(q) ||
+                c.cpfCnpj.toLowerCase().includes(q) ||
+                c.phone.toLowerCase().includes(q) ||
+                (digits.length >= 3 &&
+                  (c.cpfCnpj.replace(/\D/g, '').includes(digits) || c.phone.replace(/\D/g, '').includes(digits)))
+              );
+            });
+      res.json({
+        clients: matched.slice(offset, offset + limit),
+        total: matched.length,
+        hasMore: offset + limit < matched.length,
+      });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro na pesquisa de clientes.' });
+    }
+  });
+
+  app.post('/api/clients', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const b = (req.body || {}) as {
+        personNature?: string;
+        fullName?: string;
+        cpfCnpj?: string;
+        rg?: string;
+        birthDate?: string;
+        profession?: string;
+        maritalStatus?: string;
+        phone?: string;
+        isWhatsapp?: boolean;
+        secondaryPhone?: string;
+        secondaryIsWhatsapp?: boolean;
+        email?: string;
+        zipCode?: string;
+        address?: string;
+        addressNumber?: string;
+        complement?: string;
+        neighborhood?: string;
+        city?: string;
+        state?: string;
+        notes?: string;
+        clientType?: string;
+        unitId?: number;
+      };
+      if (!b.fullName?.trim()) {
+        return res.status(400).json({ error: 'Nome / Razão social é obrigatório.' });
+      }
+      const cpfVal = b.cpfCnpj?.trim() || `CAD-${Date.now()}`;
+      const existing = await db.select().from(clients).where(eq(clients.cpfCnpj, cpfVal)).limit(1);
+      if (existing[0]) {
+        return res.status(409).json({ error: `Já existe um cliente cadastrado com o CPF/CNPJ ${cpfVal}.`, client: existing[0] });
+      }
+      const phoneClean = (b.phone || '').replace(/\D/g, '');
+      const [created] = await db
+        .insert(clients)
+        .values({
+          personNature: b.personNature === 'PJ' ? 'PJ' : 'PF',
+          fullName: b.fullName.trim(),
+          cpfCnpj: cpfVal,
+          rg: b.rg?.trim() || '',
+          birthDate: b.birthDate?.trim() || '',
+          profession: b.profession?.trim() || '',
+          maritalStatus: b.maritalStatus?.trim() || '',
+          phone: b.phone?.trim() || '',
+          whatsapp: b.isWhatsapp === false ? '' : phoneClean,
+          secondaryPhone: b.secondaryPhone?.trim() || '',
+          secondaryIsWhatsapp: Boolean(b.secondaryIsWhatsapp),
+          email: b.email?.trim() || '',
+          zipCode: b.zipCode?.trim() || '',
+          address: b.address?.trim() || '',
+          addressNumber: b.addressNumber?.trim() || '',
+          complement: b.complement?.trim() || '',
+          neighborhood: b.neighborhood?.trim() || '',
+          city: b.city?.trim() || '',
+          state: b.state?.trim().toUpperCase() || '',
+          notes: b.notes?.trim() || '',
+          clientType: b.clientType || 'titular',
+          unitId: b.unitId || req.activeUnitId || 1,
+        })
+        .returning();
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'CLIENT_CREATE',
+        entityType: 'client',
+        entityId: String(created.id),
+        details: { fullName: created.fullName, cpfCnpj: created.cpfCnpj, personNature: created.personNature },
+        unitId: created.unitId,
+      });
+      res.json({ client: created });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao cadastrar cliente.' });
+    }
+  });
+
+  app.patch('/api/clients/:id', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const id = Number(req.params.id);
+      const rows = await db.select().from(clients).where(eq(clients.id, id)).limit(1);
+      if (!rows[0]) return res.status(404).json({ error: 'Cliente não encontrado.' });
+      const b = (req.body || {}) as Record<string, string | boolean | undefined>;
+      const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+      const [updated] = await db
+        .update(clients)
+        .set({
+          ...(b.personNature !== undefined ? { personNature: b.personNature === 'PJ' ? 'PJ' : 'PF' } : {}),
+          ...(b.fullName !== undefined ? { fullName: str(b.fullName) } : {}),
+          ...(b.cpfCnpj !== undefined ? { cpfCnpj: str(b.cpfCnpj) } : {}),
+          ...(b.rg !== undefined ? { rg: str(b.rg) } : {}),
+          ...(b.birthDate !== undefined ? { birthDate: str(b.birthDate) } : {}),
+          ...(b.profession !== undefined ? { profession: str(b.profession) } : {}),
+          ...(b.maritalStatus !== undefined ? { maritalStatus: str(b.maritalStatus) } : {}),
+          ...(b.phone !== undefined
+            ? {
+                phone: str(b.phone),
+                whatsapp: b.isWhatsapp === false ? '' : str(b.phone).replace(/\D/g, ''),
+              }
+            : {}),
+          ...(b.secondaryPhone !== undefined ? { secondaryPhone: str(b.secondaryPhone) } : {}),
+          ...(b.secondaryIsWhatsapp !== undefined ? { secondaryIsWhatsapp: Boolean(b.secondaryIsWhatsapp) } : {}),
+          ...(b.email !== undefined ? { email: str(b.email) } : {}),
+          ...(b.zipCode !== undefined ? { zipCode: str(b.zipCode) } : {}),
+          ...(b.address !== undefined ? { address: str(b.address) } : {}),
+          ...(b.addressNumber !== undefined ? { addressNumber: str(b.addressNumber) } : {}),
+          ...(b.complement !== undefined ? { complement: str(b.complement) } : {}),
+          ...(b.neighborhood !== undefined ? { neighborhood: str(b.neighborhood) } : {}),
+          ...(b.city !== undefined ? { city: str(b.city) } : {}),
+          ...(b.state !== undefined ? { state: str(b.state).toUpperCase() } : {}),
+          ...(b.notes !== undefined ? { notes: str(b.notes) } : {}),
+        })
+        .where(eq(clients.id, id))
+        .returning();
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'CLIENT_UPDATE',
+        entityType: 'client',
+        entityId: String(id),
+        details: { fullName: updated.fullName, cpfCnpj: updated.cpfCnpj },
+        unitId: updated.unitId,
+      });
+      res.json({ client: updated });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao atualizar cliente.' });
+    }
+  });
+
+  app.post('/api/recalc', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const { clientId, admissionId, contractRateMonthlyPct, bacenAvgRateMonthlyPct, originalInstallmentCents, installmentsTotal, notes } = req.body as {
+        clientId: number;
+        admissionId?: number;
+        contractRateMonthlyPct: number;
+        bacenAvgRateMonthlyPct: number;
+        originalInstallmentCents: number;
+        installmentsTotal: number;
+        notes?: string;
+      };
+      const iContract = Math.max(0.001, Number(contractRateMonthlyPct) / 100);
+      const iBacen = Math.max(0.001, Number(bacenAvgRateMonthlyPct) / 100);
+      const n = Math.max(2, Number(installmentsTotal) || 48);
+      const pmt = Math.max(100, Number(originalInstallmentCents));
+
+      // Present value under contract rate, then recalculate fair PMT at BACEN average rate
+      const pv = pmt * ((1 - Math.pow(1 + iContract, -n)) / iContract);
+      const fairPmt = Math.round(pv * (iBacen / (1 - Math.pow(1 + iBacen, -n))));
+      const projectedSavingsCents = Math.max(0, (pmt - fairPmt) * n);
+
+      const [scenario] = await db
+        .insert(recalcScenarios)
+        .values({
+          clientId: Number(clientId),
+          admissionId: admissionId ? Number(admissionId) : null,
+          unitId: req.activeUnitId || 1,
+          contractRateMonthlyPct: String(contractRateMonthlyPct),
+          bacenAvgRateMonthlyPct: String(bacenAvgRateMonthlyPct),
+          originalInstallmentCents: pmt,
+          fairInstallmentCents: fairPmt,
+          installmentsTotal: n,
+          projectedSavingsCents,
+          notes: notes || '',
+          createdBy: req.authUser!.name,
+        })
+        .returning();
+
+      res.json({ scenario });
+    } catch (error) {
+      console.error('Recalc error:', error);
+      res.status(500).json({ error: 'Erro ao calcular cenário revisional.' });
+    }
+  });
+
+  app.post('/api/clients/link-asset', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const { titularClientId, assetOwnerClientId, relationshipLabel, vehiclePlate, vehicleModel, renavam } = req.body as {
+        titularClientId: number;
+        assetOwnerClientId: number;
+        relationshipLabel: string;
+        vehiclePlate?: string;
+        vehicleModel?: string;
+        renavam?: string;
+      };
+      const [link] = await db
+        .insert(clientAssetLinks)
+        .values({
+          titularClientId,
+          assetOwnerClientId,
+          relationshipLabel: relationshipLabel || 'Responsável pelo Bem',
+          vehiclePlate: vehiclePlate || '',
+          vehicleModel: vehicleModel || '',
+          renavam: renavam || '',
+        })
+        .returning();
+      res.json({ link });
+    } catch (error) {
+      console.error('Link asset error:', error);
+      res.status(500).json({ error: 'Erro ao vincular titular e responsável pelo bem.' });
+    }
+  });
+
+  function computeAdmissionDebtSummary(body: Record<string, unknown>) {
+    const brand = String(body.vehicleBrand || '').trim().toUpperCase();
+    const model = String(body.vehicleModel || '').trim().toUpperCase();
+    const color = String(body.vehicleColor || '').trim().toUpperCase();
+    const year = String(body.vehicleYear || '').trim();
+    const plate = String(body.vehiclePlate || '').trim().toUpperCase();
+    const chassis = String(body.vehicleChassis || '').trim().toUpperCase();
+    const renavam = String(body.vehicleRenavam || '').trim();
+    const vehicleComposed = [brand, model, year, plate ? `Placa ${plate}` : ''].filter(Boolean).join(' · ');
+    const vehicleInfo = String(body.vehicleInfo || '').trim() || vehicleComposed;
+
+    const serviceMgmtCents = Math.max(0, Number(body.serviceMgmtCents || 0));
+    const serviceInitialCents = Math.max(0, Number(body.serviceInitialCents || 0));
+    const serviceDiscountCents = Math.max(0, Number(body.serviceDiscountCents || 0));
+    const serviceAdditionCents = Math.max(0, Number(body.serviceAdditionCents || 0));
+    const computedServiceTotal = Math.max(
+      0,
+      serviceMgmtCents + serviceInitialCents - serviceDiscountCents + serviceAdditionCents
+    );
+    const serviceFeeCents =
+      Number(body.serviceFeeCents || 0) > 0 ? Number(body.serviceFeeCents) : computedServiceTotal;
+
+    return {
+      brand,
+      model,
+      color,
+      year,
+      plate,
+      chassis,
+      renavam,
+      vehicleInfo,
+      serviceMgmtCents,
+      serviceInitialCents,
+      serviceDiscountCents,
+      serviceAdditionCents,
+      serviceFeeCents,
+    };
+  }
+
+  app.post('/api/admissions', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const body = (req.body || {}) as Record<string, unknown>;
+      const targetUnitId = Number(body.unitId || req.activeUnitId || 1);
+      const bankName = String(body.bankName || '').trim();
+      const series = String(body.series || 'ADM').trim().toUpperCase();
+      const clientIdInput = body.clientId ? Number(body.clientId) : null;
+      const clientFullName = String(body.clientFullName || '').trim();
+      const clientCpf = String(body.clientCpf || '').trim();
+      const clientPhone = String(body.clientPhone || '').trim();
+      const clientEmail = String(body.clientEmail || '').trim();
+
+      if ((!clientIdInput && !clientFullName) || !bankName || !series || !targetUnitId) {
+        return res.status(400).json({
+          error: 'Campos obrigatórios para salvar: Cliente, Banco, Série e Unidade.',
+        });
+      }
+
+      const [unit] = await db.select().from(units).where(eq(units.id, targetUnitId)).limit(1);
+      const computed = computeAdmissionDebtSummary(body);
+      const requestedStatus = String(body.status || 'pendente');
+
+      if (
+        (requestedStatus === 'aguardando_auditoria' || requestedStatus === 'aprovada') &&
+        unit &&
+        computed.serviceFeeCents > 0 &&
+        computed.serviceFeeCents < unit.minAdmissionCostCents
+      ) {
+        return res.status(400).json({
+          error: `Custo de admissão abaixo do mínimo da unidade ${unit.name} (mínimo R$ ${(unit.minAdmissionCostCents / 100).toFixed(2)}).`,
+        });
+      }
+
+      let titular;
+      if (clientIdInput) {
+        [titular] = await db.select().from(clients).where(eq(clients.id, clientIdInput)).limit(1);
+      }
+      if (!titular && clientCpf) {
+        [titular] = await db.select().from(clients).where(eq(clients.cpfCnpj, clientCpf)).limit(1);
+      }
+      if (!titular) {
+        if (!clientFullName) {
+          return res.status(400).json({ error: 'Selecione ou cadastre um cliente responsável.' });
+        }
+        [titular] = await db
+          .insert(clients)
+          .values({
+            fullName: clientFullName,
+            cpfCnpj: clientCpf || `CPF-${Date.now()}`,
+            phone: clientPhone,
+            whatsapp: clientPhone.replace(/\D/g, ''),
+            email: clientEmail,
+            clientType: 'titular',
+            unitId: targetUnitId,
+          })
+          .returning();
+      }
+
+      if (requestedStatus === 'aprovada') {
+        const existingDocs = await db
+          .select({ id: documentObjects.id })
+          .from(documentObjects)
+          .where(and(eq(documentObjects.clientId, titular.id), isNull(documentObjects.deletedAt)))
+          .limit(1);
+        if (!existingDocs[0]) {
+          return res.status(400).json({
+            error: 'Para aprovar a ficha é obrigatório ter ao menos 1 documento salvo na aba Documentos.',
+          });
+        }
+      }
+
+      let assetOwnerId: number | null = body.assetOwnerId ? Number(body.assetOwnerId) : null;
+      const assetOwnerFullName = String(body.assetOwnerFullName || '').trim();
+      const assetOwnerCpf = String(body.assetOwnerCpf || '').trim();
+      if (!assetOwnerId && assetOwnerFullName && assetOwnerCpf) {
+        let [owner] = await db.select().from(clients).where(eq(clients.cpfCnpj, assetOwnerCpf)).limit(1);
+        if (!owner) {
+          [owner] = await db
+            .insert(clients)
+            .values({
+              fullName: assetOwnerFullName,
+              cpfCnpj: assetOwnerCpf,
+              phone: clientPhone,
+              clientType: 'responsavel_bem',
+              unitId: targetUnitId,
+            })
+            .returning();
+        }
+        assetOwnerId = owner.id;
+      }
+
+      if (assetOwnerId && assetOwnerId !== titular.id) {
+        const existingLink = await db
+          .select()
+          .from(clientAssetLinks)
+          .where(
+            and(
+              eq(clientAssetLinks.titularClientId, titular.id),
+              eq(clientAssetLinks.assetOwnerClientId, assetOwnerId)
+            )
+          )
+          .limit(1);
+        if (!existingLink[0]) {
+          await db.insert(clientAssetLinks).values({
+            titularClientId: titular.id,
+            assetOwnerClientId: assetOwnerId,
+            relationshipLabel: 'Titular ↔ Responsável',
+            vehicleModel: computed.model || computed.vehicleInfo,
+            vehiclePlate: computed.plate,
+            renavam: computed.renavam,
+          });
+        }
+      }
+
+      // Generate next sequential protocol number for selected series
+      const allSeriesRows = await db
+        .select({ id: admissions.id })
+        .from(admissions)
+        .where(eq(admissions.series, series));
+      const nextSeq = allSeriesRows.length + 1;
+      const explicitContract = String(body.contractNumber || '').trim();
+      const protocolCode = `${series}-${String(nextSeq).padStart(4, '0')}-${Math.floor(10 + Math.random() * 89)}`;
+      const finalContractNumber = explicitContract || `${series}-${String(nextSeq).padStart(4, '0')}`;
+
+      const installmentsCount = Math.max(2, Number(body.installmentsCount || 6));
+      const initialInstallmentCents =
+        computed.serviceMgmtCents > 0
+          ? computed.serviceMgmtCents
+          : Math.round(computed.serviceFeeCents / installmentsCount);
+
+      const modality = String(body.modality || 'CDC Veículo');
+      const debtType =
+        String(body.debtType || '').trim() ||
+        (/ve[ií]culo/i.test(modality)
+          ? 'veicular'
+          : /cart[aã]o/i.test(modality)
+          ? 'cartao'
+          : /cheque/i.test(modality)
+          ? 'cheque_especial'
+          : 'emprestimo');
+
+      const scenariosJson = Array.isArray(body.scenariosJson)
+        ? (body.scenariosJson as AdmissionScenarioCol[])
+        : [];
+      const indicationSource = String(body.indicationSource || '');
+      const indicationOther =
+        indicationSource === 'outro' ? String(body.indicationOther || '').trim().toUpperCase() : '';
+
+      const [admission] = await db
+        .insert(admissions)
+        .values({
+          protocolCode,
+          clientId: titular.id,
+          assetOwnerId,
+          clientRoleSelected: String(body.clientRoleSelected || 'responsavel'),
+          unitId: targetUnitId,
+          origin: String(body.origin || ''),
+          consultantId: body.consultantId ? Number(body.consultantId) : req.authUser!.id,
+          consultantName: String(body.consultantName || req.authUser!.name),
+          debtType,
+          modality,
+          series,
+          indicationSource,
+          indicationOther,
+          bankName,
+          contractNumber: finalContractNumber,
+          vehicleInfo: computed.vehicleInfo,
+          vehicleBrand: computed.brand,
+          vehicleModel: computed.model,
+          vehicleColor: computed.color,
+          vehicleYear: computed.year,
+          vehiclePlate: computed.plate,
+          vehicleChassis: computed.chassis,
+          vehicleRenavam: computed.renavam,
+          debtTotalInstallments: Number(body.debtTotalInstallments || 48),
+          debtPaidInstallments: Number(body.debtPaidInstallments || 0),
+          debtOverdueInstallments: Number(body.debtOverdueInstallments || 0),
+          financedAmountCents: Math.max(0, Number(body.financedAmountCents || 0)),
+          currentInstallmentCents: Math.max(0, Number(body.currentInstallmentCents || 0)),
+          debtDueDay: Math.min(31, Math.max(1, Number(body.debtDueDay || 10))),
+          paymentType: String(body.paymentType || 'boleto'),
+          debtAmountCents: Math.max(0, Number(body.debtAmountCents || body.financedAmountCents || 0)),
+          serviceFeeCents: computed.serviceFeeCents,
+          serviceMgmtCents: computed.serviceMgmtCents,
+          serviceInitialCents: computed.serviceInitialCents,
+          serviceDiscountCents: computed.serviceDiscountCents,
+          serviceAdditionCents: computed.serviceAdditionCents,
+          billingFeeCents: Math.max(0, Number(body.billingFeeCents || 0)),
+          notes: String(body.notes || ''),
+          scenariosJson,
+          installmentsCount,
+          initialInstallmentCents,
+          status: requestedStatus,
+        })
+        .returning();
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'CREATE_ADMISSION',
+        entityType: 'admission',
+        entityId: String(admission.id),
+        details: { protocolCode, debtType, bankName, series, status: requestedStatus },
+        unitId: targetUnitId,
+      });
+
+      broadcast('audit:event', { type: 'NEW_ADMISSION', protocolCode });
+      res.json({ admission, titular });
+    } catch (error) {
+      console.error('Create admission error:', error);
+      res.status(500).json({ error: 'Erro ao salvar ficha de admissão.' });
+    }
+  });
+
+  app.patch('/api/admissions/:id', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const id = Number(req.params.id);
+      const rows = await db.select().from(admissions).where(eq(admissions.id, id)).limit(1);
+      const existing = rows[0];
+      if (!existing) return res.status(404).json({ error: 'Ficha de admissão não encontrada.' });
+
+      const body = (req.body || {}) as Record<string, unknown>;
+      const printAutoTransitionOnly = body.printAutoTransition === true;
+
+      if (!printAutoTransitionOnly && (existing.status === 'aprovada' || existing.status === 'auditada')) {
+        return res.status(400).json({
+          error: 'Registros aprovados ficam em somente leitura. A Auditoria deve devolver a ficha para permitir correção.',
+        });
+      }
+
+      if (printAutoTransitionOnly) {
+        if (existing.status !== 'pendente') {
+          return res.json({ admission: existing });
+        }
+        const [updated] = await db
+          .update(admissions)
+          .set({ status: 'negociacao' })
+          .where(eq(admissions.id, id))
+          .returning();
+        await db.insert(auditLogs).values({
+          userId: req.authUser!.id,
+          userName: req.authUser!.name,
+          action: 'ADMISSION_PRINT_STATUS_NEGOCIACAO',
+          entityType: 'admission',
+          entityId: String(id),
+          details: { from: 'pendente', to: 'negociacao' },
+          unitId: existing.unitId,
+        });
+        return res.json({ admission: updated });
+      }
+
+      const targetUnitId = Number(body.unitId || existing.unitId);
+      const bankName = String(body.bankName ?? existing.bankName).trim();
+      const series = String(body.series ?? existing.series).trim().toUpperCase();
+      const clientId = Number(body.clientId ?? existing.clientId);
+      if (!clientId || !bankName || !series || !targetUnitId) {
+        return res.status(400).json({ error: 'Cliente, Banco, Série e Unidade são obrigatórios.' });
+      }
+
+      const requestedStatus = String(body.status ?? existing.status);
+      if (requestedStatus === 'aprovada') {
+        const docs = await db
+          .select({ id: documentObjects.id })
+          .from(documentObjects)
+          .where(
+            and(
+              or(eq(documentObjects.admissionId, id), eq(documentObjects.clientId, clientId)),
+              isNull(documentObjects.deletedAt)
+            )
+          )
+          .limit(1);
+        if (!docs[0]) {
+          return res.status(400).json({
+            error: 'Não é possível aprovar sem ao menos um documento já salvo na ficha.',
+          });
+        }
+        const critiques = Array.isArray(existing.auditCritiquesJson) ? existing.auditCritiquesJson : [];
+        const hasOpenUnansweredCritique = critiques.some((c) => !c.commercialResponse?.trim());
+        if (hasOpenUnansweredCritique) {
+          return res.status(400).json({
+            error: 'Existem críticas abertas da Auditoria sem resposta do Comercial. Responda antes de aprovar.',
+          });
+        }
+      }
+
+      const computed = computeAdmissionDebtSummary(body);
+      const modality = String(body.modality ?? existing.modality);
+      const debtType =
+        String(body.debtType || '').trim() ||
+        (/ve[ií]culo/i.test(modality)
+          ? 'veicular'
+          : /cart[aã]o/i.test(modality)
+          ? 'cartao'
+          : /cheque/i.test(modality)
+          ? 'cheque_especial'
+          : 'emprestimo');
+      const indicationSource = String(body.indicationSource ?? existing.indicationSource);
+      const indicationOther =
+        indicationSource === 'outro' ? String(body.indicationOther || '').trim().toUpperCase() : '';
+      const scenariosJson = Array.isArray(body.scenariosJson)
+        ? (body.scenariosJson as AdmissionScenarioCol[])
+        : existing.scenariosJson;
+
+      const [updated] = await db
+        .update(admissions)
+        .set({
+          clientId,
+          assetOwnerId: body.assetOwnerId !== undefined ? (body.assetOwnerId ? Number(body.assetOwnerId) : null) : existing.assetOwnerId,
+          clientRoleSelected: String(body.clientRoleSelected ?? existing.clientRoleSelected),
+          unitId: targetUnitId,
+          origin: String(body.origin ?? existing.origin),
+          consultantId: body.consultantId ? Number(body.consultantId) : existing.consultantId,
+          consultantName: String(body.consultantName ?? existing.consultantName),
+          debtType,
+          modality,
+          series,
+          indicationSource,
+          indicationOther,
+          bankName,
+          contractNumber: String(body.contractNumber ?? existing.contractNumber),
+          vehicleInfo: computed.vehicleInfo,
+          vehicleBrand: computed.brand,
+          vehicleModel: computed.model,
+          vehicleColor: computed.color,
+          vehicleYear: computed.year,
+          vehiclePlate: computed.plate,
+          vehicleChassis: computed.chassis,
+          vehicleRenavam: computed.renavam,
+          debtTotalInstallments: Number(body.debtTotalInstallments ?? existing.debtTotalInstallments),
+          debtPaidInstallments: Number(body.debtPaidInstallments ?? existing.debtPaidInstallments),
+          debtOverdueInstallments: Number(body.debtOverdueInstallments ?? existing.debtOverdueInstallments),
+          financedAmountCents: Math.max(0, Number(body.financedAmountCents ?? existing.financedAmountCents)),
+          currentInstallmentCents: Math.max(0, Number(body.currentInstallmentCents ?? existing.currentInstallmentCents)),
+          debtDueDay: Math.min(31, Math.max(1, Number(body.debtDueDay ?? existing.debtDueDay))),
+          paymentType: String(body.paymentType ?? existing.paymentType),
+          debtAmountCents: Math.max(0, Number(body.debtAmountCents ?? existing.debtAmountCents)),
+          serviceFeeCents: computed.serviceFeeCents,
+          serviceMgmtCents: computed.serviceMgmtCents,
+          serviceInitialCents: computed.serviceInitialCents,
+          serviceDiscountCents: computed.serviceDiscountCents,
+          serviceAdditionCents: computed.serviceAdditionCents,
+          billingFeeCents: Math.max(0, Number(body.billingFeeCents ?? existing.billingFeeCents)),
+          notes: String(body.notes ?? existing.notes),
+          scenariosJson,
+          status: requestedStatus,
+        })
+        .where(eq(admissions.id, id))
+        .returning();
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'UPDATE_ADMISSION',
+        entityType: 'admission',
+        entityId: String(id),
+        details: { protocolCode: updated.protocolCode, status: updated.status },
+        unitId: targetUnitId,
+      });
+
+      res.json({ admission: updated });
+    } catch (error) {
+      console.error('Update admission error:', error);
+      res.status(500).json({ error: 'Erro ao atualizar ficha de admissão.' });
+    }
+  });
+
+  app.post('/api/admissions/:id/respond-critique', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { responseText, resubmitToAudit } = (req.body || {}) as {
+        responseText?: string;
+        resubmitToAudit?: boolean;
+      };
+      if (!responseText?.trim()) {
+        return res.status(400).json({ error: 'Informe a resposta do Comercial para a crítica.' });
+      }
+      const rows = await db.select().from(admissions).where(eq(admissions.id, id)).limit(1);
+      const adm = rows[0];
+      if (!adm) return res.status(404).json({ error: 'Admissão não encontrada.' });
+
+      const critiques = Array.isArray(adm.auditCritiquesJson) ? [...adm.auditCritiquesJson] : [];
+      if (critiques.length === 0) {
+        critiques.push({
+          id: `crit-${Date.now()}`,
+          round: 1,
+          author: 'Auditoria',
+          reason: adm.auditRejectionReason || 'Crítica registrada',
+          createdAt: adm.auditedAt ? new Date(adm.auditedAt).toISOString() : new Date().toISOString(),
+          commercialResponse: responseText.trim(),
+          respondedBy: req.authUser!.name,
+          respondedAt: new Date().toISOString(),
+        });
+      } else {
+        const lastIdx = critiques.length - 1;
+        critiques[lastIdx] = {
+          ...critiques[lastIdx],
+          commercialResponse: responseText.trim(),
+          respondedBy: req.authUser!.name,
+          respondedAt: new Date().toISOString(),
+        };
+      }
+
+      const [updated] = await db
+        .update(admissions)
+        .set({
+          auditCritiquesJson: critiques,
+          ...(resubmitToAudit ? { status: 'aguardando_auditoria', submittedToAuditAt: new Date() } : {}),
+        })
+        .where(eq(admissions.id, id))
+        .returning();
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'ADMISSION_CRITIQUE_RESPONDED',
+        entityType: 'admission',
+        entityId: String(id),
+        details: { responseText: responseText.trim(), resubmitToAudit: Boolean(resubmitToAudit) },
+        unitId: adm.unitId,
+      });
+
+      res.json({ admission: updated });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao responder crítica.' });
+    }
+  });
+
+  app.delete('/api/admissions/:id', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const id = Number(req.params.id);
+      const rows = await db.select().from(admissions).where(eq(admissions.id, id)).limit(1);
+      const adm = rows[0];
+      if (!adm) return res.status(404).json({ error: 'Admissão não encontrada.' });
+
+      if (['aprovada', 'auditada', 'em_andamento', 'finalizada', 'concluido'].includes(adm.status)) {
+        return res.status(400).json({ error: 'Registros aprovados ou finalizados não podem ser excluídos.' });
+      }
+
+      const [hasTitles, hasLegal, hasNeg, hasDocs] = await Promise.all([
+        db.select({ id: financialTitles.id }).from(financialTitles).where(eq(financialTitles.admissionId, id)).limit(1),
+        db.select({ id: legalProcesses.id }).from(legalProcesses).where(eq(legalProcesses.admissionId, id)).limit(1),
+        db.select({ id: negotiations.id }).from(negotiations).where(eq(negotiations.admissionId, id)).limit(1),
+        db.select({ id: documentObjects.id }).from(documentObjects).where(and(eq(documentObjects.admissionId, id), isNull(documentObjects.deletedAt))).limit(1),
+      ]);
+
+      if (hasTitles[0] || hasLegal[0] || hasNeg[0] || hasDocs[0]) {
+        return res.status(409).json({
+          error: 'Exclusão bloqueada: existem boletos, processos jurídicos, negociações ou documentos vinculados a esta ficha.',
+        });
+      }
+
+      await db.delete(admissions).where(eq(admissions.id, id));
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'DELETE_ADMISSION',
+        entityType: 'admission',
+        entityId: String(id),
+        details: { protocolCode: adm.protocolCode },
+        unitId: adm.unitId,
+      });
+      res.json({ ok: true });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao excluir ficha.' });
+    }
+  });
+
+  app.get('/api/admissions/:id/history', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const id = Number(req.params.id);
+      const logs = await db
+        .select()
+        .from(auditLogs)
+        .where(and(eq(auditLogs.entityType, 'admission'), eq(auditLogs.entityId, String(id))))
+        .orderBy(desc(auditLogs.id));
+      res.json({ logs });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao buscar histórico.' });
+    }
+  });
+
+  async function resolveClientWhatsappInteractions(clientId: number, assetOwnerId?: number | null) {
+    const [respRows, ownerRows, allThreads, allLeads, uazapiInstances] = await Promise.all([
+      db.select().from(clients).where(eq(clients.id, clientId)).limit(1),
+      assetOwnerId ? db.select().from(clients).where(eq(clients.id, assetOwnerId)).limit(1) : Promise.resolve([]),
+      db.select().from(whatsappThreads).orderBy(desc(whatsappThreads.updatedAt)),
+      db.select().from(prospectionLeads).orderBy(desc(prospectionLeads.lastMessageAt)),
+      db
+        .select({
+          uazapiInstanceId: unitWhatsappCredentials.uazapiInstanceId,
+          label: unitWhatsappCredentials.label,
+          connectedPhone: unitWhatsappCredentials.connectedPhone,
+          isConnected: unitWhatsappCredentials.isConnected,
+        })
+        .from(unitWhatsappCredentials),
+    ]);
+
+    const resp = respRows[0];
+    const owner = ownerRows[0];
+    const candidatePhones = Array.from(
+      new Set(
+        [resp?.phone, resp?.whatsapp, owner?.phone, owner?.whatsapp]
+          .map((p) => String(p || '').trim())
+          .filter((p) => p.replace(/\D/g, '').length >= 8)
+      )
+    );
+
+    const matchedThreads = allThreads.filter((t) => {
+      if (t.clientId === clientId || (assetOwnerId && t.clientId === assetOwnerId)) return true;
+      return candidatePhones.some((p) => phonesMatchBR(t.contactPhone, p));
+    });
+
+    const threadIds = matchedThreads.map((t) => t.id);
+    const rawMessages =
+      threadIds.length > 0
+        ? await db
+            .select()
+            .from(whatsappMessages)
+            .where(inArray(whatsappMessages.threadId, threadIds))
+            .orderBy(desc(whatsappMessages.createdAt))
+            .limit(300)
+        : [];
+
+    const threadMap = new Map(matchedThreads.map((t) => [t.id, t]));
+    const instanceLabelMap = new Map(uazapiInstances.map((i) => [i.uazapiInstanceId, i.label]));
+
+    const enrichedThreads = matchedThreads.map((t) => ({
+      ...t,
+      instanceLabel: t.uazapiInstanceId ? instanceLabelMap.get(t.uazapiInstanceId) || t.uazapiInstanceId : null,
+      ownerRole:
+        owner && (t.clientId === owner.id || phonesMatchBR(t.contactPhone, owner.phone) || phonesMatchBR(t.contactPhone, owner.whatsapp))
+          ? 'titular'
+          : 'responsavel',
+    }));
+
+    const messages = rawMessages.reverse().map((m) => {
+      const th = threadMap.get(m.threadId);
+      return {
+        ...m,
+        provider: th?.provider || 'gotalk',
+        contactPhone: th?.contactPhone || '',
+        contactName: th?.contactName || '',
+        uazapiInstanceId: th?.uazapiInstanceId || null,
+      };
+    });
+
+    const matchedLeads = candidatePhones.length
+      ? allLeads.filter((l) => candidatePhones.some((p) => phonesMatchBR(l.phone, p)))
+      : [];
+
+    return {
+      threads: enrichedThreads,
+      messages,
+      atendimentos: matchedLeads,
+      matchedPhones: candidatePhones,
+      clientName: resp?.fullName || null,
+      titularName: owner?.fullName || null,
+    };
+  }
+
+  async function syncClientWhatsappConversations(clientId: number, assetOwnerId?: number | null, unitId?: number) {
+    const [respRows, ownerRows, existingThreads, allCreds] = await Promise.all([
+      db.select().from(clients).where(eq(clients.id, clientId)).limit(1),
+      assetOwnerId ? db.select().from(clients).where(eq(clients.id, assetOwnerId)).limit(1) : Promise.resolve([]),
+      db.select().from(whatsappThreads),
+      db.select().from(unitWhatsappCredentials),
+    ]);
+
+    const resp = respRows[0];
+    const owner = ownerRows[0];
+    const phoneCandidates = Array.from(
+      new Set(
+        [resp?.whatsapp, resp?.phone, owner?.whatsapp, owner?.phone]
+          .map((p) => String(p || '').trim())
+          .filter((p) => p.replace(/\D/g, '').length >= 8)
+      )
+    );
+
+    let syncedMessages = 0;
+    let syncedThreads = 0;
+
+    // 1. Auto-link any existing GoTalk or UaZapi threads that match client/titular phone
+    for (const t of existingThreads) {
+      if (!t.clientId && phoneCandidates.some((p) => phonesMatchBR(t.contactPhone, p))) {
+        const matchedOwner = owner && (phonesMatchBR(t.contactPhone, owner.phone) || phonesMatchBR(t.contactPhone, owner.whatsapp));
+        await db
+          .update(whatsappThreads)
+          .set({ clientId: matchedOwner ? owner.id : clientId })
+          .where(eq(whatsappThreads.id, t.id));
+      }
+    }
+
+    // 2. Pull matching UaZapi chats/messages from connected instances
+    if (phoneCandidates.length > 0 && allCreds.length > 0) {
+      const targetCreds = allCreds.filter((c) => c.isConnected);
+      const credsToQuery = targetCreds.length > 0 ? targetCreds : allCreds.slice(0, 2);
+
+      for (const credRow of credsToQuery) {
+        const token = decryptUazapiToken(credRow.uazapiTokenEncrypted);
+        if (!token) continue;
+        const creds: UazapiCredentials = {
+          unitId: credRow.unitId,
+          instanceId: credRow.uazapiInstanceId,
+          label: credRow.label,
+          serverUrl: credRow.uazapiServerUrl,
+          token,
+        };
+        try {
+          const chats = await findUazapiChats(creds, 35, 0);
+          for (const ch of chats) {
+            if (!phoneCandidates.some((p) => phonesMatchBR(ch.phone, p))) continue;
+            const matchedOwner = owner && (phonesMatchBR(ch.phone, owner.phone) || phonesMatchBR(ch.phone, owner.whatsapp));
+            const targetClientId = matchedOwner ? owner.id : clientId;
+
+            let thread = existingThreads.find(
+              (t) => t.provider === 'uazapi' && phonesMatchBR(t.contactPhone, ch.phone) && (!t.uazapiInstanceId || t.uazapiInstanceId === credRow.uazapiInstanceId)
+            );
+            if (!thread) {
+              const [created] = await db
+                .insert(whatsappThreads)
+                .values({
+                  unitId: unitId || credRow.unitId || resp?.unitId || 1,
+                  clientId: targetClientId,
+                  contactName: ch.name || (matchedOwner ? owner?.fullName : resp?.fullName) || ch.phone,
+                  contactPhone: normalizePhone(ch.phone) || ch.phone,
+                  provider: 'uazapi',
+                  uazapiInstanceId: credRow.uazapiInstanceId,
+                  unreadCount: ch.unreadCount,
+                  lastMessagePreview: ch.lastMessagePreview || 'Conversa UaZapi',
+                  updatedAt: new Date(),
+                })
+                .returning();
+              thread = created;
+              existingThreads.push(created);
+              syncedThreads++;
+            } else if (!thread.clientId) {
+              await db
+                .update(whatsappThreads)
+                .set({ clientId: targetClientId, uazapiInstanceId: credRow.uazapiInstanceId })
+                .where(eq(whatsappThreads.id, thread.id));
+            }
+
+            const msgs = await findUazapiMessages(creds, ch.chatId, 25);
+            for (const m of msgs) {
+              if (!m.body) continue;
+              const dup = await db
+                .select({ id: whatsappMessages.id })
+                .from(whatsappMessages)
+                .where(eq(whatsappMessages.externalMessageId, m.id))
+                .limit(1);
+              if (dup[0]) continue;
+              await db.insert(whatsappMessages).values({
+                threadId: thread.id,
+                externalMessageId: m.id,
+                direction: m.fromMe ? 'outbound' : 'inbound',
+                contentType: m.type,
+                body: m.body,
+                ackStatus: m.fromMe ? 2 : null,
+                senderName: m.fromMe ? 'Consultor UaZapi' : m.senderName || thread.contactName,
+                createdAt: new Date(m.timestampMs),
+              });
+              syncedMessages++;
+            }
+          }
+        } catch {
+          // keep resilient across multi-instances
+        }
+      }
+    }
+
+    const interactions = await resolveClientWhatsappInteractions(clientId, assetOwnerId);
+    return { ...interactions, syncedThreads, syncedMessages };
+  }
+
+  app.get('/api/admissions/:id/interactions', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const id = Number(req.params.id);
+      const [adm] = await db.select().from(admissions).where(eq(admissions.id, id)).limit(1);
+      if (!adm) return res.status(404).json({ error: 'Admissão não encontrada.' });
+      const data = await resolveClientWhatsappInteractions(adm.clientId, adm.assetOwnerId);
+      res.json(data);
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao consultar atendimentos.' });
+    }
+  });
+
+  app.get('/api/clients/:clientId/interactions', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const clientId = Number(req.params.clientId);
+      const titularId = req.query.titularId ? Number(req.query.titularId) : null;
+      const data = await resolveClientWhatsappInteractions(clientId, titularId);
+      res.json(data);
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao consultar conversas do cliente.' });
+    }
+  });
+
+  app.post('/api/admissions/:id/sync-whatsapp', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const id = Number(req.params.id);
+      const [adm] = await db.select().from(admissions).where(eq(admissions.id, id)).limit(1);
+      if (!adm) return res.status(404).json({ error: 'Admissão não encontrada.' });
+      const data = await syncClientWhatsappConversations(adm.clientId, adm.assetOwnerId, adm.unitId);
+      res.json({ ok: true, ...data });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao sincronizar conversas WhatsApp.' });
+    }
+  });
+
+  app.post('/api/clients/:clientId/sync-whatsapp', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const clientId = Number(req.params.clientId);
+      const { titularId, unitId } = (req.body || {}) as { titularId?: number | null; unitId?: number };
+      const data = await syncClientWhatsappConversations(clientId, titularId || null, unitId || req.activeUnitId);
+      res.json({ ok: true, ...data });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao sincronizar conversas do cliente.' });
+    }
+  });
+
+  app.post('/api/clients/:clientId/whatsapp/start', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const clientId = Number(req.params.clientId);
+      const { provider, phone, unitId } = (req.body || {}) as {
+        provider?: 'gotalk' | 'uazapi';
+        phone?: string;
+        unitId?: number;
+      };
+      const [client] = await db.select().from(clients).where(eq(clients.id, clientId)).limit(1);
+      if (!client) return res.status(404).json({ error: 'Cliente não encontrado.' });
+
+      const chosenPhone = normalizePhone(phone || client.whatsapp || client.phone || '');
+      if (!chosenPhone || chosenPhone.replace(/\D/g, '').length < 8) {
+        return res.status(400).json({ error: 'Telefone válido obrigatório para iniciar conversa.' });
+      }
+      const chosenProvider = provider === 'uazapi' ? 'uazapi' : 'gotalk';
+      const targetUnitId = unitId || client.unitId || req.activeUnitId || 1;
+
+      const allThreads = await db.select().from(whatsappThreads);
+      const existing = allThreads.find(
+        (t) => t.provider === chosenProvider && (t.clientId === client.id || phonesMatchBR(t.contactPhone, chosenPhone))
+      );
+      if (existing) {
+        if (!existing.clientId) {
+          await db.update(whatsappThreads).set({ clientId: client.id }).where(eq(whatsappThreads.id, existing.id));
+        }
+        return res.json({ thread: existing, created: false });
+      }
+
+      let uazapiInstanceId: string | null = null;
+      if (chosenProvider === 'uazapi') {
+        const creds = await resolveUazapiCredentials({
+          unitId: targetUnitId,
+          groupId: req.authUser?.groupId ?? null,
+        });
+        uazapiInstanceId = creds?.instanceId || null;
+      }
+      let channelDbId: number | null = null;
+      if (chosenProvider === 'gotalk') {
+        const ch = await db.select().from(gotalkChannels).where(eq(gotalkChannels.isActive, true)).limit(1);
+        channelDbId = ch[0]?.id || null;
+      }
+
+      const [created] = await db
+        .insert(whatsappThreads)
+        .values({
+          clientId: client.id,
+          unitId: targetUnitId,
+          contactName: client.fullName,
+          contactPhone: chosenPhone,
+          provider: chosenProvider,
+          uazapiInstanceId,
+          channelDbId,
+          operatorName: req.authUser!.name,
+          lastMessagePreview: `Conversa iniciada via ${chosenProvider.toUpperCase()}`,
+          updatedAt: new Date(),
+        })
+        .returning();
+
+      res.json({ thread: created, created: true });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao iniciar conversa WhatsApp.' });
+    }
+  });
+
+  app.post('/api/admissions/:id/export-docx', requireAuth, upload.single('template'), async (req: AuthRequest, res) => {
+    try {
+      const id = Number(req.params.id);
+      const [adm] = await db.select().from(admissions).where(eq(admissions.id, id)).limit(1);
+      if (!adm) return res.status(404).json({ error: 'Admissão não encontrada.' });
+
+      const [clientRows, ownerRows, unitRows] = await Promise.all([
+        db.select().from(clients).where(eq(clients.id, adm.clientId)).limit(1),
+        adm.assetOwnerId ? db.select().from(clients).where(eq(clients.id, adm.assetOwnerId)).limit(1) : Promise.resolve([]),
+        db.select().from(units).where(eq(units.id, adm.unitId)).limit(1),
+      ]);
+      const respClient = clientRows[0];
+      const titularClient = ownerRows[0];
+      const unitRow = unitRows[0];
+
+      const fmtMoney = (cents: number) =>
+        (Number(cents || 0) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+      const firstScenario = Array.isArray(adm.scenariosJson) && adm.scenariosJson[0] ? adm.scenariosJson[0] : null;
+      const vars: Record<string, string> = {
+        protocolo: adm.protocolCode,
+        contrato: adm.contractNumber,
+        serie: adm.series || 'ADM',
+        unidade: unitRow?.name || 'Matriz',
+        status: adm.status,
+        origem: adm.origin || '-',
+        cliente_nome: respClient?.fullName || '',
+        cliente_cpf: respClient?.cpfCnpj || '',
+        cliente_rg: respClient?.rg || '',
+        cliente_telefone: respClient?.phone || '',
+        cliente_email: respClient?.email || '',
+        cliente_profissao: respClient?.profession || '',
+        cliente_estado_civil: respClient?.maritalStatus || '',
+        cliente_endereco: [respClient?.address, respClient?.addressNumber, respClient?.neighborhood, respClient?.city, respClient?.state].filter(Boolean).join(', '),
+        titular_nome: titularClient?.fullName || '',
+        titular_cpf: titularClient?.cpfCnpj || '',
+        banco: adm.bankName,
+        modalidade: adm.modality || adm.debtType,
+        consultor: adm.consultantName || '',
+        veiculo_marca: adm.vehicleBrand || '',
+        veiculo_modelo: adm.vehicleModel || '',
+        veiculo_cor: adm.vehicleColor || '',
+        veiculo_ano: adm.vehicleYear || '',
+        veiculo_placa: adm.vehiclePlate || '',
+        veiculo_chassi: adm.vehicleChassis || '',
+        veiculo_renavam: adm.vehicleRenavam || '',
+        divida_original: fmtMoney(adm.debtAmountCents),
+        valor_financiado: fmtMoney(adm.financedAmountCents),
+        valor_parcela: fmtMoney(adm.currentInstallmentCents),
+        divida_recalculada: firstScenario ? fmtMoney(firstScenario.recalcDebtCents) : fmtMoney(adm.debtAmountCents),
+        economia: firstScenario ? fmtMoney(firstScenario.savingsCents) : fmtMoney(0),
+        total_servicos: fmtMoney(adm.serviceFeeCents),
+        parcela_01: fmtMoney(adm.serviceMgmtCents || adm.initialInstallmentCents),
+        custos_iniciais: fmtMoney(adm.serviceInitialCents),
+        valor_boletos: fmtMoney(adm.billingFeeCents),
+        anotacoes: adm.notes || '',
+        data_atual: new Date().toLocaleDateString('pt-BR'),
+      };
+
+      let outBuf: Buffer;
+      if (req.file) {
+        const lowerName = req.file.originalname.toLowerCase();
+        if (lowerName.endsWith('.doc') && !lowerName.endsWith('.docx')) {
+          return res.status(400).json({ error: 'Arquivos .doc legados não são suportados. Envie um template .docx.' });
+        }
+        outBuf = fillDocxTemplateBuffer(req.file.buffer, vars);
+      } else {
+        const lines: Array<{ text: string; bold?: boolean; heading?: boolean }> = [
+          { text: `FINANCEPRO ASSESSORIA · FICHA DE ADMISSÃO (${adm.contractNumber})`, heading: true },
+          { text: `Protocolo: ${adm.protocolCode} | Unidade: ${vars.unidade} | Status: ${adm.status.toUpperCase()} | Data: ${vars.data_atual}`, bold: true },
+          { text: '' },
+          { text: '01. DADOS DO CLIENTE E TITULAR', bold: true },
+          { text: `Responsável: ${vars.cliente_nome} | CPF/CNPJ: ${vars.cliente_cpf} | RG: ${vars.cliente_rg || '—'}` },
+          { text: `Telefone: ${vars.cliente_telefone} | E-mail: ${vars.cliente_email || '—'}` },
+          { text: `Profissão: ${vars.cliente_profissao || '—'} | Estado Civil: ${vars.cliente_estado_civil || '—'}` },
+          { text: `Endereço: ${vars.cliente_endereco || '—'}` },
+          ...(titularClient ? [{ text: `Titular Vinculado: ${vars.titular_nome} | CPF/CNPJ: ${vars.titular_cpf}` }] : []),
+          { text: '' },
+          { text: '02. INFORMAÇÕES DA NEGOCIAÇÃO', bold: true },
+          { text: `Banco Credor: ${vars.banco} | Modalidade: ${vars.modalidade} | Série: ${vars.serie}` },
+          { text: `Consultor: ${vars.consultor || '—'} | Indicação: ${adm.indicationSource || '—'} ${adm.indicationOther || ''}` },
+          ...(/ve[ií]culo/i.test(vars.modalidade)
+            ? [
+                { text: '' },
+                { text: '03. INFORMAÇÕES DO VEÍCULO', bold: true },
+                { text: `Marca/Modelo: ${vars.veiculo_marca} ${vars.veiculo_modelo} | Cor: ${vars.veiculo_cor} | Ano: ${vars.veiculo_ano}` },
+                { text: `Placa: ${vars.veiculo_placa} | Chassi: ${vars.veiculo_chassi} | Renavam: ${vars.veiculo_renavam}` },
+              ]
+            : []),
+          { text: '' },
+          { text: '04. DÍVIDA ATUAL & CENÁRIO PRINCIPAL', bold: true },
+          { text: `Parcelas: ${adm.debtTotalInstallments} totais / ${adm.debtPaidInstallments} pagas / ${adm.debtOverdueInstallments} em atraso | Dia venc.: ${adm.debtDueDay}` },
+          { text: `Valor Financiado: ${vars.valor_financiado} | Valor da Parcela: ${vars.valor_parcela} | Dívida Base: ${vars.divida_original}` },
+          { text: `1º Cenário: Nova Dívida ${vars.divida_recalculada} | Economia Estimada: ${vars.economia}` },
+          { text: '' },
+          { text: '05. SERVIÇOS E OUTRAS INFORMAÇÕES', bold: true },
+          { text: `Gestão (Parcela 01): ${vars.parcela_01} | Custos Iniciais: ${vars.custos_iniciais} | Valor Boletos: ${vars.valor_boletos}` },
+          { text: `Total Geral dos Serviços: ${vars.total_servicos}`, bold: true },
+          ...(adm.notes ? [{ text: `Anotações: ${adm.notes}` }] : []),
+          { text: '' },
+          { text: '________________________________________        ________________________________________' },
+          { text: 'Assinatura do Cliente / Titular                 Conferência FinancePro Assessoria' },
+        ];
+        outBuf = generateAdmissionDocx(lines);
+      }
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      res.setHeader('Content-Disposition', `attachment; filename="Admissao_${adm.contractNumber.replace(/[^a-zA-Z0-9_-]/g, '_')}.docx"`);
+      res.send(outBuf);
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao exportar .docx.' });
+    }
+  });
+
+  // Upload document to bucketdainvicta (AES-256-GCM encrypted CAS object bucket + SHA-256 deduplication; zero binary bloat in DB)
+  app.post('/api/documents/upload', requireAuth, upload.single('file'), async (req: AuthRequest, res) => {
+    try {
+      const { clientId, admissionId, docCategory } = req.body as {
+        clientId: string;
+        admissionId?: string;
+        docCategory: string;
+      };
+      const file = req.file;
+      if (!file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
+      if (!clientId || !Number(clientId)) return res.status(400).json({ error: 'clientId obrigatório para indexação no bucket.' });
+
+      const validationErr = validateUploadFile(file.originalname, file.mimetype, file.size);
+      if (validationErr) return res.status(400).json({ error: validationErr });
+
+      const safeFileName = sanitizeFileName(file.originalname);
+      const targetUnitId = req.activeUnitId || 1;
+      const folderPath = `bucketdainvicta/U${targetUnitId}/C${clientId}${admissionId ? `/ADM-${admissionId}` : '/GERAL'}`;
+
+      const stored = await putBucketObject(file.buffer, {
+        folderPath,
+        mimeType: file.mimetype,
+        originalName: safeFileName,
+      });
+
+      const [doc] = await db
+        .insert(documentObjects)
+        .values({
+          clientId: Number(clientId),
+          admissionId: admissionId ? Number(admissionId) : null,
+          folderPath,
+          fileName: safeFileName,
+          docCategory: docCategory || 'pessoal',
+          mimeType: file.mimetype || 'application/octet-stream',
+          sizeBytes: stored.sizeBytes,
+          sha256Hash: stored.sha256Hash,
+          storageUri: stored.storageUri,
+          uploadedBy: req.authUser!.name,
+          unitId: targetUnitId,
+        })
+        .returning();
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'DOCUMENT_UPLOAD',
+        entityType: 'document_object',
+        entityId: String(doc.id),
+        details: {
+          fileName: doc.fileName,
+          folderPath,
+          sha256Hash: stored.sha256Hash,
+          backend: stored.backend,
+          deduplicated: stored.deduplicated,
+        },
+        unitId: targetUnitId,
+      });
+
+      const bucketStats = await getBucketRuntimeStats();
+      res.json({ document: doc, deduplicated: stored.deduplicated, bucketStats });
+    } catch (error) {
+      console.error('Upload document error:', error);
+      res.status(500).json({ error: 'Erro ao armazenar documento no bucket.' });
+    }
+  });
+
+  // Link an existing client bucket document to a specific admission dossier without duplicating the binary in bucket
+  app.post('/api/admissions/:id/link-document', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const admissionId = Number(req.params.id);
+      const { documentId } = (req.body || {}) as { documentId?: number };
+      if (!documentId) return res.status(400).json({ error: 'documentId obrigatório.' });
+
+      const [admRows, docRows] = await Promise.all([
+        db.select().from(admissions).where(eq(admissions.id, admissionId)).limit(1),
+        db.select().from(documentObjects).where(eq(documentObjects.id, Number(documentId))).limit(1),
+      ]);
+      const adm = admRows[0];
+      const srcDoc = docRows[0];
+      if (!adm) return res.status(404).json({ error: 'Admissão não encontrada.' });
+      if (!srcDoc || srcDoc.deletedAt) return res.status(404).json({ error: 'Documento de origem não encontrado.' });
+
+      if (srcDoc.admissionId === admissionId) {
+        return res.json({ document: srcDoc, linked: false });
+      }
+
+      if (srcDoc.admissionId === null) {
+        const [updated] = await db
+          .update(documentObjects)
+          .set({ admissionId, folderPath: `bucketdainvicta/U${adm.unitId}/C${srcDoc.clientId}/ADM-${admissionId}` })
+          .where(eq(documentObjects.id, srcDoc.id))
+          .returning();
+        return res.json({ document: updated, linked: true });
+      }
+
+      const [linkedCopy] = await db
+        .insert(documentObjects)
+        .values({
+          clientId: srcDoc.clientId,
+          admissionId,
+          folderPath: `bucketdainvicta/U${adm.unitId}/C${srcDoc.clientId}/ADM-${admissionId}`,
+          fileName: srcDoc.fileName,
+          docCategory: srcDoc.docCategory,
+          mimeType: srcDoc.mimeType,
+          sizeBytes: srcDoc.sizeBytes,
+          sha256Hash: srcDoc.sha256Hash,
+          storageUri: srcDoc.storageUri,
+          uploadedBy: req.authUser!.name,
+          unitId: adm.unitId,
+        })
+        .returning();
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'DOCUMENT_LINKED_TO_ADMISSION',
+        entityType: 'document_object',
+        entityId: String(linkedCopy.id),
+        details: { sourceDocId: srcDoc.id, admissionId, sha256Hash: srcDoc.sha256Hash },
+        unitId: adm.unitId,
+      });
+
+      res.json({ document: linkedCopy, linked: true });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao vincular documento à ficha.' });
+    }
+  });
+
+  app.get('/api/bucket/status', requireAuth, async (_req: AuthRequest, res) => {
+    try {
+      const [stats, totals] = await Promise.all([
+        getBucketRuntimeStats(),
+        db.select({ total: count() }).from(documentObjects).where(isNull(documentObjects.deletedAt)),
+      ]);
+      res.json({ ...stats, activeMetadataCount: Number(totals[0]?.total || 0) });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao consultar status do bucket.' });
+    }
+  });
+
+  app.post('/api/bucket/provision-cloud', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      const { bucketName } = (req.body || {}) as { bucketName?: string };
+      const result = await tryProvisionCloudBucket(bucketName);
+      const stats = await getBucketRuntimeStats();
+      res.status(result.ok ? 200 : 403).json({ ...result, stats });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error instanceof Error ? error.message : 'Erro ao provisionar bucket.' });
+    }
+  });
+
+  app.get('/api/bucket/objects/:sha256', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const cleanHash = String(req.params.sha256 || '').replace(/[^a-f0-9]/gi, '').toLowerCase();
+      if (cleanHash.length !== 64) return res.status(400).json({ error: 'SHA-256 inválido.' });
+
+      const [matchingDocs, matchingArchives, matchingCallLogs, matchingMsgs] = await Promise.all([
+        db.select().from(documentObjects).where(eq(documentObjects.sha256Hash, cleanHash)),
+        db.select().from(communicationArchives).where(eq(communicationArchives.sha256Hash, cleanHash)),
+        db.select().from(whatsappCallLogs).where(eq(whatsappCallLogs.recordingSha256, cleanHash)),
+        db.select().from(whatsappMessages).where(eq(whatsappMessages.mediaSha256, cleanHash)),
+      ]);
+
+      const isAdmin = req.authUser!.role === 'admin';
+      const allowedUnits = req.authUser!.allowedUnitIds || [];
+      const allowedDoc = matchingDocs.find((d) => !d.deletedAt && (isAdmin || allowedUnits.includes(d.unitId)));
+      const allowedArchive = matchingArchives.find((a) => isAdmin || allowedUnits.includes(a.unitId));
+      const allowedCall = matchingCallLogs.find((c) => isAdmin || allowedUnits.includes(c.unitId));
+      const matchedMsg = matchingMsgs[0];
+
+      const storageUri =
+        allowedDoc?.storageUri ||
+        allowedArchive?.storageUri ||
+        allowedCall?.recordingStorageUri ||
+        matchedMsg?.mediaStorageUri ||
+        null;
+
+      const etag = `"${cleanHash}"`;
+      if (req.headers['if-none-match'] === etag) {
+        return res.status(304).end();
+      }
+
+      const buf = await getBucketObjectBuffer(cleanHash, storageUri);
+      if (!buf) return res.status(404).json({ error: 'Objeto não localizado no bucket.' });
+
+      const mime =
+        allowedDoc?.mimeType ||
+        allowedArchive?.mimeType ||
+        allowedCall?.recordingMimeType ||
+        matchedMsg?.attachmentMimeType ||
+        String(req.query.mime || 'application/octet-stream');
+      const fileName = sanitizeFileName(
+        allowedDoc?.fileName ||
+          allowedArchive?.fileName ||
+          allowedCall?.recordingFileName ||
+          matchedMsg?.attachmentName ||
+          String(req.query.name || `${cleanHash}.bin`)
+      );
+      const disposition = req.query.preview === '1' && canPreviewInline(mime) ? 'inline' : 'attachment';
+
+      res.setHeader('Content-Type', mime);
+      res.setHeader('Content-Length', String(buf.length));
+      res.setHeader('ETag', etag);
+      res.setHeader('Cache-Control', 'private, max-age=3600');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Content-Disposition', `${disposition}; filename="${fileName}"`);
+      return res.send(buf);
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao ler objeto do bucket.' });
+    }
+  });
+
+  app.delete('/api/documents/:id', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const id = Number(req.params.id);
+      const rows = await db.select().from(documentObjects).where(eq(documentObjects.id, id)).limit(1);
+      const doc = rows[0];
+      if (!doc) return res.status(404).json({ error: 'Documento não encontrado.' });
+      if (req.authUser!.role !== 'admin' && !req.authUser!.allowedUnitIds.includes(doc.unitId)) {
+        return res.status(403).json({ error: 'ACL negada: unidade do anexo não autorizada.' });
+      }
+      const [updated] = await db
+        .update(documentObjects)
+        .set({ deletedAt: new Date(), deletedBy: req.authUser!.name })
+        .where(eq(documentObjects.id, id))
+        .returning();
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'DOCUMENT_TRASHED',
+        entityType: 'document_object',
+        entityId: String(id),
+        details: { fileName: doc.fileName },
+        unitId: doc.unitId,
+      });
+      res.json({ document: updated });
+    } catch (error) {
+      console.error('Trash doc error:', error);
+      res.status(500).json({ error: 'Erro ao mover documento para a lixeira.' });
+    }
+  });
+
+  app.delete('/api/documents/:id/purge', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const id = Number(req.params.id);
+      const rows = await db.select().from(documentObjects).where(eq(documentObjects.id, id)).limit(1);
+      const doc = rows[0];
+      if (!doc) return res.status(404).json({ error: 'Documento não encontrado.' });
+      if (req.authUser!.role !== 'admin' && !req.authUser!.allowedUnitIds.includes(doc.unitId)) {
+        return res.status(403).json({ error: 'ACL negada: unidade do anexo não autorizada.' });
+      }
+
+      await db.delete(documentObjects).where(eq(documentObjects.id, id));
+      const remainingSameHash = await db
+        .select({ id: documentObjects.id })
+        .from(documentObjects)
+        .where(eq(documentObjects.sha256Hash, doc.sha256Hash))
+        .limit(1);
+      if (remainingSameHash.length === 0) {
+        await deletePhysicalBucketObjectIfUnreferenced(doc.sha256Hash, doc.storageUri);
+      }
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'DOCUMENT_PURGED',
+        entityType: 'document_object',
+        entityId: String(id),
+        details: { fileName: doc.fileName, sha256Hash: doc.sha256Hash },
+        unitId: doc.unitId,
+      });
+      res.json({ ok: true });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao excluir definitivamente.' });
+    }
+  });
+
+  app.post('/api/documents/:id/restore', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const id = Number(req.params.id);
+      const rows = await db.select().from(documentObjects).where(eq(documentObjects.id, id)).limit(1);
+      const doc = rows[0];
+      if (!doc) return res.status(404).json({ error: 'Documento não encontrado.' });
+      if (req.authUser!.role !== 'admin' && !req.authUser!.allowedUnitIds.includes(doc.unitId)) {
+        return res.status(403).json({ error: 'ACL negada: unidade do anexo não autorizada.' });
+      }
+      const [updated] = await db
+        .update(documentObjects)
+        .set({ deletedAt: null, deletedBy: null })
+        .where(eq(documentObjects.id, id))
+        .returning();
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'DOCUMENT_RESTORED',
+        entityType: 'document_object',
+        entityId: String(id),
+        details: { fileName: doc.fileName },
+        unitId: doc.unitId,
+      });
+      res.json({ document: updated });
+    } catch (error) {
+      console.error('Restore doc error:', error);
+      res.status(500).json({ error: 'Erro ao restaurar documento.' });
+    }
+  });
+
+  app.get('/api/documents/:id/download', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const id = Number(req.params.id);
+      const rows = await db.select().from(documentObjects).where(eq(documentObjects.id, id)).limit(1);
+      const doc = rows[0];
+      if (!doc || doc.deletedAt) return res.status(404).json({ error: 'Documento não encontrado ou na lixeira.' });
+      if (req.authUser!.role !== 'admin' && !req.authUser!.allowedUnitIds.includes(doc.unitId)) {
+        return res.status(403).json({ error: 'ACL negada: sem concessão para baixar este anexo.' });
+      }
+
+      const etag = `"${doc.sha256Hash}"`;
+      if (req.headers['if-none-match'] === etag) {
+        return res.status(304).end();
+      }
+
+      const buf = await getBucketObjectBuffer(doc.sha256Hash, doc.storageUri);
+      const safeName = sanitizeFileName(doc.fileName);
+      const disposition = req.query.preview === '1' && canPreviewInline(doc.mimeType) ? 'inline' : 'attachment';
+
+      res.setHeader('ETag', etag);
+      res.setHeader('Cache-Control', 'private, max-age=3600');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+
+      if (buf) {
+        res.setHeader('Content-Type', doc.mimeType || 'application/octet-stream');
+        res.setHeader('Content-Length', String(buf.length));
+        res.setHeader('Content-Disposition', `${disposition}; filename="${safeName}"`);
+        return res.send(buf);
+      }
+
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('Content-Disposition', `inline; filename="${safeName}.txt"`);
+      res.send(`FinancePro Bucket Object (${doc.storageUri})\nPasta: ${doc.folderPath}\nArquivo: ${doc.fileName}\nSHA-256: ${doc.sha256Hash}\nCategoria: ${doc.docCategory}\nEnviado por: ${doc.uploadedBy}`);
+    } catch (error) {
+      console.error('Download doc error:', error);
+      res.status(500).json({ error: 'Erro ao baixar documento do bucket.' });
+    }
+  });
+
+  // Audit routes registered via registerAuditRoutes(app, { broadcast })
+
+  // ---------------------------------------------------------------------------
+  // 4. JURÍDICO (ESCAVADOR WEBHOOK/FALLBACK, IVI TRADUÇÃO & SLAs)
+  // ---------------------------------------------------------------------------
+  app.get('/api/legal', requireAuth, async (_req: AuthRequest, res) => {
+    try {
+      await ensureInitialSeed();
+      const [procs, movs, allClients, allUsers, allCases, allReceivables] = await Promise.all([
+        db.select().from(legalProcesses).orderBy(desc(legalProcesses.lastMovementAt)),
+        db.select().from(legalMovements).orderBy(desc(legalMovements.createdAt)),
+        db.select().from(clients),
+        db.select({ id: users.id, name: users.name, role: users.role }).from(users),
+        db.select().from(collectionCases).orderBy(desc(collectionCases.updatedAt)),
+        db.select().from(financialTitles).where(eq(financialTitles.scope, 'RECEBER')),
+      ]);
+      res.json({
+        processes: procs,
+        movements: movs,
+        clients: allClients,
+        lawyers: allUsers,
+        collectionCases: allCases,
+        financialTitles: allReceivables,
+      });
+    } catch (error) {
+      console.error('Legal get error:', error);
+      res.status(500).json({ error: 'Erro ao carregar setor jurídico.' });
+    }
+  });
+
+  app.post('/api/legal/escavador-sync', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const { processId, dispatchText, source, isSeized } = req.body as {
+        processId: number;
+        dispatchText: string;
+        source?: string;
+        isSeized?: boolean;
+      };
+      const [targetProc] = await db
+        .select()
+        .from(legalProcesses)
+        .where(eq(legalProcesses.id, processId))
+        .limit(1);
+      if (!targetProc) {
+        return res.status(404).json({ error: 'Processo jurídico não encontrado.' });
+      }
+      const [procClient] = await db
+        .select()
+        .from(clients)
+        .where(eq(clients.id, targetProc.clientId))
+        .limit(1);
+
+      if (
+        !targetProc.escavadorMonitored ||
+        targetProc.status === 'suspenso' ||
+        targetProc.status === 'cancelado' ||
+        procClient?.status === 'suspenso' ||
+        procClient?.status === 'cancelado'
+      ) {
+        return res.status(409).json({
+          error:
+            'Cliente suspenso ou contrato cancelado: a Ivi retirou automaticamente o CPF/CNPJ da pesquisa do Escavador. Retorne o cliente ao status normal para reativar a varredura.',
+        });
+      }
+
+      const tr = await iviTranslateLegalDispatch(dispatchText);
+      const [movement] = await db
+        .insert(legalMovements)
+        .values({
+          processId,
+          source: source || 'escavador_webhook',
+          originalDispatch: dispatchText,
+          iviTranslationPtBr: tr.text,
+          lawyerId: req.authUser!.id,
+        })
+        .returning();
+
+      const [proc] = await db
+        .update(legalProcesses)
+        .set({
+          hasUnreadMovement: true,
+          lastMovementAt: new Date(),
+          status: isSeized ? 'apreendido' : 'alerta_movimentacao',
+          vehicleSeized: Boolean(isSeized),
+        })
+        .where(eq(legalProcesses.id, processId))
+        .returning();
+
+      broadcast('legal:update', { processId, processNumber: proc?.processNumber });
+      res.json({ movement, process: proc, providerUsed: tr.provider });
+    } catch (error) {
+      console.error('Escavador sync error:', error);
+      res.status(500).json({ error: 'Erro ao processar atualização Escavador.' });
+    }
+  });
+
+  app.post('/api/legal/movements/:id/open', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const id = Number(req.params.id);
+      const rows = await db.select().from(legalMovements).where(eq(legalMovements.id, id)).limit(1);
+      if (rows[0] && !rows[0].openedAt) {
+        const [updated] = await db.update(legalMovements).set({ openedAt: new Date() }).where(eq(legalMovements.id, id)).returning();
+        return res.json({ movement: updated });
+      }
+      res.json({ movement: rows[0] });
+    } catch (error) {
+      console.error('Legal open error:', error);
+      res.status(500).json({ error: 'Erro ao registrar abertura.' });
+    }
+  });
+
+  app.post('/api/legal/movements/:id/read-complete', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const id = Number(req.params.id);
+      const [updated] = await db
+        .update(legalMovements)
+        .set({ readCompletedAt: new Date(), lawyerId: req.authUser!.id })
+        .where(eq(legalMovements.id, id))
+        .returning();
+      if (updated) {
+        await db.update(legalProcesses).set({ hasUnreadMovement: false }).where(eq(legalProcesses.id, updated.processId));
+      }
+      res.json({ movement: updated });
+    } catch (error) {
+      console.error('Legal read-complete error:', error);
+      res.status(500).json({ error: 'Erro ao confirmar leitura.' });
+    }
+  });
+
+  app.post('/api/legal/movements/:id/client-contact', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { contactChannel, contactSummary, emailSent } = req.body as {
+        contactChannel: string;
+        contactSummary: string;
+        emailSent: boolean;
+      };
+      const [updated] = await db
+        .update(legalMovements)
+        .set({
+          clientContactedAt: new Date(),
+          contactChannel,
+          contactSummary,
+          emailSent: Boolean(emailSent),
+          lawyerId: req.authUser!.id,
+        })
+        .where(eq(legalMovements.id, id))
+        .returning();
+      res.json({ movement: updated });
+    } catch (error) {
+      console.error('Legal contact error:', error);
+      res.status(500).json({ error: 'Erro ao registrar contato ao cliente.' });
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // 5. NEGOCIAÇÕES
+  // ---------------------------------------------------------------------------
+  app.get('/api/negotiations', requireAuth, async (_req: AuthRequest, res) => {
+    try {
+      await ensureInitialSeed();
+      const [list, allClients, allUsers] = await Promise.all([
+        db.select().from(negotiations).orderBy(desc(negotiations.updatedAt)),
+        db.select().from(clients),
+        db.select({ id: users.id, name: users.name, role: users.role }).from(users),
+      ]);
+      res.json({ negotiations: list, clients: allClients, negotiators: allUsers });
+    } catch (error) {
+      console.error('Negotiations get error:', error);
+      res.status(500).json({ error: 'Erro ao carregar negociações.' });
+    }
+  });
+
+  app.patch('/api/negotiations/:id', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { currentReductionPct, chatNote, chatChannel } = req.body as {
+        currentReductionPct?: number;
+        chatNote?: string;
+        chatChannel?: string;
+      };
+      const rows = await db.select().from(negotiations).where(eq(negotiations.id, id)).limit(1);
+      const neg = rows[0];
+      if (!neg) return res.status(404).json({ error: 'Negociação não encontrada.' });
+
+      const pct = typeof currentReductionPct === 'number' ? currentReductionPct : neg.currentReductionPct;
+      const savings = Math.round((Number(neg.originalDebtCents) * pct) / 100);
+      const nextStatus =
+        pct >= neg.targetReductionPct
+          ? 'meta_alcancada'
+          : neg.targetReductionPct - pct <= 10
+          ? 'proxima_meta'
+          : 'em_negociacao';
+
+      const nextLogs = [...(Array.isArray(neg.chatLogs) ? neg.chatLogs : [])];
+      if (chatNote) {
+        nextLogs.unshift({
+          channel: chatChannel || 'gotalk',
+          note: chatNote,
+          author: req.authUser!.name,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const [updated] = await db
+        .update(negotiations)
+        .set({
+          currentReductionPct: pct,
+          estimatedSavingsCents: savings,
+          status: nextStatus,
+          chatLogs: nextLogs,
+          updatedAt: new Date(),
+        })
+        .where(eq(negotiations.id, id))
+        .returning();
+
+      res.json({ negotiation: updated });
+    } catch (error) {
+      console.error('Negotiation update error:', error);
+      res.status(500).json({ error: 'Erro ao atualizar negociação.' });
+    }
+  });
+
+  app.post('/api/negotiations/mass-email', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const { negotiationIds } = req.body as { negotiationIds: number[] };
+      if (!negotiationIds?.length) return res.status(400).json({ error: 'Selecione ao menos um contrato.' });
+      await db
+        .update(negotiations)
+        .set({ lastMassEmailAt: new Date(), updatedAt: new Date() })
+        .where(inArray(negotiations.id, negotiationIds));
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'MASS_EMAIL_NEGOTIATION',
+        entityType: 'negotiation',
+        entityId: negotiationIds.join(','),
+        details: { count: negotiationIds.length },
+        unitId: req.activeUnitId,
+      });
+
+      res.json({ ok: true, sentCount: negotiationIds.length });
+    } catch (error) {
+      console.error('Mass email error:', error);
+      res.status(500).json({ error: 'Erro ao disparar e-mails em massa.' });
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // 6. FINANCEIRO (BOLETOS, VARREDURA 07H, FOLHA DE ROSTO & RÉGUA IVI)
+  // ---------------------------------------------------------------------------
+  app.get('/api/finance', requireAuth, async (_req: AuthRequest, res) => {
+    try {
+      await ensureInitialSeed();
+      const [titles, cats, allClients, allAdmissions, settingsRows] = await Promise.all([
+        db.select().from(financialTitles).orderBy(desc(financialTitles.dueDate)),
+        db.select().from(paymentCategories),
+        db.select().from(clients),
+        db.select().from(admissions),
+        db.select().from(systemSettings),
+      ]);
+      res.json({
+        titles,
+        categories: cats,
+        clients: allClients,
+        admissions: allAdmissions,
+        settings: Object.fromEntries(settingsRows.map((s) => [s.key, s.value])),
+      });
+    } catch (error) {
+      console.error('Finance get error:', error);
+      res.status(500).json({ error: 'Erro ao carregar módulo financeiro.' });
+    }
+  });
+
+  app.post('/api/finance/ivi-07h-scan', requireAuth, async (_req: AuthRequest, res) => {
+    try {
+      const [allTitles, allAdmissions, allClients] = await Promise.all([
+        db.select().from(financialTitles),
+        db.select().from(admissions),
+        db.select().from(clients),
+      ]);
+
+      // Identify admissions where the 2 initial installments are paid and remaining installments aren't generated yet
+      const readyForCoverSheet = allAdmissions
+        .filter((adm) => {
+          const admTitles = allTitles.filter((t) => t.admissionId === adm.id);
+          const paidInitials = admTitles.filter((t) => t.isInitialFee && t.status === 'pago');
+          const remaining = admTitles.filter((t) => !t.isInitialFee);
+          return paidInitials.length >= 2 && remaining.length === 0 && adm.installmentsCount > 2;
+        })
+        .map((adm) => {
+          const client = allClients.find((c) => c.id === adm.clientId);
+          return {
+            admissionId: adm.id,
+            protocolCode: adm.protocolCode,
+            clientName: client?.fullName || 'Cliente',
+            bankName: adm.bankName,
+            remainingInstallments: adm.installmentsCount - 2,
+            installmentAmountCents: adm.initialInstallmentCents,
+          };
+        });
+
+      res.json({
+        scannedAt: new Date().toISOString(),
+        paidTitlesTotal: allTitles.filter((t) => t.status === 'pago').length,
+        readyForCoverSheet,
+      });
+    } catch (error) {
+      console.error('Ivi 07h scan error:', error);
+      res.status(500).json({ error: 'Erro na varredura Ivi 07:00h.' });
+    }
+  });
+
+  app.post('/api/finance/generate-remaining/:admissionId', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const admissionId = Number(req.params.admissionId);
+      const { firstDueDate, customAmountCents } = req.body as { firstDueDate?: string; customAmountCents?: number };
+      const rows = await db.select().from(admissions).where(eq(admissions.id, admissionId)).limit(1);
+      const adm = rows[0];
+      if (!adm) return res.status(404).json({ error: 'Admissão não encontrada.' });
+
+      const [cat] = await db.select().from(paymentCategories).limit(1);
+      const start = firstDueDate ? new Date(firstDueDate) : new Date(Date.now() + 30 * 86400000);
+      const created = [];
+      for (let i = 3; i <= adm.installmentsCount; i++) {
+        const dueDate = new Date(start.getTime() + (i - 3) * 30 * 86400000);
+        const [title] = await db
+          .insert(financialTitles)
+          .values({
+            titleCode: `TIT-${new Date().getFullYear()}-${adm.id}0${i}-${Math.floor(100 + Math.random() * 899)}`,
+            clientId: adm.clientId,
+            admissionId: adm.id,
+            unitId: adm.unitId,
+            categoryId: cat?.id || null,
+            installmentNumber: i,
+            totalInstallments: adm.installmentsCount,
+            isInitialFee: false,
+            amountCents: customAmountCents || adm.initialInstallmentCents || 50000,
+            dueDate,
+            status: 'aberto',
+            boletoProvider: 'santander',
+            coverSheetApproved: true,
+            barcode: `03399.63290 64000.00${adm.id} 00100.${i}01014 8 ${Math.floor(10000000000000 + Math.random() * 89999999999999)}`,
+            ourNumber: `${adm.id}000${i}`,
+          })
+          .returning();
+        created.push(title);
+      }
+
+      res.json({ generatedCount: created.length, titles: created });
+    } catch (error) {
+      console.error('Generate remaining installments error:', error);
+      res.status(500).json({ error: 'Erro ao gerar demais parcelas.' });
+    }
+  });
+
+  app.post('/api/finance/run-regua', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const { titleId } = req.body as { titleId?: number };
+      const allTitles = titleId
+        ? await db.select().from(financialTitles).where(eq(financialTitles.id, titleId))
+        : await db.select().from(financialTitles);
+      const target = allTitles.find((t) => t.status === 'aberto' || t.status === 'vencido');
+      if (!target) return res.status(404).json({ error: 'Nenhum título elegível para régua.' });
+
+      const [client] = await db.select().from(clients).where(eq(clients.id, target.clientId)).limit(1);
+      const daysDiff = Math.round((new Date(target.dueDate).getTime() - Date.now()) / 86400000);
+      const draft = await iviDraftCollectionMessage({
+        clientName: client?.fullName || 'Cliente',
+        amountFormatted: `R$ ${(target.amountCents / 100).toFixed(2)}`,
+        daysOffset: daysDiff < 0 ? Math.abs(daysDiff) : -daysDiff,
+        processSummary: `Contrato vinculado à parcela ${target.installmentNumber}/${target.totalInstallments} (${target.titleCode}).`,
+      });
+
+      const stageTag = daysDiff < 0 ? '+7d' : daysDiff <= 5 ? '-5d' : '-15d';
+      await db
+        .update(financialTitles)
+        .set({ reguaStageSent: [...(target.reguaStageSent || []), stageTag] })
+        .where(eq(financialTitles.id, target.id));
+
+      res.json({ titleCode: target.titleCode, clientName: client?.fullName, message: draft.text, provider: draft.provider, stageTag });
+    } catch (error) {
+      console.error('Run regua error:', error);
+      res.status(500).json({ error: 'Erro ao executar régua de cobrança Ivi.' });
+    }
+  });
+
+  // PRD FR-10: Batch settlement for multiple financial titles
+  app.post('/api/finance/batch-settle', requireAuth, requireModule('finance'), async (req: AuthRequest, res) => {
+    try {
+      const { titleIds } = req.body as { titleIds: number[] };
+      if (!Array.isArray(titleIds) || titleIds.length === 0) {
+        return res.status(400).json({ error: 'Selecione ao menos um título para baixa em lote.' });
+      }
+      const updated = await db
+        .update(financialTitles)
+        .set({ status: 'pago', currentBalanceCents: 0, paidAt: new Date(), collectorId: req.authUser!.id })
+        .where(inArray(financialTitles.id, titleIds))
+        .returning();
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'FINANCE_BATCH_SETTLE',
+        entityType: 'financial_title',
+        entityId: titleIds.join(','),
+        details: { count: updated.length },
+        unitId: req.activeUnitId,
+      });
+
+      // Integração automática: registra movimento BAIXA_RECEBER na conta bancária ativa da unidade
+      if (updated.length > 0) {
+        const [defaultAcc] = await db.select().from(bankAccounts).where(eq(bankAccounts.active, true)).limit(1);
+        if (defaultAcc) {
+          let runningBalance = defaultAcc.currentBalanceCents;
+          for (const titleRow of updated) {
+            const [createdMov] = await db.insert(bankMovements).values({
+              bankAccountId: defaultAcc.id,
+              movementType: 'CREDITO',
+              amountCents: titleRow.amountCents,
+              description: `Baixa Título ${titleRow.titleCode}`,
+              documentNumber: titleRow.titleCode,
+              movementDate: new Date(),
+              origin: 'BAIXA_RECEBER',
+              status: 'PENDENTE',
+              reconciled: false,
+              titleId: titleRow.id,
+              titleSource: 'RECEBER',
+              unitId: titleRow.unitId,
+            }).returning();
+            runningBalance += titleRow.amountCents;
+            await db.insert(auditLogs).values({
+              userId: req.authUser!.id,
+              userName: req.authUser!.name,
+              action: 'CREATE_BANK_MOVEMENT',
+              entityType: 'bank_movement',
+              entityId: String(createdMov.id),
+              details: {
+                changes: [
+                  { field: 'Origem', from: '', to: 'BAIXA_RECEBER' },
+                  { field: 'Descrição', from: '', to: createdMov.description },
+                  { field: 'Valor', from: '', to: String(createdMov.amountCents) },
+                ],
+              },
+              unitId: req.activeUnitId,
+            });
+          }
+          await db.update(bankAccounts).set({ currentBalanceCents: runningBalance }).where(eq(bankAccounts.id, defaultAcc.id));
+        }
+      }
+
+      broadcast('collection:payment', { operator: req.authUser!.name, points: updated.length * 10 });
+      res.json({ settledCount: updated.length });
+    } catch (error) {
+      console.error('Batch settle error:', error);
+      res.status(500).json({ error: 'Erro na baixa em lote.' });
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // FINANCEIRO > CADASTROS ROUTES (Fornecedores, Tipo Documento, Portador, Plano de Contas)
+  // ---------------------------------------------------------------------------
+
+  // 1. Fornecedores (clients with natureza = 'F')
+  app.get('/api/finance/suppliers', requireAuth, async (_req: AuthRequest, res) => {
+    try {
+      await ensureInitialSeed();
+      const list = await db.select().from(clients).where(eq(clients.natureza, 'F')).orderBy(desc(clients.id));
+      res.json({ suppliers: list });
+    } catch (error) {
+      console.error('Get suppliers error:', error);
+      res.status(500).json({ error: 'Erro ao carregar fornecedores.' });
+    }
+  });
+
+  app.post('/api/finance/suppliers', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const { fullName, cpfCnpj, personNature, phone, email, address, addressNumber, complement, neighborhood, city, state, zipCode, notes, unitId } = req.body as any;
+      if (!fullName || !fullName.trim()) return res.status(400).json({ error: 'Nome / Razão Social é obrigatório.' });
+      if (!cpfCnpj || !cpfCnpj.trim()) return res.status(400).json({ error: 'CPF/CNPJ é obrigatório.' });
+
+      const [created] = await db.insert(clients).values({
+        fullName: fullName.trim(),
+        cpfCnpj: cpfCnpj.trim(),
+        personNature: personNature || 'PJ',
+        natureza: 'F',
+        phone: phone || '',
+        email: email || '',
+        address: address || '',
+        addressNumber: addressNumber || '',
+        complement: complement || '',
+        neighborhood: neighborhood || '',
+        city: city || '',
+        state: state || '',
+        zipCode: zipCode || '',
+        notes: notes || '',
+        unitId: unitId || req.activeUnitId || 1,
+      }).returning();
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'CREATE_SUPPLIER',
+        entityType: 'supplier',
+        entityId: String(created.id),
+        details: { name: created.fullName },
+        unitId: req.activeUnitId,
+      });
+
+      res.json({ supplier: created });
+    } catch (error) {
+      console.error('Create supplier error:', error);
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao cadastrar fornecedor.' });
+    }
+  });
+
+  app.put('/api/finance/suppliers/:id', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { fullName, cpfCnpj, personNature, phone, email, address, addressNumber, complement, neighborhood, city, state, zipCode, notes } = req.body as any;
+      if (!fullName || !fullName.trim()) return res.status(400).json({ error: 'Nome / Razão Social é obrigatório.' });
+
+      const [updated] = await db.update(clients).set({
+        fullName: fullName.trim(),
+        cpfCnpj: cpfCnpj?.trim() || '',
+        personNature: personNature || 'PJ',
+        natureza: 'F',
+        phone: phone || '',
+        email: email || '',
+        address: address || '',
+        addressNumber: addressNumber || '',
+        complement: complement || '',
+        neighborhood: neighborhood || '',
+        city: city || '',
+        state: state || '',
+        zipCode: zipCode || '',
+        notes: notes || '',
+      }).where(and(eq(clients.id, id), eq(clients.natureza, 'F'))).returning();
+
+      if (!updated) return res.status(404).json({ error: 'Fornecedor não encontrado.' });
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'UPDATE_SUPPLIER',
+        entityType: 'supplier',
+        entityId: String(updated.id),
+        details: { name: updated.fullName },
+        unitId: req.activeUnitId,
+      });
+
+      res.json({ supplier: updated });
+    } catch (error) {
+      console.error('Update supplier error:', error);
+      res.status(500).json({ error: 'Erro ao atualizar fornecedor.' });
+    }
+  });
+
+  app.delete('/api/finance/suppliers/:id', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const id = Number(req.params.id);
+      const titlesCount = await db.select({ v: count() }).from(financialTitles).where(eq(financialTitles.clientId, id));
+      if (Number(titlesCount[0]?.v || 0) > 0) {
+        return res.status(400).json({ error: `Exclusão bloqueada: existem ${titlesCount[0].v} título(s) financeiro(s) vinculados a este fornecedor.` });
+      }
+
+      const [deleted] = await db.delete(clients).where(and(eq(clients.id, id), eq(clients.natureza, 'F'))).returning();
+      if (!deleted) return res.status(404).json({ error: 'Fornecedor não encontrado.' });
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'DELETE_SUPPLIER',
+        entityType: 'supplier',
+        entityId: String(id),
+        details: { name: deleted.fullName },
+        unitId: req.activeUnitId,
+      });
+
+      res.json({ ok: true });
+    } catch (error) {
+      console.error('Delete supplier error:', error);
+      res.status(500).json({ error: 'Erro ao excluir fornecedor.' });
+    }
+  });
+
+  // 2. Tipos de Documento (/api/finance/document-types)
+  app.get('/api/finance/document-types', requireAuth, async (_req: AuthRequest, res) => {
+    try {
+      await ensureInitialSeed();
+      const list = await db.select().from(documentTypes).orderBy(desc(documentTypes.id));
+      res.json({ documentTypes: list });
+    } catch (error) {
+      res.status(500).json({ error: 'Erro ao carregar tipos de documento.' });
+    }
+  });
+
+  app.post('/api/finance/document-types', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const { description, category, isFiscal, requiresNumber, active } = req.body as any;
+      if (!description || !description.trim()) return res.status(400).json({ error: 'Descrição é obrigatória.' });
+
+      const [created] = await db.insert(documentTypes).values({
+        description: description.trim(),
+        category: category || 'ambos',
+        isFiscal: Boolean(isFiscal),
+        requiresNumber: Boolean(requiresNumber),
+        active: active !== false,
+      }).returning();
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'CREATE_DOCUMENT_TYPE',
+        entityType: 'document_type',
+        entityId: String(created.id),
+        details: { description: created.description },
+        unitId: req.activeUnitId,
+      });
+
+      res.json({ documentType: created });
+    } catch (error) {
+      res.status(500).json({ error: 'Erro ao cadastrar tipo de documento.' });
+    }
+  });
+
+  app.put('/api/finance/document-types/:id', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { description, category, isFiscal, requiresNumber, active } = req.body as any;
+      if (!description || !description.trim()) return res.status(400).json({ error: 'Descrição é obrigatória.' });
+
+      const [updated] = await db.update(documentTypes).set({
+        description: description.trim(),
+        category: category || 'ambos',
+        isFiscal: Boolean(isFiscal),
+        requiresNumber: Boolean(requiresNumber),
+        active: active !== false,
+      }).where(eq(documentTypes.id, id)).returning();
+
+      if (!updated) return res.status(404).json({ error: 'Tipo de documento não encontrado.' });
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'UPDATE_DOCUMENT_TYPE',
+        entityType: 'document_type',
+        entityId: String(id),
+        details: { description: updated.description },
+        unitId: req.activeUnitId,
+      });
+
+      res.json({ documentType: updated });
+    } catch (error) {
+      res.status(500).json({ error: 'Erro ao atualizar tipo de documento.' });
+    }
+  });
+
+  app.delete('/api/finance/document-types/:id', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const id = Number(req.params.id);
+      const [deleted] = await db.delete(documentTypes).where(eq(documentTypes.id, id)).returning();
+      if (!deleted) return res.status(404).json({ error: 'Tipo de documento não encontrado.' });
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'DELETE_DOCUMENT_TYPE',
+        entityType: 'document_type',
+        entityId: String(id),
+        details: { description: deleted.description },
+        unitId: req.activeUnitId,
+      });
+
+      res.json({ ok: true });
+    } catch (error) {
+      res.status(500).json({ error: 'Erro ao excluir tipo de documento.' });
+    }
+  });
+
+  // 3. Portadores (/api/finance/bearers)
+  app.get('/api/finance/bearers', requireAuth, async (_req: AuthRequest, res) => {
+    try {
+      await ensureInitialSeed();
+      const list = await db.select().from(bearers).orderBy(desc(bearers.id));
+      res.json({ bearers: list });
+    } catch (error) {
+      res.status(500).json({ error: 'Erro ao carregar portadores.' });
+    }
+  });
+
+  app.post('/api/finance/bearers', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const { code, name, type, associatedBankAccountId, active } = req.body as any;
+      if (!name || !name.trim()) return res.status(400).json({ error: 'Nome do portador é obrigatório.' });
+
+      const [created] = await db.insert(bearers).values({
+        code: code?.trim() || '',
+        name: name.trim(),
+        type: type || 'banco',
+        associatedBankAccountId: associatedBankAccountId ? Number(associatedBankAccountId) : null,
+        active: active !== false,
+        unitId: req.activeUnitId,
+      }).returning();
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'CREATE_BEARER',
+        entityType: 'bearer',
+        entityId: String(created.id),
+        details: { name: created.name },
+        unitId: req.activeUnitId,
+      });
+
+      res.json({ bearer: created });
+    } catch (error) {
+      res.status(500).json({ error: 'Erro ao cadastrar portador.' });
+    }
+  });
+
+  app.put('/api/finance/bearers/:id', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { code, name, type, associatedBankAccountId, active } = req.body as any;
+      if (!name || !name.trim()) return res.status(400).json({ error: 'Nome do portador é obrigatório.' });
+
+      const [updated] = await db.update(bearers).set({
+        code: code?.trim() || '',
+        name: name.trim(),
+        type: type || 'banco',
+        associatedBankAccountId: associatedBankAccountId ? Number(associatedBankAccountId) : null,
+        active: active !== false,
+      }).where(eq(bearers.id, id)).returning();
+
+      if (!updated) return res.status(404).json({ error: 'Portador não encontrado.' });
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'UPDATE_BEARER',
+        entityType: 'bearer',
+        entityId: String(id),
+        details: { name: updated.name },
+        unitId: req.activeUnitId,
+      });
+
+      res.json({ bearer: updated });
+    } catch (error) {
+      res.status(500).json({ error: 'Erro ao atualizar portador.' });
+    }
+  });
+
+  app.delete('/api/finance/bearers/:id', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const id = Number(req.params.id);
+      const [deleted] = await db.delete(bearers).where(eq(bearers.id, id)).returning();
+      if (!deleted) return res.status(404).json({ error: 'Portador não encontrado.' });
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'DELETE_BEARER',
+        entityType: 'bearer',
+        entityId: String(id),
+        details: { name: deleted.name },
+        unitId: req.activeUnitId,
+      });
+
+      res.json({ ok: true });
+    } catch (error) {
+      res.status(500).json({ error: 'Erro ao excluir portador.' });
+    }
+  });
+
+  // 4. Plano de Contas (/api/finance/chart-of-accounts)
+  app.get('/api/finance/chart-of-accounts', requireAuth, async (_req: AuthRequest, res) => {
+    try {
+      await ensureInitialSeed();
+      const list = await db.select().from(chartOfAccounts).orderBy(chartOfAccounts.code);
+      res.json({ chartOfAccounts: list });
+    } catch (error) {
+      res.status(500).json({ error: 'Erro ao carregar plano de contas.' });
+    }
+  });
+
+  app.post('/api/finance/chart-of-accounts', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const { code, name, type, parentId, isAnalytic, active } = req.body as any;
+      if (!code || !code.trim() || !name || !name.trim()) {
+        return res.status(400).json({ error: 'Código e Nome são obrigatórios.' });
+      }
+
+      const [created] = await db.insert(chartOfAccounts).values({
+        code: code.trim(),
+        name: name.trim(),
+        type: type || 'despesa',
+        parentId: parentId ? Number(parentId) : null,
+        isAnalytic: isAnalytic !== false,
+        active: active !== false,
+      }).returning();
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'CREATE_CHART_OF_ACCOUNTS',
+        entityType: 'chart_of_accounts',
+        entityId: String(created.id),
+        details: { code: created.code, name: created.name },
+        unitId: req.activeUnitId,
+      });
+
+      res.json({ account: created });
+    } catch (error) {
+      res.status(500).json({ error: 'Erro ao cadastrar conta no plano.' });
+    }
+  });
+
+  app.put('/api/finance/chart-of-accounts/:id', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { code, name, type, parentId, isAnalytic, active } = req.body as any;
+      if (!code || !code.trim() || !name || !name.trim()) {
+        return res.status(400).json({ error: 'Código e Nome são obrigatórios.' });
+      }
+
+      const [updated] = await db.update(chartOfAccounts).set({
+        code: code.trim(),
+        name: name.trim(),
+        type: type || 'despesa',
+        parentId: parentId ? Number(parentId) : null,
+        isAnalytic: isAnalytic !== false,
+        active: active !== false,
+      }).where(eq(chartOfAccounts.id, id)).returning();
+
+      if (!updated) return res.status(404).json({ error: 'Conta não encontrada.' });
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'UPDATE_CHART_OF_ACCOUNTS',
+        entityType: 'chart_of_accounts',
+        entityId: String(id),
+        details: { code: updated.code, name: updated.name },
+        unitId: req.activeUnitId,
+      });
+
+      res.json({ account: updated });
+    } catch (error) {
+      res.status(500).json({ error: 'Erro ao atualizar conta no plano.' });
+    }
+  });
+
+  app.delete('/api/finance/chart-of-accounts/:id', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const id = Number(req.params.id);
+      const children = await db.select({ v: count() }).from(chartOfAccounts).where(eq(chartOfAccounts.parentId, id));
+      if (Number(children[0]?.v || 0) > 0) {
+        return res.status(400).json({ error: 'Exclusão bloqueada: esta conta possui subcontas vinculadas.' });
+      }
+
+      const [deleted] = await db.delete(chartOfAccounts).where(eq(chartOfAccounts.id, id)).returning();
+      if (!deleted) return res.status(404).json({ error: 'Conta não encontrada.' });
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'DELETE_CHART_OF_ACCOUNTS',
+        entityType: 'chart_of_accounts',
+        entityId: String(id),
+        details: { code: deleted.code, name: deleted.name },
+        unitId: req.activeUnitId,
+      });
+
+      res.json({ ok: true });
+    } catch (error) {
+      res.status(500).json({ error: 'Erro ao excluir conta.' });
+    }
+  });
+
+  // 5. Conta Corrente / Bancos (/api/finance/bank-accounts & /api/finance/bank-movements)
+  app.get('/api/finance/bank-accounts', requireAuth, async (_req: AuthRequest, res) => {
+    try {
+      await ensureInitialSeed();
+      const list = await db.select().from(bankAccounts).orderBy(bankAccounts.bankName);
+      res.json({ bankAccounts: list });
+    } catch (error) {
+      res.status(500).json({ error: 'Erro ao carregar contas bancárias.' });
+    }
+  });
+
+  app.post('/api/finance/bank-accounts', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const { bankName, agency, accountNumber, accountType, initialBalanceCents, unitId, active } = req.body as any;
+      if (!bankName || !bankName.trim()) {
+        return res.status(400).json({ error: 'Nome do banco é obrigatório.' });
+      }
+      const initialBal = Number(initialBalanceCents) || 0;
+      const [created] = await db.insert(bankAccounts).values({
+        bankName: bankName.trim(),
+        agency: agency?.trim() || '',
+        accountNumber: accountNumber?.trim() || '',
+        accountType: accountType || 'corrente',
+        initialBalanceCents: initialBal,
+        currentBalanceCents: initialBal,
+        unitId: unitId ? Number(unitId) : req.activeUnitId,
+        active: active !== false,
+      }).returning();
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'CREATE_BANK_ACCOUNT',
+        entityType: 'bank_account',
+        entityId: String(created.id),
+        details: { bankName: created.bankName, accountNumber: created.accountNumber },
+        unitId: req.activeUnitId,
+      });
+
+      res.json({ bankAccount: created });
+    } catch (error) {
+      res.status(500).json({ error: 'Erro ao cadastrar conta bancária.' });
+    }
+  });
+
+  app.put('/api/finance/bank-accounts/:id', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { bankName, agency, accountNumber, accountType, active } = req.body as any;
+      if (!bankName || !bankName.trim()) {
+        return res.status(400).json({ error: 'Nome do banco é obrigatório.' });
+      }
+
+      const [updated] = await db.update(bankAccounts).set({
+        bankName: bankName.trim(),
+        agency: agency?.trim() || '',
+        accountNumber: accountNumber?.trim() || '',
+        accountType: accountType || 'corrente',
+        active: active !== false,
+      }).where(eq(bankAccounts.id, id)).returning();
+
+      if (!updated) return res.status(404).json({ error: 'Conta bancária não encontrada.' });
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'UPDATE_BANK_ACCOUNT',
+        entityType: 'bank_account',
+        entityId: String(id),
+        details: { bankName: updated.bankName },
+        unitId: req.activeUnitId,
+      });
+
+      res.json({ bankAccount: updated });
+    } catch (error) {
+      res.status(500).json({ error: 'Erro ao atualizar conta bancária.' });
+    }
+  });
+
+  app.delete('/api/finance/bank-accounts/:id', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const id = Number(req.params.id);
+      const moves = await db.select({ v: count() }).from(bankMovements).where(eq(bankMovements.bankAccountId, id));
+      if (Number(moves[0]?.v || 0) > 0) {
+        return res.status(400).json({ error: 'Exclusão bloqueada: esta conta possui movimentações financeiras registradas.' });
+      }
+
+      const [deleted] = await db.delete(bankAccounts).where(eq(bankAccounts.id, id)).returning();
+      if (!deleted) return res.status(404).json({ error: 'Conta bancária não encontrada.' });
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'DELETE_BANK_ACCOUNT',
+        entityType: 'bank_account',
+        entityId: String(id),
+        details: { bankName: deleted.bankName },
+        unitId: req.activeUnitId,
+      });
+
+      res.json({ ok: true });
+    } catch (error) {
+      res.status(500).json({ error: 'Erro ao excluir conta bancária.' });
+    }
+  });
+
+  const normalizeMovType = (raw: string | undefined): 'CREDITO' | 'DEBITO' => {
+    const up = String(raw || '').trim().toUpperCase();
+    if (up === 'CREDITO' || up === 'ENTRADA' || up === 'C') return 'CREDITO';
+    return 'DEBITO';
+  };
+
+  app.get('/api/finance/bank-movements', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      await ensureInitialSeed();
+      const limitParam = Math.min(500, Math.max(1, Number(req.query.limit) || 500));
+      const rows = await db
+        .select()
+        .from(bankMovements)
+        .orderBy(asc(bankMovements.movementDate), asc(bankMovements.id))
+        .limit(limitParam);
+      const normalized = rows.map((r) => ({
+        ...r,
+        movementType: normalizeMovType(r.movementType),
+        status: String(r.status || 'PENDENTE').toUpperCase() === 'CONCILIADO' ? 'CONCILIADO' : 'PENDENTE',
+        origin: r.origin || 'MANUAL',
+      }));
+      res.json({ bankMovements: normalized });
+    } catch (error) {
+      res.status(500).json({ error: 'Erro ao carregar movimentações bancárias.' });
+    }
+  });
+
+  app.post('/api/finance/bank-movements', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const {
+        bankAccountId,
+        movementDate,
+        movementType,
+        amountCents,
+        description,
+        documentNumber,
+        categoryId,
+        categoryName,
+        origin,
+        status,
+        reconciled,
+        reconciliationDate,
+        compensationDate,
+        documentTypeId,
+        bearerId,
+        departmentId,
+        unitId,
+      } = req.body as any;
+
+      const amt = Math.round(Number(amountCents) || 0);
+      if (!bankAccountId || !movementType || amt <= 0 || !description || !String(description).trim()) {
+        return res.status(400).json({ error: 'Conta, data, tipo, valor positivo e descrição são obrigatórios.' });
+      }
+
+      const [acc] = await db.select().from(bankAccounts).where(eq(bankAccounts.id, Number(bankAccountId)));
+      if (!acc) return res.status(404).json({ error: 'Conta bancária não encontrada.' });
+
+      let resolvedCatName = String(categoryName || '').trim();
+      const parsedCatId = categoryId ? Number(categoryId) : null;
+      if (parsedCatId && !resolvedCatName) {
+        const [cat] = await db.select().from(chartOfAccounts).where(eq(chartOfAccounts.id, parsedCatId));
+        if (cat) resolvedCatName = `${cat.code} - ${cat.name}`;
+      }
+
+      const normType = normalizeMovType(movementType);
+      const normStatus = String(status || 'PENDENTE').toUpperCase() === 'CONCILIADO' ? 'CONCILIADO' : 'PENDENTE';
+      const normOrigin = String(origin || 'MANUAL').toUpperCase();
+      const parsedDate = movementDate ? new Date(`${String(movementDate).slice(0, 10)}T12:00:00`) : new Date();
+
+      const [mov] = await db.insert(bankMovements).values({
+        bankAccountId: acc.id,
+        movementType: normType,
+        amountCents: amt,
+        description: String(description).trim(),
+        documentNumber: String(documentNumber || '').trim(),
+        movementDate: Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate,
+        categoryId: parsedCatId,
+        categoryName: resolvedCatName,
+        origin: normOrigin,
+        status: normStatus,
+        reconciled: Boolean(reconciled),
+        reconciliationDate: String(reconciliationDate || '').trim(),
+        compensationDate: String(compensationDate || '').trim(),
+        documentTypeId: documentTypeId ? Number(documentTypeId) : null,
+        bearerId: bearerId ? Number(bearerId) : null,
+        departmentId: departmentId ? Number(departmentId) : null,
+        unitId: unitId ? Number(unitId) : req.activeUnitId,
+      }).returning();
+
+      const balanceDelta = normType === 'CREDITO' ? amt : -amt;
+      const newBalance = acc.currentBalanceCents + balanceDelta;
+      await db.update(bankAccounts).set({ currentBalanceCents: newBalance }).where(eq(bankAccounts.id, acc.id));
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'CREATE_BANK_MOVEMENT',
+        entityType: 'bank_movement',
+        entityId: String(mov.id),
+        details: {
+          changes: [
+            { field: 'Conta', from: '', to: acc.bankName },
+            { field: 'Tipo', from: '', to: normType },
+            { field: 'Valor (centavos)', from: '', to: String(amt) },
+            { field: 'Descrição', from: '', to: mov.description },
+            { field: 'Origem', from: '', to: normOrigin },
+            { field: 'Status', from: '', to: normStatus },
+          ],
+        },
+        unitId: req.activeUnitId,
+      });
+
+      res.json({ movement: mov, newBalance });
+    } catch (error) {
+      console.error('Create bank movement error:', error);
+      res.status(500).json({ error: 'Erro ao registrar movimentação bancária.' });
+    }
+  });
+
+  app.post('/api/finance/bank-movements/transfer', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const {
+        sourceAccountId,
+        destinationAccountId,
+        movementDate,
+        amountCents,
+        description,
+        categoryId,
+        status,
+      } = req.body as any;
+
+      const amt = Math.round(Number(amountCents) || 0);
+      if (!sourceAccountId || !destinationAccountId || Number(sourceAccountId) === Number(destinationAccountId)) {
+        return res.status(400).json({ error: 'Selecione contas de origem e destino distintas.' });
+      }
+      if (amt <= 0 || !description || !String(description).trim()) {
+        return res.status(400).json({ error: 'Data, valor positivo e descrição são obrigatórios.' });
+      }
+
+      const [srcAcc] = await db.select().from(bankAccounts).where(eq(bankAccounts.id, Number(sourceAccountId)));
+      const [dstAcc] = await db.select().from(bankAccounts).where(eq(bankAccounts.id, Number(destinationAccountId)));
+      if (!srcAcc || !dstAcc) {
+        return res.status(404).json({ error: 'Conta de origem ou destino não encontrada.' });
+      }
+
+      let resolvedCatName = '';
+      const parsedCatId = categoryId ? Number(categoryId) : null;
+      if (parsedCatId) {
+        const [cat] = await db.select().from(chartOfAccounts).where(eq(chartOfAccounts.id, parsedCatId));
+        if (cat) resolvedCatName = `${cat.code} - ${cat.name}`;
+      }
+
+      const transferId = crypto.randomUUID();
+      const normStatus = String(status || 'PENDENTE').toUpperCase() === 'CONCILIADO' ? 'CONCILIADO' : 'PENDENTE';
+      const parsedDate = movementDate ? new Date(`${String(movementDate).slice(0, 10)}T12:00:00`) : new Date();
+      const safeDate = Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
+      const descText = String(description).trim();
+
+      const [debitMov] = await db.insert(bankMovements).values({
+        bankAccountId: srcAcc.id,
+        movementType: 'DEBITO',
+        amountCents: amt,
+        description: `${descText} (Para ${dstAcc.bankName})`,
+        documentNumber: '',
+        movementDate: safeDate,
+        categoryId: parsedCatId,
+        categoryName: resolvedCatName,
+        origin: 'TRANSFERENCIA',
+        status: normStatus,
+        reconciled: false,
+        transferId,
+        unitId: req.activeUnitId,
+      }).returning();
+
+      const [creditMov] = await db.insert(bankMovements).values({
+        bankAccountId: dstAcc.id,
+        movementType: 'CREDITO',
+        amountCents: amt,
+        description: `${descText} (De ${srcAcc.bankName})`,
+        documentNumber: '',
+        movementDate: safeDate,
+        categoryId: parsedCatId,
+        categoryName: resolvedCatName,
+        origin: 'TRANSFERENCIA',
+        status: normStatus,
+        reconciled: false,
+        transferId,
+        unitId: req.activeUnitId,
+      }).returning();
+
+      await db.update(bankAccounts).set({ currentBalanceCents: srcAcc.currentBalanceCents - amt }).where(eq(bankAccounts.id, srcAcc.id));
+      await db.update(bankAccounts).set({ currentBalanceCents: dstAcc.currentBalanceCents + amt }).where(eq(bankAccounts.id, dstAcc.id));
+
+      await db.insert(auditLogs).values([
+        {
+          userId: req.authUser!.id,
+          userName: req.authUser!.name,
+          action: 'TRANSFER_OUT',
+          entityType: 'bank_movement',
+          entityId: String(debitMov.id),
+          details: {
+            transferId,
+            changes: [
+              { field: 'Conta Origem', from: '', to: srcAcc.bankName },
+              { field: 'Conta Destino', from: '', to: dstAcc.bankName },
+              { field: 'Valor (centavos)', from: '', to: String(amt) },
+            ],
+          },
+          unitId: req.activeUnitId,
+        },
+        {
+          userId: req.authUser!.id,
+          userName: req.authUser!.name,
+          action: 'TRANSFER_IN',
+          entityType: 'bank_movement',
+          entityId: String(creditMov.id),
+          details: {
+            transferId,
+            changes: [
+              { field: 'Conta Origem', from: '', to: srcAcc.bankName },
+              { field: 'Conta Destino', from: '', to: dstAcc.bankName },
+              { field: 'Valor (centavos)', from: '', to: String(amt) },
+            ],
+          },
+          unitId: req.activeUnitId,
+        },
+        {
+          userId: req.authUser!.id,
+          userName: req.authUser!.name,
+          action: 'CREATE_TRANSFER',
+          entityType: 'bank_transfer',
+          entityId: transferId,
+          details: { sourceAccountId: srcAcc.id, destinationAccountId: dstAcc.id, amountCents: amt, description: descText },
+          unitId: req.activeUnitId,
+        },
+      ]);
+
+      res.json({ debitMovement: debitMov, creditMovement: creditMov, transferId });
+    } catch (error) {
+      console.error('Bank transfer error:', error);
+      res.status(500).json({ error: 'Erro ao executar transferência entre contas.' });
+    }
+  });
+
+  app.post('/api/finance/bank-movements/reconcile', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const { movementIds, reconciled, reconciliationDate, compensationDate } = req.body as {
+        movementIds: number[];
+        reconciled: boolean;
+        reconciliationDate?: string;
+        compensationDate?: string;
+      };
+      if (!Array.isArray(movementIds) || movementIds.length === 0) {
+        return res.status(400).json({ error: 'Selecione ao menos um movimento para conciliação.' });
+      }
+      const isRec = Boolean(reconciled);
+      const recDate = isRec ? (String(reconciliationDate || '').trim() || new Date().toISOString().slice(0, 10)) : '';
+      const compDate = isRec ? String(compensationDate || '').trim() : '';
+
+      const updatedRows = await db
+        .update(bankMovements)
+        .set({
+          reconciled: isRec,
+          status: isRec ? 'CONCILIADO' : 'PENDENTE',
+          reconciliationDate: recDate,
+          compensationDate: compDate,
+        })
+        .where(inArray(bankMovements.id, movementIds.map(Number)))
+        .returning();
+
+      for (const row of updatedRows) {
+        await db.insert(auditLogs).values({
+          userId: req.authUser!.id,
+          userName: req.authUser!.name,
+          action: isRec ? 'RECONCILE_BANK_MOVEMENT' : 'UNRECONCILE_BANK_MOVEMENT',
+          entityType: 'bank_movement',
+          entityId: String(row.id),
+          details: {
+            changes: [
+              { field: 'Conciliado', from: isRec ? 'Não' : 'Sim', to: isRec ? 'Sim' : 'Não' },
+              { field: 'Status', from: isRec ? 'PENDENTE' : 'CONCILIADO', to: row.status },
+              ...(recDate ? [{ field: 'Data Conciliação', from: '', to: recDate }] : []),
+              ...(compDate ? [{ field: 'Data Compensação', from: '', to: compDate }] : []),
+            ],
+          },
+          unitId: req.activeUnitId,
+        });
+      }
+
+      res.json({ updatedCount: updatedRows.length, movements: updatedRows });
+    } catch (error) {
+      console.error('Reconcile movements error:', error);
+      res.status(500).json({ error: 'Erro ao atualizar conciliação dos movimentos.' });
+    }
+  });
+
+  app.put('/api/finance/bank-movements/:id', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const id = Number(req.params.id);
+      const [existing] = await db.select().from(bankMovements).where(eq(bankMovements.id, id));
+      if (!existing) return res.status(404).json({ error: 'Movimento não encontrado.' });
+
+      const body = req.body as any;
+      const isReconciliationOnly =
+        body.bankAccountId === undefined &&
+        body.amountCents === undefined &&
+        body.description === undefined &&
+        body.movementDate === undefined &&
+        body.movementType === undefined &&
+        (body.reconciled !== undefined || body.status !== undefined);
+
+      if (existing.titleId && existing.titleSource && !isReconciliationOnly) {
+        return res.status(400).json({
+          error: 'Lançamento vinculado a título financeiro. Cancele a baixa no título original para alterar.',
+        });
+      }
+
+      const nextAccountId = body.bankAccountId !== undefined ? Number(body.bankAccountId) : existing.bankAccountId;
+      const nextType = body.movementType !== undefined ? normalizeMovType(body.movementType) : normalizeMovType(existing.movementType);
+      const nextAmt = body.amountCents !== undefined ? Math.round(Number(body.amountCents) || 0) : existing.amountCents;
+      if (nextAmt <= 0) return res.status(400).json({ error: 'O valor deve ser maior que zero.' });
+
+      const nextDesc = body.description !== undefined ? String(body.description).trim() : existing.description;
+      if (!nextDesc) return res.status(400).json({ error: 'A descrição é obrigatória.' });
+
+      const nextDoc = body.documentNumber !== undefined ? String(body.documentNumber).trim() : existing.documentNumber;
+      const nextOrigin = body.origin !== undefined ? String(body.origin).toUpperCase() : existing.origin;
+      const nextStatus =
+        body.status !== undefined
+          ? String(body.status).toUpperCase() === 'CONCILIADO'
+            ? 'CONCILIADO'
+            : 'PENDENTE'
+          : existing.status;
+      const nextReconciled = body.reconciled !== undefined ? Boolean(body.reconciled) : existing.reconciled;
+      const nextRecDate =
+        body.reconciliationDate !== undefined ? String(body.reconciliationDate || '') : existing.reconciliationDate;
+      const nextCompDate =
+        body.compensationDate !== undefined ? String(body.compensationDate || '') : existing.compensationDate;
+
+      let nextCatId = existing.categoryId;
+      let nextCatName = existing.categoryName;
+      if (body.categoryId !== undefined) {
+        nextCatId = body.categoryId ? Number(body.categoryId) : null;
+        if (nextCatId) {
+          const [cat] = await db.select().from(chartOfAccounts).where(eq(chartOfAccounts.id, nextCatId));
+          nextCatName = cat ? `${cat.code} - ${cat.name}` : String(body.categoryName || '');
+        } else {
+          nextCatName = '';
+        }
+      }
+
+      let nextDate = existing.movementDate;
+      if (body.movementDate !== undefined && body.movementDate) {
+        const d = new Date(`${String(body.movementDate).slice(0, 10)}T12:00:00`);
+        if (!Number.isNaN(d.getTime())) nextDate = d;
+      }
+
+      // Update account balances if account/type/amount changed
+      const oldType = normalizeMovType(existing.movementType);
+      const oldDelta = oldType === 'CREDITO' ? existing.amountCents : -existing.amountCents;
+      const newDelta = nextType === 'CREDITO' ? nextAmt : -nextAmt;
+
+      if (nextAccountId === existing.bankAccountId) {
+        const diff = newDelta - oldDelta;
+        if (diff !== 0) {
+          const [acc] = await db.select().from(bankAccounts).where(eq(bankAccounts.id, existing.bankAccountId));
+          if (acc) {
+            await db.update(bankAccounts).set({ currentBalanceCents: acc.currentBalanceCents + diff }).where(eq(bankAccounts.id, acc.id));
+          }
+        }
+      } else {
+        const [oldAcc] = await db.select().from(bankAccounts).where(eq(bankAccounts.id, existing.bankAccountId));
+        const [newAcc] = await db.select().from(bankAccounts).where(eq(bankAccounts.id, nextAccountId));
+        if (!newAcc) return res.status(404).json({ error: 'Conta bancária de destino não encontrada.' });
+        if (oldAcc) {
+          await db.update(bankAccounts).set({ currentBalanceCents: oldAcc.currentBalanceCents - oldDelta }).where(eq(bankAccounts.id, oldAcc.id));
+        }
+        await db.update(bankAccounts).set({ currentBalanceCents: newAcc.currentBalanceCents + newDelta }).where(eq(bankAccounts.id, newAcc.id));
+      }
+
+      const [updated] = await db
+        .update(bankMovements)
+        .set({
+          bankAccountId: nextAccountId,
+          movementType: nextType,
+          amountCents: nextAmt,
+          description: nextDesc,
+          documentNumber: nextDoc,
+          movementDate: nextDate,
+          categoryId: nextCatId,
+          categoryName: nextCatName,
+          origin: nextOrigin,
+          status: nextStatus,
+          reconciled: nextReconciled,
+          reconciliationDate: nextRecDate,
+          compensationDate: nextCompDate,
+        })
+        .where(eq(bankMovements.id, id))
+        .returning();
+
+      const changes: Array<{ field: string; from: string; to: string }> = [];
+      if (existing.description !== updated.description) changes.push({ field: 'Descrição', from: existing.description, to: updated.description });
+      if (existing.amountCents !== updated.amountCents) changes.push({ field: 'Valor (centavos)', from: String(existing.amountCents), to: String(updated.amountCents) });
+      if (oldType !== updated.movementType) changes.push({ field: 'Tipo', from: oldType, to: updated.movementType });
+      if (existing.documentNumber !== updated.documentNumber) changes.push({ field: 'Documento', from: existing.documentNumber, to: updated.documentNumber });
+      if (existing.categoryName !== updated.categoryName) changes.push({ field: 'Categoria', from: existing.categoryName, to: updated.categoryName });
+      if (existing.origin !== updated.origin) changes.push({ field: 'Origem', from: existing.origin, to: updated.origin });
+      if (existing.status !== updated.status) changes.push({ field: 'Status', from: existing.status, to: updated.status });
+      if (existing.reconciled !== updated.reconciled) changes.push({ field: 'Conciliado', from: existing.reconciled ? 'Sim' : 'Não', to: updated.reconciled ? 'Sim' : 'Não' });
+      const oldDateStr = new Date(existing.movementDate).toISOString().slice(0, 10);
+      const newDateStr = new Date(updated.movementDate).toISOString().slice(0, 10);
+      if (oldDateStr !== newDateStr) changes.push({ field: 'Data', from: oldDateStr, to: newDateStr });
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'UPDATE_BANK_MOVEMENT',
+        entityType: 'bank_movement',
+        entityId: String(id),
+        details: { changes },
+        unitId: req.activeUnitId,
+      });
+
+      res.json({ movement: updated });
+    } catch (error) {
+      console.error('Update bank movement error:', error);
+      res.status(500).json({ error: 'Erro ao atualizar lançamento bancário.' });
+    }
+  });
+
+  app.delete('/api/finance/bank-movements/:id', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const id = Number(req.params.id);
+      const [existing] = await db.select().from(bankMovements).where(eq(bankMovements.id, id));
+      if (!existing) return res.status(404).json({ error: 'Lançamento não encontrado.' });
+
+      if (existing.titleId && existing.titleSource) {
+        return res.status(400).json({
+          error: 'Lançamento vinculado a título financeiro. Cancele a baixa no título original para excluir.',
+        });
+      }
+
+      const [acc] = await db.select().from(bankAccounts).where(eq(bankAccounts.id, existing.bankAccountId));
+      if (acc) {
+        const normType = normalizeMovType(existing.movementType);
+        const delta = normType === 'CREDITO' ? existing.amountCents : -existing.amountCents;
+        await db.update(bankAccounts).set({ currentBalanceCents: acc.currentBalanceCents - delta }).where(eq(bankAccounts.id, acc.id));
+      }
+
+      await db.delete(bankMovements).where(eq(bankMovements.id, id));
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'DELETE_BANK_MOVEMENT',
+        entityType: 'bank_movement',
+        entityId: String(id),
+        details: {
+          changes: [
+            { field: 'Descrição', from: existing.description, to: '(Excluído)' },
+            { field: 'Valor (centavos)', from: String(existing.amountCents), to: '0' },
+          ],
+        },
+        unitId: req.activeUnitId,
+      });
+
+      res.json({ ok: true });
+    } catch (error) {
+      console.error('Delete bank movement error:', error);
+      res.status(500).json({ error: 'Não foi possível excluir o lançamento.' });
+    }
+  });
+
+
+
+  // ---------------------------------------------------------------------------
+  // 7. COBRANÇA (COORDENAÇÃO & OPERACIONAL) E GAMIFICAÇÃO
+  // ---------------------------------------------------------------------------
+  registerCollectionRoutes(app, { broadcast });
+  registerCollectionTasksRoutes(app, { broadcast });
+
+  // Fixed WhatsApp Dock APIs
+  app.get('/api/whatsapp/threads', requireAuth, async (_req: AuthRequest, res) => {
+    try {
+      await ensureInitialSeed();
+      const [threads, msgs] = await Promise.all([
+        db.select().from(whatsappThreads).orderBy(desc(whatsappThreads.updatedAt)),
+        db.select().from(whatsappMessages).orderBy(whatsappMessages.createdAt),
+      ]);
+      res.json({ threads, messages: msgs });
+    } catch (error) {
+      console.error('WhatsApp threads error:', error);
+      res.status(500).json({ error: 'Erro ao carregar WhatsApp.' });
+    }
+  });
+
+  app.post('/api/whatsapp/threads/:id/messages', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const threadId = Number(req.params.id);
+      const { body, contentType, direction } = req.body as {
+        body: string;
+        contentType?: string;
+        direction?: string;
+      };
+      const existingThreads = await db
+        .select()
+        .from(whatsappThreads)
+        .where(eq(whatsappThreads.id, threadId))
+        .limit(1);
+      const thread = existingThreads[0];
+      if (!thread) return res.status(404).json({ error: 'Conversa WhatsApp não encontrada.' });
+
+      let iviTranscript: string | null = null;
+      if (contentType === 'audio') {
+        const resT = await iviTranscribeAudioNote(body);
+        iviTranscript = resT.transcript;
+      }
+
+      let gotalkDelivery: { dispatched: boolean; provider: string; externalMessageId?: string | null; detail?: string } | null = null;
+      let uazapiDelivery: { dispatched: boolean; provider: string; externalMessageId?: string | null; detail?: string } | null = null;
+      if ((direction || 'outbound') === 'outbound' && thread.provider === 'gotalk') {
+        let resolvedChannelId: string | null = null;
+        if (thread.channelDbId) {
+          const chRows = await db
+            .select({ channelId: gotalkChannels.channelId })
+            .from(gotalkChannels)
+            .where(eq(gotalkChannels.id, thread.channelDbId))
+            .limit(1);
+          resolvedChannelId = chRows[0]?.channelId ?? null;
+        }
+        gotalkDelivery = await sendGotalkMessage(thread.contactPhone, body, {
+          attendanceId: thread.gotalkAttendanceId,
+          contactName: thread.contactName,
+          contactId: thread.gotalkContactId,
+          channelId: resolvedChannelId,
+          type: contentType || 'text',
+        });
+      } else if ((direction || 'outbound') === 'outbound' && thread.provider === 'uazapi') {
+        const creds = await resolveUazapiCredentials({
+          instanceId: thread.uazapiInstanceId,
+          unitId: thread.unitId,
+          groupId: req.authUser?.groupId ?? null,
+        });
+        uazapiDelivery = await sendUazapiText(creds, thread.contactPhone, body);
+      }
+
+      const activeDelivery = gotalkDelivery || uazapiDelivery;
+      const [msg] = await db
+        .insert(whatsappMessages)
+        .values({
+          threadId,
+          externalMessageId: activeDelivery?.externalMessageId || null,
+          direction: direction || 'outbound',
+          contentType: contentType || 'text',
+          body,
+          iviAudioTranscript: iviTranscript,
+          ackStatus: (direction || 'outbound') === 'outbound' && activeDelivery?.dispatched ? 1 : null,
+          operatorName: (direction || 'outbound') === 'outbound' ? req.authUser!.name : null,
+          senderName: direction === 'inbound' ? 'Cliente' : req.authUser!.name,
+        })
+        .returning();
+
+      await db
+        .update(whatsappThreads)
+        .set({ lastMessagePreview: body.slice(0, 70), updatedAt: new Date(), unreadCount: 0 })
+        .where(eq(whatsappThreads.id, threadId));
+
+      await mirrorCommunicationToProspection({
+        unitId: thread.unitId,
+        phone: thread.contactPhone,
+        contactName: thread.contactName,
+        channel: thread.provider === 'uazapi' ? 'whatsapp_uazapi' : 'whatsapp_gotalk',
+        provider: thread.provider === 'uazapi' ? 'uazapi' : 'gotalk',
+        threadId: thread.id,
+        direction: (direction || 'outbound') === 'inbound' ? 'inbound' : 'outbound',
+        contentType: contentType === 'audio' ? 'audio' : 'text',
+        body,
+        audioTranscript: iviTranscript,
+        authorName: req.authUser!.name,
+        externalMessageId: activeDelivery?.externalMessageId || `local-${msg.id}`,
+        triggerIviAutoSummarize: contentType === 'audio' || direction === 'inbound',
+      });
+
+      broadcast('whatsapp:message', msg);
+      res.json({ message: msg, gotalkDelivery, uazapiDelivery, delivery: activeDelivery });
+    } catch (error) {
+      console.error('WhatsApp send error:', error);
+      res.status(500).json({ error: 'Erro ao enviar mensagem WhatsApp.' });
+    }
+  });
+
+  app.post('/api/whatsapp/threads/:id/send-file', requireAuth, upload.single('file'), async (req: AuthRequest, res) => {
+    try {
+      const threadId = Number(req.params.id);
+      const caption = typeof req.body?.caption === 'string' ? req.body.caption.trim() : '';
+      const file = req.file;
+      if (!file) {
+        return res.status(400).json({ error: 'Arquivo obrigatório (campo multipart "file").' });
+      }
+      const existingThreads = await db
+        .select()
+        .from(whatsappThreads)
+        .where(eq(whatsappThreads.id, threadId))
+        .limit(1);
+      const thread = existingThreads[0];
+      if (!thread) return res.status(404).json({ error: 'Conversa WhatsApp não encontrada.' });
+
+      const validationErr = validateUploadFile(file.originalname, file.mimetype, file.size);
+      if (validationErr) return res.status(400).json({ error: validationErr });
+      const safeFileName = sanitizeFileName(file.originalname);
+
+      const contentType = file.mimetype.startsWith('image/')
+        ? 'image'
+        : file.mimetype.startsWith('audio/')
+        ? 'audio'
+        : 'document';
+
+      // Store attachment in encrypted bucketdainvicta (never inside PostgreSQL)
+      const folderPath = `bucketdainvicta/U${thread.unitId}/WHATSAPP/T${thread.id}`;
+      const bucketStored = await putBucketObject(file.buffer, {
+        folderPath,
+        mimeType: file.mimetype,
+        originalName: safeFileName,
+      });
+
+      const dataUri = `data:${file.mimetype || 'application/octet-stream'};base64,${file.buffer.toString('base64')}`;
+      let iviTranscript: string | null = null;
+      if (contentType === 'audio') {
+        const trans = await iviTranscribeAudioNote(dataUri, file.mimetype || 'audio/webm');
+        iviTranscript = trans.transcript;
+      }
+
+      let linkedDocId: number | null = null;
+      if (thread.clientId) {
+        const [doc] = await db
+          .insert(documentObjects)
+          .values({
+            clientId: thread.clientId,
+            admissionId: null,
+            folderPath: `bucketdainvicta/U${thread.unitId}/C${thread.clientId}/WHATSAPP`,
+            fileName: safeFileName,
+            docCategory: contentType === 'audio' ? 'audio_whatsapp' : 'comprovante',
+            mimeType: file.mimetype || 'application/octet-stream',
+            sizeBytes: bucketStored.sizeBytes,
+            sha256Hash: bucketStored.sha256Hash,
+            storageUri: bucketStored.storageUri,
+            uploadedBy: req.authUser!.name,
+            unitId: thread.unitId,
+          })
+          .returning();
+        linkedDocId = doc.id;
+      }
+
+      const attachmentUrl = linkedDocId
+        ? `/api/documents/${linkedDocId}/download`
+        : `/api/bucket/objects/${bucketStored.sha256Hash}?name=${encodeURIComponent(safeFileName)}&mime=${encodeURIComponent(file.mimetype || 'application/octet-stream')}`;
+
+      let gotalkDelivery: { dispatched: boolean; provider: string; externalMessageId?: string | null; detail?: string } | null = null;
+      let uazapiDelivery: { dispatched: boolean; provider: string; externalMessageId?: string | null; detail?: string } | null = null;
+      if (thread.provider === 'gotalk') {
+        gotalkDelivery = await sendGotalkFile({
+          phone: thread.contactPhone,
+          fileBuffer: file.buffer,
+          fileName: safeFileName,
+          mimeType: file.mimetype,
+          caption: caption || undefined,
+        });
+      } else if (thread.provider === 'uazapi') {
+        const creds = await resolveUazapiCredentials({
+          instanceId: thread.uazapiInstanceId,
+          unitId: thread.unitId,
+          groupId: req.authUser?.groupId ?? null,
+        });
+        uazapiDelivery = await sendUazapiMedia(creds, {
+          phone: thread.contactPhone,
+          type: contentType,
+          file: dataUri,
+          caption: caption || undefined,
+          fileName: safeFileName,
+          mimeType: file.mimetype,
+        });
+      }
+
+      const activeDelivery = gotalkDelivery || uazapiDelivery;
+      const [msg] = await db
+        .insert(whatsappMessages)
+        .values({
+          threadId,
+          externalMessageId: activeDelivery?.externalMessageId || null,
+          direction: 'outbound',
+          contentType,
+          body: caption || safeFileName,
+          attachmentUrl,
+          attachmentName: safeFileName,
+          attachmentMimeType: file.mimetype,
+          mediaSha256: bucketStored.sha256Hash,
+          mediaStorageUri: bucketStored.storageUri,
+          iviAudioTranscript: iviTranscript,
+          ackStatus: activeDelivery?.dispatched ? 1 : null,
+          operatorName: req.authUser!.name,
+          senderName: req.authUser!.name,
+        })
+        .returning();
+
+      await db.insert(communicationArchives).values({
+        unitId: thread.unitId,
+        threadId: thread.id,
+        provider: thread.provider === 'uazapi' ? 'uazapi' : 'gotalk',
+        archiveType: contentType === 'audio' ? 'audio_message' : 'conversation_snapshot',
+        contactName: thread.contactName,
+        contactPhone: thread.contactPhone,
+        fileName: safeFileName,
+        mimeType: file.mimetype || 'application/octet-stream',
+        sizeBytes: bucketStored.sizeBytes,
+        sha256Hash: bucketStored.sha256Hash,
+        storageUri: bucketStored.storageUri,
+        transcriptText: iviTranscript || caption || safeFileName,
+        createdByName: req.authUser!.name,
+      });
+
+      await db
+        .update(whatsappThreads)
+        .set({ lastMessagePreview: (caption || safeFileName).slice(0, 70), updatedAt: new Date(), unreadCount: 0 })
+        .where(eq(whatsappThreads.id, threadId));
+
+      await mirrorCommunicationToProspection({
+        unitId: thread.unitId,
+        phone: thread.contactPhone,
+        contactName: thread.contactName,
+        channel: thread.provider === 'uazapi' ? 'whatsapp_uazapi' : 'whatsapp_gotalk',
+        provider: thread.provider === 'uazapi' ? 'uazapi' : 'gotalk',
+        threadId: thread.id,
+        direction: 'outbound',
+        contentType,
+        body: caption || `[Arquivo enviado]: ${safeFileName}`,
+        audioTranscript: iviTranscript,
+        authorName: req.authUser!.name,
+        externalMessageId: activeDelivery?.externalMessageId || `file-${msg.id}`,
+        mediaSha256: bucketStored.sha256Hash,
+        mediaStorageUri: bucketStored.storageUri,
+        mediaMimeType: file.mimetype,
+        mediaFileName: safeFileName,
+        triggerIviAutoSummarize: contentType === 'audio',
+      });
+
+      broadcast('whatsapp:message', msg);
+      res.json({ message: msg, gotalkDelivery, uazapiDelivery, delivery: activeDelivery });
+    } catch (error) {
+      console.error('WhatsApp send-file error:', error);
+      res.status(500).json({ error: 'Erro ao enviar arquivo via WhatsApp/GoTalk.' });
+    }
+  });
+
+  app.post('/api/whatsapp/messages/:id/transcribe', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const id = Number(req.params.id);
+      const rows = await db.select().from(whatsappMessages).where(eq(whatsappMessages.id, id)).limit(1);
+      const msg = rows[0];
+      if (!msg) return res.status(404).json({ error: 'Mensagem não encontrada.' });
+
+      let audioInput = msg.body;
+      let mimeType = msg.attachmentMimeType || 'audio/webm';
+      if (msg.mediaSha256) {
+        const buf = await getBucketObjectBuffer(msg.mediaSha256, msg.mediaStorageUri || null);
+        if (buf) {
+          audioInput = `data:${mimeType};base64,${buf.toString('base64')}`;
+        }
+      }
+
+      const resT = await iviTranscribeAudioNote(audioInput, mimeType);
+      const [updated] = await db
+        .update(whatsappMessages)
+        .set({ iviAudioTranscript: resT.transcript })
+        .where(eq(whatsappMessages.id, id))
+        .returning();
+
+      const threadRows = await db.select().from(whatsappThreads).where(eq(whatsappThreads.id, msg.threadId)).limit(1);
+      const th = threadRows[0];
+      if (th) {
+        await mirrorCommunicationToProspection({
+          unitId: th.unitId,
+          phone: th.contactPhone,
+          contactName: th.contactName,
+          channel: th.provider === 'uazapi' ? 'whatsapp_uazapi' : 'whatsapp_gotalk',
+          provider: th.provider === 'uazapi' ? 'uazapi' : 'gotalk',
+          threadId: th.id,
+          direction: msg.direction === 'outbound' ? 'outbound' : 'inbound',
+          contentType: 'audio',
+          body: msg.body,
+          audioTranscript: resT.transcript,
+          authorName: req.authUser!.name,
+          externalMessageId: msg.externalMessageId || `wa-msg-trans-${msg.id}`,
+          mediaSha256: msg.mediaSha256,
+          mediaStorageUri: msg.mediaStorageUri,
+          mediaMimeType: msg.attachmentMimeType,
+          mediaFileName: msg.attachmentName,
+          triggerIviAutoSummarize: true,
+        });
+      }
+
+      res.json({ message: updated, provider: resT.provider });
+    } catch (error) {
+      console.error('Transcribe error:', error);
+      res.status(500).json({ error: 'Erro ao transcrever áudio com Ivi.' });
+    }
+  });
+
+  // Helper: sync channels, operators and HSM templates from GoTalk API (keeps channelId server-side)
+  async function syncGotalkResources() {
+    const discoveredChannels = await fetchGotalkAllChannels();
+    let channelsSynced = 0;
+    let primaryChannelDbId: number | null = null;
+    let primaryTechnicalId: string | null = null;
+
+    for (const ch of discoveredChannels) {
+      const existing = await db
+        .select()
+        .from(gotalkChannels)
+        .where(eq(gotalkChannels.channelId, ch.channelId))
+        .limit(1);
+
+      let rowId: number;
+      if (existing[0]) {
+        await db
+          .update(gotalkChannels)
+          .set({
+            name: ch.name || existing[0].name,
+            phoneNumber: ch.phone || existing[0].phoneNumber,
+            isPrimary: ch.isPrimary,
+            isActive: true,
+            updatedAt: new Date(),
+          })
+          .where(eq(gotalkChannels.id, existing[0].id));
+        rowId = existing[0].id;
+      } else {
+        const [inserted] = await db
+          .insert(gotalkChannels)
+          .values({
+            name: ch.name,
+            phoneNumber: ch.phone,
+            channelId: ch.channelId,
+            isPrimary: ch.isPrimary,
+            isActive: true,
+          })
+          .returning();
+        rowId = inserted.id;
+      }
+      if (ch.isPrimary) {
+        primaryChannelDbId = rowId;
+        primaryTechnicalId = ch.channelId;
+      }
+      channelsSynced++;
+    }
+
+    const allUsers = await db.select({ id: users.id, email: users.email, whatsappPhone: users.whatsappPhone }).from(users);
+    let operatorsSynced = 0;
+    let templatesSynced = 0;
+
+    if (primaryTechnicalId) {
+      const ops = await fetchGotalkOperators(primaryTechnicalId);
+      for (const op of ops) {
+        const matchedUser = allUsers.find(
+          (u) =>
+            (op.email && u.email.toLowerCase() === op.email.toLowerCase()) ||
+            (op.phone && u.whatsappPhone && phonesMatchBR(op.phone, u.whatsappPhone))
+        );
+        const existingOp = await db
+          .select()
+          .from(gotalkOperators)
+          .where(eq(gotalkOperators.gotalkOperatorId, op.gotalkOperatorId))
+          .limit(1);
+
+        if (existingOp[0]) {
+          await db
+            .update(gotalkOperators)
+            .set({
+              name: op.name || existingOp[0].name,
+              email: op.email || existingOp[0].email,
+              phone: op.phone || existingOp[0].phone,
+              active: op.active,
+              collaboratorId: existingOp[0].collaboratorId ?? matchedUser?.id ?? null,
+              updatedAt: new Date(),
+            })
+            .where(eq(gotalkOperators.id, existingOp[0].id));
+        } else {
+          await db.insert(gotalkOperators).values({
+            gotalkOperatorId: op.gotalkOperatorId,
+            name: op.name,
+            email: op.email,
+            phone: op.phone,
+            active: op.active,
+            collaboratorId: matchedUser?.id ?? null,
+          });
+        }
+        operatorsSynced++;
+      }
+
+      for (const ch of discoveredChannels) {
+        const chRow = await db
+          .select({ id: gotalkChannels.id })
+          .from(gotalkChannels)
+          .where(eq(gotalkChannels.channelId, ch.channelId))
+          .limit(1);
+        const chDbId = chRow[0]?.id ?? primaryChannelDbId;
+        const tplList = await fetchGotalkHsmTemplates(ch.channelId);
+
+        for (const tpl of tplList) {
+          const existingTpl = await db
+            .select()
+            .from(gotalkHsmTemplates)
+            .where(eq(gotalkHsmTemplates.templateName, tpl.templateName))
+            .limit(1);
+
+          if (existingTpl[0]) {
+            await db
+              .update(gotalkHsmTemplates)
+              .set({
+                gotalkTemplateId: tpl.gotalkTemplateId,
+                category: tpl.category,
+                language: tpl.language,
+                status: tpl.status,
+                bodyText: tpl.bodyText,
+                headerText: tpl.headerText,
+                footerText: tpl.footerText,
+                channelDbId: existingTpl[0].channelDbId ?? chDbId,
+                syncedAt: new Date(),
+              })
+              .where(eq(gotalkHsmTemplates.id, existingTpl[0].id));
+          } else {
+            await db.insert(gotalkHsmTemplates).values({
+              templateName: tpl.templateName,
+              gotalkTemplateId: tpl.gotalkTemplateId,
+              category: tpl.category,
+              language: tpl.language,
+              status: tpl.status,
+              bodyText: tpl.bodyText,
+              headerText: tpl.headerText,
+              footerText: tpl.footerText,
+              channelDbId: chDbId,
+            });
+          }
+          templatesSynced++;
+        }
+      }
+    }
+
+    return { channelsSynced, operatorsSynced, templatesSynced };
+  }
+
+  // GoTalk Official Auth, Sync, Templates & Webhook Integration
+  app.get('/api/integrations/gotalk/status', requireAuth, async (_req: AuthRequest, res) => {
+    const [chCount, opCount, tplCount] = await Promise.all([
+      db.select({ value: count() }).from(gotalkChannels),
+      db.select({ value: count() }).from(gotalkOperators),
+      db.select({ value: count() }).from(gotalkHsmTemplates),
+    ]);
+    res.json({
+      ...getGotalkStatus(),
+      channelsCount: Number(chCount[0]?.value || 0),
+      operatorsCount: Number(opCount[0]?.value || 0),
+      templatesCount: Number(tplCount[0]?.value || 0),
+    });
+  });
+
+  app.get('/api/integrations/gotalk/resources', requireAuth, async (_req: AuthRequest, res) => {
+    try {
+      const [channels, operators, templates] = await Promise.all([
+        // Regra de segurança GoTalk: NUNCA expor channelId técnico ao frontend
+        db
+          .select({
+            id: gotalkChannels.id,
+            name: gotalkChannels.name,
+            phoneNumber: gotalkChannels.phoneNumber,
+            unitId: gotalkChannels.unitId,
+            isPrimary: gotalkChannels.isPrimary,
+            isActive: gotalkChannels.isActive,
+          })
+          .from(gotalkChannels)
+          .orderBy(gotalkChannels.id),
+        db
+          .select({
+            id: gotalkOperators.id,
+            gotalkOperatorId: gotalkOperators.gotalkOperatorId,
+            name: gotalkOperators.name,
+            email: gotalkOperators.email,
+            phone: gotalkOperators.phone,
+            active: gotalkOperators.active,
+            collaboratorId: gotalkOperators.collaboratorId,
+          })
+          .from(gotalkOperators)
+          .orderBy(gotalkOperators.id),
+        db.select().from(gotalkHsmTemplates).orderBy(gotalkHsmTemplates.templateName),
+      ]);
+      res.json({ channels, operators, templates });
+    } catch (error) {
+      console.error('GoTalk resources error:', error);
+      res.status(500).json({ error: 'Erro ao carregar recursos GoTalk.' });
+    }
+  });
+
+  app.post('/api/integrations/gotalk/test', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      await authenticateGotalk();
+      const synced = await syncGotalkResources().catch(() => ({
+        channelsSynced: 0,
+        operatorsSynced: 0,
+        templatesSynced: 0,
+      }));
+      const status = getGotalkStatus();
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'GOTALK_AUTH_TEST',
+        entityType: 'integration',
+        entityId: 'gotalk',
+        details: { ok: true, ...synced },
+        unitId: req.activeUnitId,
+      });
+      res.json({ ok: true, synced, status });
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : 'Erro desconhecido ao autenticar na GoTalk.';
+      const status = getGotalkStatus();
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'GOTALK_AUTH_TEST_FAILED',
+        entityType: 'integration',
+        entityId: 'gotalk',
+        details: { ok: false, error: errMsg },
+        unitId: req.activeUnitId,
+      });
+      res.status(status.configured ? 502 : 400).json({ ok: false, error: errMsg, status });
+    }
+  });
+
+  app.get('/api/integrations/gotalk/postman-parity', requireAuth, requireAdmin, async (_req: AuthRequest, res) => {
+    try {
+      const results = await runGotalkPostmanParityProbe();
+      res.json({ ok: true, results });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error instanceof Error ? error.message : 'Erro ao validar endpoints GoTalk.' });
+    }
+  });
+
+  app.post('/api/integrations/gotalk/sync', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      await authenticateGotalk();
+      const synced = await syncGotalkResources();
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'GOTALK_SYNC_RESOURCES',
+        entityType: 'integration',
+        entityId: 'gotalk',
+        details: synced,
+        unitId: req.activeUnitId,
+      });
+      res.json({ ok: true, synced, status: getGotalkStatus() });
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : 'Erro ao sincronizar recursos GoTalk.';
+      res.status(400).json({ ok: false, error: errMsg, status: getGotalkStatus() });
+    }
+  });
+
+  app.post('/api/integrations/gotalk/send-template', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const { threadId, templateName, variables, channelDbId } = req.body as {
+        threadId: number;
+        templateName: string;
+        variables?: Record<string, string>;
+        channelDbId?: number;
+      };
+      if (!threadId || !templateName) {
+        return res.status(400).json({ error: 'threadId e templateName são obrigatórios.' });
+      }
+      const threads = await db.select().from(whatsappThreads).where(eq(whatsappThreads.id, threadId)).limit(1);
+      const thread = threads[0];
+      if (!thread) return res.status(404).json({ error: 'Conversa não encontrada.' });
+
+      const tpls = await db
+        .select()
+        .from(gotalkHsmTemplates)
+        .where(eq(gotalkHsmTemplates.templateName, templateName))
+        .limit(1);
+      const tpl = tpls[0];
+      if (!tpl) return res.status(404).json({ error: 'Template HSM não encontrado.' });
+
+      let resolvedChannelId: string | null = null;
+      const targetChDbId = channelDbId || tpl.channelDbId || thread.channelDbId;
+      if (targetChDbId) {
+        const ch = await db
+          .select({ channelId: gotalkChannels.channelId })
+          .from(gotalkChannels)
+          .where(eq(gotalkChannels.id, targetChDbId))
+          .limit(1);
+        resolvedChannelId = ch[0]?.channelId ?? null;
+      }
+
+      const renderedBody = (tpl.bodyText || tpl.templateName).replace(/\{\{(\d+)\}\}/g, (_, n) =>
+        variables?.[n] ? variables[n] : `{{${n}}}`
+      );
+
+      let gotalkDelivery = await sendGotalkActiveNotification({
+        phone: thread.contactPhone,
+        contactName: thread.contactName,
+        templateId: tpl.gotalkTemplateId || tpl.templateName,
+        text: renderedBody,
+        variables: variables || {},
+        channelId: resolvedChannelId,
+      });
+      if (!gotalkDelivery.dispatched && gotalkDelivery.provider === 'gotalk_api_error') {
+        const fallbackDelivery = await sendGotalkTemplateByName({
+          phone: thread.contactPhone,
+          templateName: tpl.templateName,
+          tag: { clientName: thread.contactName, ...(variables || {}) },
+        });
+        if (fallbackDelivery.dispatched) gotalkDelivery = fallbackDelivery;
+      }
+
+      const [msg] = await db
+        .insert(whatsappMessages)
+        .values({
+          threadId: thread.id,
+          externalMessageId: gotalkDelivery.externalMessageId || null,
+          direction: 'outbound',
+          contentType: 'text',
+          body: `[Template HSM: ${tpl.templateName}]\n${renderedBody}`,
+          attachmentName: tpl.templateName,
+          ackStatus: gotalkDelivery.dispatched ? 1 : null,
+          operatorName: req.authUser!.name,
+          senderName: req.authUser!.name,
+        })
+        .returning();
+
+      await db
+        .update(whatsappThreads)
+        .set({ lastMessagePreview: renderedBody.slice(0, 70), updatedAt: new Date() })
+        .where(eq(whatsappThreads.id, thread.id));
+
+      broadcast('whatsapp:message', msg);
+      res.json({ message: msg, gotalkDelivery });
+    } catch (error) {
+      console.error('Send HSM template error:', error);
+      res.status(500).json({ error: 'Erro ao disparar template HSM GoTalk.' });
+    }
+  });
+
+  // Webhook Oficial GoTalk (suporta /api/integrations/gotalk/webhook e alias /api/gotalk/webhook)
+  const handleGotalkWebhook = async (req: express.Request, res: express.Response) => {
+    const webhookSecret = process.env.GOTALK_WEBHOOK_SECRET?.trim();
+    if (webhookSecret) {
+      const authHeader = req.headers.authorization;
+      const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : undefined;
+      const tokenHeader =
+        (req.headers['x-gotalk-token'] as string | undefined) ||
+        (req.headers['x-webhook-token'] as string | undefined) ||
+        (req.headers['x-gotalk-webhook-secret'] as string | undefined) ||
+        (req.headers['x-hub-signature'] as string | undefined) ||
+        bearerToken ||
+        (req.query.token as string | undefined) ||
+        null;
+      if (!timingSafeEqualStr(tokenHeader, webhookSecret)) {
+        return res.status(401).json({ error: 'Token webhook GoTalk inválido.' });
+      }
+    }
+
+    markGotalkWebhookReceived();
+
+    try {
+      await ensureInitialSeed();
+      const payload = (req.body || {}) as Record<string, unknown>;
+      const eventRaw = String(payload.event || payload.type || '').toLowerCase();
+
+      // 1. ACK Update (1=SERVER/sent, 2=DEVICE/delivered, 3=READ/PLAYED)
+      const isExplicitAck = eventRaw === 'ack' || eventRaw === 'messageack' || eventRaw === 'message.ack';
+      const isImplicitAck = payload.ack !== undefined && !payload.message && !(payload.data as Record<string, unknown>)?.message && !payload.body;
+      if (isExplicitAck || isImplicitAck) {
+        const ackData = ((payload.data as Record<string, unknown>) || payload) as Record<string, unknown>;
+        const extMsgId = String(ackData.messageId || ackData.id || ackData._id || '').trim();
+        const ackVal = parseAckValue(ackData.ack ?? ackData.status);
+        if (extMsgId && ackVal !== null) {
+          const updated = await db
+            .update(whatsappMessages)
+            .set({ ackStatus: ackVal })
+            .where(eq(whatsappMessages.externalMessageId, extMsgId))
+            .returning();
+          if (updated[0]) {
+            broadcast('whatsapp:ack', { messageId: updated[0].id, ackStatus: ackVal });
+          }
+        }
+        return res.status(200).json({ ok: true, event: 'ack' });
+      }
+
+      // 2. Message Revoke / Delete (Imutabilidade: preserva no CRM e marca deletedInOrigin=true)
+      const isRevokeEvent =
+        eventRaw === 'messagerevoked' ||
+        eventRaw === 'message_revoked' ||
+        eventRaw === 'messagerevoke' ||
+        eventRaw === 'messagedeleted' ||
+        eventRaw === 'message_deleted' ||
+        eventRaw === 'messagedelete' ||
+        eventRaw === 'revoked' ||
+        eventRaw === 'deleted';
+      if (isRevokeEvent) {
+        const revokedObj = ((payload.message || (payload.data as Record<string, unknown>)?.message || payload.data || payload) as Record<string, unknown>);
+        const revokedId = String(revokedObj?._id || revokedObj?.id || payload.messageId || payload.id || '').trim();
+        if (revokedId) {
+          await db
+            .update(whatsappMessages)
+            .set({ deletedInOrigin: true })
+            .where(eq(whatsappMessages.externalMessageId, revokedId));
+          broadcast('whatsapp:revoked', { externalMessageId: revokedId });
+        }
+        return res.status(200).json({ ok: true, event: 'revoked_preserved' });
+      }
+
+      // 3. Operator Event (create / update / delete)
+      const isOperatorEvent =
+        eventRaw.includes('operator') ||
+        eventRaw === 'newuser' ||
+        eventRaw === 'usercreated' ||
+        eventRaw === 'userupdated' ||
+        eventRaw === 'userdeleted' ||
+        eventRaw === 'agentcreated' ||
+        eventRaw === 'agentupdated' ||
+        eventRaw === 'agentdeleted';
+      if (isOperatorEvent) {
+        const rawOp = ((payload.operator || payload.user || payload.agent || (payload.data as Record<string, unknown>)?.operator || payload.data) as Record<string, unknown>);
+        const opId = String(rawOp?._id || rawOp?.id || '').trim();
+        if (opId) {
+          const active = !(rawOp.deleted === true || eventRaw.includes('delet') || eventRaw.includes('remov')) && rawOp.active !== false;
+          const existing = await db.select().from(gotalkOperators).where(eq(gotalkOperators.gotalkOperatorId, opId)).limit(1);
+          if (existing[0]) {
+            await db
+              .update(gotalkOperators)
+              .set({
+                name: (rawOp.name || rawOp.nome || existing[0].name) as string | null,
+                email: (rawOp.email || existing[0].email) as string | null,
+                phone: normalizePhone((rawOp.phone || rawOp.telefone || existing[0].phone) as string | null) || null,
+                active,
+                updatedAt: new Date(),
+              })
+              .where(eq(gotalkOperators.id, existing[0].id));
+          } else {
+            await db.insert(gotalkOperators).values({
+              gotalkOperatorId: opId,
+              name: (rawOp.name || rawOp.nome || null) as string | null,
+              email: (rawOp.email || null) as string | null,
+              phone: normalizePhone((rawOp.phone || rawOp.telefone || null) as string | null) || null,
+              active,
+            });
+          }
+        }
+        return res.status(200).json({ ok: true, event: 'operator' });
+      }
+
+      // Resolve channelDbId from technical payload.channelId (strictly server-side)
+      const whChannelId = String(payload.channelId || payload.channel_id || '').trim();
+      let resolvedChannelDbId: number | null = null;
+      if (whChannelId) {
+        const ch = await db.select().from(gotalkChannels).where(eq(gotalkChannels.channelId, whChannelId)).limit(1);
+        resolvedChannelDbId = ch[0]?.id ?? null;
+      }
+
+      // 4. Attendance Events
+      const isAttendanceEvent =
+        eventRaw === 'newattendance' ||
+        eventRaw === 'openattendance' ||
+        eventRaw === 'closeattendance' ||
+        eventRaw === 'finishattendance' ||
+        eventRaw === 'attendanceupdate' ||
+        eventRaw === 'attendancefinished' ||
+        eventRaw === 'attendance' ||
+        eventRaw === 'transferattendance' ||
+        eventRaw === 'attendancetransferred';
+      if (isAttendanceEvent) {
+        const rawAt = ((payload.attendance || (payload.data as Record<string, unknown>)?.attendance || payload.data || payload) as Record<string, unknown>);
+        const atId = String(rawAt._id || rawAt.id || '').trim();
+        const atPhone = String(rawAt.clientNumber || rawAt.phone || rawAt.clientPhone || '').trim();
+        const deptName = String(rawAt.departmentName || rawAt.department || '').trim() || null;
+        const opName = String(rawAt.operatorName || rawAt.operator || '').trim() || null;
+        if (atPhone) {
+          const threads = await db.select().from(whatsappThreads);
+          const matched = threads.find((t) => phonesMatchBR(t.contactPhone, atPhone));
+          if (matched) {
+            await db
+              .update(whatsappThreads)
+              .set({
+                gotalkAttendanceId: atId || matched.gotalkAttendanceId,
+                department: deptName ?? matched.department,
+                operatorName: opName ?? matched.operatorName,
+                channelDbId: resolvedChannelDbId ?? matched.channelDbId,
+                updatedAt: new Date(),
+              })
+              .where(eq(whatsappThreads.id, matched.id));
+          }
+        }
+        return res.status(200).json({ ok: true, event: 'attendance' });
+      }
+
+      // 4B. Call Log Event (GoTalk voice/video call)
+      if (eventRaw === 'call' || eventRaw === 'call_log' || eventRaw === 'call.ended' || eventRaw === 'callended') {
+        const callObj = ((payload.call || payload.data || payload) as Record<string, unknown>);
+        const callPhone = String(callObj.phone || callObj.from || callObj.to || callObj.clientNumber || '').trim();
+        const callExtId = String(callObj.callId || callObj.id || callObj._id || `gt-wh-${Date.now()}`).trim();
+        const recUrl = String(callObj.recordingUrl || callObj.audioUrl || callObj.url || '').trim();
+        const durSec = Number(callObj.duration || callObj.durationSeconds || 0);
+        const contactNameCall = String(callObj.contactName || callObj.name || callPhone || 'Contato GoTalk').trim();
+        if (normalizePhone(callPhone)) {
+          const allThreads = await db.select().from(whatsappThreads);
+          const matchedThread = allThreads.find((t) => phonesMatchBR(t.contactPhone, callPhone));
+          const resolvedUnit = matchedThread?.unitId || Number(payload.unitId) || 1;
+          let recSha = '';
+          let recUri = '';
+          let recMime = '';
+          let recName = '';
+          let audioTrans = '';
+          if (recUrl) {
+            const downloaded = await downloadMediaToBucket(recUrl, {
+              folderPath: `bucketdainvicta/U${resolvedUnit}/CALLS/GOTALK`,
+              fileName: `gotalk-call-${callExtId}.ogg`,
+              fallbackMime: 'audio/ogg',
+            });
+            if (downloaded) {
+              recSha = downloaded.sha256Hash;
+              recUri = downloaded.storageUri;
+              recMime = downloaded.mimeType;
+              recName = `gotalk-call-${callExtId}`;
+              const tRes = await iviTranscribeAudioNote(downloaded.dataUri, downloaded.mimeType);
+              audioTrans = tRes.transcript;
+            }
+          }
+          const [cLog] = await db
+            .insert(whatsappCallLogs)
+            .values({
+              unitId: resolvedUnit,
+              threadId: matchedThread?.id ?? null,
+              callId: callExtId,
+              direction: callObj.direction === 'outbound' || callObj.fromMe === true ? 'outbound' : 'inbound',
+              fromNumber: String(callObj.from || callPhone),
+              toNumber: String(callObj.to || callPhone),
+              callType: callObj.isVideo ? 'video' : 'voice',
+              status: 'ended',
+              durationSeconds: durSec,
+              provider: 'gotalk',
+              recordingSha256: recSha,
+              recordingStorageUri: recUri,
+              recordingMimeType: recMime,
+              recordingFileName: recName,
+              audioTranscript: audioTrans,
+              initiatedByName: String(callObj.operatorName || 'GoTalk'),
+              endedAt: new Date(),
+            })
+            .returning();
+          const mirroredLead = await mirrorCommunicationToProspection({
+            unitId: resolvedUnit,
+            phone: callPhone,
+            contactName: contactNameCall,
+            channel: 'whatsapp_gotalk',
+            provider: 'gotalk',
+            threadId: matchedThread?.id ?? null,
+            direction: callObj.fromMe === true ? 'outbound' : 'inbound',
+            contentType: recSha ? 'audio' : 'call',
+            body: recSha ? `[Gravação de Ligação GoTalk]` : `[Ligação GoTalk] Duração: ${durSec}s`,
+            audioTranscript: audioTrans || null,
+            callId: callExtId,
+            mediaSha256: recSha || null,
+            mediaStorageUri: recUri || null,
+            mediaMimeType: recMime || null,
+            mediaFileName: recName || null,
+            externalMessageId: callExtId,
+            triggerIviAutoSummarize: Boolean(audioTrans),
+          });
+          if (mirroredLead) {
+            await db.update(whatsappCallLogs).set({ leadId: mirroredLead.id }).where(eq(whatsappCallLogs.id, cLog.id));
+            if (recSha) {
+              await db.insert(communicationArchives).values({
+                unitId: resolvedUnit,
+                leadId: mirroredLead.id,
+                threadId: matchedThread?.id ?? null,
+                callLogId: cLog.id,
+                provider: 'gotalk',
+                archiveType: 'call_recording',
+                contactName: contactNameCall,
+                contactPhone: callPhone,
+                fileName: recName,
+                mimeType: recMime,
+                sizeBytes: 0,
+                sha256Hash: recSha,
+                storageUri: recUri,
+                transcriptText: audioTrans,
+                createdByName: 'Webhook GoTalk',
+              });
+            }
+          }
+        }
+        return res.status(200).json({ ok: true, event: 'call' });
+      }
+
+      // 5. New Message (GoTalk official payload OR flat test payload)
+      const dataObj = (payload.data && typeof payload.data === 'object' ? payload.data : null) as Record<string, unknown> | null;
+      const rawMsg = ((payload.message && typeof payload.message === 'object'
+        ? payload.message
+        : dataObj?.message && typeof dataObj.message === 'object'
+        ? dataObj.message
+        : dataObj && (dataObj._id || dataObj.id)
+        ? dataObj
+        : payload) as Record<string, unknown>);
+      const rawContact = ((payload.contact || dataObj?.contact || null) as Record<string, unknown> | null);
+
+      const extMsgId = String(rawMsg._id || rawMsg.id || '').trim() || null;
+      if (extMsgId) {
+        const dup = await db
+          .select({ id: whatsappMessages.id })
+          .from(whatsappMessages)
+          .where(eq(whatsappMessages.externalMessageId, extMsgId))
+          .limit(1);
+        if (dup[0]) {
+          return res.status(200).json({ ok: true, deduplicated: true, messageId: dup[0].id });
+        }
+      }
+
+      const rawPhone = String(
+        rawContact?.number ||
+          rawContact?.phone ||
+          rawMsg.clientNumber ||
+          payload.clientNumber ||
+          payload.phone ||
+          payload.from ||
+          payload.number ||
+          rawMsg.phoneNumber ||
+          rawMsg.to ||
+          ''
+      ).trim();
+
+      const textBody = String(rawMsg.body || rawMsg.text || rawMsg.caption || payload.message || payload.text || '').trim();
+      const contactName = String(
+        rawContact?.name ||
+          rawContact?.pushname ||
+          payload.contactName ||
+          payload.name ||
+          payload.pushName ||
+          rawPhone ||
+          'Contato GoTalk'
+      ).trim();
+
+      const waType = String(rawMsg.type || payload.contentType || 'chat').toLowerCase();
+      const contentType =
+        waType === 'audio' || waType === 'ptt'
+          ? 'audio'
+          : waType === 'image'
+          ? 'image'
+          : waType === 'document'
+          ? 'document'
+          : 'text';
+
+      const fromMe = rawMsg.fromMe === true || rawMsg.direction === 'OUT' || payload.direction === 'outbound';
+      const direction = fromMe ? 'outbound' : 'inbound';
+      const attachmentUrl = (rawMsg.mediaUrl || rawMsg.url || null) as string | null;
+      const attachmentName = (rawMsg.fileName || null) as string | null;
+      const attachmentMimeType = (rawMsg.mimetype || null) as string | null;
+      const ackStatus = fromMe ? parseAckValue(rawMsg.ack ?? rawMsg.status) ?? 1 : null;
+      const gotalkContactId = String(payload.contactId || rawContact?._id || rawMsg.contactId || '').trim() || null;
+      const gotalkAttendanceId =
+        String(
+          payload.attendanceId ||
+            (payload.attendance as Record<string, unknown>)?._id ||
+            (payload.attendance as Record<string, unknown>)?.id ||
+            rawMsg.attendanceId ||
+            ''
+        ).trim() || null;
+      const operatorName = String(rawMsg.operatorName || rawMsg.operator || '').trim() || null;
+      const department =
+        String(
+          (payload.attendance as Record<string, unknown>)?.departmentName ||
+            (payload.attendance as Record<string, unknown>)?.department ||
+            payload.departmentName ||
+            payload.department ||
+            ''
+        ).trim() || null;
+
+      if (!normalizePhone(rawPhone) || (!textBody && !attachmentUrl)) {
+        return res.status(400).json({ error: 'Payload GoTalk inválido: telefone e conteúdo são obrigatórios.' });
+      }
+
+      const [allThreads, allClients] = await Promise.all([
+        db.select().from(whatsappThreads),
+        db.select({ id: clients.id, phone: clients.phone, whatsapp: clients.whatsapp, unitId: clients.unitId }).from(clients),
+      ]);
+
+      const matchedClient = allClients.find(
+        (c) => phonesMatchBR(c.whatsapp, rawPhone) || phonesMatchBR(c.phone, rawPhone)
+      );
+
+      let thread = allThreads.find((t) => phonesMatchBR(t.contactPhone, rawPhone));
+      const preview = (textBody || attachmentName || `[${contentType.toUpperCase()}]`).slice(0, 70);
+
+      if (!thread) {
+        const firstUnit = await db.select().from(units).orderBy(units.id).limit(1);
+        const resolvedUnitId = matchedClient?.unitId || Number(payload.unitId) || firstUnit[0]?.id || 1;
+        const [created] = await db
+          .insert(whatsappThreads)
+          .values({
+            unitId: resolvedUnitId,
+            clientId: matchedClient?.id ?? null,
+            contactName,
+            contactPhone: normalizePhone(rawPhone) || rawPhone,
+            provider: 'gotalk',
+            gotalkContactId,
+            gotalkAttendanceId,
+            channelDbId: resolvedChannelDbId,
+            operatorName,
+            department,
+            lastMessagePreview: preview,
+            unreadCount: direction === 'inbound' ? 1 : 0,
+            updatedAt: new Date(),
+          })
+          .returning();
+        thread = created;
+      } else {
+        await db
+          .update(whatsappThreads)
+          .set({
+            provider: 'gotalk',
+            clientId: thread.clientId ?? matchedClient?.id ?? null,
+            gotalkContactId: gotalkContactId ?? thread.gotalkContactId,
+            gotalkAttendanceId: gotalkAttendanceId ?? thread.gotalkAttendanceId,
+            channelDbId: resolvedChannelDbId ?? thread.channelDbId,
+            operatorName: operatorName ?? thread.operatorName,
+            department: department ?? thread.department,
+            lastMessagePreview: preview,
+            unreadCount: direction === 'inbound' ? (thread.unreadCount || 0) + 1 : thread.unreadCount,
+            updatedAt: new Date(),
+          })
+          .where(eq(whatsappThreads.id, thread.id));
+      }
+
+      // Download and encrypt media/audio inside bucketdainvicta before external link expires
+      let downloadedMedia: Awaited<ReturnType<typeof downloadMediaToBucket>> = null;
+      if (attachmentUrl) {
+        downloadedMedia = await downloadMediaToBucket(attachmentUrl, {
+          folderPath: `bucketdainvicta/U${thread.unitId}/WHATSAPP/T${thread.id}`,
+          fileName: attachmentName || `gotalk-${contentType}-${Date.now()}.${contentType === 'audio' ? 'ogg' : 'bin'}`,
+          fallbackMime: attachmentMimeType || (contentType === 'audio' ? 'audio/ogg' : 'application/octet-stream'),
+        });
+      }
+
+      let iviTranscript: string | null = null;
+      if (contentType === 'audio') {
+        const resT = await iviTranscribeAudioNote(
+          downloadedMedia?.dataUri || textBody || attachmentName || 'Áudio recebido via GoTalk',
+          downloadedMedia?.mimeType || attachmentMimeType || 'audio/ogg'
+        );
+        iviTranscript = resT.transcript;
+      }
+
+      const [msg] = await db
+        .insert(whatsappMessages)
+        .values({
+          threadId: thread.id,
+          externalMessageId: extMsgId,
+          direction,
+          contentType,
+          body: textBody || attachmentName || '[Mídia recebida]',
+          attachmentUrl: downloadedMedia
+            ? `/api/bucket/objects/${downloadedMedia.sha256Hash}?name=${encodeURIComponent(attachmentName || 'midia-gotalk')}&mime=${encodeURIComponent(downloadedMedia.mimeType)}&preview=1`
+            : attachmentUrl,
+          attachmentName,
+          attachmentMimeType: downloadedMedia?.mimeType || attachmentMimeType,
+          mediaSha256: downloadedMedia?.sha256Hash || null,
+          mediaStorageUri: downloadedMedia?.storageUri || null,
+          iviAudioTranscript: iviTranscript,
+          ackStatus,
+          operatorName,
+          department,
+          senderName: direction === 'inbound' ? contactName : operatorName || 'Consultor GoTalk',
+        })
+        .returning();
+
+      const mirroredLead = await mirrorCommunicationToProspection({
+        unitId: thread.unitId,
+        phone: rawPhone,
+        contactName,
+        channel: 'whatsapp_gotalk',
+        provider: 'gotalk',
+        threadId: thread.id,
+        direction,
+        contentType,
+        body: textBody || attachmentName || '[Mídia GoTalk]',
+        audioTranscript: iviTranscript,
+        authorName: direction === 'inbound' ? contactName : operatorName || 'Consultor GoTalk',
+        externalMessageId: extMsgId || `gt-msg-${msg.id}`,
+        mediaSha256: downloadedMedia?.sha256Hash || null,
+        mediaStorageUri: downloadedMedia?.storageUri || null,
+        mediaMimeType: downloadedMedia?.mimeType || attachmentMimeType,
+        mediaFileName: attachmentName,
+        triggerIviAutoSummarize: direction === 'inbound' || contentType === 'audio',
+      });
+
+      if (downloadedMedia) {
+        await db.insert(communicationArchives).values({
+          unitId: thread.unitId,
+          leadId: mirroredLead?.id ?? null,
+          threadId: thread.id,
+          provider: 'gotalk',
+          archiveType: contentType === 'audio' ? 'audio_message' : 'conversation_snapshot',
+          contactName,
+          contactPhone: normalizePhone(rawPhone) || rawPhone,
+          fileName: attachmentName || `gotalk-${contentType}-${msg.id}`,
+          mimeType: downloadedMedia.mimeType,
+          sizeBytes: downloadedMedia.sizeBytes,
+          sha256Hash: downloadedMedia.sha256Hash,
+          storageUri: downloadedMedia.storageUri,
+          transcriptText: iviTranscript || textBody || '',
+          createdByName: 'Webhook GoTalk',
+        });
+      }
+
+      broadcast('whatsapp:message', msg);
+      return res.json({ ok: true, received: true, threadId: thread.id, messageId: msg.id });
+    } catch (error) {
+      console.error('GoTalk webhook error:', error);
+      return res.status(500).json({ error: 'Erro ao processar webhook GoTalk.' });
+    }
+  };
+
+  app.post('/api/integrations/gotalk/webhook', handleGotalkWebhook);
+  app.post('/api/gotalk/webhook', handleGotalkWebhook);
+
+  app.post('/api/integrations/gotalk/test-webhook', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      const port = process.env.PORT || 3000;
+      const localUrl = `http://127.0.0.1:${port}/api/integrations/gotalk/webhook`;
+      const webhookSecret = process.env.GOTALK_WEBHOOK_SECRET?.trim();
+      const testExtId = `selftest_${Date.now()}`;
+      const testPhone = '5581999990099';
+
+      // 1. Verificar se chamadas sem token são bloqueadas quando GOTALK_WEBHOOK_SECRET está ativo
+      let unauthorizedBlocked: boolean | null = null;
+      if (webhookSecret) {
+        const unauthResp = await fetch(localUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ event: 'message', phone: testPhone, message: 'unauthorized-probe' }),
+        });
+        unauthorizedBlocked = unauthResp.status === 401;
+      }
+
+      // 2. Testar ingestão autenticada de mensagem, ACK=3 e revogação imutável
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (webhookSecret) headers['x-gotalk-token'] = webhookSecret;
+
+      const msgResp = await fetch(localUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          event: 'message',
+          message: { _id: testExtId, fromMe: true, type: 'chat', body: '[SelfTest] Verificação webhook GoTalk' },
+          contact: { _id: `st_c_${Date.now()}`, name: 'SelfTest Webhook GoTalk', number: testPhone },
+        }),
+      });
+      const msgJson = (await msgResp.json().catch(() => ({}))) as { ok?: boolean; threadId?: number; messageId?: number; error?: string };
+      if (!msgResp.ok || !msgJson.ok) {
+        return res.status(502).json({ ok: false, error: msgJson.error || `HTTP ${msgResp.status}` });
+      }
+
+      const ackResp = await fetch(localUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ event: 'ack', messageId: testExtId, ack: 3 }),
+      });
+
+      const revResp = await fetch(localUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ event: 'messagerevoked', messageId: testExtId }),
+      });
+
+      // Verificar estado gravado no PostgreSQL e remover dados sintéticos de teste
+      const savedRows = await db
+        .select()
+        .from(whatsappMessages)
+        .where(eq(whatsappMessages.externalMessageId, testExtId))
+        .limit(1);
+      const verifiedAck = savedRows[0]?.ackStatus === 3;
+      const verifiedRevoke = savedRows[0]?.deletedInOrigin === true;
+
+      if (msgJson.messageId) {
+        await db.delete(whatsappMessages).where(eq(whatsappMessages.id, msgJson.messageId));
+      }
+      if (msgJson.threadId) {
+        const remaining = await db
+          .select({ value: count() })
+          .from(whatsappMessages)
+          .where(eq(whatsappMessages.threadId, msgJson.threadId));
+        if (Number(remaining[0]?.value || 0) === 0) {
+          await db.delete(whatsappThreads).where(eq(whatsappThreads.id, msgJson.threadId));
+        }
+      }
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'GOTALK_WEBHOOK_SELF_TEST',
+        entityType: 'integration',
+        entityId: 'gotalk_webhook',
+        details: {
+          ok: true,
+          unauthorizedBlocked,
+          ackOk: ackResp.ok && verifiedAck,
+          revokeOk: revResp.ok && verifiedRevoke,
+        },
+        unitId: req.activeUnitId,
+      });
+
+      res.json({
+        ok: true,
+        checks: {
+          secretProtection: webhookSecret ? (unauthorizedBlocked ? 'Ativa (401 sem token)' : 'Falha na proteção') : 'Sem secret configurado',
+          messageIngestion: msgResp.ok,
+          ackUpdate: ackResp.ok && verifiedAck,
+          immutableRevoke: revResp.ok && verifiedRevoke,
+        },
+        status: getGotalkStatus(),
+      });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error instanceof Error ? error.message : 'Erro no autoteste do webhook.' });
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // 7B. UaZapi V2 Official API, Multi-Instance Encryption, QR Connect & Webhook
+  // ---------------------------------------------------------------------------
+  async function resolveUazapiCredentials(opts?: {
+    instanceId?: string | null;
+    unitId?: number | null;
+    groupId?: number | null;
+    moduleId?: string | null;
+  }): Promise<(UazapiCredentials & { dbId?: number }) | null> {
+    const allRows = await db.select().from(unitWhatsappCredentials).orderBy(unitWhatsappCredentials.id);
+    if (allRows.length > 0) {
+      const activeRows = allRows.filter((r) => r.active !== false);
+      const poolRows = activeRows.length > 0 ? activeRows : allRows;
+
+      const matchesGroup = (r: (typeof allRows)[number]) =>
+        !opts?.groupId ||
+        !Array.isArray(r.allowedGroupIds) ||
+        r.allowedGroupIds.length === 0 ||
+        r.allowedGroupIds.includes(opts.groupId);
+
+      const matchesModule = (r: (typeof allRows)[number]) =>
+        !opts?.moduleId ||
+        !Array.isArray(r.allowedModules) ||
+        r.allowedModules.length === 0 ||
+        r.allowedModules.includes(opts.moduleId);
+
+      const matched =
+        (opts?.instanceId && allRows.find((r) => r.uazapiInstanceId === opts.instanceId)) ||
+        (opts?.groupId &&
+          opts?.unitId &&
+          poolRows.find(
+            (r) =>
+              r.isConnected &&
+              r.unitId === opts.unitId &&
+              Array.isArray(r.allowedGroupIds) &&
+              r.allowedGroupIds.includes(opts.groupId!) &&
+              matchesModule(r)
+          )) ||
+        (opts?.groupId &&
+          poolRows.find(
+            (r) =>
+              r.isConnected &&
+              Array.isArray(r.allowedGroupIds) &&
+              r.allowedGroupIds.includes(opts.groupId!) &&
+              matchesModule(r)
+          )) ||
+        (opts?.unitId &&
+          poolRows.find(
+            (r) => r.unitId === opts.unitId && r.isDefaultForUnit && r.isConnected && matchesGroup(r)
+          )) ||
+        (opts?.unitId && poolRows.find((r) => r.unitId === opts.unitId && r.isConnected && matchesGroup(r))) ||
+        (opts?.unitId && poolRows.find((r) => r.unitId === opts.unitId && r.isDefaultForUnit)) ||
+        (opts?.unitId && poolRows.find((r) => r.unitId === opts.unitId)) ||
+        poolRows.find((r) => r.isConnected && matchesGroup(r)) ||
+        poolRows.find((r) => r.isConnected) ||
+        poolRows[0];
+
+      if (matched) {
+        const token = decryptUazapiToken(matched.uazapiTokenEncrypted);
+        if (token) {
+          return {
+            dbId: matched.id,
+            unitId: matched.unitId,
+            instanceId: matched.uazapiInstanceId,
+            label: matched.label,
+            serverUrl: matched.uazapiServerUrl || DEFAULT_UAZAPI_SERVER_URL,
+            token,
+          };
+        }
+      }
+    }
+    return getEnvUazapiCredentials();
+  }
+
+  async function listSanitizedUazapiInstances() {
+    const rows = await db.select().from(unitWhatsappCredentials).orderBy(unitWhatsappCredentials.id);
+    return rows.map((r) => ({
+      id: r.id,
+      unitId: r.unitId,
+      label: r.label,
+      uazapiInstanceId: r.uazapiInstanceId,
+      uazapiServerUrl: r.uazapiServerUrl,
+      hasToken: Boolean(r.uazapiTokenEncrypted),
+      defaultPhone: r.defaultPhone || '',
+      connectedPhone: r.connectedPhone,
+      profileName: r.profileName,
+      isConnected: r.isConnected,
+      allowedGroupIds: r.allowedGroupIds || [],
+      allowedModules: r.allowedModules || ['prospection', 'admission', 'collection'],
+      assignedCollaboratorId: r.assignedCollaboratorId ?? null,
+      isDefaultForUnit: Boolean(r.isDefaultForUnit),
+      active: r.active !== false,
+      webhookUrl: r.webhookUrl,
+      webhookRegisteredAt: r.webhookRegisteredAt,
+      webhookLastError: r.webhookLastError,
+      updatedAt: r.updatedAt,
+    }));
+  }
+
+  function resolvePublicBaseUrl(req: express.Request): string {
+    const envPublic = process.env.APP_PUBLIC_URL?.trim() || process.env.APP_URL?.trim();
+    if (envPublic && !envPublic.includes('MY_APP_URL')) {
+      return envPublic.replace(/\/$/, '');
+    }
+    const proto = (req.headers['x-forwarded-proto'] as string)?.split(',')[0] || req.protocol || 'https';
+    const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3000';
+    return `${proto}://${host}`;
+  }
+
+  app.get('/api/integrations/uazapi/status', requireAuth, async (_req: AuthRequest, res) => {
+    try {
+      const [instances, runtime] = await Promise.all([
+        listSanitizedUazapiInstances(),
+        Promise.resolve(getUazapiGlobalRuntimeState()),
+      ]);
+      res.json({
+        configured: runtime.envConfigured || instances.length > 0,
+        serverUrl: instances[0]?.uazapiServerUrl || runtime.defaultServerUrl,
+        instancesCount: instances.length,
+        instances,
+        ...runtime,
+      });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao consultar status UaZapi.' });
+    }
+  });
+
+  function normalizeStrMatch(val: string): string {
+    return val
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim();
+  }
+
+  async function upsertDiscoveredUazapiInstances(params: {
+    serverUrl: string;
+    discovered: Array<{
+      id: string;
+      name: string;
+      token: string;
+      connected: boolean;
+      profileName: string | null;
+      ownerPhone: string | null;
+    }>;
+    fallbackUnitId: number;
+  }) {
+    const allUnits = await db.select().from(units).orderBy(units.id);
+    const savedList = [];
+    for (const item of params.discovered) {
+      const instNorm = normalizeStrMatch(item.name);
+      const matchedUnit =
+        allUnits.find((u) => {
+          const uName = normalizeStrMatch(u.name);
+          const uCity = normalizeStrMatch(u.city || '');
+          return (
+            (uCity && instNorm.includes(uCity)) ||
+            (uName && instNorm.includes(uName)) ||
+            (instNorm.includes('central') && u.id === allUnits[0]?.id)
+          );
+        }) || allUnits.find((u) => u.id === params.fallbackUnitId) || allUnits[0];
+
+      const resolvedUnitId = matchedUnit?.id || params.fallbackUnitId || 1;
+      const encrypted = encryptUazapiToken(item.token);
+
+      const existing = await db
+        .select()
+        .from(unitWhatsappCredentials)
+        .where(eq(unitWhatsappCredentials.uazapiInstanceId, item.id))
+        .limit(1);
+
+      let saved;
+      if (existing[0]) {
+        const [updated] = await db
+          .update(unitWhatsappCredentials)
+          .set({
+            unitId: resolvedUnitId,
+            label: item.name || existing[0].label,
+            uazapiServerUrl: params.serverUrl,
+            uazapiTokenEncrypted: encrypted,
+            connectedPhone: item.ownerPhone ?? existing[0].connectedPhone,
+            profileName: item.profileName ?? existing[0].profileName,
+            isConnected: item.connected,
+            updatedAt: new Date(),
+          })
+          .where(eq(unitWhatsappCredentials.id, existing[0].id))
+          .returning();
+        saved = updated;
+      } else {
+        const [inserted] = await db
+          .insert(unitWhatsappCredentials)
+          .values({
+            unitId: resolvedUnitId,
+            label: item.name || item.id,
+            uazapiInstanceId: item.id,
+            uazapiServerUrl: params.serverUrl,
+            uazapiTokenEncrypted: encrypted,
+            connectedPhone: item.ownerPhone,
+            profileName: item.profileName,
+            isConnected: item.connected,
+          })
+          .returning();
+        saved = inserted;
+      }
+      savedList.push({
+        id: saved.id,
+        unitId: saved.unitId,
+        label: saved.label,
+        uazapiInstanceId: saved.uazapiInstanceId,
+        uazapiServerUrl: saved.uazapiServerUrl,
+        hasToken: true,
+        connectedPhone: saved.connectedPhone,
+        profileName: saved.profileName,
+        isConnected: saved.isConnected,
+      });
+    }
+    return savedList;
+  }
+
+  app.post('/api/integrations/uazapi/instances', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      const { unitId, label, serverUrl, token, instanceId } = req.body as {
+        unitId?: number;
+        label?: string;
+        serverUrl?: string;
+        token?: string;
+        instanceId?: string;
+      };
+      if (!token?.trim()) {
+        return res.status(400).json({ error: 'Token da instância ou AdminToken UaZapi é obrigatório.' });
+      }
+      const resolvedServerUrl = (serverUrl || DEFAULT_UAZAPI_SERVER_URL).trim().replace(/\/$/, '');
+      const firstUnit = await db.select().from(units).orderBy(units.id).limit(1);
+      const resolvedUnitId = unitId || req.activeUnitId || firstUnit[0]?.id || 1;
+      const tempCreds: UazapiCredentials = { serverUrl: resolvedServerUrl, token: token.trim() };
+      const liveStatus = await getUazapiInstanceStatus(tempCreds);
+
+      if (!liveStatus.ok) {
+        // Fallback: check if supplied token is a server admintoken (GET /instance/all)
+        const adminDiscovery = await fetchUazapiInstancesWithAdminToken(resolvedServerUrl, token.trim());
+        if (adminDiscovery.ok && adminDiscovery.instances.length > 0) {
+          const savedList = await upsertDiscoveredUazapiInstances({
+            serverUrl: resolvedServerUrl,
+            discovered: adminDiscovery.instances,
+            fallbackUnitId: resolvedUnitId,
+          });
+
+          await db.insert(auditLogs).values({
+            userId: req.authUser!.id,
+            userName: req.authUser!.name,
+            action: 'UAZAPI_ADMIN_DISCOVERY_SAVED',
+            entityType: 'integration',
+            entityId: 'uazapi_admin',
+            details: {
+              discoveredCount: savedList.length,
+              connectedCount: savedList.filter((i) => i.isConnected).length,
+              serverUrl: resolvedServerUrl,
+            },
+            unitId: req.activeUnitId,
+          });
+
+          return res.json({
+            ok: true,
+            mode: 'admin_discovery',
+            discoveredCount: savedList.length,
+            connectedCount: savedList.filter((i) => i.isConnected).length,
+            instances: savedList,
+          });
+        }
+
+        return res.status(400).json({
+          ok: false,
+          error: liveStatus.error || `Falha ao validar token UaZapi (HTTP ${liveStatus.httpStatus}).`,
+        });
+      }
+
+      const finalInstanceId = (instanceId || liveStatus.instanceId || liveStatus.instanceName || `uaz_${Date.now()}`).trim();
+      const [saved] = await upsertDiscoveredUazapiInstances({
+        serverUrl: resolvedServerUrl,
+        discovered: [
+          {
+            id: finalInstanceId,
+            name: label?.trim() || liveStatus.instanceName || 'Principal',
+            token: token.trim(),
+            connected: liveStatus.connected,
+            profileName: liveStatus.profileName,
+            ownerPhone: liveStatus.connectedPhone,
+          },
+        ],
+        fallbackUnitId: resolvedUnitId,
+      });
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'UAZAPI_INSTANCE_SAVED',
+        entityType: 'integration',
+        entityId: finalInstanceId,
+        details: { unitId: resolvedUnitId, connected: liveStatus.connected, serverUrl: resolvedServerUrl },
+        unitId: req.activeUnitId,
+      });
+
+      res.json({
+        ok: true,
+        mode: 'single_instance',
+        instance: saved,
+        liveStatus,
+      });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error instanceof Error ? error.message : 'Erro ao salvar instância UaZapi.' });
+    }
+  });
+
+  app.post('/api/integrations/uazapi/discover', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      const adminToken = process.env.UAZAPI_ADMIN_TOKEN?.trim();
+      if (!adminToken) {
+        return res.status(400).json({
+          ok: false,
+          error: 'UAZAPI_ADMIN_TOKEN não configurado nos Secrets do servidor.',
+        });
+      }
+      const discovery = await fetchUazapiInstancesWithAdminToken(DEFAULT_UAZAPI_SERVER_URL, adminToken);
+      if (!discovery.ok) {
+        return res.status(502).json({ ok: false, error: discovery.error || 'Falha ao listar instâncias no UaZapi.' });
+      }
+      const firstUnit = await db.select().from(units).orderBy(units.id).limit(1);
+      const savedList = await upsertDiscoveredUazapiInstances({
+        serverUrl: DEFAULT_UAZAPI_SERVER_URL,
+        discovered: discovery.instances,
+        fallbackUnitId: req.activeUnitId || firstUnit[0]?.id || 1,
+      });
+      res.json({
+        ok: true,
+        discoveredCount: savedList.length,
+        connectedCount: savedList.filter((i) => i.isConnected).length,
+        instances: savedList,
+      });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error instanceof Error ? error.message : 'Erro ao descobrir instâncias UaZapi.' });
+    }
+  });
+
+  app.post('/api/integrations/uazapi/test', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      const { instanceId } = (req.body || {}) as { instanceId?: string };
+      const creds = await resolveUazapiCredentials({ instanceId: instanceId || null, unitId: req.activeUnitId });
+      if (!creds) {
+        return res.status(400).json({
+          ok: false,
+          error: 'UaZapi não configurado: adicione UAZAPI_TOKEN nos Secrets ou provisione a instância.',
+        });
+      }
+
+      const [liveStatus, webhookCfg] = await Promise.all([
+        getUazapiInstanceStatus(creds),
+        getUazapiWebhookConfig(creds).catch(() => ({ ok: false, webhooks: null })),
+      ]);
+
+      if (creds.dbId && liveStatus.ok) {
+        await db
+          .update(unitWhatsappCredentials)
+          .set({
+            isConnected: liveStatus.connected,
+            connectedPhone: liveStatus.connectedPhone,
+            profileName: liveStatus.profileName,
+            updatedAt: new Date(),
+          })
+          .where(eq(unitWhatsappCredentials.id, creds.dbId));
+      }
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: liveStatus.ok ? 'UAZAPI_STATUS_TEST_OK' : 'UAZAPI_STATUS_TEST_FAILED',
+        entityType: 'integration',
+        entityId: creds.instanceId || 'uazapi',
+        details: { ok: liveStatus.ok, connected: liveStatus.connected, httpStatus: liveStatus.httpStatus },
+        unitId: req.activeUnitId,
+      });
+
+      if (!liveStatus.ok) {
+        return res.status(liveStatus.httpStatus === 401 ? 401 : 502).json({
+          ok: false,
+          error: liveStatus.error || 'Falha ao consultar /instance/status no UaZapi.',
+          liveStatus,
+        });
+      }
+
+      const instances = await listSanitizedUazapiInstances();
+      res.json({
+        ok: true,
+        liveStatus,
+        webhookConfig: webhookCfg,
+        instances,
+        runtime: getUazapiGlobalRuntimeState(),
+      });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error instanceof Error ? error.message : 'Erro ao testar UaZapi.' });
+    }
+  });
+
+  app.post('/api/integrations/uazapi/connect', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      const { instanceId, phone } = (req.body || {}) as { instanceId?: string; phone?: string };
+      const creds = await resolveUazapiCredentials({ instanceId: instanceId || null, unitId: req.activeUnitId });
+      if (!creds) {
+        return res.status(400).json({ ok: false, error: 'Credenciais UaZapi não configuradas.' });
+      }
+      const result = await connectUazapiInstance(creds, phone);
+      if (creds.dbId && result.ok) {
+        await db
+          .update(unitWhatsappCredentials)
+          .set({
+            isConnected: result.connected,
+            connectedPhone: result.connectedPhone,
+            profileName: result.profileName,
+            updatedAt: new Date(),
+          })
+          .where(eq(unitWhatsappCredentials.id, creds.dbId));
+      }
+      res.status(result.ok ? 200 : 400).json(result);
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error instanceof Error ? error.message : 'Erro ao conectar instância UaZapi.' });
+    }
+  });
+
+  app.post('/api/integrations/uazapi/disconnect', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      const { instanceId } = (req.body || {}) as { instanceId?: string };
+      const creds = await resolveUazapiCredentials({ instanceId: instanceId || null, unitId: req.activeUnitId });
+      if (!creds) return res.status(400).json({ ok: false, error: 'Credenciais UaZapi não configuradas.' });
+      const result = await disconnectUazapiInstance(creds);
+      if (creds.dbId && result.ok) {
+        await db
+          .update(unitWhatsappCredentials)
+          .set({ isConnected: false, updatedAt: new Date() })
+          .where(eq(unitWhatsappCredentials.id, creds.dbId));
+      }
+      res.status(result.ok ? 200 : 400).json(result);
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error instanceof Error ? error.message : 'Erro ao desconectar UaZapi.' });
+    }
+  });
+
+  app.post('/api/integrations/uazapi/register-webhook', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      const { instanceId } = (req.body || {}) as { instanceId?: string };
+      const creds = await resolveUazapiCredentials({ instanceId: instanceId || null, unitId: req.activeUnitId });
+      if (!creds) return res.status(400).json({ ok: false, error: 'Credenciais UaZapi não configuradas.' });
+
+      const baseUrl = resolvePublicBaseUrl(req);
+      const hookSecret = process.env.UAZAPI_WEBHOOK_SECRET?.trim() || creds.token;
+      const webhookUrl = `${baseUrl}/api/integrations/uazapi/webhook?token=${encodeURIComponent(hookSecret)}`;
+      const reg = await registerUazapiWebhook(creds, webhookUrl);
+
+      if (creds.dbId) {
+        await db
+          .update(unitWhatsappCredentials)
+          .set({
+            webhookUrl: `${baseUrl}/api/integrations/uazapi/webhook`,
+            webhookRegisteredAt: reg.ok ? new Date() : undefined,
+            webhookLastError: reg.ok ? null : reg.detail || `HTTP ${reg.status}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(unitWhatsappCredentials.id, creds.dbId));
+      }
+
+      res.status(reg.ok ? 200 : 502).json({
+        ok: reg.ok,
+        webhookUrlDisplay: `${baseUrl}/api/integrations/uazapi/webhook`,
+        detail: reg.detail,
+      });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error instanceof Error ? error.message : 'Erro ao registrar webhook UaZapi.' });
+    }
+  });
+
+  app.post('/api/integrations/uazapi/sync-chats', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      const { instanceId } = (req.body || {}) as { instanceId?: string };
+      const creds = await resolveUazapiCredentials({ instanceId: instanceId || null, unitId: req.activeUnitId });
+      if (!creds) return res.status(400).json({ ok: false, error: 'Credenciais UaZapi não configuradas.' });
+
+      const chats = await findUazapiChats(creds, 15, 0);
+      const [allThreads, allClients, firstUnit] = await Promise.all([
+        db.select().from(whatsappThreads),
+        db.select({ id: clients.id, phone: clients.phone, whatsapp: clients.whatsapp, unitId: clients.unitId }).from(clients),
+        db.select().from(units).orderBy(units.id).limit(1),
+      ]);
+
+      let threadsSynced = 0;
+      let messagesSynced = 0;
+
+      for (const ch of chats) {
+        const matchedClient = allClients.find(
+          (c) => phonesMatchBR(c.whatsapp, ch.phone) || phonesMatchBR(c.phone, ch.phone)
+        );
+        let thread = allThreads.find((t) => phonesMatchBR(t.contactPhone, ch.phone) && t.provider === 'uazapi');
+        if (!thread) {
+          const [created] = await db
+            .insert(whatsappThreads)
+            .values({
+              unitId: creds.unitId || matchedClient?.unitId || firstUnit[0]?.id || 1,
+              clientId: matchedClient?.id ?? null,
+              contactName: ch.name || ch.phone,
+              contactPhone: normalizePhone(ch.phone) || ch.phone,
+              provider: 'uazapi',
+              uazapiInstanceId: creds.instanceId || null,
+              unreadCount: ch.unreadCount,
+              lastMessagePreview: ch.lastMessagePreview || 'Conversa sincronizada UaZapi',
+              updatedAt: new Date(),
+            })
+            .returning();
+          thread = created;
+          allThreads.push(created);
+        } else {
+          await db
+            .update(whatsappThreads)
+            .set({
+              uazapiInstanceId: creds.instanceId || thread.uazapiInstanceId,
+              lastMessagePreview: ch.lastMessagePreview || thread.lastMessagePreview,
+              updatedAt: new Date(),
+            })
+            .where(eq(whatsappThreads.id, thread.id));
+        }
+        threadsSynced++;
+
+        const msgs = await findUazapiMessages(creds, ch.chatId, 15);
+        for (const m of msgs) {
+          if (!m.body) continue;
+          const dup = await db
+            .select({ id: whatsappMessages.id })
+            .from(whatsappMessages)
+            .where(eq(whatsappMessages.externalMessageId, m.id))
+            .limit(1);
+          if (dup[0]) continue;
+          await db.insert(whatsappMessages).values({
+            threadId: thread.id,
+            externalMessageId: m.id,
+            direction: m.fromMe ? 'outbound' : 'inbound',
+            contentType: m.type,
+            body: m.body,
+            ackStatus: m.fromMe ? 2 : null,
+            senderName: m.fromMe ? 'Consultor UaZapi' : m.senderName || ch.name || ch.phone,
+            createdAt: new Date(m.timestampMs),
+          });
+          await mirrorCommunicationToProspection({
+            unitId: thread.unitId,
+            phone: thread.contactPhone,
+            contactName: thread.contactName,
+            channel: 'whatsapp_uazapi',
+            provider: 'uazapi',
+            threadId: thread.id,
+            direction: m.fromMe ? 'outbound' : 'inbound',
+            contentType: m.type === 'audio' ? 'audio' : m.type === 'image' ? 'image' : m.type === 'document' ? 'document' : 'text',
+            body: m.body,
+            authorName: m.fromMe ? 'Consultor UaZapi' : m.senderName || thread.contactName,
+            externalMessageId: m.id,
+            timestamp: new Date(m.timestampMs),
+            triggerIviAutoSummarize: false,
+          });
+          messagesSynced++;
+        }
+      }
+
+      res.json({ ok: true, chatsFound: chats.length, threadsSynced, messagesSynced });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error instanceof Error ? error.message : 'Erro ao sincronizar chats UaZapi.' });
+    }
+  });
+
+  // Webhook Oficial UaZapi V2 (suporta /api/integrations/uazapi/webhook e /api/uazapi/webhook/:p1?/:p2?)
+  const handleUazapiWebhook = async (req: express.Request, res: express.Response) => {
+    try {
+      await ensureInitialSeed();
+      const body = (req.body || {}) as Record<string, unknown>;
+      const instanceCandidate =
+        String(
+          body.instanceId ||
+            body.instance ||
+            body.instanceName ||
+            (body.data as Record<string, unknown> | undefined)?.instance ||
+            ''
+        ).trim() || null;
+
+      const creds = await resolveUazapiCredentials({ instanceId: instanceCandidate });
+      const envSecret = process.env.UAZAPI_WEBHOOK_SECRET?.trim();
+      const expectedTokens = [envSecret, creds?.token].filter((v): v is string => Boolean(v));
+
+      if (expectedTokens.length > 0) {
+        const authHeader = req.headers.authorization;
+        const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : undefined;
+        const providedToken =
+          (typeof req.query.token === 'string' ? req.query.token.trim() : undefined) ||
+          (req.headers['x-webhook-token'] as string | undefined) ||
+          (req.headers['x-uazapi-token'] as string | undefined) ||
+          (req.headers['token'] as string | undefined) ||
+          bearerToken ||
+          null;
+        const authorized = expectedTokens.some((expected) => timingSafeEqualStr(providedToken, expected));
+        if (!authorized) {
+          return res.status(401).json({ error: 'Token webhook UaZapi inválido.' });
+        }
+      }
+
+      markUazapiWebhookReceived();
+
+      const eventType = String(body.EventType || body.event || body.type || req.params.p1 || 'messages').toLowerCase();
+      const rawData = body.message || body.data || body;
+
+      // 1. Connection update
+      if (eventType === 'connection') {
+        const st = (body.status || rawData || {}) as Record<string, unknown>;
+        const connected = st.connected === true || st.loggedIn === true || String(body.state || '').toLowerCase() === 'open';
+        if (creds?.dbId) {
+          await db
+            .update(unitWhatsappCredentials)
+            .set({ isConnected: connected, updatedAt: new Date() })
+            .where(eq(unitWhatsappCredentials.id, creds.dbId));
+        }
+        return res.status(200).json({ ok: true, event: 'connection', connected });
+      }
+
+      // 2. Delivery / Read ACK / Revoke update (messages_update / status)
+      if (eventType === 'messages_update' || eventType === 'status' || eventType === 'message_status' || eventType === 'messages.update') {
+        const items = Array.isArray(rawData) ? rawData : [rawData];
+        for (const item of items as Array<Record<string, unknown>>) {
+          const extId = String(
+            item.messageid || item.id || (item.key as Record<string, unknown> | undefined)?.id || ''
+          ).trim();
+          if (!extId) continue;
+
+          const statusStr = String(item.status || item.type || item.state || '').toUpperCase();
+          if (statusStr.includes('REVOKE') || statusStr.includes('DELETE') || item.deleted === true) {
+            await db
+              .update(whatsappMessages)
+              .set({ deletedInOrigin: true })
+              .where(eq(whatsappMessages.externalMessageId, extId));
+            broadcast('whatsapp:revoked', { externalMessageId: extId });
+            continue;
+          }
+
+          const ackVal = parseAckValue(item.ack ?? item.status ?? statusStr);
+          if (ackVal !== null) {
+            const updated = await db
+              .update(whatsappMessages)
+              .set({ ackStatus: ackVal })
+              .where(eq(whatsappMessages.externalMessageId, extId))
+              .returning();
+            if (updated[0]) {
+              broadcast('whatsapp:ack', { messageId: updated[0].id, ackStatus: ackVal });
+            }
+          }
+        }
+        return res.status(200).json({ ok: true, event: 'messages_update' });
+      }
+
+      // 2B. Incoming / Status Call Event (UaZapi calls)
+      if (eventType === 'call' || eventType === 'calls' || eventType === 'call.upsert') {
+        const callItems = Array.isArray(rawData) ? rawData : [rawData];
+        for (const cItem of callItems as Array<Record<string, unknown>>) {
+          const chatId = String(cItem.chatid || cItem.from || cItem.to || '').trim();
+          const phoneDigits = (chatId ? chatId.split('@')[0] : String(cItem.phone || cItem.number || '')).replace(/\D/g, '');
+          if (!normalizePhone(phoneDigits)) continue;
+          const callIdStr = String(cItem.callId || cItem.id || `uaz-wh-${Date.now()}`).trim();
+          const callStatus = String(cItem.status || 'ended').toLowerCase();
+          const isVideo = cItem.isVideo === true;
+          const recUrl = String(cItem.recordingUrl || cItem.fileURL || cItem.audioUrl || '').trim();
+          const durSec = Number(cItem.duration || cItem.durationSeconds || 0);
+          const contactNameCall = String(cItem.senderName || cItem.pushName || phoneDigits).trim();
+          const resolvedUnit = creds?.unitId || 1;
+          const allThreads = await db.select().from(whatsappThreads);
+          const matchedThread = allThreads.find((t) => phonesMatchBR(t.contactPhone, phoneDigits) && t.provider === 'uazapi');
+
+          let recSha = '';
+          let recUri = '';
+          let recMime = '';
+          let recName = '';
+          let audioTrans = '';
+          if (recUrl) {
+            const downloaded = await downloadMediaToBucket(recUrl, {
+              folderPath: `bucketdainvicta/U${resolvedUnit}/CALLS/UAZAPI`,
+              fileName: `uazapi-call-${callIdStr}.ogg`,
+              fallbackMime: 'audio/ogg',
+            });
+            if (downloaded) {
+              recSha = downloaded.sha256Hash;
+              recUri = downloaded.storageUri;
+              recMime = downloaded.mimeType;
+              recName = `uazapi-call-${callIdStr}.ogg`;
+              const tRes = await iviTranscribeAudioNote(downloaded.dataUri, downloaded.mimeType);
+              audioTrans = tRes.transcript;
+            }
+          }
+
+          const [cLog] = await db
+            .insert(whatsappCallLogs)
+            .values({
+              unitId: resolvedUnit,
+              threadId: matchedThread?.id ?? null,
+              callId: callIdStr,
+              direction: cItem.fromMe === true ? 'outbound' : 'inbound',
+              fromNumber: String(cItem.from || phoneDigits),
+              toNumber: String(cItem.to || phoneDigits),
+              callType: isVideo ? 'video' : 'voice',
+              status: callStatus || 'ended',
+              durationSeconds: durSec,
+              provider: 'uazapi',
+              recordingSha256: recSha,
+              recordingStorageUri: recUri,
+              recordingMimeType: recMime,
+              recordingFileName: recName,
+              audioTranscript: audioTrans,
+              initiatedByName: cItem.fromMe === true ? 'Operador UaZapi' : contactNameCall,
+              endedAt: new Date(),
+            })
+            .returning();
+
+          const mirroredLead = await mirrorCommunicationToProspection({
+            unitId: resolvedUnit,
+            phone: phoneDigits,
+            contactName: contactNameCall,
+            channel: 'whatsapp_uazapi',
+            provider: 'uazapi',
+            threadId: matchedThread?.id ?? null,
+            direction: cItem.fromMe === true ? 'outbound' : 'inbound',
+            contentType: recSha ? 'audio' : 'call',
+            body: recSha
+              ? `[Gravação de Ligação UaZapi]`
+              : `[Ligação UaZapi (${callStatus})] ${durSec ? `Duração: ${durSec}s` : 'Registrada na timeline'}`,
+            audioTranscript: audioTrans || null,
+            callId: callIdStr,
+            mediaSha256: recSha || null,
+            mediaStorageUri: recUri || null,
+            mediaMimeType: recMime || null,
+            mediaFileName: recName || null,
+            externalMessageId: `call-${callIdStr}`,
+            triggerIviAutoSummarize: Boolean(audioTrans),
+          });
+          if (mirroredLead) {
+            await db.update(whatsappCallLogs).set({ leadId: mirroredLead.id }).where(eq(whatsappCallLogs.id, cLog.id));
+          }
+        }
+        return res.status(200).json({ ok: true, event: 'call' });
+      }
+
+      // 3. Incoming / Outgoing Messages (messages / message / messages.upsert)
+      const items = Array.isArray(rawData) ? rawData : [rawData];
+      let firstThreadId: number | null = null;
+      let firstMessageId: number | null = null;
+
+      const [allThreads, allClients, firstUnit] = await Promise.all([
+        db.select().from(whatsappThreads),
+        db.select({ id: clients.id, phone: clients.phone, whatsapp: clients.whatsapp, unitId: clients.unitId }).from(clients),
+        db.select().from(units).orderBy(units.id).limit(1),
+      ]);
+
+      for (const m of items as Array<Record<string, unknown>>) {
+        const chatId = String(m.chatid || m.jid || (m.key as Record<string, unknown> | undefined)?.remoteJid || '').trim();
+        if (chatId.endsWith('@g.us') || m.isGroup === true) continue;
+
+        const extMsgId = String(
+          m.messageid || m.id || (m.key as Record<string, unknown> | undefined)?.id || ''
+        ).trim() || null;
+
+        if (extMsgId) {
+          const dup = await db
+            .select({ id: whatsappMessages.id })
+            .from(whatsappMessages)
+            .where(eq(whatsappMessages.externalMessageId, extMsgId))
+            .limit(1);
+          if (dup[0]) {
+            if (!firstMessageId) firstMessageId = dup[0].id;
+            continue;
+          }
+        }
+
+        const rawPhone = String(
+          chatId ? chatId.split('@')[0] : m.phone || m.sender || m.from || body.phone || ''
+        ).replace(/\D/g, '');
+        const textBody = String(m.text || m.body || m.caption || m.content || '').trim();
+        const attachmentUrl = (m.fileURL || m.url || m.mediaUrl || null) as string | null;
+        if (!normalizePhone(rawPhone) || (!textBody && !attachmentUrl)) continue;
+
+        const mt = String(m.messageType || m.type || '').toLowerCase();
+        const contentType =
+          mt.includes('audio') || mt.includes('ptt')
+            ? 'audio'
+            : mt.includes('image')
+            ? 'image'
+            : mt.includes('document')
+            ? 'document'
+            : 'text';
+        const fromMe = m.fromMe === true || (m.key as Record<string, unknown> | undefined)?.fromMe === true;
+        const direction = fromMe ? 'outbound' : 'inbound';
+        const contactName = String(m.senderName || m.pushName || body.pushName || rawPhone).trim();
+        const fileName = String(m.fileName || `uazapi-${contentType}-${Date.now()}`);
+        const mimeTypeRaw = (m.mimeType || m.mimetype || null) as string | null;
+        const preview = (textBody || fileName || `[${contentType.toUpperCase()}]`).slice(0, 70);
+
+        const matchedClient = allClients.find(
+          (c) => phonesMatchBR(c.whatsapp, rawPhone) || phonesMatchBR(c.phone, rawPhone)
+        );
+        let thread = allThreads.find((t) => phonesMatchBR(t.contactPhone, rawPhone) && t.provider === 'uazapi');
+
+        if (!thread) {
+          const [created] = await db
+            .insert(whatsappThreads)
+            .values({
+              unitId: creds?.unitId || matchedClient?.unitId || firstUnit[0]?.id || 1,
+              clientId: matchedClient?.id ?? null,
+              contactName,
+              contactPhone: normalizePhone(rawPhone) || rawPhone,
+              provider: 'uazapi',
+              uazapiInstanceId: creds?.instanceId || instanceCandidate,
+              lastMessagePreview: preview,
+              unreadCount: direction === 'inbound' ? 1 : 0,
+              updatedAt: new Date(),
+            })
+            .returning();
+          thread = created;
+          allThreads.push(created);
+        } else {
+          await db
+            .update(whatsappThreads)
+            .set({
+              uazapiInstanceId: creds?.instanceId || instanceCandidate || thread.uazapiInstanceId,
+              clientId: thread.clientId ?? matchedClient?.id ?? null,
+              lastMessagePreview: preview,
+              unreadCount: direction === 'inbound' ? (thread.unreadCount || 0) + 1 : thread.unreadCount,
+              updatedAt: new Date(),
+            })
+            .where(eq(whatsappThreads.id, thread.id));
+        }
+
+        let downloadedMedia: Awaited<ReturnType<typeof downloadMediaToBucket>> = null;
+        if (attachmentUrl) {
+          downloadedMedia = await downloadMediaToBucket(attachmentUrl, {
+            folderPath: `bucketdainvicta/U${thread.unitId}/WHATSAPP/T${thread.id}`,
+            fileName: `${fileName}${fileName.includes('.') ? '' : contentType === 'audio' ? '.ogg' : '.bin'}`,
+            fallbackMime: mimeTypeRaw || (contentType === 'audio' ? 'audio/ogg' : 'application/octet-stream'),
+          });
+        }
+
+        let iviTranscript: string | null = null;
+        if (contentType === 'audio') {
+          const resT = await iviTranscribeAudioNote(
+            downloadedMedia?.dataUri || textBody || fileName || 'Áudio recebido via UaZapi',
+            downloadedMedia?.mimeType || mimeTypeRaw || 'audio/ogg'
+          );
+          iviTranscript = resT.transcript;
+        }
+
+        const [msg] = await db
+          .insert(whatsappMessages)
+          .values({
+            threadId: thread.id,
+            externalMessageId: extMsgId,
+            direction,
+            contentType,
+            body: textBody || fileName || '[Mídia UaZapi]',
+            attachmentUrl: downloadedMedia
+              ? `/api/bucket/objects/${downloadedMedia.sha256Hash}?name=${encodeURIComponent(fileName)}&mime=${encodeURIComponent(downloadedMedia.mimeType)}&preview=1`
+              : attachmentUrl,
+            attachmentName: fileName,
+            attachmentMimeType: downloadedMedia?.mimeType || mimeTypeRaw,
+            mediaSha256: downloadedMedia?.sha256Hash || null,
+            mediaStorageUri: downloadedMedia?.storageUri || null,
+            iviAudioTranscript: iviTranscript,
+            ackStatus: fromMe ? parseAckValue(m.ack ?? m.status) ?? 1 : null,
+            senderName: direction === 'inbound' ? contactName : 'Consultor UaZapi',
+          })
+          .returning();
+
+        const mirroredLead = await mirrorCommunicationToProspection({
+          unitId: thread.unitId,
+          phone: rawPhone,
+          contactName,
+          channel: 'whatsapp_uazapi',
+          provider: 'uazapi',
+          threadId: thread.id,
+          direction,
+          contentType,
+          body: textBody || fileName || '[Mídia UaZapi]',
+          audioTranscript: iviTranscript,
+          authorName: direction === 'inbound' ? contactName : 'Consultor UaZapi',
+          externalMessageId: extMsgId || `uaz-msg-${msg.id}`,
+          mediaSha256: downloadedMedia?.sha256Hash || null,
+          mediaStorageUri: downloadedMedia?.storageUri || null,
+          mediaMimeType: downloadedMedia?.mimeType || mimeTypeRaw,
+          mediaFileName: fileName,
+          triggerIviAutoSummarize: direction === 'inbound' || contentType === 'audio',
+        });
+
+        if (downloadedMedia) {
+          await db.insert(communicationArchives).values({
+            unitId: thread.unitId,
+            leadId: mirroredLead?.id ?? null,
+            threadId: thread.id,
+            provider: 'uazapi',
+            archiveType: contentType === 'audio' ? 'audio_message' : 'conversation_snapshot',
+            contactName,
+            contactPhone: normalizePhone(rawPhone) || rawPhone,
+            fileName,
+            mimeType: downloadedMedia.mimeType,
+            sizeBytes: downloadedMedia.sizeBytes,
+            sha256Hash: downloadedMedia.sha256Hash,
+            storageUri: downloadedMedia.storageUri,
+            transcriptText: iviTranscript || textBody || '',
+            createdByName: 'Webhook UaZapi',
+          });
+        }
+
+        if (!firstThreadId) firstThreadId = thread.id;
+        if (!firstMessageId) firstMessageId = msg.id;
+        broadcast('whatsapp:message', msg);
+      }
+
+      if (!firstMessageId) {
+        return res.status(400).json({ error: 'Payload UaZapi inválido: telefone e conteúdo são obrigatórios.' });
+      }
+      return res.json({ ok: true, received: true, threadId: firstThreadId, messageId: firstMessageId });
+    } catch (error) {
+      console.error('UaZapi webhook error:', error);
+      return res.status(500).json({ error: 'Erro ao processar webhook UaZapi.' });
+    }
+  };
+
+  app.post('/api/integrations/uazapi/webhook', handleUazapiWebhook);
+  app.post('/api/uazapi/webhook', handleUazapiWebhook);
+  app.post('/api/uazapi/webhook/:p1', handleUazapiWebhook);
+  app.post('/api/uazapi/webhook/:p1/:p2', handleUazapiWebhook);
+
+  app.post('/api/integrations/uazapi/test-webhook', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      const port = process.env.PORT || 3000;
+      const localUrl = `http://127.0.0.1:${port}/api/integrations/uazapi/webhook`;
+      const creds = await resolveUazapiCredentials({ unitId: req.activeUnitId });
+      const activeSecret = process.env.UAZAPI_WEBHOOK_SECRET?.trim() || creds?.token || null;
+      const testExtId = `uaz_selftest_${Date.now()}`;
+      const testPhone = '5581999990088';
+
+      let unauthorizedBlocked: boolean | null = null;
+      if (activeSecret) {
+        const unauthResp = await fetch(localUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ event: 'messages', data: { chatid: `${testPhone}@s.whatsapp.net`, text: 'probe' } }),
+        });
+        unauthorizedBlocked = unauthResp.status === 401;
+      }
+
+      const authedUrl = activeSecret ? `${localUrl}?token=${encodeURIComponent(activeSecret)}` : localUrl;
+      const msgResp = await fetch(authedUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event: 'messages',
+          instance: creds?.instanceId || 'default',
+          data: {
+            messageid: testExtId,
+            chatid: `${testPhone}@s.whatsapp.net`,
+            fromMe: true,
+            text: '[SelfTest] Verificação webhook UaZapi V2',
+            messageType: 'conversation',
+            senderName: 'SelfTest UaZapi',
+          },
+        }),
+      });
+      const msgJson = (await msgResp.json().catch(() => ({}))) as { ok?: boolean; threadId?: number; messageId?: number; error?: string };
+      if (!msgResp.ok || !msgJson.ok) {
+        return res.status(502).json({ ok: false, error: msgJson.error || `HTTP ${msgResp.status}` });
+      }
+
+      const ackResp = await fetch(authedUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event: 'messages_update', data: { messageid: testExtId, ack: 3 } }),
+      });
+
+      const revResp = await fetch(authedUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event: 'messages_update', data: { messageid: testExtId, status: 'REVOKED' } }),
+      });
+
+      const savedRows = await db
+        .select()
+        .from(whatsappMessages)
+        .where(eq(whatsappMessages.externalMessageId, testExtId))
+        .limit(1);
+      const verifiedAck = savedRows[0]?.ackStatus === 3;
+      const verifiedRevoke = savedRows[0]?.deletedInOrigin === true;
+
+      if (msgJson.messageId) {
+        await db.delete(whatsappMessages).where(eq(whatsappMessages.id, msgJson.messageId));
+      }
+      if (msgJson.threadId) {
+        const remaining = await db
+          .select({ value: count() })
+          .from(whatsappMessages)
+          .where(eq(whatsappMessages.threadId, msgJson.threadId));
+        if (Number(remaining[0]?.value || 0) === 0) {
+          await db.delete(whatsappThreads).where(eq(whatsappThreads.id, msgJson.threadId));
+        }
+      }
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'UAZAPI_WEBHOOK_SELF_TEST',
+        entityType: 'integration',
+        entityId: 'uazapi_webhook',
+        details: { ok: true, unauthorizedBlocked, ackOk: ackResp.ok && verifiedAck, revokeOk: revResp.ok && verifiedRevoke },
+        unitId: req.activeUnitId,
+      });
+
+      res.json({
+        ok: true,
+        checks: {
+          secretProtection: activeSecret ? (unauthorizedBlocked ? 'Ativa (401 sem token)' : 'Falha na proteção') : 'Sem token ativo',
+          messageIngestion: msgResp.ok,
+          ackUpdate: ackResp.ok && verifiedAck,
+          immutableRevoke: revResp.ok && verifiedRevoke,
+        },
+      });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: error instanceof Error ? error.message : 'Erro no autoteste UaZapi.' });
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // 7C. LIGAÇÕES DE VOZ/VÍDEO VIA UAZAPI (HISTÓRICO, DISCAGEM E ENCERRAMENTO)
+  // ---------------------------------------------------------------------------
+  app.get('/api/whatsapp/uazapi/calls', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const clientId = req.query.clientId ? Number(req.query.clientId) : null;
+      const phoneQuery = typeof req.query.phone === 'string' ? req.query.phone : '';
+      const threadIdQuery = req.query.threadId ? Number(req.query.threadId) : null;
+
+      let targetPhones: string[] = [];
+      let threadIds: number[] = [];
+
+      if (clientId && Number.isFinite(clientId)) {
+        const [clientRows, clientThreadRows] = await Promise.all([
+          db.select().from(clients).where(eq(clients.id, clientId)).limit(1),
+          db.select().from(whatsappThreads).where(eq(whatsappThreads.clientId, clientId)),
+        ]);
+        const cl = clientRows[0];
+        if (cl?.whatsapp) targetPhones.push(cl.whatsapp);
+        if (cl?.phone) targetPhones.push(cl.phone);
+        for (const th of clientThreadRows) {
+          threadIds.push(th.id);
+          if (th.contactPhone) targetPhones.push(th.contactPhone);
+        }
+      }
+      if (phoneQuery) targetPhones.push(phoneQuery);
+      if (threadIdQuery && Number.isFinite(threadIdQuery)) threadIds.push(threadIdQuery);
+
+      const tailDigits = Array.from(
+        new Set(
+          targetPhones
+            .map((p) => p.replace(/\D/g, '').slice(-8))
+            .filter((d) => d.length >= 8)
+        )
+      );
+      const threadIdSet = new Set(threadIds);
+
+      const [allLogs, instances] = await Promise.all([
+        db.select().from(whatsappCallLogs).orderBy(desc(whatsappCallLogs.createdAt)).limit(200),
+        listSanitizedUazapiInstances(),
+      ]);
+
+      const filteredLogs = allLogs.filter((l) => {
+        if (l.threadId && threadIdSet.has(l.threadId)) return true;
+        const toTail = String(l.toNumber || '').replace(/\D/g, '').slice(-8);
+        return toTail.length >= 8 && tailDigits.includes(toTail);
+      });
+
+      res.json({
+        calls: filteredLogs.slice(0, 30),
+        instances: instances.filter((i) => i.active !== false),
+        envConfigured: Boolean(process.env.UAZAPI_TOKEN?.trim()),
+      });
+    } catch (error) {
+      console.error('Load Uazapi calls error:', error);
+      res.status(500).json({ error: 'Erro ao carregar histórico de ligações via Uazapi.' });
+    }
+  });
+
+  app.post('/api/whatsapp/uazapi/calls/start', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const body = (req.body || {}) as {
+        clientId?: number | null;
+        threadId?: number | null;
+        phone?: string;
+        isVideo?: boolean;
+        instanceId?: string | null;
+      };
+
+      const clientRow = body.clientId
+        ? (await db.select().from(clients).where(eq(clients.id, Number(body.clientId))).limit(1))[0]
+        : undefined;
+      const threadRow = body.threadId
+        ? (await db.select().from(whatsappThreads).where(eq(whatsappThreads.id, Number(body.threadId))).limit(1))[0]
+        : undefined;
+
+      const rawPhone = String(
+        body.phone || threadRow?.contactPhone || clientRow?.whatsapp || clientRow?.phone || ''
+      ).trim();
+      const normalizedNumber = toGotalkPhone(rawPhone);
+      if (!normalizedNumber || normalizedNumber.length < 10) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Informe um telefone válido com DDD para realizar a ligação via Uazapi.',
+        });
+      }
+
+      const unitId = threadRow?.unitId || clientRow?.unitId || req.activeUnitId || 1;
+      const creds = await resolveUazapiCredentials({
+        instanceId: body.instanceId || threadRow?.uazapiInstanceId || null,
+        unitId,
+        groupId: req.authUser?.groupId ?? null,
+        moduleId: 'collection',
+      });
+
+      const isVideo = Boolean(body.isVideo);
+      const callResult = await makeUazapiCall(creds, normalizedNumber, isVideo);
+
+      const [callLog] = await db
+        .insert(whatsappCallLogs)
+        .values({
+          unitId,
+          threadId: threadRow?.id ?? null,
+          callId: callResult.callId || '',
+          direction: 'outbound',
+          fromNumber: creds?.label || creds?.instanceId || '',
+          toNumber: normalizedNumber,
+          callType: isVideo ? 'video' : 'voice',
+          status: callResult.dispatched ? 'initiated' : 'failed',
+          provider: 'uazapi',
+          errorDetail: callResult.dispatched ? '' : callResult.detail,
+          initiatedByName: req.authUser!.name,
+        })
+        .returning();
+
+      if (callResult.dispatched && threadRow) {
+        const [callMsg] = await db
+          .insert(whatsappMessages)
+          .values({
+            threadId: threadRow.id,
+            externalMessageId: callResult.callId || `uaz-call-${callLog.id}`,
+            direction: 'outbound',
+            contentType: 'text',
+            body: `📞 Ligação ${isVideo ? 'de vídeo' : 'de voz'} via Uazapi iniciada por ${req.authUser!.name} para ${normalizedNumber}.`,
+            ackStatus: 1,
+            operatorName: req.authUser!.name,
+            senderName: req.authUser!.name,
+          })
+          .returning();
+
+        await db
+          .update(whatsappThreads)
+          .set({
+            lastMessagePreview: `📞 Ligação via Uazapi (${normalizedNumber})`,
+            updatedAt: new Date(),
+          })
+          .where(eq(whatsappThreads.id, threadRow.id));
+
+        broadcast('whatsapp:message', callMsg);
+      }
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: callResult.dispatched ? 'UAZAPI_CALL_INITIATED' : 'UAZAPI_CALL_FAILED',
+        entityType: clientRow ? 'client' : 'whatsapp_call',
+        entityId: String(clientRow?.id || callLog.id),
+        details: {
+          clientId: clientRow?.id ?? null,
+          threadId: threadRow?.id ?? null,
+          toNumber: normalizedNumber,
+          callType: isVideo ? 'video' : 'voice',
+          instanceId: creds?.instanceId || null,
+          callId: callResult.callId,
+          dispatched: callResult.dispatched,
+          detail: callResult.detail,
+        },
+        unitId,
+      });
+
+      if (!callResult.dispatched) {
+        return res.status(400).json({
+          ok: false,
+          error: callResult.detail,
+          call: callLog,
+          result: callResult,
+        });
+      }
+
+      return res.json({
+        ok: true,
+        call: callLog,
+        result: callResult,
+      });
+    } catch (error) {
+      console.error('Start Uazapi call error:', error);
+      res.status(500).json({ ok: false, error: 'Erro ao iniciar ligação via Uazapi.' });
+    }
+  });
+
+  app.post('/api/whatsapp/uazapi/calls/:id/terminate', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const logId = Number(req.params.id);
+      const rows = await db
+        .select()
+        .from(whatsappCallLogs)
+        .where(eq(whatsappCallLogs.id, logId))
+        .limit(1);
+      const callRow = rows[0];
+      if (!callRow) {
+        return res.status(404).json({ ok: false, error: 'Registro de ligação não encontrado.' });
+      }
+
+      const creds = await resolveUazapiCredentials({
+        unitId: callRow.unitId,
+        groupId: req.authUser?.groupId ?? null,
+        moduleId: 'collection',
+      });
+
+      const terminateResult = callRow.callId
+        ? await terminateUazapiCall(creds, callRow.callId)
+        : { ok: true, detail: 'Ligação encerrada localmente.' };
+
+      const durationSeconds = Math.max(
+        1,
+        Math.round((Date.now() - new Date(callRow.createdAt).getTime()) / 1000)
+      );
+
+      const [updated] = await db
+        .update(whatsappCallLogs)
+        .set({
+          status: 'ended',
+          durationSeconds,
+          endedAt: new Date(),
+        })
+        .where(eq(whatsappCallLogs.id, callRow.id))
+        .returning();
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'UAZAPI_CALL_TERMINATED',
+        entityType: 'whatsapp_call',
+        entityId: String(callRow.id),
+        details: {
+          callId: callRow.callId,
+          toNumber: callRow.toNumber,
+          durationSeconds,
+          remoteTerminateOk: terminateResult.ok,
+        },
+        unitId: callRow.unitId,
+      });
+
+      res.json({ ok: true, call: updated, terminateResult });
+    } catch (error) {
+      console.error('Terminate Uazapi call error:', error);
+      res.status(500).json({ ok: false, error: 'Erro ao encerrar ligação via Uazapi.' });
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // 8. CONFIGURAÇÕES, RBAC, IMPORTAÇÃO, QUADRO DE HORÁRIOS & CONSOLE SQL ADMIN
+  // ---------------------------------------------------------------------------
+  app.get('/api/config', requireAuth, async (_req: AuthRequest, res) => {
+    try {
+      await ensureInitialSeed();
+      const [allUnits, allGroups, allUsers, schedules, fields, categories, settings, logs, channels, operators, templates] = await Promise.all([
+        db.select().from(units).orderBy(units.id),
+        db.select().from(userGroups).orderBy(userGroups.id),
+        db.select({ id: users.id, uid: users.uid, email: users.email, name: users.name, role: users.role, groupId: users.groupId, defaultUnitId: users.defaultUnitId, allowedUnitIds: users.allowedUnitIds, active: users.active, whatsappPhone: users.whatsappPhone, points: users.points }).from(users),
+        db.select().from(workSchedules).orderBy(workSchedules.id),
+        db.select().from(customFields).orderBy(customFields.id),
+        db.select().from(paymentCategories).orderBy(paymentCategories.id),
+        db.select().from(systemSettings),
+        db.select().from(auditLogs).orderBy(desc(auditLogs.createdAt)).limit(40),
+        db.select({ id: gotalkChannels.id, name: gotalkChannels.name, phoneNumber: gotalkChannels.phoneNumber, unitId: gotalkChannels.unitId, notes: gotalkChannels.notes, isPrimary: gotalkChannels.isPrimary, isActive: gotalkChannels.isActive }).from(gotalkChannels).orderBy(gotalkChannels.id),
+        db.select().from(gotalkOperators).orderBy(gotalkOperators.id),
+        db.select().from(gotalkHsmTemplates).orderBy(gotalkHsmTemplates.templateName),
+      ]);
+      const iviConfig = await getIviChainConfig();
+      const gotalkConfig = {
+        ...getGotalkStatus(),
+        channelsCount: channels.length,
+        operatorsCount: operators.length,
+        templatesCount: templates.length,
+      };
+      const uazapiInstances = await listSanitizedUazapiInstances();
+      const uazapiRuntime = getUazapiGlobalRuntimeState();
+      const uazapiConfig = {
+        configured: uazapiRuntime.envConfigured || uazapiInstances.length > 0,
+        serverUrl: uazapiInstances[0]?.uazapiServerUrl || uazapiRuntime.defaultServerUrl,
+        instancesCount: uazapiInstances.length,
+        instances: uazapiInstances,
+        ...uazapiRuntime,
+      };
+      res.json({
+        units: allUnits,
+        groups: allGroups,
+        users: allUsers,
+        schedules,
+        customFields: fields,
+        paymentCategories: categories,
+        settings: Object.fromEntries(settings.map((s) => [s.key, s.value])),
+        iviConfig,
+        gotalkConfig,
+        gotalkResources: { channels, operators, templates },
+        uazapiConfig,
+        auditLogs: logs,
+      });
+    } catch (error) {
+      console.error('Config get error:', error);
+      res.status(500).json({ error: 'Erro ao carregar configurações.' });
+    }
+  });
+
+  app.post('/api/config/units', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      const { id, minAdmissionCostCents, phone, address, active } = req.body as {
+        id: number;
+        minAdmissionCostCents: number;
+        phone?: string;
+        address?: string;
+        active?: boolean;
+      };
+      const [updated] = await db
+        .update(units)
+        .set({ minAdmissionCostCents, ...(phone !== undefined ? { phone } : {}), ...(address !== undefined ? { address } : {}), ...(active !== undefined ? { active } : {}) })
+        .where(eq(units.id, id))
+        .returning();
+      res.json({ unit: updated });
+    } catch (error) {
+      console.error('Update unit error:', error);
+      res.status(500).json({ error: 'Erro ao atualizar unidade.' });
+    }
+  });
+
+  app.post('/api/config/schedules', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      const { targetType, targetId, targetLabel, startTime, endTime, allowedDays } = req.body as {
+        targetType: string;
+        targetId: number;
+        targetLabel: string;
+        startTime: string;
+        endTime: string;
+        allowedDays: number[];
+      };
+      const [schedule] = await db
+        .insert(workSchedules)
+        .values({ targetType, targetId, targetLabel, startTime, endTime, allowedDays })
+        .returning();
+      res.json({ schedule });
+    } catch (error) {
+      console.error('Create schedule error:', error);
+      res.status(500).json({ error: 'Erro ao salvar quadro de horários.' });
+    }
+  });
+
+  app.post('/api/config/custom-fields', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      const { module, fieldKey, label, fieldType } = req.body as {
+        module: string;
+        fieldKey: string;
+        label: string;
+        fieldType: string;
+      };
+      const [field] = await db.insert(customFields).values({ module, fieldKey, label, fieldType }).returning();
+      res.json({ field });
+    } catch (error) {
+      console.error('Create custom field error:', error);
+      res.status(500).json({ error: 'Erro ao criar campo customizado.' });
+    }
+  });
+
+  app.post('/api/config/payment-categories', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      const { name, providerCode } = req.body as { name: string; providerCode?: string };
+      const [cat] = await db.insert(paymentCategories).values({ name, providerCode: providerCode || 'custom' }).returning();
+      res.json({ category: cat });
+    } catch (error) {
+      console.error('Create payment category error:', error);
+      res.status(500).json({ error: 'Erro ao criar categoria de pagamento.' });
+    }
+  });
+
+  app.post('/api/config/settings', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      const { key, value } = req.body as { key: string; value: Record<string, unknown> };
+      const [row] = await db
+        .insert(systemSettings)
+        .values({ key, value, updatedAt: new Date() })
+        .onConflictDoUpdate({ target: systemSettings.key, set: { value, updatedAt: new Date() } })
+        .returning();
+      res.json({ setting: row });
+    } catch (error) {
+      console.error('Update setting error:', error);
+      res.status(500).json({ error: 'Erro ao atualizar configuração.' });
+    }
+  });
+
+  app.post('/api/config/groups/:id/permissions', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { modulePermissions, fieldPermissions } = req.body as {
+        modulePermissions: Record<string, boolean>;
+        fieldPermissions: Record<string, Record<string, 'edit' | 'read' | 'hidden'>>;
+      };
+      const [updated] = await db
+        .update(userGroups)
+        .set({ modulePermissions, fieldPermissions })
+        .where(eq(userGroups.id, id))
+        .returning();
+      res.json({ group: updated });
+    } catch (error) {
+      console.error('Update group permissions error:', error);
+      res.status(500).json({ error: 'Erro ao salvar permissões.' });
+    }
+  });
+
+  app.post('/api/config/users/:id/revoke-sessions', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      const id = Number(req.params.id);
+      const [updated] = await db
+        .update(users)
+        .set({ sessionVersion: sql`${users.sessionVersion} + 1`, lockedUntil: null, failedLoginAttempts: 0 })
+        .where(eq(users.id, id))
+        .returning();
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'REVOKE_USER_SESSIONS',
+        entityType: 'user',
+        entityId: String(id),
+        details: { targetEmail: updated?.email },
+      });
+      res.json({ ok: true, sessionVersion: updated?.sessionVersion });
+    } catch (error) {
+      console.error('Revoke session error:', error);
+      res.status(500).json({ error: 'Erro ao revogar sessões.' });
+    }
+  });
+
+  // PRD FR-15 / AC-03: Dry-run preview checking duplicates & disambiguating unit names before import
+  app.post('/api/import/preview', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      const { rows } = req.body as {
+        rows: Array<{ fullName: string; cpfCnpj: string; phone?: string; email?: string; city?: string; state?: string; unitName?: string }>;
+      };
+      if (!Array.isArray(rows)) return res.status(400).json({ error: 'Payload inválido.' });
+      const [existingClients, allUnits] = await Promise.all([db.select().from(clients), db.select().from(units)]);
+      const existingCpfs = new Set(existingClients.map((c) => c.cpfCnpj.replace(/\D/g, '')));
+
+      const evaluated = rows.map((r, idx) => {
+        const cleanCpf = (r.cpfCnpj || '').replace(/\D/g, '');
+        const issues: string[] = [];
+        if (!r.fullName?.trim()) issues.push('Nome obrigatório ausente');
+        if (cleanCpf.length < 11) issues.push('CPF/CNPJ inválido');
+        if (existingCpfs.has(cleanCpf)) issues.push('CPF/CNPJ já cadastrado no banco (será ignorado/preservado)');
+
+        let resolvedUnitId = req.activeUnitId || 1;
+        if (r.unitName?.trim()) {
+          const matches = allUnits.filter((u) => u.name.toLowerCase() === r.unitName!.trim().toLowerCase());
+          if (matches.length === 1) resolvedUnitId = matches[0].id;
+          else if (matches.length === 0) issues.push(`Unidade "${r.unitName}" não localizada (desambiguação necessária)`);
+          else issues.push(`Unidade "${r.unitName}" ambígua`);
+        }
+
+        return {
+          rowNumber: idx + 1,
+          ...r,
+          resolvedUnitId,
+          valid: issues.length === 0,
+          issues,
+        };
+      });
+
+      res.json({
+        total: evaluated.length,
+        validCount: evaluated.filter((e) => e.valid).length,
+        conflictCount: evaluated.filter((e) => !e.valid).length,
+        rows: evaluated,
+      });
+    } catch (error) {
+      console.error('Import preview error:', error);
+      res.status(500).json({ error: 'Erro na pré-validação.' });
+    }
+  });
+
+  // Bulk CSV/JSON Import
+  app.post('/api/import', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      const { rows } = req.body as { rows: Array<{ fullName: string; cpfCnpj: string; phone?: string; email?: string; city?: string; state?: string; unitId?: number }> };
+      if (!Array.isArray(rows) || rows.length === 0) {
+        return res.status(400).json({ error: 'Nenhum registro enviado para importação.' });
+      }
+      let imported = 0;
+      for (const r of rows.slice(0, 100)) {
+        if (!r.fullName || !r.cpfCnpj) continue;
+        await db
+          .insert(clients)
+          .values({
+            fullName: r.fullName,
+            cpfCnpj: r.cpfCnpj,
+            phone: r.phone || '',
+            email: r.email || '',
+            city: r.city || '',
+            state: r.state || '',
+            unitId: r.unitId || req.activeUnitId || 1,
+          })
+          .onConflictDoNothing({ target: clients.cpfCnpj });
+        imported++;
+      }
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'DATA_IMPORT',
+        entityType: 'clients',
+        entityId: String(imported),
+        details: { importedRows: imported },
+        unitId: req.activeUnitId,
+      });
+      res.json({ imported });
+    } catch (error) {
+      console.error('Import error:', error);
+      res.status(500).json({ error: 'Erro na importação em lote.' });
+    }
+  });
+
+  // PRD FR-18 / AC-05: Admin scoped operational export (compatible with Excel, NOT full DB dump)
+  app.get('/api/export', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      const table = String(req.query.table || 'clients');
+      const unitId = req.activeUnitId || 1;
+      let headers: string[] = [];
+      let lines: string[][] = [];
+
+      if (table === 'clients') {
+        const rows = await db.select().from(clients).where(eq(clients.unitId, unitId));
+        headers = ['ID', 'Nome Completo', 'CPF/CNPJ', 'Telefone', 'E-mail', 'Cidade', 'UF', 'Status'];
+        lines = rows.map((r) => [String(r.id), r.fullName, r.cpfCnpj, r.phone, r.email, r.city, r.state, r.status]);
+      } else if (table === 'admissions') {
+        const rows = await db.select().from(admissions).where(eq(admissions.unitId, unitId));
+        headers = ['ID', 'Protocolo', 'ID Cliente', 'Segmento', 'Banco', 'Contrato', 'Valor Divida (R$)', 'Status'];
+        lines = rows.map((r) => [String(r.id), r.protocolCode, String(r.clientId), r.debtType, r.bankName, r.contractNumber, (r.debtAmountCents / 100).toFixed(2), r.status]);
+      } else if (table === 'financial_titles') {
+        const rows = await db.select().from(financialTitles).where(eq(financialTitles.unitId, unitId));
+        headers = ['ID', 'Codigo Titulo', 'ID Cliente', 'Parcela', 'Valor (R$)', 'Vencimento', 'Status'];
+        lines = rows.map((r) => [String(r.id), r.titleCode, String(r.clientId), `${r.installmentNumber}/${r.totalInstallments}`, (r.amountCents / 100).toFixed(2), new Date(r.dueDate).toISOString().slice(0, 10), r.status]);
+      } else if (table === 'legal_processes') {
+        const rows = await db.select().from(legalProcesses).where(eq(legalProcesses.unitId, unitId));
+        headers = ['ID', 'Numero Processo', 'ID Cliente', 'Vara/Tribunal', 'Tipo Acao', 'Busca e Apreensao', 'Status'];
+        lines = rows.map((r) => [String(r.id), r.processNumber, String(r.clientId), r.courtName, r.actionType, r.hasSearchSeizure ? 'SIM' : 'NAO', r.status]);
+      } else {
+        return res.status(400).json({ error: 'Tabela fora da whitelist de exportação.' });
+      }
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'PARTIAL_EXCEL_CSV_EXPORT',
+        entityType: table,
+        entityId: String(lines.length),
+        details: { unitId, scope: 'unit_scoped_partial_export' },
+        unitId,
+      });
+
+      const csv = [headers, ...lines]
+        .map((row) => row.map((cell) => `"${String(cell || '').replace(/"/g, '""')}"`).join(';'))
+        .join('\n');
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="financepro_${table}_U${unitId}.csv"`);
+      res.send(`\uFEFF${csv}`);
+    } catch (error) {
+      console.error('Export error:', error);
+      res.status(500).json({ error: 'Erro na exportação administrativa.' });
+    }
+  });
+
+  // Admin-only Interactive PostgreSQL Console
+  app.post('/api/admin/sql', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      if (req.authUser!.role !== 'admin') {
+        return res.status(403).json({ error: 'Acesso restrito a administradores.' });
+      }
+      const { queryText } = req.body as { queryText: string };
+      const clean = (queryText || '').trim();
+      if (!clean) return res.status(400).json({ error: 'Informe uma instrução SQL.' });
+      if (/\b(DROP|TRUNCATE|ALTER\s+DATABASE|GRANT|REVOKE)\b/i.test(clean)) {
+        return res.status(400).json({ error: 'Comandos DDL destrutivos bloqueados no console interativo.' });
+      }
+      const start = Date.now();
+      const result = await pool.query(clean);
+      const durationMs = Date.now() - start;
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'ADMIN_SQL_CONSOLE',
+        entityType: 'postgresql',
+        entityId: 'query',
+        details: { sqlPreview: clean.slice(0, 120), rowCount: result.rowCount },
+      });
+
+      res.json({
+        columns: result.fields.map((f) => f.name),
+        rows: result.rows.slice(0, 200),
+        rowCount: result.rowCount,
+        durationMs,
+      });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Erro SQL';
+      res.status(400).json({ error: msg });
+    }
+  });
+
+  // Direct Ivi Copilot Route
+  app.post('/api/ivi/ask', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const { prompt, context } = req.body as { prompt: string; context?: string };
+      const result = await runIviOrchestrator(
+        `Você é Ivi, assistente operacional do FinancePro Assessoria. Contexto atual: ${context || 'geral'}. Responda em PT-BR com precisão executiva.`,
+        prompt
+      );
+      res.json(result);
+    } catch (error) {
+      console.error('Ivi ask error:', error);
+      res.status(500).json({ error: 'Erro ao consultar Ivi.' });
+    }
+  });
+
+  // Internal Messaging
+  app.post('/api/messages', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const { targetSector, subject, body, recipientId } = req.body as {
+        targetSector: string;
+        subject: string;
+        body: string;
+        recipientId?: number;
+      };
+      const [msg] = await db
+        .insert(internalMessages)
+        .values({
+          senderId: req.authUser!.id,
+          senderName: req.authUser!.name,
+          recipientId: recipientId || null,
+          targetSector: targetSector || 'geral',
+          subject,
+          body,
+        })
+        .returning();
+      broadcast('internal:message', msg);
+      res.json({ message: msg });
+    } catch (error) {
+      console.error('Internal message error:', error);
+      res.status(500).json({ error: 'Erro ao enviar mensagem interna.' });
+    }
+  });
+
+  registerCadastrosRoutes(app, broadcast);
+  registerConfigRoutes(app);
+  registerAppointmentsRoutes(app, { broadcast, resolveUazapiCredentials });
+  registerFinancialRoutes(app, { broadcast });
+  registerAuditRoutes(app, { broadcast });
+  registerManagerialRoutes(app);
+
+  // Non-blocking seed & FEBRABAN catalog sync on startup
+  ensureCommonCadastrosSeed()
+    .then(() => syncFebrabanBanksFromBrasilApi())
+    .catch(() => {});
+
+  // Vite dev middleware or static dist serving
+  if (process.env.NODE_ENV !== 'production') {
+    const vite = await createViteServer({
+      server: {
+        middlewareMode: true,
+        hmr: { server, path: '/vite-hmr' },
+        watch: null,
+      },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = path.resolve(process.cwd(), 'dist');
+    app.use(express.static(distPath));
+    app.get('*', (_req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  }
+
+  server.listen(3000, '0.0.0.0', () => {
+    console.log('FinancePro Assessoria server running on http://0.0.0.0:3000');
+  });
+}
+
+startServer();

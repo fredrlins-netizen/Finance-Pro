@@ -1,0 +1,289 @@
+PRD técnico — FinancePro Assessoria (estado atual)
+Versão: 1.0
+Atualizado em: 2026-11-12
+Status: Rascunho para avaliação técnica
+Público: equipe de engenharia
+Finalidade: documentar o produto existente para avaliação e apoiar uma cópia/exportação fiel
+Base: inspeção estática do repositório, documentação operacional, migrações e contrato de schema versionado
+Não inclui: consulta a dados de negócio em produção, leitura de Secrets ou validação do estado real do banco publicado
+
+Escopo da análise
+Foram inventariados e cruzados os arquivos de produto em components/ (156), contexts/ (9), hooks/ (9), services/ (5), utils/ (13), server/ (115), migrations/ (87), scripts/ (72), tests/ (173), whatsapp-worker/ (11), docs/ (32) e public/ (322), além dos pontos de entrada e configurações da raiz. A análise combina buscas no repositório, leitura direcionada de fluxos centrais e validação do inventário de schema; não é uma leitura linha a linha de dependências, arquivos binários ou artefatos gerados. Uploads em attached_assets/, dependências, builds e protótipos de artifacts/ não são fonte de requisitos de runtime. Nenhum dado de cliente ou valor de Secret foi consultado.
+DACI e decisões pendentes
+Papel	Responsável	Responsabilidade
+Driver	Responsável técnico/produto, a definir	Manter este documento e conduzir decisões
+Approver	Proprietário do produto, a definir	Aprovar o escopo e a fidelidade da cópia
+Contributors	Engenharia frontend, backend e banco; nomes a definir	Revisar regras, integrações e dados
+Informed	Equipe técnica	Receber a especificação e usar os anexos
+Resumo executivo
+O FinancePro Assessoria é um CRM operacional para assessorias financeiras. Centraliza cadastros, prospecção, admissões/contratos, recálculos, financeiro, cobrança, negociação, jurídico, agenda, mensagens, WhatsApp, relatórios, formulários e assistência por IA. A unidade ativa e os grupos de permissão delimitam o acesso a dados e operações.
+O produto é uma aplicação web React/TypeScript servida por uma API Node.js/Express, apoiada por PostgreSQL e por armazenamento de objetos para documentos. Há processamento assíncrono com PostgreSQL e Redis/BullMQ opcional, além de integração de mensagens GoTalk/uazapi.
+
+Conclusão para cópia/exportação: o repositório contém código, migrações e um contrato de schema; o sistema também oferece uma exportação Excel administrativa compatível com um subconjunto de importação e um script separado de backup do PostgreSQL. Nenhum desses recursos, isoladamente, reproduz o ambiente inteiro. Arquivos no Object Storage, credenciais, integrações externas, configurações do deployment e dados não incluídos no Excel precisam de tratamento separado.
+Problema, usuários e necessidades
+Problema atendido
+Operações de assessoria financeira distribuem informações de clientes e contratos entre cadastros, planilhas, atendimentos, parcelas, documentos, processos judiciais e canais de comunicação. O produto reúne esses registros e vincula as etapas do atendimento para reduzir retrabalho e perda de contexto.
+Perfis observados
+Perfil	Necessidades principais
+Comercial/atendimento	Cadastrar leads e clientes, acompanhar oportunidades, formalizar admissões e consultar contratos
+Financeiro	Controlar títulos a pagar/receber, baixas, parcelas, contas bancárias e conciliação
+Cobrança	Localizar atrasos, registrar contatos e propostas, acompanhar metas
+Jurídico	Acompanhar processos, partes, prazos, audiências, movimentações e documentos
+Colaborador	Consultar agenda, conversar internamente e atender clientes via WhatsApp
+Coordenador/administrador	Gerir unidades, usuários, grupos, permissões, parâmetros, relatórios, importações e documentos
+O produto também contempla usuários autenticados com permissões específicas por grupo e unidade. A matriz completa de permissões depende das configurações de cada instalação e não deve ser presumida a partir dos nomes dos menus.
+Objetivos, não objetivos e alternativas
+Objetivos do produto
+Manter o ciclo operacional do cliente em um sistema, do cadastro ao atendimento financeiro e jurídico.
+Preservar relações consistentes entre registros e permitir rastrear mudanças relevantes.
+Restringir dados e operações conforme papel, grupo e unidade autorizada.
+Oferecer importação/exportação operacional, relatórios e gestão de documentos.
+Permitir continuidade operacional com processamento em segundo plano e recuperação de trabalhos interrompidos.
+Objetivos deste documento
+Descrever o produto e a arquitetura implementados, não redesenhar o produto.
+Explicitar limites de cobertura para uma cópia ou exportação.
+Identificar decisões e verificações necessárias antes de reproduzir o ambiente.
+Separar fatos observados no código de premissas que precisam de validação do responsável pelo produto.
+Não objetivos
+Especificar uma nova funcionalidade de exportação integral ou migração entre instâncias.
+Copiar dados, credenciais, arquivos de clientes ou configurações de produção.
+Recomendar mudança de banco de dados, limpeza de dados legados ou alteração de integrações sem aprovação específica.
+Fazer pesquisa competitiva de mercado. A tabela abaixo registra apenas alternativas operacionais plausíveis; não é pesquisa de usuários.
+Alternativas ao produto (hipóteses não validadas)
+Alternativa	Como poderia ser usada	Limitação a validar
+Planilhas e documentos locais	Cadastros, parcelas, contratos e controles paralelos	Duplicidade, atualização manual e baixa rastreabilidade
+Mensageria sem CRM integrado	Atendimento por WhatsApp e comunicação interna	Histórico e vínculo com cliente podem ficar separados
+Sistemas especializados por área	Financeiro, jurídico ou agenda em produtos distintos	Exige conciliação entre cadastros e fluxos
+FinancePro atual	Fluxos e entidades conectados por IDs e unidade	Dependência de configuração, dados, permissões e serviços externos
+Escopo funcional atual
+Área	Funcionalidade observada	Entidades/integrações principais
+Início e navegação	Dashboard, menu, seletor de unidade, notificações e preferências visuais	Usuários, unidades, preferências
+Cadastros	Clientes, colaboradores, cargos, departamentos, bancos, modalidades, produtos e séries	clients, collaborators, companies, cadastros auxiliares
+Comercial	Prospecção, pipeline comercial, admissões, ficha de contrato e cenários de recálculo	prospection_*, commercial_deals, admissions, recalc_scenarios
+Financeiro	Contas a pagar/receber, recorrência/parcelas, baixas, faturas, conta corrente e conciliação	financial_titles, title_settlements, bank_movements, bank_accounts
+Cobrança e negociação	Filas operacionais, visão de coordenação, anotações, metas, contatos e propostas	Títulos, collection_notes, negotiation_*
+Jurídico	Dashboard, processos, partes, andamentos, prazos, audiências e anexos	legal_processes e tabelas dependentes
+Agenda	Agendamentos, bloqueios, espera, serviços, filtros por unidade e distribuição de colaboradores	appointments, schedule_blocks, waitlist, service_items
+Mensagens internas	Conversas internas, destinatários/grupos, anexos, entrega e leitura; atualização em tempo real	messages, message_deliveries, message_reads, SSE/Socket.IO
+WhatsApp	Conversas e histórico multicanal, modelos, envio, webhooks, polling e reconciliação	GoTalk, uazapi, gotalk_*, uazapi_messages, unit_whatsapp_credentials
+Anexos e documentos	Upload, download privado, ACL por cliente/pasta/arquivo, importação e ciclo de vida	client_attachments, PostgreSQL, Object Storage e bucket de contratos
+Relatórios e formulários	Consultas, construtor de relatórios, filtros, gráficos, sub-relatórios e documentos com variáveis	report_templates, form_templates; Excel/PDF/Word/CSV/HTML
+IA e ajuda	Assistente Léo, base de conhecimento, análise/resumo/auditoria e treinamento	Gemini e leo_knowledge_articles
+Administração	Portal/aparência, unidades, usuários, grupos, permissões, auditoria, importação, integrações e filas	users, user_groups, user_group_permissions, configurações
+Operação de dados	Importação e exportação Excel, extração de dados de PDF, validação, deduplicação, execução controlada e jobs	10 tabelas de importação, background_jobs, filas
+Fluxos de negócio principais
+Cliente → admissão: criar/localizar cliente; registrar contrato, unidade, modalidade, banco e colaborador; guardar cenários e anexos.
+Admissão → financeiro: criar títulos associados a cliente/admissão; registrar parcelas e baixas; atualizar saldo e movimentos bancários conforme operação.
+Financeiro → cobrança/negociação: localizar títulos atrasados; registrar contatos e propostas; manter histórico operacional.
+Cliente/admissão → jurídico: associar processos ao cliente e, quando aplicável, à admissão; controlar prazos, audiências, andamentos e documentos.
+Prospecção → atendimento: receber mensagens por canais integrados, vincular contatos a clientes quando identificados, acompanhar histórico e eventualmente agendar atendimento.
+Operação → relatório/documento: executar consultas autorizadas, gerar relatórios e preencher modelos com dados do registro selecionado.
+Requisitos funcionais observados (as-is)
+Identidade, acesso e unidade
+FR-01: autenticar usuários por e-mail/senha e sessão JWT em cookie protegido; suportar MFA, bloqueio após falhas, troca obrigatória de senha e revogação de sessão.
+FR-02: permitir que administradores e usuários autorizados acessem unidades segundo suas permissões; validar o seletor de unidade no servidor.
+FR-03: restringir módulos e ações por papel/grupo; endpoints administrativos devem validar autorização no backend, não apenas ocultar elementos da interface.
+FR-04: registrar auditoria para operações relevantes, preservando usuário/ação/entidade e escopo disponível.
+Cadastros e vínculos
+FR-05: manter registros mestres reutilizados pelos módulos comerciais, financeiros, jurídicos e de agenda.
+FR-06: representar relações internas por código/ID. Nome, descrição e texto podem ser rótulos ou snapshots históricos, mas não a identidade persistida do vínculo.
+FR-07: nas importações, localizar o vínculo pelo nome informado, atribuir automaticamente o ID do cadastro correspondente e persistir esse ID. Se o nome não existir ou identificar mais de um cadastro, exigir desambiguação em vez de associar silenciosamente.
+FR-08: validar se os vínculos relacionados pertencem ao mesmo contexto de cliente/admissão/título, e recusar referências inexistentes.
+Operação
+FR-09: apoiar a criação, edição, consulta e exclusão dentro das permissões e regras de unidade, com filtros, paginação e validações de negócio.
+FR-10: controlar estados do ciclo financeiro (aberto, pago, parcial, cancelado, agrupado, entre outros), baixas simples/em lote, recorrências e relações de títulos.
+FR-11: controlar processos, prazos e audiências com datas/status e documentos.
+FR-12: manter histórico de atendimento e sincronizar mensagens por webhook e polling; identificar origem/canal/instância e evitar duplicações por identificadores externos.
+FR-13: anexos devem ser privados e sujeitos a ACL; operações de lixeira, restauração e exclusão definitiva devem ter prévia, confirmação, trilha de auditoria e proteção de objetos em uso.
+Importação, exportação e relatórios
+FR-14: disponibilizar layouts de planilha e expor um catálogo permitido de tabelas/campos.
+FR-15: validar dados antes da gravação, exibindo erros localizados, duplicidades e vínculos não resolvidos.
+FR-16: executar importações privilegiadas com reautenticação, MFA e desafio antiabuso; permitir decisão entre importar linhas aprovadas e abortar o lote em caso de erro.
+FR-17: processar importações grandes como jobs retomáveis, com estado/progresso e proteção contra execução duplicada ou lease vencido.
+FR-18: fornecer exportação administrativa em Excel com dados compatíveis com o importador, respeitando o escopo indicado no código.
+FR-19: permitir consultas/relatórios somente leitura, limitados por autorização e tamanho; gerar formatos de saída suportados pelo construtor.
+Requisitos não funcionais e segurança
+Os itens a seguir descrevem controles já observados e requisitos que devem ser preservados ao copiar o sistema. Não representam certificação ou teste de produção desta revisão.
+Tema	Requisito/controle
+Segurança de sessão	Cookie HTTP-only, SameSite, Secure em produção, assinatura JWT e invalidação de sessões por versão
+Autenticação forte	MFA TOTP, códigos de recuperação e desafios de foto em fluxos sensíveis; rate limits para autenticação e ações custosas
+Autorização	Verificações de autenticação, papel/grupo, módulo e unidade no servidor; não confiar em unit_id enviado no corpo
+Dados pessoais	CPF/CNPJ, contatos, endereço, datas pessoais, registros financeiros/jurídicos, anexos e conversas exigem acesso mínimo e cuidado com cópias
+Proteção HTTP	Helmet/CSP, CORS configurável, sanitização, limites de payload e respostas de erro sanitizadas
+Segredos	Chaves e credenciais devem vir do fluxo de Secrets; não devem entrar em código, exportações Excel, logs ou artefatos de cópia
+Banco de dados	Role de runtime restrita; startup faz preflight de schema/permissões e falha fechado diante de dependências ausentes
+Dados legados	Migrações estruturais forward-only; backfills separados, idempotentes, retomáveis e auditados; não alterar migrations aplicadas
+Arquivos	Objeto privado deve ser entregue por streaming autorizado; metadados de anexos têm imutabilidade parcial e controles contra inconsistência
+Processamento	Jobs duráveis/recuperáveis em PostgreSQL, Redis/BullMQ quando disponível, fallback local em memória com garantias menores
+Desempenho	Há testes de carga/homologação para documentos, concorrência, memória e fluxo lento; metas de serviço e capacidade de produção não foram fornecidas
+Continuidade	Existe script de dump PostgreSQL para Google Drive, com retenção configurável; dump do banco não substitui backup dos objetos armazenados
+Cliente web	React/Vite com PWA, atualização automática e cache seletivo; chamadas API não são armazenadas como conteúdo offline
+8. Arquitetura e integrações
+Componentes
+Navegador (React + TypeScript + Vite/PWA)
+       │ HTTP/API + SSE/Socket.IO
+       ▼
+Node.js + Express (server/index.js)
+       ├── PostgreSQL (dados, autenticação, auditoria, jobs)
+       ├── Redis/BullMQ (fila opcional; fallback local)
+       ├── Replit Object Storage (arquivos privados)
+       ├── Bucket de contratos/documentos (integração de storage externa)
+       ├── GoTalk e uazapi (WhatsApp, webhooks e polling)
+       ├── Gemini (assistente/análise) e OpenAI (transcrição em fluxos aplicáveis)
+       ├── ViaCEP / BrasilAPI (enriquecimento de endereço e bancos)
+       └── Google Drive API (backup do banco via script operacional)
+Serviços de fundo encontrados
+Worker de importação com recuperação, lease e limpeza de jobs antigos.
+Mensagens agendadas e reconciliação de mensagens uazapi.
+Polling GoTalk com lock consultivo PostgreSQL para eleger instância.
+Reconciliação e auditoria de anexos; migração gradual de anexos legados.
+Limpeza de desafios MFA/foto e retenção de histórico.
+Invalidação de caches/dashboards via notificações PostgreSQL.
+Painel de filas Bull-Board, condicionado ao modo de fila/Redis.
+Pontos de atenção para cópia
+O ambiente publicado no arquivo .replit inicia server/index.js. O servidor principal já monta rotas do worker GoTalk e inicia o poller embutido quando configurado.
+O repositório também mantém whatsapp-worker/ como pacote separado e documenta implantação independente, enquanto o script start:full pode iniciar outra instância do worker. A topologia canônica da instalação deve ser confirmada antes de reproduzir, para evitar polling/webhooks duplicados.
+A documentação do worker descreve Node 18+, enquanto o projeto principal está configurado com Node 20. Validar versões e comandos ao separar serviços.
+DataJud está aposentado no código/documentação; não deve ser tratado como integração ativa sem nova decisão.
+Nomes de variáveis de ambiente são referências de configuração, não valores. A cópia deve cadastrar novos Secrets e credenciais por ambiente, sem copiar os valores desta instalação.
+9. Modelo de dados e vínculos
+Snapshot do contrato de schema
+O arquivo schema-contract.json é o inventário estruturado usado como referência para comparar o schema. Na fotografia presente no repositório:
+
+104 tabelas e 1.139 colunas
+399 constraints: 99 chaves primárias, 156 estrangeiras, 21 únicas e 123 checks
+436 índices, 2 sequências, 2 views, 45 triggers
+52 funções no catálogo, das quais 6 funções PL/pgSQL do produto (as demais incluem funções/extensões)
+4 extensões: pg_trgm, plpgsql, unaccent, uuid-ossp
+7 políticas RLS e nenhum privilégio padrão registrado no contrato
+É uma fotografia do repositório, não uma confirmação de que todos os ambientes DEV/PROD estão idênticos.
+
+Entidades por domínio — inventário das 104 tabelas
+Acesso, usuários e segurança (8): users, user_groups, user_group_members, user_group_permissions, user_allowed_units, user_preferences, login_mfa_attempts, photo_challenges.
+
+Organização e cadastros mestres (21): companies, clients, collaborators, departments, banks, bank_contacts, febraban_banks, modalities, products, series, series_unit_numbering, measurement_units, service_items, document_types, bearers, bank_services, bank_accounts, chart_of_accounts, config_options, agenda_config, app_data.
+
+Comercial e prospecção (9): admissions, admission_addendums, admission_attachments, admission_legal_scans, recalc_scenarios, commercial_deals, prospection_contacts, prospection_conversations, prospection_contact_notes.
+
+Financeiro, cobrança e negociação (10): financial_titles, title_settlements, title_advance_links, title_return_links, bank_movements, collection_notes, negotiation_records, negotiation_contacts, negotiation_proposals, negotiation_goals.
+
+Jurídico (5): legal_processes, legal_process_deadlines, legal_process_hearings, legal_process_movements, legal_process_attachments.
+
+Agenda (3): appointments, schedule_blocks, waitlist.
+
+Mensagens, WhatsApp e integrações de canal (19): messages, message_deliveries, message_reads, gotalk_attendances, gotalk_attendance_history, gotalk_channels, gotalk_contacts, gotalk_file_uploads, gotalk_hsm_templates, gotalk_messages, gotalk_messages_archive, gotalk_operator_attendances, gotalk_operators, uazapi_messages, unit_whatsapp_credentials, whatsapp_broadcast_logs, whatsapp_call_logs, whatsapp_scheduled_messages, whatsapp_templates.
+
+Anexos, ACL e operações de storage (16): client_attachments, client_attachment_contract_folder_acl, client_attachment_contract_folder_grants, client_attachment_file_acl_overrides, client_attachment_file_grants, client_attachment_folder_acl, client_attachment_folder_grants, client_attachment_legacy_acl_opt_ins, contract_attachment_operation_items, contract_attachment_operations, contract_attachment_trash, contract_attachment_upload_contracts, contract_attachment_upload_sessions, contract_bucket_link_checkpoints, bucket_admin_operation_items, bucket_admin_trash.
+
+Relatórios e conhecimento (3): report_templates, form_templates, leo_knowledge_articles.
+
+Auditoria, execução e suporte operacional (10): audit_logs, audit_unit_backfill_unclassified, background_jobs, data_backfill_attempts, data_backfill_runs, data_import_queue_events, data_import_queue_metric_failures, homologation_runs, migrations_log, retention_config.
+
+As categorias acima são mutuamente exclusivas e somam 104 tabelas. A fonte com todos os detalhes por coluna é schema-contract.json; use-a para obter os nomes oficiais, tipos, nulabilidade, defaults, constraints, índices, funções e grants.
+
+Relações de negócio centrais
+Cliente → admissões, títulos financeiros, processos jurídicos, conversas e anexos.
+Admissão → cliente, cliente titular, banco, colaborador, série, modalidade, recálculos, aditivos, anexos e títulos.
+Título financeiro → cliente, admissão, unidade, conta bancária, categoria, documento, portador, departamento, responsável e baixas; relações de título agrupado, adiantamento e devolução.
+Processo jurídico → cliente/parte, unidade e admissão; prazos, audiências, andamentos e anexos dependem do processo.
+Agendamento → cliente, colaborador, serviço, unidade e, em alguns fluxos, contato de prospecção.
+WhatsApp → unidade/canal/instância, contato, cliente, operador, atendimento e mensagens; identificadores externos são armazenados separadamente dos UUIDs internos.
+Anexo → cliente e metadados de alvo, com concessões ACL opcionais para usuário/grupo e referências a unidades/admissões em documentos contratuais.
+Usuário → colaborador, grupos e unidades autorizadas; as permissões são ligadas ao grupo.
+Identidade, duplicidade e legado
+A regra de produto é manter relacionamentos por ID/código estável. Nomes e descrições não são chave de vínculo persistente.
+A importação é uma exceção de entrada: procura a relação pelo nome informado, resolve para um único cadastro e atribui/grava automaticamente seu ID. Se necessário, dados como documento podem desambiguar; nome ambíguo não pode escolher um registro arbitrariamente.
+Há dados históricos com colunas de vínculo text/varchar ou nomes denormalizados, além de 17 FKs NOT VALID e checks de identidade relacionados, voltados a proteger novas gravações sem validar retroativamente todo o histórico. Isso não comprova que existam órfãos, mas significa que a consistência histórica completa não pode ser inferida apenas pela existência da constraint.
+Snapshots como client_name, bank_name, collaborator_name e similares podem existir para exibição/histórico; o registro ligado por ID permanece a identidade autoritativa.
+Estratégias de deduplicação são específicas por tabela (por exemplo, documento do cliente, número do contrato, código contábil ou combinações de cadastro). A exportação/importação não substitui auditoria de duplicidades nem saneamento de dados.
+10. APIs, rotinas e eventos
+O backend contém 42 arquivos de rotas e aproximadamente 389 declarações HTTP GET/POST/PUT/PATCH/DELETE encontradas por busca estática. Os recursos estão agrupados em autenticação, usuários/grupos, unidades, cadastros, admissões, financeiro, agenda, processos, conversas, anexos, bucket, prospecção, relatórios, IA e importação. Rotas usam validação de payload/UUID, limites de tráfego, autenticação e checagens de papel/unidade conforme o recurso.
+
+Os arquivos de rota cobrem: auth, users, userGroups, roles, units, userPreferences, configOptions, lookups, crudFactory, clients, collaborators, banks, febrabanBanks, modalities, products, series, admissions, commercialDeals, prospection, negotiations, financialTitles, financialDashboard, settlements, bankMovements, collectionNotes, appointments, scheduleBlocks, legalProcesses, gotalk, uazapiWebhook, uazapiChats, uazapiAdvanced, whatsappTemplates, formTemplates, clientAttachments, contractAttachments, contractBucketLinks, bucketAdmin, dataImport, reportQueries, ai e leoKnowledge. O inventário não enumera cada URL: as rotas e métodos devem ser consultados nos arquivos versionados, pois variam conforme os recursos e as permissões.
+
+Eventos em tempo real são usados para mensagens, atualizações de dashboard e notificações operacionais; SSE e Socket.IO autenticam sessão e precisam acompanhar revogação de sessão.
+
+Views e rotinas do banco
+v_gotalk_attendance_summary: resumo de atendimentos e contagens de mensagens por atendimento/operador.
+v_gotalk_client_timeline: timeline de mensagens com dados de atendimento e contato.
+update_updated_at_column(): mantém timestamps de atualização.
+notify_dashboard_invalidation(): sinaliza mudanças para invalidação de dashboards entre instâncias.
+sync_prospection_from_gotalk_message(): sincroniza eventos de mensagem recebida para prospecção.
+fn_gotalk_messages_immutable_content() e fn_gotalk_messages_archive_immutable(): protegem conteúdo histórico de mensagens.
+prevent_client_attachment_metadata_update(): bloqueia alterações indevidas em metadados imutáveis de anexos.
+Triggers adicionais conectam essas funções a tabelas de negócio e repetem padrões de updated_at/invalidação. A lista exata por tabela está em schema-contract.json.
+Cópia, exportação, backup e limites
+Mecanismo existente	O que cobre	Limites identificados
+Cópia do repositório	Código, scripts, migrations, testes, docs e configuração versionada	Não transporta Secrets, dados externos, contas de provedores ou estado do deployment
+schema-contract.json + migrations/	Estrutura PostgreSQL versionada e comparação de catálogo	Contrato é snapshot; migrações históricas aplicadas não devem ser editadas
+/api/import/export	Workbook dados_importacao.xlsx compatível com importador	Apenas 10 tabelas permitidas pelo importador, não todas as 104; não é dump completo de banco
+Escopo da exportação Excel	Exige administrador e unidade ativa; percorre dados em páginas dentro de transação somente leitura	Apenas collaborators, admissions, legal_processes e financial_titles são explicitamente filtradas pela unidade no código; as demais tabelas da whitelist precisam de revisão de escopo antes de compartilhar
+Script npm run backup	Dump SQL de PostgreSQL e envio ao Google Drive, com retenção	Não inclui objetos armazenados no bucket; depende de pg_dump, Secrets e OAuth Google
+Storage de anexos	Arquivos privados e metadados relacionados	Deve ser inventariado/copied separadamente, respeitando geração, ACL, prefixo, integridade e vínculo ao cliente
+O que é necessário para uma réplica funcional
+Copiar o repositório e instalar as dependências compatíveis com a versão de Node do projeto.
+Criar um banco de destino vazio ou aprovado para migração; configurar role restrita, extensões e grants mínimos.
+Aplicar o schema pelo fluxo suportado e comparar o schema resultante com o contrato; executar smoke tests antes de importar dados.
+Decidir explicitamente se a réplica será vazia, receberá dump PostgreSQL completo ou apenas dados selecionados via Excel.
+Se houver transferência de dados, obter backup e restauração testada; preservar IDs se a intenção for cópia fiel do banco; não resolver referências antigas por nome automaticamente.
+Copiar arquivos de Object Storage de forma independente, verificar checksums e revalidar ACL/paths antes de disponibilizar downloads.
+Configurar novos Secrets e endpoints de provedores no ambiente de destino; testar webhooks e polling sem duplicar a instalação de worker.
+Revisar CORS, domínio, deployment, Redis, limites, backup, retenção, usuários iniciais e credenciais antes de liberar acesso.
+Critérios de aceitação para avaliação/cópia
+AC-01 — Instalação vazia
+Dado um ambiente novo com banco e Secrets configurados, quando o schema suportado for promovido e a aplicação iniciar, então o preflight confirma dependências e a tela pública/autenticação carrega sem acesso a dados de outra instalação.
+
+AC-02 — Integridade dos relacionamentos
+
+Dado um vínculo entre entidades, quando for gravado via API, então o backend valida o ID/código e a compatibilidade de contexto; nome/descrição simples não substitui identidade.
+
+AC-03 — Importação legível
+
+Dado um arquivo com nomes de relacionamento, quando cada nome resolver para exatamente um cadastro, então a importação atribui e persiste o ID correspondente; quando não resolver ou houver ambiguidade, a linha fica visível para decisão e não é associada silenciosamente.
+
+AC-04 — Isolamento por unidade
+
+Dado um usuário comum com unidades autorizadas, quando selecionar uma unidade permitida e consultar ou alterar registros, então a API usa a unidade autenticada e não aceita unidade arbitrária enviada pelo cliente.
+
+AC-05 — Exportação parcial
+
+Dado um administrador com unidade ativa, quando solicitar a exportação de dados, então recebe somente o formato e as tabelas/campos da whitelist atual; o produto não apresenta esse arquivo como backup completo.
+
+AC-06 — Proteção de documentos
+
+Dado um usuário sem concessão, quando tentar listar ou baixar um anexo, então a API nega o acesso mesmo que o usuário conheça o identificador ou caminho do objeto.
+
+AC-07 — Cópia de arquivos
+
+Dado que metadados de anexos foram restaurados, quando o inventário do bucket for reconciliado, então cada arquivo elegível tem objeto, checksum, caminho e autorização coerentes, e órfãos/ausências são relatados antes da liberação.
+
+AC-08 — Jobs e integração
+
+Dado um job em processamento interrompido, quando uma instância assumir o lease, então apenas o proprietário atual conclui o job e a execução não duplica gravações.
+
+AC-09 — Operação e auditoria
+
+Dada uma ação privilegiada ou destrutiva, quando confirmada, então papel, escopo, prévia aplicável e resultado ficam verificáveis por logs/testes sem expor credenciais ou dados sensíveis em erros.
+Métricas e evidências disponíveis
+O repositório contém testes automatizados para CRUD, importação, permissões, migrações, autenticação/MFA, anexos, bucket, filas, mensagens, relatórios e desempenho de documentos. Existem cenários PostgreSQL e Playwright, além de scripts de homologação.
+Não há números de negócio fornecidos para usuários ativos, volume de clientes, tempo de processamento, taxa de duplicidade ou disponibilidade. Portanto, metas quantitativas de adoção, performance e qualidade devem ser definidas com dados reais antes de estabelecer SLOs. A existência dos testes não comprova que todos foram executados nesta análise nem que a produção está saudável.
+Riscos e perguntas abertas
+Topologia GoTalk: o worker deve ser um processo embutido, separado ou ambos em ambientes diferentes? Confirmar a arquitetura ativa antes da cópia.
+Escopo do Excel: os dados de tabelas não filtradas pela unidade devem ser compartilhados entre unidades? A whitelist precisa ser revisada com o responsável por privacidade.
+Exportação integral: a necessidade é replicar o banco inteiro, fazer exportação portátil por unidade ou entregar um pacote de backup incluindo arquivos? O código atual não fornece um único pacote completo.
+Histórico legado: quais referências textuais/UUID antigas estão aprovadas para permanecer e quais podem ser saneadas? A cópia não deve converter ou remapear silenciosamente.
+Storage: quais buckets/prefixos, ACLs e objetos são essenciais e qual é a política de retenção/restauração?
+Métricas operacionais: quais volumes, concorrência, SLOs e indicadores de latência/erro são requisitos de uma instalação de destino?
+Integrações: quais provedores serão usados na réplica, quais são opcionais e quais têm requisitos de consentimento/contrato?
+Governança: quem é o aprovador final, qual é o destino da cópia e quem autoriza a movimentação de dados pessoais?
+Schema por ambiente: executar comparação read-only entre desenvolvimento e produção antes de uma cópia real; o contrato versionado não substitui essa verificação.
+Fonte de verdade e forma de atualização
+Código funcional: componentes, contexts, hooks, services/, server/routes/, server/lib/, server/services/, filas e workers.
+Schema: migrações forward-only em migrations/ e contrato completo schema-contract.json; supabase-schema.sql é referência histórica e não deve ser usado isoladamente como estado atual.
+Regras de cópia/ambientes: docs/migrations.md, docs/production-integrity-audit.md, ENVIRONMENTS.md, .replit e scripts de operação.
+Cobertura: tests/, scripts de homologação e documentação de módulos em docs/central-ajuda/.
+Segredos e dados pessoais: devem permanecer fora deste documento e de qualquer exportação de código.
+Revisar este PRD quando mudar um fluxo de negócio, uma integração externa, as regras de unidade/permissão, o esquema de dados ou o escopo de exportação. Antes de aprovar uma cópia, atualizar a fotografia do schema e validar a topologia e a política de dados no ambiente de destino.
+Histórico
+Versão	Data	Alteração
+1.0	2026-11-12	Documento inicial do produto existente, arquitetura, schema, integrações e limites de cópia/exportação

@@ -1,0 +1,8 @@
+{
+  "name": "FinancePro Assessoria",
+  "description": "CRM Operacional PWA para Assessoria Financeira, Negociação de Dívidas, Auditoria, Jurídico e Cobrança com IA Ivi.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
