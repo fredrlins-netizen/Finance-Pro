@@ -566,15 +566,15 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
           onClick={() => setStatusCategory('PENDENTE')}
           className={`text-left rounded-xl border px-4 py-3 transition-colors ${
             statusCategory === 'PENDENTE'
-              ? 'border-slate-900 bg-slate-50'
-              : 'border-slate-200 bg-white hover:border-slate-300'
+              ? 'border-slate-900 bg-slate-50 dark:border-emerald-500 dark:bg-slate-800/70'
+              : 'border-slate-200 bg-white hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900'
           }`}
         >
-          <p className="text-[11px] font-medium text-slate-500">Pendentes</p>
-          <p className="mt-1 font-mono text-xl font-bold text-slate-900 tabular-nums">
+          <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Pendentes</p>
+          <p className="mt-1 font-mono text-xl font-bold text-slate-900 tabular-nums dark:text-slate-100">
             {statsSummary.pendentes}
           </p>
-          <p className="text-[11px] text-slate-400 truncate">
+          <p className="text-[11px] text-slate-400 truncate dark:text-slate-400">
             {currentUser?.name || payload?.currentUserName || 'Coordenador'}
           </p>
         </button>
@@ -584,15 +584,15 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
           onClick={() => setStatusCategory('PAUSADO')}
           className={`text-left rounded-xl border px-4 py-3 transition-colors ${
             statusCategory === 'PAUSADO'
-              ? 'border-amber-500 bg-amber-50/60'
-              : 'border-slate-200 bg-white hover:border-amber-300'
+              ? 'border-amber-500 bg-amber-50/60 dark:bg-amber-950/50'
+              : 'border-slate-200 bg-white hover:border-amber-300 dark:border-slate-700 dark:bg-slate-900'
           }`}
         >
-          <p className="text-[11px] font-medium text-slate-500">Pausadas</p>
-          <p className="mt-1 font-mono text-xl font-bold text-amber-700 tabular-nums">
+          <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Pausadas</p>
+          <p className="mt-1 font-mono text-xl font-bold text-amber-700 tabular-nums dark:text-amber-300">
             {statsSummary.pausadas}
           </p>
-          <p className="text-[11px] text-slate-400">Com justificativa registrada</p>
+          <p className="text-[11px] text-slate-400 dark:text-slate-400">Com justificativa registrada</p>
         </button>
 
         <button
@@ -600,15 +600,15 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
           onClick={() => setStatusCategory('CONCLUIDO')}
           className={`text-left rounded-xl border px-4 py-3 transition-colors ${
             statusCategory === 'CONCLUIDO'
-              ? 'border-emerald-600 bg-emerald-50/60'
-              : 'border-slate-200 bg-white hover:border-emerald-300'
+              ? 'border-emerald-600 bg-emerald-50/60 dark:bg-emerald-950/50'
+              : 'border-slate-200 bg-white hover:border-emerald-300 dark:border-slate-700 dark:bg-slate-900'
           }`}
         >
-          <p className="text-[11px] font-medium text-slate-500">Concluídas</p>
-          <p className="mt-1 font-mono text-xl font-bold text-emerald-700 tabular-nums">
+          <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Concluídas</p>
+          <p className="mt-1 font-mono text-xl font-bold text-emerald-700 tabular-nums dark:text-emerald-300">
             {statsSummary.concluidas}
           </p>
-          <p className="text-[11px] text-slate-400">Encerramento auditado</p>
+          <p className="text-[11px] text-slate-400 dark:text-slate-400">Encerramento auditado</p>
         </button>
 
         <button
@@ -616,15 +616,15 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
           onClick={() => setStatusCategory('CANCELADO')}
           className={`text-left rounded-xl border px-4 py-3 transition-colors ${
             statusCategory === 'CANCELADO'
-              ? 'border-red-500 bg-red-50/60'
-              : 'border-slate-200 bg-white hover:border-red-300'
+              ? 'border-red-500 bg-red-50/60 dark:bg-red-950/50'
+              : 'border-slate-200 bg-white hover:border-red-300 dark:border-slate-700 dark:bg-slate-900'
           }`}
         >
-          <p className="text-[11px] font-medium text-slate-500">Canceladas</p>
-          <p className="mt-1 font-mono text-xl font-bold text-red-700 tabular-nums">
+          <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Canceladas</p>
+          <p className="mt-1 font-mono text-xl font-bold text-red-700 tabular-nums dark:text-red-300">
             {statsSummary.canceladas}
           </p>
-          <p className="text-[11px] text-slate-400">Histórico preservado</p>
+          <p className="text-[11px] text-slate-400 dark:text-slate-400">Histórico preservado</p>
         </button>
 
         <button
@@ -635,23 +635,23 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
           }}
           className={`text-left rounded-xl border px-4 py-3 transition-colors col-span-2 md:col-span-1 ${
             originFilter === 'compartilhadas'
-              ? 'border-blue-500 bg-blue-50/60'
-              : 'border-slate-200 bg-white hover:border-blue-300'
+              ? 'border-blue-500 bg-blue-50/60 dark:bg-blue-950/50'
+              : 'border-slate-200 bg-white hover:border-blue-300 dark:border-slate-700 dark:bg-slate-900'
           }`}
         >
-          <p className="text-[11px] font-medium text-slate-500">Compartilhadas Comigo</p>
-          <p className="mt-1 font-mono text-xl font-bold text-blue-700 tabular-nums">
+          <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Compartilhadas Comigo</p>
+          <p className="mt-1 font-mono text-xl font-bold text-blue-700 tabular-nums dark:text-blue-300">
             {statsSummary.shared}
           </p>
-          <p className="text-[11px] text-slate-400">De outros coordenadores</p>
+          <p className="text-[11px] text-slate-400 dark:text-slate-400">De outros coordenadores</p>
         </button>
       </div>
 
       {/* BARRA DE FERRAMENTAS PRINCIPAL */}
-      <div className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-3">
+      <div className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-3 dark:border-slate-700 dark:bg-slate-900">
         <div className="flex flex-wrap items-center justify-between gap-2.5">
           {/* Opções de Situação: Todas | Pendentes | Pausados | Concluídos | Cancelados */}
-          <div className="inline-flex flex-wrap items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1">
+          <div className="inline-flex flex-wrap items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-800/70">
             {(
               [
                 { id: 'TODAS', label: 'Todas', count: statsSummary.total, activeCls: 'bg-slate-900 text-white' },
@@ -668,11 +668,11 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
                   type="button"
                   onClick={() => setStatusCategory(tab.id)}
                   className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
-                    active ? tab.activeCls : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                    active ? tab.activeCls : 'text-slate-600 hover:text-slate-900 hover:bg-white dark:text-slate-300 dark:hover:text-white dark:hover:bg-slate-800'
                   }`}
                 >
                   <span>{tab.label}</span>
-                  <span className={`font-mono text-[10px] ${active ? 'opacity-90' : 'text-slate-400'}`}>
+                  <span className={`font-mono text-[10px] ${active ? 'opacity-90' : 'text-slate-400 dark:text-slate-400'}`}>
                     {tab.count}
                   </span>
                 </button>
@@ -682,13 +682,13 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
 
           {/* Busca */}
           <div className="relative flex-1 min-w-[200px] max-w-sm">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 dark:text-slate-400" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Buscar tarefa, cliente ou frente..."
-              className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
+              className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 dark:border-slate-700 dark:text-slate-100 dark:bg-slate-950"
             />
           </div>
 
@@ -699,8 +699,8 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
               onClick={() => setOriginsOpen((v) => !v)}
               className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap shrink-0 ${
                 originsOpen || originFilter !== 'todas'
-                  ? 'border-blue-300 bg-blue-50 text-blue-800'
-                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  ? 'border-blue-300 bg-blue-50 text-blue-800 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300'
+                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
               }`}
             >
               <Users className="w-3.5 h-3.5" />
@@ -712,8 +712,8 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
               onClick={() => setFiltersOpen((v) => !v)}
               className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap shrink-0 ${
                 filtersOpen || filterStatusId || filterPriority || filterCriticality || filterClientId
-                  ? 'border-blue-300 bg-blue-50 text-blue-800'
-                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  ? 'border-blue-300 bg-blue-50 text-blue-800 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300'
+                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
               }`}
             >
               <Filter className="w-3.5 h-3.5" />
@@ -726,7 +726,7 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
               className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap shrink-0 ${
                 iviSuggestOpen
                   ? 'border-blue-700 bg-blue-700 text-white'
-                  : 'border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100'
+                  : 'border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300 dark:hover:bg-blue-900/60'
               }`}
             >
               <Bot className="w-3.5 h-3.5" />
@@ -736,7 +736,7 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
             <button
               type="button"
               onClick={() => setColumnsModalOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               <Settings2 className="w-3.5 h-3.5" />
               Etapas
@@ -751,7 +751,7 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
                   openInlineComposer({ dueAt: '' });
                 }
               }}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 whitespace-nowrap shrink-0"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 whitespace-nowrap shrink-0 dark:bg-emerald-600 dark:hover:bg-emerald-500"
             >
               <Plus className="w-3.5 h-3.5" />
               Nova Tarefa
@@ -763,18 +763,18 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
         {inlineComposerOpen && (
           <form
             onSubmit={handleInlineCreateSubmit}
-            className="pt-3 border-t border-slate-200 space-y-3 text-xs"
+            className="pt-3 border-t border-slate-200 space-y-3 text-xs dark:border-slate-700"
           >
             <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-              <div className="flex-1 flex items-center gap-2 border-b-2 border-slate-300 focus-within:border-slate-900 pb-1 transition-colors">
-                <Plus className="w-4 h-4 text-slate-500 shrink-0" />
+              <div className="flex-1 flex items-center gap-2 border-b-2 border-slate-300 focus-within:border-slate-900 pb-1 transition-colors dark:border-slate-600">
+                <Plus className="w-4 h-4 text-slate-500 shrink-0 dark:text-slate-400" />
                 <input
                   ref={inlineTitleInputRef}
                   type="text"
                   value={inlineTitle}
                   onChange={(e) => setInlineTitle(e.target.value)}
                   placeholder="Escreva a nova tarefa aqui e pressione Enter para criar..."
-                  className="flex-1 bg-transparent py-1 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none"
+                  className="flex-1 bg-transparent py-1 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none dark:text-slate-100"
                 />
                 <button
                   type="button"
@@ -782,8 +782,8 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
                   title="Ditar tarefa por voz"
                   className={`p-1 rounded transition-colors shrink-0 ${
                     listeningVoice
-                      ? 'text-red-600 bg-red-50'
-                      : 'text-slate-400 hover:text-slate-700'
+                      ? 'text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-950/50'
+                      : 'text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
                   }`}
                 >
                   {listeningVoice ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
@@ -794,14 +794,14 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
                 <button
                   type="button"
                   onClick={resetInlineComposer}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={inlineBusy}
-                  className="rounded-lg bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                  className="rounded-lg bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
                 >
                   {inlineBusy ? 'Salvando...' : 'Adicionar Tarefa'}
                 </button>
@@ -816,7 +816,7 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
                   value={inlineDescription}
                   onChange={(e) => setInlineDescription(e.target.value)}
                   placeholder="Observação / instrução operacional (opcional)"
-                  className="w-full bg-transparent border-0 border-b border-slate-200 focus:border-slate-700 py-1 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none"
+                  className="w-full bg-transparent border-0 border-b border-slate-200 focus:border-slate-700 py-1 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none dark:border-slate-700 dark:text-slate-100"
                 />
               </div>
 
@@ -825,7 +825,7 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
                   value={inlineClientId}
                   onChange={(e) => setInlineClientId(e.target.value)}
                   aria-label="Cliente"
-                  className="w-full bg-transparent border-0 border-b border-slate-200 focus:border-slate-700 py-1 text-xs text-slate-800 focus:outline-none"
+                  className="w-full bg-transparent border-0 border-b border-slate-200 focus:border-slate-700 py-1 text-xs text-slate-800 focus:outline-none dark:border-slate-700 dark:text-slate-100"
                 >
                   <option value="">Cliente (Opcional)</option>
                   {clients.map((c) => (
@@ -841,7 +841,7 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
                   value={inlineCollaboratorId}
                   onChange={(e) => setInlineCollaboratorId(e.target.value)}
                   aria-label="Colaborador"
-                  className="w-full bg-transparent border-0 border-b border-slate-200 focus:border-slate-700 py-1 text-xs text-slate-800 focus:outline-none"
+                  className="w-full bg-transparent border-0 border-b border-slate-200 focus:border-slate-700 py-1 text-xs text-slate-800 focus:outline-none dark:border-slate-700 dark:text-slate-100"
                 >
                   <option value="">Coordenação direta</option>
                   {collaborators.map((c) => (
@@ -857,7 +857,7 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
                   value={inlineCriticality}
                   onChange={(e) => setInlineCriticality(e.target.value)}
                   aria-label="Criticidade"
-                  className="w-full bg-transparent border-0 border-b border-slate-200 focus:border-slate-700 py-1 text-xs text-slate-800 focus:outline-none"
+                  className="w-full bg-transparent border-0 border-b border-slate-200 focus:border-slate-700 py-1 text-xs text-slate-800 focus:outline-none dark:border-slate-700 dark:text-slate-100"
                 >
                   {CRITICALITY_OPTIONS.map((c) => (
                     <option key={c.value} value={c.value}>
@@ -870,7 +870,7 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
                   value={inlinePriority}
                   onChange={(e) => setInlinePriority(e.target.value)}
                   aria-label="Prioridade"
-                  className="w-full bg-transparent border-0 border-b border-slate-200 focus:border-slate-700 py-1 text-xs text-slate-800 focus:outline-none"
+                  className="w-full bg-transparent border-0 border-b border-slate-200 focus:border-slate-700 py-1 text-xs text-slate-800 focus:outline-none dark:border-slate-700 dark:text-slate-100"
                 >
                   {PRIORITY_OPTIONS.map((p) => (
                     <option key={p.value} value={p.value}>
@@ -886,32 +886,32 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
                   value={inlineDueAt}
                   onChange={(e) => setInlineDueAt(e.target.value)}
                   title="Prazo agendado"
-                  className="w-full bg-transparent border-0 border-b border-slate-200 focus:border-slate-700 py-1 text-xs font-mono text-slate-800 focus:outline-none"
+                  className="w-full bg-transparent border-0 border-b border-slate-200 focus:border-slate-700 py-1 text-xs font-mono text-slate-800 focus:outline-none dark:border-slate-700 dark:text-slate-100"
                 />
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600 dark:text-slate-300">
               <div className="flex items-center gap-3">
                 <input
                   type="text"
                   value={inlineProjectLabel}
                   onChange={(e) => setInlineProjectLabel(e.target.value)}
                   placeholder="Frente / Projeto..."
-                  className="bg-transparent border-0 border-b border-slate-200 focus:border-slate-700 py-0.5 text-[11px] text-slate-800 placeholder:text-slate-400 focus:outline-none w-44"
+                  className="bg-transparent border-0 border-b border-slate-200 focus:border-slate-700 py-0.5 text-[11px] text-slate-800 placeholder:text-slate-400 focus:outline-none w-44 dark:border-slate-700 dark:text-slate-100"
                 />
                 <label className="inline-flex items-center gap-1.5 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={inlineReviewIvi}
                     onChange={(e) => setInlineReviewIvi(e.target.checked)}
-                    className="rounded border-slate-300 text-blue-600"
+                    className="rounded border-slate-300 text-blue-600 dark:border-slate-600 dark:text-blue-400"
                   />
                   Revisar clareza com Ivi IA
                 </label>
               </div>
-              <span className="text-slate-400">
-                Vinculada ao usuário: <strong className="text-slate-700">{currentUser?.name || payload?.currentUserName || 'Coordenador'}</strong>
+              <span className="text-slate-400 dark:text-slate-400">
+                Vinculada ao usuário: <strong className="text-slate-700 dark:text-slate-200">{currentUser?.name || payload?.currentUserName || 'Coordenador'}</strong>
               </span>
             </div>
           </form>
@@ -919,8 +919,8 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
 
         {/* Barra Retrátil: Origem das Tarefas */}
         {originsOpen && (
-          <div className="pt-2.5 border-t border-slate-100 flex flex-wrap items-center gap-1.5 text-xs">
-            <span className="text-[11px] font-semibold text-slate-500 mr-1">Origem das tarefas:</span>
+          <div className="pt-2.5 border-t border-slate-100 flex flex-wrap items-center gap-1.5 text-xs dark:border-slate-800">
+            <span className="text-[11px] font-semibold text-slate-500 mr-1 dark:text-slate-400">Origem das tarefas:</span>
             {(
               [
                 { id: 'todas', label: 'Todas Visíveis' },
@@ -937,8 +937,8 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
                 onClick={() => setOriginFilter(opt.id)}
                 className={`rounded-md border px-2.5 py-1 text-xs font-semibold transition-colors ${
                   originFilter === opt.id
-                    ? 'border-slate-900 bg-slate-900 text-white'
-                    : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
+                    ? 'border-slate-900 bg-slate-900 text-white dark:border-emerald-500 dark:bg-emerald-600'
+                    : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-200 dark:hover:bg-slate-800'
                 }`}
               >
                 {opt.label}
@@ -949,11 +949,11 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
 
         {/* Painel Retrátil: Filtros */}
         {filtersOpen && (
-          <div className="pt-3 border-t border-slate-100 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 text-xs">
+          <div className="pt-3 border-t border-slate-100 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 text-xs dark:border-slate-800">
             <select
               value={filterStatusId}
               onChange={(e) => setFilterStatusId(e.target.value)}
-              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5"
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
             >
               <option value="">Status: Todos</option>
               {columns.map((c) => (
@@ -966,7 +966,7 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
             <select
               value={filterCriticality}
               onChange={(e) => setFilterCriticality(e.target.value)}
-              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5"
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
             >
               <option value="">Criticidade: Todas</option>
               {CRITICALITY_OPTIONS.map((c) => (
@@ -979,7 +979,7 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
             <select
               value={filterPriority}
               onChange={(e) => setFilterPriority(e.target.value)}
-              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5"
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
             >
               <option value="">Prioridade: Todas</option>
               {PRIORITY_OPTIONS.map((p) => (
@@ -992,7 +992,7 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
             <select
               value={filterClientId}
               onChange={(e) => setFilterClientId(e.target.value)}
-              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5"
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
             >
               <option value="">Cliente: Todos</option>
               {clients.map((c) => (
@@ -1005,7 +1005,7 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
             <select
               value={filterCollaboratorId}
               onChange={(e) => setFilterCollaboratorId(e.target.value)}
-              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5"
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
             >
               <option value="">Colaborador: Todos</option>
               {collaborators.map((c) => (
@@ -1020,7 +1020,7 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
               value={filterDueFrom}
               onChange={(e) => setFilterDueFrom(e.target.value)}
               title="Prazo De"
-              className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 font-mono"
+              className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 font-mono dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
             />
 
             <div className="flex items-center gap-1.5">
@@ -1029,12 +1029,12 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
                 value={filterDueTo}
                 onChange={(e) => setFilterDueTo(e.target.value)}
                 title="Prazo Até"
-                className="flex-1 min-w-0 rounded-lg border border-slate-200 bg-white px-2 py-1.5 font-mono"
+                className="flex-1 min-w-0 rounded-lg border border-slate-200 bg-white px-2 py-1.5 font-mono dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               />
               <button
                 type="button"
                 onClick={clearAllFilters}
-                className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-slate-100 whitespace-nowrap shrink-0"
+                className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-slate-100 whitespace-nowrap shrink-0 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 Limpar
               </button>
@@ -1045,15 +1045,15 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
 
       {/* STRIP DE SUGESTÕES PROATIVAS DA IVI PARA TAREFAS */}
       {iviSuggestOpen && (
-        <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-4 space-y-3">
+        <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-4 space-y-3 dark:border-blue-800/70 dark:bg-blue-950/50">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-blue-700 shrink-0" />
+              <Sparkles className="w-4 h-4 text-blue-700 shrink-0 dark:text-blue-300" />
               <div>
-                <h3 className="font-display text-sm font-bold text-slate-900">
+                <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                   Sugestões de Tarefas Ivi IA (Títulos Vencidos & Cancelamentos)
                 </h3>
-                <p className="text-xs text-slate-600">
+                <p className="text-xs text-slate-600 dark:text-slate-300">
                   Preencha o campo de criação em linha com 1 clique e confirme.
                 </p>
               </div>
@@ -1061,26 +1061,26 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
             <button
               type="button"
               onClick={() => setIviSuggestOpen(false)}
-              className="p-1 rounded text-slate-500 hover:bg-blue-100"
+              className="p-1 rounded text-slate-500 hover:bg-blue-100 dark:text-slate-400 dark:hover:bg-blue-900/60"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
           {iviSuggestBusy ? (
-            <p className="text-xs text-slate-500">Ivi analisando títulos vencidos e solicitações de cancelamento...</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Ivi analisando títulos vencidos e solicitações de cancelamento...</p>
           ) : iviSuggestions.length === 0 ? (
-            <p className="text-xs text-slate-500">Nenhuma pendência crítica nova sugerida no momento.</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Nenhuma pendência crítica nova sugerida no momento.</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
               {iviSuggestions.map((sug, i) => (
                 <div
                   key={i}
-                  className="rounded-lg border border-blue-200 bg-white p-3 flex items-start justify-between gap-3"
+                  className="rounded-lg border border-blue-200 bg-white p-3 flex items-start justify-between gap-3 dark:border-blue-800/70 dark:bg-slate-900"
                 >
                   <div className="min-w-0">
-                    <p className="text-xs font-bold text-slate-900">{sug.title}</p>
-                    <p className="text-[11px] text-slate-600 mt-1 line-clamp-2">{sug.description}</p>
+                    <p className="text-xs font-bold text-slate-900 dark:text-slate-100">{sug.title}</p>
+                    <p className="text-[11px] text-slate-600 mt-1 line-clamp-2 dark:text-slate-300">{sug.description}</p>
                   </div>
                   <button
                     type="button"
@@ -1107,7 +1107,7 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
       )}
 
       {loading && !payload ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-xs text-slate-500">
+        <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
           Carregando painel de tarefas da coordenação...
         </div>
       ) : (
@@ -1116,12 +1116,12 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
         /* ================================================================= */
         <div className="space-y-3">
           {/* Navegação Semanal */}
-          <div className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs dark:border-slate-700 dark:bg-slate-900">
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
                 onClick={() => setWeekMonday((d) => addDays(d, -7))}
-                className="rounded-lg border border-slate-200 px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 inline-flex items-center gap-1"
+                className="rounded-lg border border-slate-200 px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 inline-flex items-center gap-1 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 <ChevronLeft className="w-3.5 h-3.5" />
                 Anterior
@@ -1129,14 +1129,14 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
               <button
                 type="button"
                 onClick={() => setWeekMonday(startOfWeekMonday(new Date()))}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-800 hover:bg-slate-50"
+                className="rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-800 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
               >
                 Hoje
               </button>
               <button
                 type="button"
                 onClick={() => setWeekMonday((d) => addDays(d, 7))}
-                className="rounded-lg border border-slate-200 px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 inline-flex items-center gap-1"
+                className="rounded-lg border border-slate-200 px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 inline-flex items-center gap-1 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 Próxima
                 <ChevronRight className="w-3.5 h-3.5" />
@@ -1144,13 +1144,13 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
             </div>
 
             <div className="flex items-center gap-3">
-              <span className="inline-flex items-center gap-1.5 text-[11px] text-slate-500">
-                <Calendar className="w-3.5 h-3.5 text-slate-400" />
+              <span className="inline-flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                <Calendar className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
                 {draggingTaskId
                   ? 'Solte o card no dia da semana desejado'
                   : 'Arraste os cards pendentes com o mouse para mover entre os dias'}
               </span>
-              <div className="font-mono font-bold text-slate-800 tabular-nums">
+              <div className="font-mono font-bold text-slate-800 tabular-nums dark:text-slate-100">
                 Semana: {weekLabel}
               </div>
             </div>
@@ -1159,7 +1159,7 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
               <button
                 type="button"
                 onClick={() => setFocusedDayYmd(null)}
-                className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 font-semibold text-blue-800 hover:bg-blue-100 inline-flex items-center gap-1"
+                className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 font-semibold text-blue-800 hover:bg-blue-100 inline-flex items-center gap-1 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300 dark:hover:bg-blue-900/60"
               >
                 <Minimize2 className="w-3.5 h-3.5" />
                 Mostrar semana inteira
@@ -1205,15 +1205,15 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
                       }}
                       className={`flex-1 min-w-[168px] rounded-xl border p-2.5 flex flex-col gap-2 transition-all ${
                         isDropHovered
-                          ? 'border-blue-500 ring-2 ring-blue-200 bg-blue-50/60'
+                          ? 'border-blue-500 ring-2 ring-blue-200 bg-blue-50/60 dark:bg-blue-950/50'
                           : isToday
-                          ? 'border-blue-300 bg-blue-50/30'
-                          : 'border-slate-200 bg-white'
+                          ? 'border-blue-300 bg-blue-50/30 dark:border-blue-800/70 dark:bg-blue-950/50'
+                          : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900'
                       }`}
                     >
-                      <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+                      <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-slate-800">
                         <div>
-                          <p className={`text-xs font-bold ${isToday ? 'text-blue-800' : 'text-slate-900'}`}>
+                          <p className={`text-xs font-bold ${isToday ? 'text-blue-800 dark:text-blue-300' : 'text-slate-900 dark:text-slate-100'}`}>
                             {wd.label} · <span className="font-mono tabular-nums">{wd.shortDate}</span>
                           </p>
                         </div>
@@ -1224,7 +1224,7 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
                               setFocusedDayYmd((cur) => (cur === wd.ymd ? null : wd.ymd))
                             }
                             title="Expandir dia"
-                            className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                            className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800"
                           >
                             <Maximize2 className="w-3 h-3" />
                           </button>
@@ -1232,7 +1232,7 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
                             type="button"
                             onClick={() => openInlineComposer({ dueAt: `${wd.ymd}T09:00` })}
                             title="Criar tarefa neste dia"
-                            className="p-1 rounded border border-slate-200 text-slate-700 hover:bg-slate-50"
+                            className="p-1 rounded border border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                           >
                             <Plus className="w-3 h-3" />
                           </button>
@@ -1241,7 +1241,7 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
 
                       <div className="space-y-2 flex-1 min-h-[210px]">
                         {isDropHovered && (
-                          <div className="rounded-lg border border-dashed border-blue-400 bg-blue-100/60 py-1.5 text-center text-[11px] font-semibold text-blue-800 pointer-events-none">
+                          <div className="rounded-lg border border-dashed border-blue-400 bg-blue-100/60 py-1.5 text-center text-[11px] font-semibold text-blue-800 pointer-events-none dark:text-blue-300">
                             Soltar em {wd.label} ({wd.shortDate})
                           </div>
                         )}
@@ -1270,7 +1270,7 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
                               <div className="flex items-center justify-between gap-1 text-[10px]">
                                 <div className="flex items-center gap-1 min-w-0">
                                   {canDrag && (
-                                    <GripVertical className="w-3 h-3 text-slate-400 shrink-0" />
+                                    <GripVertical className="w-3 h-3 text-slate-400 shrink-0 dark:text-slate-400" />
                                   )}
                                   <span className={`font-semibold truncate ${critMeta.textClass}`}>
                                     {critMeta.label}
@@ -1284,27 +1284,27 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
                               <p
                                 className={`mt-1 text-[11px] font-bold line-clamp-2 ${
                                   bucket === 'CONCLUIDO' || bucket === 'CANCELADO'
-                                    ? 'line-through text-slate-500'
-                                    : 'text-slate-900'
+                                    ? 'line-through text-slate-500 dark:text-slate-400'
+                                    : 'text-slate-900 dark:text-slate-100'
                                 }`}
                               >
                                 {task.title}
                               </p>
 
                               {task.clientName && (
-                                <p className="text-[10px] text-slate-500 truncate mt-0.5">
+                                <p className="text-[10px] text-slate-500 truncate mt-0.5 dark:text-slate-400">
                                   {task.clientName}
                                 </p>
                               )}
 
                               {bucket === 'PAUSADO' && task.blockingReason && (
-                                <p className="text-[10px] text-amber-800 truncate mt-0.5">
+                                <p className="text-[10px] text-amber-800 truncate mt-0.5 dark:text-amber-300">
                                   Motivo: {task.blockingReason}
                                 </p>
                               )}
 
                               {bucket === 'CANCELADO' && task.occurrenceNotes && (
-                                <p className="text-[10px] text-red-700 truncate mt-0.5">
+                                <p className="text-[10px] text-red-700 truncate mt-0.5 dark:text-red-300">
                                   {task.occurrenceNotes.split('\n').pop()}
                                 </p>
                               )}
@@ -1314,7 +1314,7 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
                                 onClick={(e) => e.stopPropagation()}
                                 onMouseDown={(e) => e.stopPropagation()}
                               >
-                                <span className="inline-flex items-center gap-1 font-mono text-slate-600 tabular-nums">
+                                <span className="inline-flex items-center gap-1 font-mono text-slate-600 tabular-nums dark:text-slate-300">
                                   <Clock className="w-2.5 h-2.5" />
                                   {formatStopwatchHHMMSS(liveSec)}
                                 </span>
@@ -1329,8 +1329,8 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
                                           title={task.timerRunningSince ? 'Pausar cronômetro' : 'Iniciar cronômetro'}
                                           className={`p-1 rounded border ${
                                             task.timerRunningSince
-                                              ? 'border-amber-300 bg-amber-600 text-white'
-                                              : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
+                                              ? 'border-amber-300 bg-amber-600 text-white dark:border-amber-800/70'
+                                              : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
                                           }`}
                                         >
                                           {task.timerRunningSince ? (
@@ -1345,7 +1345,7 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
                                         draggable={false}
                                         onClick={() => setClosureState({ task, targetColumnId: null })}
                                         title="Concluir tarefa"
-                                        className="p-1 rounded border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                                        className="p-1 rounded border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
                                       >
                                         <CheckCircle2 className="w-2.5 h-2.5" />
                                       </button>
@@ -1354,7 +1354,7 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
                                         draggable={false}
                                         onClick={() => setStatusTransitionState({ task, mode: 'PAUSADO' })}
                                         title="Pausar tarefa"
-                                        className="p-1 rounded border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                                        className="p-1 rounded border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-800/70 dark:bg-amber-950/50 dark:text-amber-300 dark:hover:bg-amber-900/60"
                                       >
                                         <Pause className="w-2.5 h-2.5" />
                                       </button>
@@ -1363,7 +1363,7 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
                                         draggable={false}
                                         onClick={() => setStatusTransitionState({ task, mode: 'CANCELADO' })}
                                         title="Cancelar tarefa"
-                                        className="p-1 rounded border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                                        className="p-1 rounded border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300 dark:hover:bg-red-900/60"
                                       >
                                         <Ban className="w-2.5 h-2.5" />
                                       </button>
@@ -1375,7 +1375,7 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
                                       draggable={false}
                                       onClick={() => void handleResumeToPending(task)}
                                       title="Retomar tarefa para Pendente"
-                                      className="p-1 rounded border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                                      className="p-1 rounded border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300 dark:hover:bg-blue-900/60"
                                     >
                                       <RotateCcw className="w-2.5 h-2.5" />
                                     </button>
@@ -1386,7 +1386,7 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
                                       draggable={false}
                                       onClick={() => setShareTaskId(task.id)}
                                       title="Compartilhar com outro coordenador"
-                                      className="p-1 rounded border border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
+                                      className="p-1 rounded border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                                     >
                                       <Share2 className="w-2.5 h-2.5" />
                                     </button>
@@ -1426,17 +1426,17 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
                   }}
                   className={`w-[200px] shrink-0 rounded-xl border border-dashed p-2.5 flex flex-col gap-2 transition-all ${
                     dragOverTarget === 'SEM_DATA'
-                      ? 'border-blue-500 ring-2 ring-blue-200 bg-blue-50/60'
-                      : 'border-slate-300 bg-slate-50'
+                      ? 'border-blue-500 ring-2 ring-blue-200 bg-blue-50/60 dark:bg-blue-950/50'
+                      : 'border-slate-300 bg-slate-50 dark:border-slate-600 dark:bg-slate-800/70'
                   }`}
                 >
-                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
-                    <p className="text-xs font-bold text-slate-700">Sem data</p>
+                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-200 dark:border-slate-700">
+                    <p className="text-xs font-bold text-slate-700 dark:text-slate-200">Sem data</p>
                     <button
                       type="button"
                       onClick={() => openInlineComposer({ dueAt: '' })}
                       title="Criar tarefa sem data"
-                      className="p-1 rounded border border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
+                      className="p-1 rounded border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                     >
                       <Plus className="w-3 h-3" />
                     </button>
@@ -1444,7 +1444,7 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
 
                   <div className="space-y-2 flex-1 min-h-[210px]">
                     {dragOverTarget === 'SEM_DATA' && (
-                      <div className="rounded-lg border border-dashed border-blue-400 bg-blue-100/60 py-1.5 text-center text-[11px] font-semibold text-blue-800 pointer-events-none">
+                      <div className="rounded-lg border border-dashed border-blue-400 bg-blue-100/60 py-1.5 text-center text-[11px] font-semibold text-blue-800 pointer-events-none dark:text-blue-300">
                         Mover para Sem data
                       </div>
                     )}
@@ -1469,7 +1469,7 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
                           >
                             <div className="flex items-center justify-between gap-1 text-[10px]">
                               <div className="flex items-center gap-1 min-w-0">
-                                {canDrag && <GripVertical className="w-3 h-3 text-slate-400 shrink-0" />}
+                                {canDrag && <GripVertical className="w-3 h-3 text-slate-400 shrink-0 dark:text-slate-400" />}
                                 <span className={`font-semibold truncate ${critMeta.textClass}`}>
                                   {critMeta.label}
                                 </span>
@@ -1481,19 +1481,19 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
                             <p
                               className={`mt-1 text-[11px] font-bold line-clamp-2 ${
                                 bucket === 'CONCLUIDO' || bucket === 'CANCELADO'
-                                  ? 'line-through text-slate-500'
-                                  : 'text-slate-900'
+                                  ? 'line-through text-slate-500 dark:text-slate-400'
+                                  : 'text-slate-900 dark:text-slate-100'
                               }`}
                             >
                               {task.title}
                             </p>
                             {task.clientName && (
-                              <p className="text-[10px] text-slate-500 truncate mt-0.5">
+                              <p className="text-[10px] text-slate-500 truncate mt-0.5 dark:text-slate-400">
                                 {task.clientName}
                               </p>
                             )}
                             <div
-                              className="flex items-center justify-between mt-2 pt-1.5 border-t border-slate-200/70 text-[10px] text-slate-400"
+                              className="flex items-center justify-between mt-2 pt-1.5 border-t border-slate-200/70 text-[10px] text-slate-400 dark:text-slate-400"
                               onClick={(e) => e.stopPropagation()}
                               onMouseDown={(e) => e.stopPropagation()}
                             >
@@ -1506,7 +1506,7 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
                                       draggable={false}
                                       onClick={() => setClosureState({ task, targetColumnId: null })}
                                       title="Concluir tarefa"
-                                      className="p-1 rounded border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                                      className="p-1 rounded border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
                                     >
                                       <CheckCircle2 className="w-2.5 h-2.5" />
                                     </button>
@@ -1515,7 +1515,7 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
                                       draggable={false}
                                       onClick={() => setStatusTransitionState({ task, mode: 'PAUSADO' })}
                                       title="Pausar tarefa"
-                                      className="p-1 rounded border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                                      className="p-1 rounded border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-800/70 dark:bg-amber-950/50 dark:text-amber-300 dark:hover:bg-amber-900/60"
                                     >
                                       <Pause className="w-2.5 h-2.5" />
                                     </button>
@@ -1524,7 +1524,7 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
                                       draggable={false}
                                       onClick={() => setStatusTransitionState({ task, mode: 'CANCELADO' })}
                                       title="Cancelar tarefa"
-                                      className="p-1 rounded border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                                      className="p-1 rounded border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300 dark:hover:bg-red-900/60"
                                     >
                                       <Ban className="w-2.5 h-2.5" />
                                     </button>
@@ -1536,7 +1536,7 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
                                     draggable={false}
                                     onClick={() => void handleResumeToPending(task)}
                                     title="Retomar tarefa para Pendente"
-                                    className="p-1 rounded border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                                    className="p-1 rounded border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300 dark:hover:bg-blue-900/60"
                                   >
                                     <RotateCcw className="w-2.5 h-2.5" />
                                   </button>
@@ -1547,7 +1547,7 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
                                     draggable={false}
                                     onClick={() => setShareTaskId(task.id)}
                                     title="Compartilhar"
-                                    className="p-1 rounded border border-slate-200 bg-white text-slate-600 hover:text-slate-900"
+                                    className="p-1 rounded border border-slate-200 bg-white text-slate-600 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:text-white"
                                   >
                                     <Share2 className="w-2.5 h-2.5" />
                                   </button>

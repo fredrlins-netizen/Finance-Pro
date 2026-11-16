@@ -110,12 +110,12 @@ export const CommercialPipelineContainer: React.FC<CommercialPipelineContainerPr
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-slate-200 bg-white p-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 flex flex-wrap items-center justify-between gap-3 dark:border-slate-700 dark:bg-slate-900">
         <div>
-          <h2 className="font-display text-sm font-bold text-slate-900">
+          <h2 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
             Pipeline Comercial de Oportunidades & Conversão Bancária
           </h2>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             Acompanhe propostas da triagem até o fechamento com conversão direta para Negociação Financeira
           </p>
         </div>
@@ -137,7 +137,7 @@ export const CommercialPipelineContainer: React.FC<CommercialPipelineContainerPr
           const stageVolumeCents = stageDeals.reduce((s, d) => s + (d.debtValueCents || 0), 0);
 
           return (
-            <div key={st.key} className="rounded-xl border border-slate-200 bg-white flex flex-col min-h-[380px]">
+            <div key={st.key} className="rounded-xl border border-slate-200 bg-white flex flex-col min-h-[380px] dark:border-slate-700 dark:bg-slate-900">
               <div className={`rounded-t-xl border-b px-3.5 py-2.5 flex items-center justify-between ${st.headerClass}`}>
                 <div>
                   <div className="text-xs font-bold">{st.label}</div>
@@ -150,24 +150,24 @@ export const CommercialPipelineContainer: React.FC<CommercialPipelineContainerPr
 
               <div className="p-2.5 space-y-2.5 flex-1 bg-slate-50/40">
                 {stageDeals.length === 0 ? (
-                  <div className="py-10 text-center text-[11px] text-slate-400">
+                  <div className="py-10 text-center text-[11px] text-slate-400 dark:text-slate-400">
                     Nenhuma oportunidade nesta etapa
                   </div>
                 ) : (
                   stageDeals.map((deal) => (
                     <div
                       key={deal.id}
-                      className="rounded-lg border border-slate-200 bg-white p-3 space-y-2"
+                      className="rounded-lg border border-slate-200 bg-white p-3 space-y-2 dark:border-slate-700 dark:bg-slate-900"
                     >
-                      <div className="text-xs font-bold text-slate-900">{deal.clientName}</div>
-                      <div className="text-[11px] text-slate-500">
+                      <div className="text-xs font-bold text-slate-900 dark:text-slate-100">{deal.clientName}</div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">
                         {deal.bankName} · {deal.collaboratorName}
                       </div>
 
-                      <div className="flex items-center justify-between text-[11px] font-mono tabular-nums pt-1 border-t border-slate-100">
-                        <span className="text-slate-600">{formatBRL(deal.debtValueCents)}</span>
+                      <div className="flex items-center justify-between text-[11px] font-mono tabular-nums pt-1 border-t border-slate-100 dark:border-slate-800">
+                        <span className="text-slate-600 dark:text-slate-300">{formatBRL(deal.debtValueCents)}</span>
                         {deal.proposedValueCents ? (
-                          <span className="font-bold text-emerald-700">
+                          <span className="font-bold text-emerald-700 dark:text-emerald-300">
                             Prop: {formatBRL(deal.proposedValueCents)}
                           </span>
                         ) : null}
@@ -178,7 +178,7 @@ export const CommercialPipelineContainer: React.FC<CommercialPipelineContainerPr
                           disabled={busyId === deal.id}
                           value={String(deal.stage).toUpperCase()}
                           onChange={(e) => void handleMoveDealStage(deal.id, e.target.value as CommercialStage)}
-                          className="rounded border border-slate-300 bg-slate-50 px-1.5 py-1 text-[10px] font-semibold text-slate-700 max-w-[120px]"
+                          className="rounded border border-slate-300 bg-slate-50 px-1.5 py-1 text-[10px] font-semibold text-slate-700 max-w-[120px] dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-200"
                         >
                           {COMMERCIAL_STAGES.map((opt) => (
                             <option key={opt.key} value={opt.key}>
@@ -192,7 +192,7 @@ export const CommercialPipelineContainer: React.FC<CommercialPipelineContainerPr
                             type="button"
                             disabled={busyId === deal.id}
                             onClick={() => void handleConvertDealToNegotiation(deal.id)}
-                            className="inline-flex items-center gap-1 rounded bg-slate-900 px-2 py-1 text-[10px] font-semibold text-white hover:bg-slate-800 whitespace-nowrap disabled:opacity-50"
+                            className="inline-flex items-center gap-1 rounded bg-slate-900 px-2 py-1 text-[10px] font-semibold text-white hover:bg-slate-800 whitespace-nowrap disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
                           >
                             {busyId === deal.id ? (
                               <RefreshCw className="w-2.5 h-2.5 animate-spin" />
@@ -206,7 +206,7 @@ export const CommercialPipelineContainer: React.FC<CommercialPipelineContainerPr
                           <button
                             type="button"
                             onClick={() => onConverted(deal.convertedNegotiationId!)}
-                            className="text-[10px] font-semibold text-emerald-700 hover:underline font-mono tabular-nums"
+                            className="text-[10px] font-semibold text-emerald-700 hover:underline font-mono tabular-nums dark:text-emerald-300"
                           >
                             Neg. #{deal.convertedNegotiationId}
                           </button>
@@ -223,14 +223,14 @@ export const CommercialPipelineContainer: React.FC<CommercialPipelineContainerPr
 
       {showNewDealModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80"
           onClick={() => setShowNewDealModal(false)}
         >
           <div
-            className="w-full max-w-lg rounded-xl border border-slate-200 bg-white shadow-2xl overflow-hidden"
+            className="w-full max-w-lg rounded-xl border border-slate-200 bg-white shadow-2xl overflow-hidden dark:border-slate-700 dark:bg-slate-900"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-900 px-5 py-3.5 text-white">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-900 px-5 py-3.5 text-white dark:border-slate-700 dark:bg-emerald-600">
               <h3 className="font-display text-sm font-bold">Nova Oportunidade Comercial</h3>
               <button
                 type="button"
@@ -242,12 +242,12 @@ export const CommercialPipelineContainer: React.FC<CommercialPipelineContainerPr
             </div>
             <form onSubmit={handleCreateCommercialDeal} className="p-5 space-y-3 text-xs">
               <div>
-                <label className="block text-[11px] font-bold uppercase text-slate-600 mb-1">Cliente *</label>
+                <label className="block text-[11px] font-bold uppercase text-slate-600 mb-1 dark:text-slate-300">Cliente *</label>
                 <select
                   required
                   value={dealClientId}
                   onChange={(e) => setDealClientId(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs bg-white"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs bg-white dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                 >
                   {clients.map((c) => (
                     <option key={c.id} value={String(c.id)}>
@@ -258,11 +258,11 @@ export const CommercialPipelineContainer: React.FC<CommercialPipelineContainerPr
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-bold uppercase text-slate-600 mb-1">Banco</label>
+                  <label className="block text-[11px] font-bold uppercase text-slate-600 mb-1 dark:text-slate-300">Banco</label>
                   <select
                     value={dealBankId}
                     onChange={(e) => setDealBankId(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs bg-white"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs bg-white dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                   >
                     {banks.map((b) => (
                       <option key={b.id} value={String(b.id)}>
@@ -272,11 +272,11 @@ export const CommercialPipelineContainer: React.FC<CommercialPipelineContainerPr
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold uppercase text-slate-600 mb-1">Responsável</label>
+                  <label className="block text-[11px] font-bold uppercase text-slate-600 mb-1 dark:text-slate-300">Responsável</label>
                   <select
                     value={dealCollabId}
                     onChange={(e) => setDealCollabId(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs bg-white"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs bg-white dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                   >
                     {collaborators.map((col) => (
                       <option key={col.id} value={String(col.id)}>
@@ -288,47 +288,47 @@ export const CommercialPipelineContainer: React.FC<CommercialPipelineContainerPr
               </div>
               <div className="grid grid-cols-3 gap-2.5">
                 <div>
-                  <label className="block text-[11px] font-bold uppercase text-slate-600 mb-1">Dívida (R$)</label>
+                  <label className="block text-[11px] font-bold uppercase text-slate-600 mb-1 dark:text-slate-300">Dívida (R$)</label>
                   <input
                     type="text"
                     value={dealDebtValue}
                     onChange={(e) => setDealDebtValue(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-2.5 py-2 font-mono text-xs"
+                    className="w-full rounded-lg border border-slate-300 px-2.5 py-2 font-mono text-xs dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold uppercase text-slate-600 mb-1">Proposta (R$)</label>
+                  <label className="block text-[11px] font-bold uppercase text-slate-600 mb-1 dark:text-slate-300">Proposta (R$)</label>
                   <input
                     type="text"
                     value={dealProposedValue}
                     onChange={(e) => setDealProposedValue(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-2.5 py-2 font-mono text-xs"
+                    className="w-full rounded-lg border border-slate-300 px-2.5 py-2 font-mono text-xs dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold uppercase text-slate-600 mb-1">Desc. (%)</label>
+                  <label className="block text-[11px] font-bold uppercase text-slate-600 mb-1 dark:text-slate-300">Desc. (%)</label>
                   <input
                     type="text"
                     value={dealDiscountPct}
                     onChange={(e) => setDealDiscountPct(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-2.5 py-2 font-mono text-xs"
+                    className="w-full rounded-lg border border-slate-300 px-2.5 py-2 font-mono text-xs dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-[11px] font-bold uppercase text-slate-600 mb-1">Observações</label>
+                <label className="block text-[11px] font-bold uppercase text-slate-600 mb-1 dark:text-slate-300">Observações</label>
                 <textarea
                   rows={2}
                   value={dealNotes}
                   onChange={(e) => setDealNotes(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowNewDealModal(false)}
-                  className="rounded-lg border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700"
+                  className="rounded-lg border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 dark:border-slate-600 dark:text-slate-200"
                 >
                   Cancelar
                 </button>

@@ -277,13 +277,13 @@ export const ReportDataSourceTab: React.FC<ReportDataSourceTabProps> = ({
   return (
     <div className="space-y-4">
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3">
-        <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+        <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-700 dark:bg-slate-800/70">
           <button
             type="button"
             onClick={() => setMode('sql')}
             className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-              mode === 'sql' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+              mode === 'sql' ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-slate-100' : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
             }`}
           >
             <Code2 className="w-3.5 h-3.5" />
@@ -293,7 +293,7 @@ export const ReportDataSourceTab: React.FC<ReportDataSourceTabProps> = ({
             type="button"
             onClick={() => setMode('visual')}
             className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-              mode === 'visual' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+              mode === 'visual' ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-slate-100' : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
             }`}
           >
             <Wand2 className="w-3.5 h-3.5" />
@@ -304,7 +304,7 @@ export const ReportDataSourceTab: React.FC<ReportDataSourceTabProps> = ({
         <div className="flex flex-wrap items-center gap-2">
           {history.length > 0 && (
             <div className="flex items-center gap-1.5">
-              <History className="w-3.5 h-3.5 text-slate-400" />
+              <History className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
               <select
                 value={selectedHistoryId}
                 onChange={(e) => {
@@ -316,7 +316,7 @@ export const ReportDataSourceTab: React.FC<ReportDataSourceTabProps> = ({
                     setMode('sql');
                   }
                 }}
-                className="max-w-[230px] rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700"
+                className="max-w-[230px] rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
               >
                 <option value="">Histórico SQL ({history.length})</option>
                 {history.map((h) => (
@@ -332,7 +332,7 @@ export const ReportDataSourceTab: React.FC<ReportDataSourceTabProps> = ({
             type="button"
             disabled={testing}
             onClick={() => void runPreview()}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
           >
             {testing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
             Testar Consulta (Preview)
@@ -344,18 +344,18 @@ export const ReportDataSourceTab: React.FC<ReportDataSourceTabProps> = ({
       {mode === 'visual' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           {/* Schema Explorer */}
-          <div className="lg:col-span-5 rounded-xl border border-slate-200 bg-white p-3.5 space-y-3">
+          <div className="lg:col-span-5 rounded-xl border border-slate-200 bg-white p-3.5 space-y-3 dark:border-slate-700 dark:bg-slate-900">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Database className="w-4 h-4 text-blue-600" />
-                <h4 className="text-xs font-bold uppercase tracking-wide text-slate-800">
+                <Database className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <h4 className="text-xs font-bold uppercase tracking-wide text-slate-800 dark:text-slate-100">
                   Schema Explorer (public)
                 </h4>
               </div>
               <button
                 type="button"
                 onClick={() => void loadTables()}
-                className="text-xs text-slate-500 hover:text-slate-800 inline-flex items-center gap-1"
+                className="text-xs text-slate-500 hover:text-slate-800 inline-flex items-center gap-1 dark:text-slate-400 dark:hover:text-white"
               >
                 <RefreshCw className={`w-3 h-3 ${loadingSchema ? 'animate-spin' : ''}`} />
                 Atualizar
@@ -363,13 +363,13 @@ export const ReportDataSourceTab: React.FC<ReportDataSourceTabProps> = ({
             </div>
 
             <div className="relative">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5 dark:text-slate-400" />
               <input
                 type="text"
                 value={tableSearch}
                 onChange={(e) => setTableSearch(e.target.value)}
                 placeholder="Filtrar tabelas (ex: clients, admissions...)"
-                className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-1.5 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
+                className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-1.5 text-xs text-slate-800 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:text-slate-100"
               />
             </div>
 
@@ -381,29 +381,29 @@ export const ReportDataSourceTab: React.FC<ReportDataSourceTabProps> = ({
                   <div
                     key={tbl.table_name}
                     className={`rounded-lg border ${
-                      isSelected ? 'border-blue-300 bg-blue-50/40' : 'border-slate-200 bg-white'
+                      isSelected ? 'border-blue-300 bg-blue-50/40 dark:border-blue-800/70 dark:bg-blue-950/50' : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900'
                     }`}
                   >
                     <label className="flex items-center justify-between px-2.5 py-2 cursor-pointer">
-                      <span className="flex items-center gap-2 text-xs font-semibold text-slate-800">
+                      <span className="flex items-center gap-2 text-xs font-semibold text-slate-800 dark:text-slate-100">
                         <input
                           type="checkbox"
                           checked={isSelected}
                           onChange={() => toggleTable(tbl.table_name)}
-                          className="rounded border-slate-300 text-blue-600"
+                          className="rounded border-slate-300 text-blue-600 dark:border-slate-600 dark:text-blue-400"
                         />
-                        <Table2 className="w-3.5 h-3.5 text-slate-500" />
+                        <Table2 className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                         <span className="font-mono">{tbl.table_name}</span>
                       </span>
-                      <span className="text-[11px] text-slate-400">
+                      <span className="text-[11px] text-slate-400 dark:text-slate-400">
                         {tbl.table_type === 'VIEW' ? 'VIEW' : 'TABELA'}
                       </span>
                     </label>
 
                     {isSelected && cols.length > 0 && (
-                      <div className="border-t border-slate-200/80 px-2.5 py-2 space-y-1 max-h-48 overflow-y-auto bg-white rounded-b-lg">
+                      <div className="border-t border-slate-200/80 px-2.5 py-2 space-y-1 max-h-48 overflow-y-auto bg-white rounded-b-lg dark:bg-slate-900">
                         <div className="flex items-center justify-between pb-1">
-                          <span className="text-[11px] font-medium text-slate-500">
+                          <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
                             Colunas ({cols.length})
                           </span>
                           <button
@@ -418,7 +418,7 @@ export const ReportDataSourceTab: React.FC<ReportDataSourceTabProps> = ({
                                 return allChecked ? others : [...others, ...tableCols];
                               });
                             }}
-                            className="text-[11px] font-semibold text-blue-600 hover:underline"
+                            className="text-[11px] font-semibold text-blue-600 hover:underline dark:text-blue-400"
                           >
                             Marcar/Desmarcar todas
                           </button>
@@ -430,18 +430,18 @@ export const ReportDataSourceTab: React.FC<ReportDataSourceTabProps> = ({
                           return (
                             <label
                               key={col.column_name}
-                              className="flex items-center justify-between text-xs py-0.5 cursor-pointer hover:bg-slate-50 px-1 rounded"
+                              className="flex items-center justify-between text-xs py-0.5 cursor-pointer hover:bg-slate-50 px-1 rounded dark:hover:bg-slate-800"
                             >
-                              <span className="flex items-center gap-1.5 text-slate-700 font-mono text-[11px]">
+                              <span className="flex items-center gap-1.5 text-slate-700 font-mono text-[11px] dark:text-slate-200">
                                 <input
                                   type="checkbox"
                                   checked={checked}
                                   onChange={() => toggleColumn(tbl.table_name, col.column_name)}
-                                  className="rounded border-slate-300 text-blue-600"
+                                  className="rounded border-slate-300 text-blue-600 dark:border-slate-600 dark:text-blue-400"
                                 />
                                 {col.column_name}
                               </span>
-                              <span className="text-[10px] text-slate-400">{col.data_type}</span>
+                              <span className="text-[10px] text-slate-400 dark:text-slate-400">{col.data_type}</span>
                             </label>
                           );
                         })}
@@ -456,19 +456,19 @@ export const ReportDataSourceTab: React.FC<ReportDataSourceTabProps> = ({
           {/* Joins, Filters, Ordering & Generated SQL */}
           <div className="lg:col-span-7 space-y-3">
             {/* JOINs */}
-            <div className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-2.5">
+            <div className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-2.5 dark:border-slate-700 dark:bg-slate-900">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h4 className="text-xs font-bold uppercase tracking-wide text-slate-800 flex items-center gap-1.5">
-                  <Link2 className="w-3.5 h-3.5 text-blue-600" />
+                <h4 className="text-xs font-bold uppercase tracking-wide text-slate-800 flex items-center gap-1.5 dark:text-slate-100">
+                  <Link2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                   Relacionamentos (JOIN)
                 </h4>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={suggestJoinsFromFk}
-                    className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
+                    className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-200 dark:hover:bg-slate-800"
                   >
-                    <Sparkles className="w-3 h-3 text-blue-600" />
+                    <Sparkles className="w-3 h-3 text-blue-600 dark:text-blue-400" />
                     Sugerir via FK
                   </button>
                   <button
@@ -487,7 +487,7 @@ export const ReportDataSourceTab: React.FC<ReportDataSourceTabProps> = ({
                         },
                       ])
                     }
-                    className="inline-flex items-center gap-1 rounded-md bg-slate-900 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-slate-800 disabled:opacity-40"
+                    className="inline-flex items-center gap-1 rounded-md bg-slate-900 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-slate-800 disabled:opacity-40 dark:bg-emerald-600 dark:hover:bg-emerald-500"
                   >
                     <Plus className="w-3 h-3" />
                     JOIN
@@ -496,7 +496,7 @@ export const ReportDataSourceTab: React.FC<ReportDataSourceTabProps> = ({
               </div>
 
               {joins.length === 0 ? (
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   Selecione 2 ou mais tabelas para configurar JOINs manuais ou automáticos via chave estrangeira.
                 </p>
               ) : (
@@ -510,7 +510,7 @@ export const ReportDataSourceTab: React.FC<ReportDataSourceTabProps> = ({
                             prev.map((x) => (x.id === j.id ? { ...x, joinType: e.target.value as any } : x))
                           )
                         }
-                        className="rounded border border-slate-200 px-2 py-1 text-xs"
+                        className="rounded border border-slate-200 px-2 py-1 text-xs dark:border-slate-700"
                       >
                         <option value="INNER JOIN">INNER JOIN</option>
                         <option value="LEFT JOIN">LEFT JOIN</option>
@@ -525,7 +525,7 @@ export const ReportDataSourceTab: React.FC<ReportDataSourceTabProps> = ({
                             prev.map((x) => (x.id === j.id ? { ...x, leftTable: lt, leftColumn: lc } : x))
                           );
                         }}
-                        className="md:col-span-2 rounded border border-slate-200 px-2 py-1 text-xs font-mono"
+                        className="md:col-span-2 rounded border border-slate-200 px-2 py-1 text-xs font-mono dark:border-slate-700"
                       >
                         {allSelectedTableFields.map((f) => (
                           <option key={f} value={f}>
@@ -541,7 +541,7 @@ export const ReportDataSourceTab: React.FC<ReportDataSourceTabProps> = ({
                             prev.map((x) => (x.id === j.id ? { ...x, rightTable: rt, rightColumn: rc } : x))
                           );
                         }}
-                        className="md:col-span-2 rounded border border-slate-200 px-2 py-1 text-xs font-mono"
+                        className="md:col-span-2 rounded border border-slate-200 px-2 py-1 text-xs font-mono dark:border-slate-700"
                       >
                         {allSelectedTableFields.map((f) => (
                           <option key={f} value={f}>
@@ -552,7 +552,7 @@ export const ReportDataSourceTab: React.FC<ReportDataSourceTabProps> = ({
                       <button
                         type="button"
                         onClick={() => setJoins((prev) => prev.filter((x) => x.id !== j.id))}
-                        className="inline-flex justify-center rounded border border-slate-200 p-1.5 text-slate-400 hover:text-red-600"
+                        className="inline-flex justify-center rounded border border-slate-200 p-1.5 text-slate-400 hover:text-red-600 dark:border-slate-700 dark:text-slate-400"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -563,9 +563,9 @@ export const ReportDataSourceTab: React.FC<ReportDataSourceTabProps> = ({
             </div>
 
             {/* WHERE */}
-            <div className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-2.5">
+            <div className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-2.5 dark:border-slate-700 dark:bg-slate-900">
               <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold uppercase tracking-wide text-slate-800">
+                <h4 className="text-xs font-bold uppercase tracking-wide text-slate-800 dark:text-slate-100">
                   Condições (WHERE)
                 </h4>
                 <button
@@ -583,15 +583,15 @@ export const ReportDataSourceTab: React.FC<ReportDataSourceTabProps> = ({
                       },
                     ])
                   }
-                  className="inline-flex items-center gap-1 rounded-md bg-slate-900 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-slate-800 disabled:opacity-40"
+                  className="inline-flex items-center gap-1 rounded-md bg-slate-900 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-slate-800 disabled:opacity-40 dark:bg-emerald-600 dark:hover:bg-emerald-500"
                 >
                   <Plus className="w-3 h-3" />
                   Condição
                 </button>
               </div>
               {wheres.length === 0 ? (
-                <p className="text-xs text-slate-500">
-                  Use <code className="bg-slate-100 px-1 rounded">{'{{nome_filtro}}'}</code> no valor para criar filtros dinâmicos parametrizados.
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Use <code className="bg-slate-100 px-1 rounded dark:bg-slate-800">{'{{nome_filtro}}'}</code> no valor para criar filtros dinâmicos parametrizados.
                 </p>
               ) : (
                 <div className="space-y-2">
@@ -599,7 +599,7 @@ export const ReportDataSourceTab: React.FC<ReportDataSourceTabProps> = ({
                     <div key={w.id} className="grid grid-cols-1 md:grid-cols-12 gap-1.5 items-center">
                       <div className="md:col-span-2">
                         {idx === 0 ? (
-                          <span className="text-[11px] font-bold text-slate-500 px-2">WHERE</span>
+                          <span className="text-[11px] font-bold text-slate-500 px-2 dark:text-slate-400">WHERE</span>
                         ) : (
                           <select
                             value={w.connector}
@@ -608,7 +608,7 @@ export const ReportDataSourceTab: React.FC<ReportDataSourceTabProps> = ({
                                 prev.map((x) => (x.id === w.id ? { ...x, connector: e.target.value as any } : x))
                               )
                             }
-                            className="w-full rounded border border-slate-200 px-2 py-1 text-xs"
+                            className="w-full rounded border border-slate-200 px-2 py-1 text-xs dark:border-slate-700"
                           >
                             <option value="AND">AND</option>
                             <option value="OR">OR</option>
@@ -620,7 +620,7 @@ export const ReportDataSourceTab: React.FC<ReportDataSourceTabProps> = ({
                         onChange={(e) =>
                           setWheres((prev) => prev.map((x) => (x.id === w.id ? { ...x, field: e.target.value } : x)))
                         }
-                        className="md:col-span-4 rounded border border-slate-200 px-2 py-1 text-xs font-mono"
+                        className="md:col-span-4 rounded border border-slate-200 px-2 py-1 text-xs font-mono dark:border-slate-700"
                       >
                         {allSelectedTableFields.map((f) => (
                           <option key={f} value={f}>
@@ -635,7 +635,7 @@ export const ReportDataSourceTab: React.FC<ReportDataSourceTabProps> = ({
                             prev.map((x) => (x.id === w.id ? { ...x, operator: e.target.value } : x))
                           )
                         }
-                        className="md:col-span-2 rounded border border-slate-200 px-2 py-1 text-xs"
+                        className="md:col-span-2 rounded border border-slate-200 px-2 py-1 text-xs dark:border-slate-700"
                       >
                         {WHERE_OPERATORS.map((op) => (
                           <option key={op} value={op}>
@@ -651,12 +651,12 @@ export const ReportDataSourceTab: React.FC<ReportDataSourceTabProps> = ({
                           setWheres((prev) => prev.map((x) => (x.id === w.id ? { ...x, value: e.target.value } : x)))
                         }
                         placeholder="Valor ou {{param}}"
-                        className="md:col-span-3 rounded border border-slate-200 px-2 py-1 text-xs font-mono disabled:bg-slate-50"
+                        className="md:col-span-3 rounded border border-slate-200 px-2 py-1 text-xs font-mono disabled:bg-slate-50 dark:border-slate-700"
                       />
                       <button
                         type="button"
                         onClick={() => setWheres((prev) => prev.filter((x) => x.id !== w.id))}
-                        className="md:col-span-1 inline-flex justify-center rounded border border-slate-200 p-1.5 text-slate-400 hover:text-red-600"
+                        className="md:col-span-1 inline-flex justify-center rounded border border-slate-200 p-1.5 text-slate-400 hover:text-red-600 dark:border-slate-700 dark:text-slate-400"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -668,13 +668,13 @@ export const ReportDataSourceTab: React.FC<ReportDataSourceTabProps> = ({
 
             {/* GROUP BY & ORDER BY */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-1.5">
-                <span className="text-[11px] font-bold uppercase tracking-wide text-slate-700">GROUP BY</span>
+              <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-1.5 dark:border-slate-700 dark:bg-slate-900">
+                <span className="text-[11px] font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">GROUP BY</span>
                 <select
                   multiple
                   value={groupBy}
                   onChange={(e) => setGroupBy(Array.from(e.target.selectedOptions).map((o) => o.value))}
-                  className="w-full h-24 rounded border border-slate-200 p-1 text-xs font-mono"
+                  className="w-full h-24 rounded border border-slate-200 p-1 text-xs font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 >
                   {selectedColumns.map((c) => {
                     const key = `${c.table}.${c.column}`;
@@ -686,13 +686,13 @@ export const ReportDataSourceTab: React.FC<ReportDataSourceTabProps> = ({
                   })}
                 </select>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-1.5">
-                <span className="text-[11px] font-bold uppercase tracking-wide text-slate-700">ORDER BY</span>
+              <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-1.5 dark:border-slate-700 dark:bg-slate-900">
+                <span className="text-[11px] font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">ORDER BY</span>
                 <select
                   multiple
                   value={orderBy}
                   onChange={(e) => setOrderBy(Array.from(e.target.selectedOptions).map((o) => o.value))}
-                  className="w-full h-24 rounded border border-slate-200 p-1 text-xs font-mono"
+                  className="w-full h-24 rounded border border-slate-200 p-1 text-xs font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 >
                   {allSelectedTableFields.flatMap((f) => [
                     <option key={`${f} ASC`} value={`${f} ASC`}>
@@ -707,7 +707,7 @@ export const ReportDataSourceTab: React.FC<ReportDataSourceTabProps> = ({
             </div>
 
             {/* Visual SQL Preview + Apply */}
-            <div className="rounded-xl border border-slate-200 bg-slate-950 p-3.5 space-y-2.5 text-slate-100">
+            <div className="rounded-xl border border-slate-200 bg-slate-950 p-3.5 space-y-2.5 text-slate-100 dark:border-slate-700">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold uppercase tracking-wide text-slate-300">
                   SQL Gerado Automaticamente
@@ -738,15 +738,15 @@ export const ReportDataSourceTab: React.FC<ReportDataSourceTabProps> = ({
 
       {/* Mode: SQL Editor */}
       {mode === 'sql' && (
-        <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 dark:border-slate-700 dark:bg-slate-900">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <h4 className="text-xs font-bold uppercase tracking-wide text-slate-800">
+              <h4 className="text-xs font-bold uppercase tracking-wide text-slate-800 dark:text-slate-100">
                 Consulta SQL Somente Leitura (SELECT / WITH)
               </h4>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Use parâmetros dinâmicos com <code className="bg-slate-100 px-1 rounded">{'{{nome_filtro}}'}</code>{' '}
-                (ex.: <code className="bg-slate-100 px-1 rounded">{"WHERE NULLIF({{status}}, '') IS NULL OR status = {{status}}"}</code>).
+              <p className="text-xs text-slate-500 mt-0.5 dark:text-slate-400">
+                Use parâmetros dinâmicos com <code className="bg-slate-100 px-1 rounded dark:bg-slate-800">{'{{nome_filtro}}'}</code>{' '}
+                (ex.: <code className="bg-slate-100 px-1 rounded dark:bg-slate-800">{"WHERE NULLIF({{status}}, '') IS NULL OR status = {{status}}"}</code>).
               </p>
             </div>
           </div>
@@ -757,11 +757,11 @@ export const ReportDataSourceTab: React.FC<ReportDataSourceTabProps> = ({
             rows={11}
             spellCheck={false}
             placeholder="SELECT id, name, status FROM clients ORDER BY created_at DESC"
-            className="w-full rounded-lg border border-slate-300 bg-slate-950 p-3.5 font-mono text-xs text-emerald-300 focus:border-blue-500 focus:outline-none leading-relaxed"
+            className="w-full rounded-lg border border-slate-300 bg-slate-950 p-3.5 font-mono text-xs text-emerald-300 focus:border-blue-500 focus:outline-none leading-relaxed dark:border-slate-600"
           />
 
           {testError && (
-            <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>{testError}</span>
             </div>
@@ -770,26 +770,26 @@ export const ReportDataSourceTab: React.FC<ReportDataSourceTabProps> = ({
       )}
 
       {/* Preview Data Table */}
-      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-4 py-2.5">
-          <span className="text-xs font-bold text-slate-800">
+      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-4 py-2.5 dark:border-slate-700 dark:bg-slate-800/70">
+          <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
             Preview dos Dados ({previewRows.length} linha(s), {previewColumns.length} coluna(s))
           </span>
           {truncated && (
-            <span className="text-[11px] font-medium text-amber-700">
+            <span className="text-[11px] font-medium text-amber-700 dark:text-amber-300">
               Exibindo amostra limitada ao preview ({totalReturned} linhas carregadas).
             </span>
           )}
         </div>
 
         {previewRows.length === 0 ? (
-          <div className="p-8 text-center text-xs text-slate-500">
+          <div className="p-8 text-center text-xs text-slate-500 dark:text-slate-400">
             Clique em <strong>Testar Consulta (Preview)</strong> para validar a query e detectar as colunas automaticamente.
           </div>
         ) : (
           <div className="overflow-x-auto max-h-72">
             <table className="w-full text-left border-collapse text-xs tabular-nums">
-              <thead className="sticky top-0 bg-slate-100 text-slate-700 border-b border-slate-200">
+              <thead className="sticky top-0 bg-slate-100 text-slate-700 border-b border-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700">
                 <tr>
                   {previewColumns.map((col) => (
                     <th key={col} className="px-3 py-2 font-semibold whitespace-nowrap border-r border-slate-200/60">
@@ -798,13 +798,13 @@ export const ReportDataSourceTab: React.FC<ReportDataSourceTabProps> = ({
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {previewRows.slice(0, 50).map((row, rIdx) => (
-                  <tr key={rIdx} className="hover:bg-slate-50">
+                  <tr key={rIdx} className="hover:bg-slate-50 dark:hover:bg-slate-800">
                     {previewColumns.map((col) => (
                       <td
                         key={col}
-                        className="px-3 py-1.5 text-slate-700 whitespace-nowrap max-w-[260px] truncate border-r border-slate-100"
+                        className="px-3 py-1.5 text-slate-700 whitespace-nowrap max-w-[260px] truncate border-r border-slate-100 dark:text-slate-200 dark:border-slate-800"
                         title={row[col] == null ? '' : String(row[col])}
                       >
                         {row[col] == null ? <span className="text-slate-300">NULL</span> : String(row[col])}

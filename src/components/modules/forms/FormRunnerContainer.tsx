@@ -147,14 +147,14 @@ export const FormRunnerContainer: React.FC<FormRunnerContainerProps> = ({
 
   if (receipt) {
     return (
-      <div className="rounded-xl border border-slate-200 bg-white p-8 max-w-2xl mx-auto text-center space-y-4">
+      <div className="rounded-xl border border-slate-200 bg-white p-8 max-w-2xl mx-auto text-center space-y-4 dark:border-slate-700 dark:bg-slate-900">
         {activeBranding?.logoDataUrl && (
           <div className="flex justify-center">
             <div
               className={`inline-flex items-center justify-center rounded-xl border px-3.5 py-1.5 ${
                 darkBackdrop
-                  ? 'bg-slate-900 border-slate-800'
-                  : 'bg-white border-slate-200'
+                  ? 'bg-slate-900 border-slate-800 dark:bg-slate-950 dark:border-slate-700'
+                  : 'bg-white border-slate-200 dark:bg-slate-900 dark:border-slate-700'
               }`}
             >
               <img
@@ -165,30 +165,30 @@ export const FormRunnerContainer: React.FC<FormRunnerContainerProps> = ({
             </div>
           </div>
         )}
-        <div className="h-12 w-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+        <div className="h-12 w-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto dark:bg-emerald-950/50 dark:text-emerald-400">
           <CheckCircle2 className="w-6 h-6" />
         </div>
         <div>
-          <div className="text-xs font-mono text-slate-500 tabular-nums">
+          <div className="text-xs font-mono text-slate-500 tabular-nums dark:text-slate-400">
             Protocolo {receipt.protocolCode}
           </div>
-          <h2 className="font-display text-lg font-bold text-slate-900 mt-1">
+          <h2 className="font-display text-lg font-bold text-slate-900 mt-1 dark:text-slate-100">
             {form.settingsJson?.successMessage || 'Formulário protocolado com sucesso!'}
           </h2>
           {receipt.calculatedScore !== null && (
-            <p className="text-xs text-slate-600 mt-1 font-mono tabular-nums">
+            <p className="text-xs text-slate-600 mt-1 font-mono tabular-nums dark:text-slate-300">
               Pontuação apurada: <strong>{receipt.calculatedScore}%</strong>
             </p>
           )}
         </div>
 
         {receipt.iviSummary && (
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-left space-y-1">
-            <div className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-left space-y-1 dark:border-slate-700 dark:bg-slate-800/70">
+            <div className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5 dark:text-slate-100">
+              <Sparkles className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
               Parecer Ivi IA ({receipt.iviClassification || 'Analisado'})
             </div>
-            <p className="text-xs text-slate-700 leading-relaxed">{receipt.iviSummary}</p>
+            <p className="text-xs text-slate-700 leading-relaxed dark:text-slate-200">{receipt.iviSummary}</p>
           </div>
         )}
 
@@ -199,14 +199,14 @@ export const FormRunnerContainer: React.FC<FormRunnerContainerProps> = ({
               setAnswers({});
               setReceipt(null);
             }}
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
           >
             Novo Preenchimento
           </button>
           <button
             type="button"
             onClick={onBackToCatalog}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800"
+            className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
           >
             Voltar ao Catálogo
           </button>
@@ -217,14 +217,14 @@ export const FormRunnerContainer: React.FC<FormRunnerContainerProps> = ({
 
   return (
     <form onSubmit={handleSubmit} className="max-w-4xl mx-auto space-y-4">
-      <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4">
+      <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4 dark:border-slate-700 dark:bg-slate-900">
         {activeBranding?.logoDataUrl && (
           <div className="flex justify-center pb-1">
             <div
               className={`inline-flex items-center justify-center rounded-xl border px-3.5 py-1.5 ${
                 darkBackdrop
-                  ? 'bg-slate-900 border-slate-800'
-                  : 'bg-white border-slate-200'
+                  ? 'bg-slate-900 border-slate-800 dark:bg-slate-950 dark:border-slate-700'
+                  : 'bg-white border-slate-200 dark:bg-slate-900 dark:border-slate-700'
               }`}
             >
               <img
@@ -235,19 +235,19 @@ export const FormRunnerContainer: React.FC<FormRunnerContainerProps> = ({
             </div>
           </div>
         )}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3 dark:border-slate-700">
           <div>
-            <div className="text-[11px] font-mono text-slate-500">
+            <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
               {form.code} · v{form.version}
             </div>
-            <h2 className="font-display text-base font-bold text-slate-900 mt-0.5">{form.title}</h2>
-            {form.description && <p className="text-xs text-slate-600 mt-0.5">{form.description}</p>}
+            <h2 className="font-display text-base font-bold text-slate-900 mt-0.5 dark:text-slate-100">{form.title}</h2>
+            {form.description && <p className="text-xs text-slate-600 mt-0.5 dark:text-slate-300">{form.description}</p>}
           </div>
 
           <button
             type="button"
             onClick={onBackToCatalog}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             Voltar
@@ -255,9 +255,9 @@ export const FormRunnerContainer: React.FC<FormRunnerContainerProps> = ({
         </div>
 
         {/* Entity Context Linking */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs pb-2 border-b border-slate-100">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs pb-2 border-b border-slate-100 dark:border-slate-800">
           <div>
-            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+            <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">
               Cliente Vinculado
             </label>
             <select
@@ -267,7 +267,7 @@ export const FormRunnerContainer: React.FC<FormRunnerContainerProps> = ({
                 setAdmissionId('');
                 setNegotiationId('');
               }}
-              className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs bg-white"
+              className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs bg-white dark:border-slate-600 dark:bg-slate-900"
             >
               <option value="">Sem vínculo direto</option>
               {clients.map((c) => (
@@ -279,13 +279,13 @@ export const FormRunnerContainer: React.FC<FormRunnerContainerProps> = ({
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+            <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">
               Admissão / Dossiê
             </label>
             <select
               value={admissionId}
               onChange={(e) => setAdmissionId(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs bg-white"
+              className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs bg-white dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
             >
               <option value="">Opcional</option>
               {filteredAdmissions.map((a) => (
@@ -297,13 +297,13 @@ export const FormRunnerContainer: React.FC<FormRunnerContainerProps> = ({
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+            <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">
               Negociação Bancária
             </label>
             <select
               value={negotiationId}
               onChange={(e) => setNegotiationId(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs bg-white"
+              className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs bg-white dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
             >
               <option value="">Opcional</option>
               {filteredNegotiations.map((n) => (
@@ -315,13 +315,13 @@ export const FormRunnerContainer: React.FC<FormRunnerContainerProps> = ({
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+            <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">
               Unidade
             </label>
             <select
               value={unitId}
               onChange={(e) => setUnitId(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs bg-white"
+              className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs bg-white dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
             >
               {units.map((u) => (
                 <option key={u.id} value={String(u.id)}>
@@ -341,7 +341,7 @@ export const FormRunnerContainer: React.FC<FormRunnerContainerProps> = ({
               return (
                 <div
                   key={fld.id}
-                  className="md:col-span-2 pt-2 border-b border-slate-200 pb-1.5 text-xs font-bold text-slate-800"
+                  className="md:col-span-2 pt-2 border-b border-slate-200 pb-1.5 text-xs font-bold text-slate-800 dark:border-slate-700 dark:text-slate-100"
                 >
                   {fld.label}
                 </div>
@@ -353,12 +353,12 @@ export const FormRunnerContainer: React.FC<FormRunnerContainerProps> = ({
 
             return (
               <div key={fld.id} className={`${colSpan} space-y-1.5`}>
-                <label className="block text-xs font-semibold text-slate-800">
+                <label className="block text-xs font-semibold text-slate-800 dark:text-slate-100">
                   {fld.label}
-                  {fld.required && <span className="text-rose-600 ml-1">*</span>}
+                  {fld.required && <span className="text-rose-600 ml-1 dark:text-rose-400">*</span>}
                 </label>
 
-                {fld.helpText && <p className="text-[11px] text-slate-500">{fld.helpText}</p>}
+                {fld.helpText && <p className="text-[11px] text-slate-500 dark:text-slate-400">{fld.helpText}</p>}
 
                 {fld.type === 'textarea' && (
                   <textarea
@@ -366,7 +366,7 @@ export const FormRunnerContainer: React.FC<FormRunnerContainerProps> = ({
                     value={String(val || '')}
                     onChange={(e) => setAnswer(fld.key, e.target.value)}
                     placeholder={fld.placeholder || ''}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-600 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-600 focus:outline-none dark:border-slate-600"
                   />
                 )}
 
@@ -380,7 +380,7 @@ export const FormRunnerContainer: React.FC<FormRunnerContainerProps> = ({
                     value={String(val || '')}
                     onChange={(e) => setAnswer(fld.key, e.target.value)}
                     placeholder={fld.placeholder || ''}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-600 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-600 focus:outline-none dark:border-slate-600"
                   />
                 )}
 
@@ -391,7 +391,7 @@ export const FormRunnerContainer: React.FC<FormRunnerContainerProps> = ({
                     value={String(val ?? '')}
                     onChange={(e) => setAnswer(fld.key, e.target.value)}
                     placeholder={fld.placeholder || (fld.type === 'currency' ? '0,00' : '0')}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs font-mono focus:border-blue-600 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs font-mono focus:border-blue-600 focus:outline-none dark:border-slate-600"
                   />
                 )}
 
@@ -400,7 +400,7 @@ export const FormRunnerContainer: React.FC<FormRunnerContainerProps> = ({
                     type="date"
                     value={String(val || '')}
                     onChange={(e) => setAnswer(fld.key, e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs font-mono focus:border-blue-600 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs font-mono focus:border-blue-600 focus:outline-none dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
                   />
                 )}
 
@@ -408,7 +408,7 @@ export const FormRunnerContainer: React.FC<FormRunnerContainerProps> = ({
                   <select
                     value={String(val || '')}
                     onChange={(e) => setAnswer(fld.key, e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs bg-white focus:border-blue-600 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs bg-white focus:border-blue-600 focus:outline-none dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                   >
                     <option value="">Selecione...</option>
                     {(fld.options || []).map((opt) => (
@@ -422,7 +422,7 @@ export const FormRunnerContainer: React.FC<FormRunnerContainerProps> = ({
                 {fld.type === 'radio' && (
                   <div className="space-y-1.5 pt-1">
                     {(fld.options || []).map((opt) => (
-                      <label key={opt} className="flex items-center gap-2 cursor-pointer text-slate-700">
+                      <label key={opt} className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-200">
                         <input
                           type="radio"
                           name={`radio_${fld.id}`}
@@ -442,15 +442,15 @@ export const FormRunnerContainer: React.FC<FormRunnerContainerProps> = ({
                       return (
                         <label
                           key={opt}
-                          className="flex items-center gap-2 rounded-lg border border-slate-200 px-2.5 py-2 cursor-pointer hover:bg-slate-50"
+                          className="flex items-center gap-2 rounded-lg border border-slate-200 px-2.5 py-2 cursor-pointer hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
                         >
                           <input
                             type="checkbox"
                             checked={checked}
                             onChange={() => toggleCheckboxOption(fld.key, opt)}
-                            className="rounded border-slate-300"
+                            className="rounded border-slate-300 dark:border-slate-600"
                           />
-                          <span className="text-slate-700">{opt}</span>
+                          <span className="text-slate-700 dark:text-slate-200">{opt}</span>
                         </label>
                       );
                     })}
@@ -469,8 +469,8 @@ export const FormRunnerContainer: React.FC<FormRunnerContainerProps> = ({
                         onClick={() => setAnswer(fld.key, opt.v)}
                         className={`rounded-lg border px-4 py-1.5 text-xs font-semibold transition-colors ${
                           val === opt.v
-                            ? 'border-slate-900 bg-slate-900 text-white'
-                            : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                            ? 'border-slate-900 bg-slate-900 text-white dark:border-emerald-500 dark:bg-emerald-600'
+                            : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
                         }`}
                       >
                         {opt.lbl}
@@ -491,8 +491,8 @@ export const FormRunnerContainer: React.FC<FormRunnerContainerProps> = ({
                         onClick={() => setAnswer(fld.key, num)}
                         className={`min-w-[36px] h-9 rounded-lg border font-mono tabular-nums text-xs font-bold transition-colors ${
                           Number(val) === num
-                            ? 'border-slate-900 bg-slate-900 text-white'
-                            : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                            ? 'border-slate-900 bg-slate-900 text-white dark:border-emerald-500 dark:bg-emerald-600'
+                            : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
                         }`}
                       >
                         {num}
@@ -506,18 +506,18 @@ export const FormRunnerContainer: React.FC<FormRunnerContainerProps> = ({
         </div>
 
         {errorMsg && (
-          <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+          <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-800/70 dark:bg-rose-950/50 dark:text-rose-300">
             {errorMsg}
           </div>
         )}
 
-        <div className="border-t border-slate-200 pt-4 flex flex-wrap items-center justify-between gap-3">
-          <label className="inline-flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+        <div className="border-t border-slate-200 pt-4 flex flex-wrap items-center justify-between gap-3 dark:border-slate-700">
+          <label className="inline-flex items-center gap-2 text-xs text-slate-700 cursor-pointer dark:text-slate-200">
             <input
               type="checkbox"
               checked={runIviAnalyze}
               onChange={(e) => setRunIviAnalyze(e.target.checked)}
-              className="rounded border-slate-300"
+              className="rounded border-slate-300 dark:border-slate-600"
             />
             Gerar classificação &amp; resumo automático pela Ivi IA
           </label>

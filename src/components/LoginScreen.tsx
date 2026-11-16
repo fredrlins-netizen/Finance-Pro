@@ -9,11 +9,14 @@ import {
   Landmark,
   Lock,
   Mail,
+  Moon,
   RefreshCw,
   ShieldCheck,
+  Sun,
 } from 'lucide-react';
 import { auth, googleAuthProvider } from '../lib/firebase.ts';
 import { apiFetch, setAuthToken } from '../lib/api.ts';
+import { useTheme } from '../lib/theme.tsx';
 import { AuthUser, PortalBrandingConfig } from '../types.ts';
 import { PWAInstallButton } from './PWAControls.tsx';
 
@@ -49,6 +52,7 @@ function renderTileIcon(category: string) {
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthenticated, branding }) => {
+  const { isDark, toggleTheme } = useTheme();
   const [email, setEmail] = useState('admin@financepro.com.br');
   const [password, setPassword] = useState('Invicta@2026');
   const [mathAnswer, setMathAnswer] = useState('');
@@ -164,10 +168,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthenticated, brand
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-6 px-4 sm:px-6 lg:px-8">
-      <div className="mx-auto w-full max-w-5xl grid grid-cols-1 lg:grid-cols-12 bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col justify-center py-6 px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-5xl grid grid-cols-1 lg:grid-cols-12 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
         {/* Left Brand & Architecture Panel */}
-        <div className="lg:col-span-5 bg-slate-900 text-slate-100 p-6 sm:p-8 flex flex-col justify-between">
+        <div className="lg:col-span-5 bg-slate-900 dark:bg-slate-950 text-slate-100 lg:border-r lg:border-slate-800 p-6 sm:p-8 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5 min-w-0">
@@ -216,38 +220,53 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthenticated, brand
 
         {/* Right Form Panel */}
         <div className="lg:col-span-7 p-6 sm:p-8">
-          <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-4">
+          <div className="flex items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
             <div>
-              <h2 className="font-display text-xl font-bold text-slate-900">
+              <h2 className="font-display text-xl font-bold text-slate-900 dark:text-slate-100">
                 {forgotMode ? 'Recuperação de Acesso' : 'Acesso Corporativo'}
               </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 {forgotMode
                   ? 'Enviaremos uma senha temporária para seu e-mail e notificaremos o administrador.'
                   : 'Informe suas credenciais e resolva os dois desafios de verificação.'}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setForgotMode(!forgotMode);
-                setError('');
-                setForgotInfo('');
-              }}
-              className="text-xs font-medium text-blue-700 hover:text-blue-800 whitespace-nowrap"
-            >
-              {forgotMode ? 'Voltar ao login' : 'Esqueci a senha'}
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={toggleTheme}
+                title={isDark ? 'Alternar para Modo Claro (White)' : 'Alternar para Modo Escuro (Dark)'}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+              >
+                {isDark ? (
+                  <Sun className="w-3.5 h-3.5 text-amber-400" />
+                ) : (
+                  <Moon className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
+                )}
+                <span>{isDark ? 'Claro' : 'Escuro'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setForgotMode(!forgotMode);
+                  setError('');
+                  setForgotInfo('');
+                }}
+                className="text-xs font-medium text-blue-700 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 whitespace-nowrap"
+              >
+                {forgotMode ? 'Voltar ao login' : 'Esqueci a senha'}
+              </button>
+            </div>
           </div>
 
           {error && (
-            <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs font-medium text-red-700">
+            <div className="mt-4 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/50 px-3.5 py-2.5 text-xs font-medium text-red-700 dark:text-red-300">
               {error}
             </div>
           )}
 
           {forgotInfo && (
-            <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-xs font-medium text-emerald-800">
+            <div className="mt-4 rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/50 px-3.5 py-2.5 text-xs font-medium text-emerald-800 dark:text-emerald-300">
               {forgotInfo}
             </div>
           )}
@@ -255,25 +274,25 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthenticated, brand
           {forgotMode ? (
             <form onSubmit={handleForgotPassword} className="mt-5 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1.5">
                   E-mail cadastrado do colaborador
                 </label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                  <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3 dark:text-slate-400" />
                   <input
                     type="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="colaborador@financepro.com.br"
-                    className="w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 py-2.5 text-sm text-slate-900 focus:border-blue-600 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 pl-9 pr-3 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:border-blue-600 focus:outline-none"
                   />
                 </div>
               </div>
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full rounded-lg bg-slate-900 py-2.5 px-4 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50 min-h-[44px]"
+                className="w-full rounded-lg bg-slate-900 dark:bg-emerald-600 py-2.5 px-4 text-sm font-semibold text-white hover:bg-slate-800 dark:hover:bg-emerald-500 disabled:opacity-50 min-h-[44px] transition-colors"
               >
                 {loading ? 'Enviando...' : 'Gerar Senha Temporária e Notificar Admin'}
               </button>
@@ -282,7 +301,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthenticated, brand
             <form onSubmit={handleCorporateLogin} className="mt-5 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1">
                     E-mail cadastrado
                   </label>
                   <input
@@ -290,11 +309,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthenticated, brand
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-600 focus:outline-none min-h-[42px]"
+                    className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:border-blue-600 focus:outline-none min-h-[42px]"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1">
                     Senha
                   </label>
                   <input
@@ -302,22 +321,22 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthenticated, brand
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-600 focus:outline-none min-h-[42px]"
+                    className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:border-blue-600 focus:outline-none min-h-[42px]"
                   />
                 </div>
               </div>
 
               {/* Dual CAPTCHA Block */}
               {captcha && (
-                <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-4">
+                <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 p-4 space-y-4">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-semibold text-slate-700">
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
                       1º CAPTCHA Matemático · 2º CAPTCHA Visual
                     </span>
                     <button
                       type="button"
                       onClick={loadCaptcha}
-                      className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-slate-900"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
                     >
                       <RefreshCw className="w-3.5 h-3.5" />
                       Atualizar
@@ -325,7 +344,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthenticated, brand
                   </div>
 
                   <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                    <div className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 font-mono text-sm font-semibold text-slate-900 shrink-0">
+                    <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3.5 py-2 font-mono text-sm font-semibold text-slate-900 dark:text-slate-100 shrink-0">
                       {captcha.mathQuestion}
                     </div>
                     <input
@@ -334,12 +353,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthenticated, brand
                       value={mathAnswer}
                       onChange={(e) => setMathAnswer(e.target.value)}
                       placeholder="Resultado numérico"
-                      className="w-full sm:w-48 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-mono text-slate-900 focus:border-blue-600 focus:outline-none min-h-[40px]"
+                      className="w-full sm:w-48 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm font-mono text-slate-900 dark:text-slate-100 focus:border-blue-600 focus:outline-none min-h-[40px]"
                     />
                   </div>
 
                   <div>
-                    <p className="text-xs font-semibold text-slate-700 mb-2">
+                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-2">
                       {captcha.imagePrompt}
                     </p>
                     <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
@@ -352,8 +371,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthenticated, brand
                             onClick={() => toggleTile(tile.id)}
                             className={`flex flex-col items-center justify-center gap-1 rounded-lg border p-2.5 text-center transition-colors min-h-[68px] ${
                               selected
-                                ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
-                                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                                ? 'border-emerald-600 dark:border-emerald-500 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300'
+                                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
                             }`}
                           >
                             {renderTileIcon(tile.category)}
@@ -372,7 +391,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthenticated, brand
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 rounded-lg bg-emerald-600 py-2.5 px-4 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 min-h-[44px] transition-colors"
+                  className="flex-1 rounded-lg bg-emerald-600 py-2.5 px-4 text-sm font-semibold text-white hover:bg-emerald-700 dark:hover:bg-emerald-500 disabled:opacity-50 min-h-[44px] transition-colors"
                 >
                   {loading ? 'Validando...' : 'Entrar no Sistema'}
                 </button>
@@ -380,7 +399,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthenticated, brand
                   type="button"
                   onClick={handleGoogleLogin}
                   disabled={loading}
-                  className="rounded-lg border border-slate-300 bg-white py-2.5 px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50 min-h-[44px] whitespace-nowrap transition-colors"
+                  className="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 py-2.5 px-4 text-sm font-semibold text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 min-h-[44px] whitespace-nowrap transition-colors"
                 >
                   Entrar com Google
                 </button>

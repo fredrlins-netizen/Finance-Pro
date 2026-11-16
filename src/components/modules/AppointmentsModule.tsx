@@ -81,6 +81,7 @@ interface AppointmentsModuleProps {
   onClearIntent?: () => void;
   onNavigate?: (mod: ModuleId, intent?: NavigationIntent) => void;
   onGoBack?: () => void;
+  previousScreenLabel?: string;
 }
 
 const DEFAULT_CONFIG: ScheduleConfig = {
@@ -99,6 +100,7 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
   onClearIntent,
   onNavigate,
   onGoBack,
+  previousScreenLabel,
 }) => {
   const isAdmin = currentUser.role === 'admin';
   const visibilityStorageKey = `fp_agenda_hidden_collabs_u${currentUser.id}`;
@@ -185,16 +187,12 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
       setTab(prevTab);
       return;
     }
-    if (tab !== 'agenda') {
-      setTab('agenda');
-      return;
-    }
     if (onGoBack) {
       onGoBack();
     } else if (onNavigate) {
       onNavigate('overview');
     }
-  }, [tabHistory, tab, onGoBack, onNavigate]);
+  }, [tabHistory, onGoBack, onNavigate]);
 
   const loadBootstrap = useCallback(
     async (isSilent = false) => {
@@ -650,7 +648,7 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
           e.stopPropagation();
           openEditModal(appt);
         }}
-        className={`group relative rounded-lg border border-slate-300/80 bg-white overflow-hidden cursor-grab active:cursor-grabbing text-[11px] hover:border-slate-900 transition-colors ${
+        className={`group relative rounded-lg border border-slate-300/80 bg-white overflow-hidden cursor-grab active:cursor-grabbing text-[11px] hover:border-slate-900 transition-colors dark:bg-slate-900 ${
           isExpandedCol ? 'p-3' : 'p-2'
         }`}
       >
@@ -658,7 +656,7 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
         <div className="relative z-10 space-y-1">
           <div className="flex items-start justify-between gap-1.5">
             <div
-              className={`font-bold text-slate-900 leading-tight ${
+              className={`font-bold text-slate-900 leading-tight dark:text-slate-100 ${
                 isExpandedCol ? 'text-xs whitespace-normal' : 'truncate'
               }`}
             >
@@ -667,7 +665,7 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
             {(isPresencial || isOnline) && (
               <span
                 className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase ${
-                  isPresencial ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800'
+                  isPresencial ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300' : 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300'
                 }`}
               >
                 {isPresencial ? 'Presencial' : 'OnLine'}
@@ -675,12 +673,12 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
             )}
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-1 text-[10px] font-mono text-slate-700">
+          <div className="flex flex-wrap items-center justify-between gap-1 text-[10px] font-mono text-slate-700 dark:text-slate-200">
             <span>
               {isExpandedCol ? `${dateShort} · ${timeRange}` : timeRange}
             </span>
             <span
-              className={`font-sans font-semibold text-slate-800 ${
+              className={`font-sans font-semibold text-slate-800 dark:text-slate-100 ${
                 isExpandedCol ? '' : 'truncate'
               }`}
             >
@@ -690,7 +688,7 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
 
           {appt.serviceName && (
             <div
-              className={`text-[10px] text-slate-700 font-medium ${
+              className={`text-[10px] text-slate-700 font-medium dark:text-slate-200 ${
                 isExpandedCol ? 'whitespace-normal' : 'truncate'
               }`}
             >
@@ -698,16 +696,16 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
             </div>
           )}
 
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-slate-600">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-slate-600 dark:text-slate-300">
             {appt.clientPhone && <span className="font-mono">{appt.clientPhone}</span>}
             {isExpandedCol && appt.collaboratorName && (
-              <span className="font-semibold text-slate-800">· {appt.collaboratorName}</span>
+              <span className="font-semibold text-slate-800 dark:text-slate-100">· {appt.collaboratorName}</span>
             )}
           </div>
 
           {appt.clientAddress && (
             <div
-              className={`text-[10px] text-slate-500 ${
+              className={`text-[10px] text-slate-500 dark:text-slate-400 ${
                 isExpandedCol ? 'whitespace-normal' : 'truncate'
               }`}
             >
@@ -716,14 +714,14 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
           )}
 
           {isExpandedCol && appt.notes && (
-            <div className="pt-1 border-t border-slate-200/70 text-[10px] text-slate-700 whitespace-normal">
+            <div className="pt-1 border-t border-slate-200/70 text-[10px] text-slate-700 whitespace-normal dark:text-slate-200">
               <strong>Obs:</strong> {appt.notes}
             </div>
           )}
         </div>
 
         {/* Rich Hover Tooltip Details */}
-        <div className="hidden group-hover:block fixed z-50 pointer-events-none bottom-4 right-4 max-w-sm rounded-xl border border-slate-200 bg-slate-900 text-white p-3.5 shadow-2xl text-[11px] space-y-1.5">
+        <div className="hidden group-hover:block fixed z-50 pointer-events-none bottom-4 right-4 max-w-sm rounded-xl border border-slate-200 bg-slate-900 text-white p-3.5 shadow-2xl text-[11px] space-y-1.5 dark:border-slate-700 dark:bg-emerald-600">
           <div className="flex items-center justify-between gap-2 border-b border-slate-700 pb-1.5">
             <span className="font-bold text-white truncate">{appt.clientName}</span>
             <span className="font-mono text-emerald-300 shrink-0">
@@ -754,7 +752,7 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
               <strong>Obs:</strong> {appt.notes}
             </div>
           )}
-          <div className="pt-1 border-t border-slate-700 text-[10px] text-slate-400">
+          <div className="pt-1 border-t border-slate-700 text-[10px] text-slate-400 dark:text-slate-400">
             Criado por: {appt.createdByName || 'Sistema'}
             {appt.updatedByName ? ` · Editado por: ${appt.updatedByName}` : ''}
           </div>
@@ -765,7 +763,7 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
 
   if (loading) {
     return (
-      <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-xs text-slate-500">
+      <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
         Carregando módulo de Agendamentos, Consultores e Grade de Horários...
       </div>
     );
@@ -774,24 +772,28 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
   return (
     <div className="space-y-3">
       {/* Header & Navigation Tabs */}
-      <div className="rounded-xl border border-slate-200 bg-white px-4 sm:px-5 py-3.5 space-y-3">
+      <div className="rounded-xl border border-slate-200 bg-white px-4 sm:px-5 py-3.5 space-y-3 dark:border-slate-700 dark:bg-slate-900">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-start gap-2.5 min-w-0">
             <button
               type="button"
               onClick={handleBackAction}
-              title="Voltar para a tela anterior"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shrink-0 mt-0.5"
+              title={
+                tabHistory.length > 0
+                  ? 'Voltar para a aba anterior'
+                  : `Voltar para a tela anterior${previousScreenLabel ? ` (${previousScreenLabel})` : ''}`
+              }
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 shrink-0 mt-0.5"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Voltar</span>
             </button>
             <div className="min-w-0">
-              <h1 className="font-display text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2 truncate">
-                <CalendarDays className="w-5 h-5 text-emerald-700 shrink-0" />
+              <h1 className="font-display text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2 truncate dark:text-slate-100">
+                <CalendarDays className="w-5 h-5 text-emerald-700 shrink-0 dark:text-emerald-300" />
                 <span className="truncate">Agendamentos &amp; Gestão de Horários</span>
               </h1>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="text-xs text-slate-500 mt-0.5 dark:text-slate-400">
                 Grade por Data, Horário e Colaborador integrada a Colaboradores (Participa da Fila), Clientes, Bloqueios, WhatsApp e Auditoria.
               </p>
             </div>
@@ -802,7 +804,7 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
               <button
                 type="button"
                 onClick={() => onNavigate('cad_colaboradores')}
-                className="rounded-lg border border-slate-200 px-3 py-2 font-semibold text-slate-700 hover:bg-slate-50"
+                className="rounded-lg border border-slate-200 px-3 py-2 font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 Colaboradores (Fila)
               </button>
@@ -810,7 +812,7 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
             <button
               type="button"
               onClick={() => openCreateModal()}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 font-semibold text-white hover:bg-slate-800"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
             >
               <Plus className="w-3.5 h-3.5" /> Novo Agendamento
             </button>
@@ -818,7 +820,7 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
         </div>
 
         {/* Sub-abas com rolamento horizontal para Mobile e Tablets */}
-        <div className="flex items-center gap-1.5 border-t border-slate-100 pt-2.5 overflow-x-auto scroll-rulers pb-1">
+        <div className="flex items-center gap-1.5 border-t border-slate-100 pt-2.5 overflow-x-auto scroll-rulers pb-1 dark:border-slate-800">
           {tabItems.map((item) => {
             const Icon = item.icon;
             const active = tab === item.id;
@@ -829,8 +831,8 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
                 onClick={() => switchTab(item.id)}
                 className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold whitespace-nowrap shrink-0 transition-colors ${
                   active
-                    ? 'bg-slate-900 text-white'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
                 }`}
               >
                 <Icon className="w-3.5 h-3.5" />
@@ -838,7 +840,7 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
                 {typeof item.badge === 'number' && item.badge > 0 && (
                   <span
                     className={`font-mono text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                      active ? 'bg-white/20 text-white' : 'bg-white text-slate-800'
+                      active ? 'bg-white/20 text-white' : 'bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-100'
                     }`}
                   >
                     {item.badge}
@@ -852,17 +854,17 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
 
       {/* Status Banners */}
       {banner && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-medium text-emerald-900 flex items-center justify-between gap-2">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-medium text-emerald-900 flex items-center justify-between gap-2 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300">
           <span>{banner}</span>
-          <button type="button" onClick={() => setBanner('')} className="text-emerald-700 hover:text-emerald-950">
+          <button type="button" onClick={() => setBanner('')} className="text-emerald-700 hover:text-emerald-950 dark:text-emerald-300">
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
       )}
       {errBanner && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-800 flex items-center justify-between gap-2">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-800 flex items-center justify-between gap-2 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
           <span>{errBanner}</span>
-          <button type="button" onClick={() => setErrBanner('')} className="text-red-700 hover:text-red-950">
+          <button type="button" onClick={() => setErrBanner('')} className="text-red-700 hover:text-red-950 dark:text-red-300">
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -874,11 +876,11 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
       {tab === 'agenda' && (
         <div className="space-y-3">
           {/* Toolbar da Grade com rolagem horizontal p/ telas menores */}
-          <div className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 overflow-x-auto scroll-rulers">
+          <div className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 overflow-x-auto scroll-rulers dark:border-slate-700 dark:bg-slate-900">
             <div className="flex flex-wrap items-center justify-between gap-2.5 text-xs min-w-max sm:min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 {/* Visão Diário / Semanal / Período */}
-                <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+                <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-700 dark:bg-slate-800/70">
                   <button
                     type="button"
                     onClick={() => {
@@ -887,8 +889,8 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
                     }}
                     className={`rounded-md px-2.5 py-1.5 font-semibold ${
                       viewMode === 'daily'
-                        ? 'bg-white text-slate-900 shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
+                        ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-slate-100'
+                        : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
                     }`}
                   >
                     Diário
@@ -901,8 +903,8 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
                     }}
                     className={`rounded-md px-2.5 py-1.5 font-semibold ${
                       viewMode === 'weekly'
-                        ? 'bg-white text-slate-900 shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
+                        ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-slate-100'
+                        : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
                     }`}
                   >
                     Semanal
@@ -918,8 +920,8 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
                     }}
                     className={`rounded-md px-2.5 py-1.5 font-semibold ${
                       viewMode === 'period'
-                        ? 'bg-white text-slate-900 shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
+                        ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-slate-100'
+                        : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
                     }`}
                   >
                     Período
@@ -927,14 +929,14 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
                 </div>
 
                 {/* Navegação de Data / Período */}
-                <div className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-1.5 py-1">
+                <div className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-1.5 py-1 dark:border-slate-700 dark:bg-slate-900">
                   <button
                     type="button"
                     onClick={() =>
                       handleSelectDate(addDaysToKey(selectedDate, viewMode === 'weekly' ? -7 : -1))
                     }
                     aria-label="Período anterior"
-                    className="p-1 rounded hover:bg-slate-100 text-slate-600"
+                    className="p-1 rounded hover:bg-slate-100 text-slate-600 dark:hover:bg-slate-800 dark:text-slate-300"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
@@ -943,18 +945,18 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
                     value={selectedDate}
                     onChange={(e) => e.target.value && handleSelectDate(e.target.value)}
                     aria-label="Data inicial"
-                    className="font-mono font-semibold text-slate-900 bg-transparent px-1 focus:outline-none"
+                    className="font-mono font-semibold text-slate-900 bg-transparent px-1 focus:outline-none dark:text-slate-100"
                   />
                   {viewMode === 'period' && (
                     <>
-                      <span className="text-slate-400 font-mono">→</span>
+                      <span className="text-slate-400 font-mono dark:text-slate-400">→</span>
                       <input
                         type="date"
                         value={periodEndDate}
                         min={selectedDate}
                         onChange={(e) => e.target.value && setPeriodEndDate(e.target.value)}
                         aria-label="Data final"
-                        className="font-mono font-semibold text-slate-900 bg-transparent px-1 focus:outline-none"
+                        className="font-mono font-semibold text-slate-900 bg-transparent px-1 focus:outline-none dark:text-slate-100"
                       />
                     </>
                   )}
@@ -964,7 +966,7 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
                       handleSelectDate(addDaysToKey(selectedDate, viewMode === 'weekly' ? 7 : 1))
                     }
                     aria-label="Próximo período"
-                    className="p-1 rounded hover:bg-slate-100 text-slate-600"
+                    className="p-1 rounded hover:bg-slate-100 text-slate-600 dark:hover:bg-slate-800 dark:text-slate-300"
                   >
                     <ChevronRight className="w-4 h-4" />
                   </button>
@@ -982,14 +984,14 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
                   }}
                   className={`rounded-lg border px-3 py-1.5 font-semibold ${
                     selectedDate === toDateKey(new Date()) && viewMode === 'daily'
-                      ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
-                      : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                      ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300'
+                      : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
                   }`}
                 >
                   Hoje
                 </button>
 
-                <span className="hidden lg:inline font-semibold text-slate-700 capitalize px-1">
+                <span className="hidden lg:inline font-semibold text-slate-700 capitalize px-1 dark:text-slate-200">
                   {viewMode === 'daily'
                     ? formatDateLongBR(selectedDate)
                     : `${formatShortDateBR(periodRange.start)} → ${formatShortDateBR(periodRange.end)}`}
@@ -1002,7 +1004,7 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
                   value={unitFilter}
                   onChange={(e) => setUnitFilter(e.target.value)}
                   aria-label="Filtrar por unidade"
-                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-700"
+                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
                 >
                   {isAdmin && <option value="all">Todas as Unidades</option>}
                   {units.map((u) => (
@@ -1018,7 +1020,7 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
                   onChange={(e) => setGroupFilter(e.target.value)}
                   disabled={!isAdmin && groups.length <= 1}
                   aria-label="Filtrar por grupo"
-                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-700 disabled:bg-slate-50"
+                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-700 disabled:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
                 >
                   {isAdmin && <option value="all">Todos os Grupos</option>}
                   {groups.map((g) => (
@@ -1031,7 +1033,7 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
                 <button
                   type="button"
                   onClick={() => setManageModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-slate-50"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                 >
                   <Users className="w-3.5 h-3.5" />
                   Consultores ({visibleGridCollaborators.length})
@@ -1042,8 +1044,8 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
                   onClick={() => setFiltersDrawerOpen(true)}
                   className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 font-semibold ${
                     consultantFilter
-                      ? 'border-blue-600 bg-blue-50 text-blue-800'
-                      : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                      ? 'border-blue-600 bg-blue-50 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300'
+                      : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
                   }`}
                 >
                   <Filter className="w-3.5 h-3.5" />
@@ -1055,7 +1057,7 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
                   onClick={() => loadBootstrap(true)}
                   disabled={refreshing}
                   title="Sincronizar grade em tempo real"
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-slate-50"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
                   <span className="hidden sm:inline font-mono text-[11px]">
@@ -1077,19 +1079,19 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
             {/* CONTAINER ESTREITO À ESQUERDA: Agendas Ativas + Fila de Espera (respeitando filtros de consultor, semana, Hoje e período) */}
             <aside className="w-full md:w-52 lg:w-56 shrink-0 flex flex-col gap-3 text-xs">
               {/* Agendas Ativas */}
-              <div className="rounded-xl border border-slate-200 bg-white overflow-hidden flex flex-col">
-                <div className="px-3 py-2.5 border-b border-slate-100 flex items-center justify-between gap-1 bg-slate-50/60">
-                  <div className="flex items-center gap-1.5 font-display text-xs font-bold text-slate-900 truncate">
-                    <UserCheck className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+              <div className="rounded-xl border border-slate-200 bg-white overflow-hidden flex flex-col dark:border-slate-700 dark:bg-slate-900">
+                <div className="px-3 py-2.5 border-b border-slate-100 flex items-center justify-between gap-1 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-800/60">
+                  <div className="flex items-center gap-1.5 font-display text-xs font-bold text-slate-900 truncate dark:text-slate-100">
+                    <UserCheck className="w-3.5 h-3.5 text-emerald-700 shrink-0 dark:text-emerald-300" />
                     <span className="truncate">Agendas Ativas</span>
                   </div>
-                  <span className="font-mono text-[10px] text-slate-500 shrink-0">
+                  <span className="font-mono text-[10px] text-slate-500 shrink-0 dark:text-slate-400">
                     {filteredSidebarCollaborators.length} prof.
                   </span>
                 </div>
 
                 {consultantFilter && (
-                  <div className="px-3 py-1.5 bg-blue-50 border-b border-blue-100 flex items-center justify-between text-[10px] text-blue-800">
+                  <div className="px-3 py-1.5 bg-blue-50 border-b border-blue-100 flex items-center justify-between text-[10px] text-blue-800 dark:bg-blue-950/50 dark:border-blue-800/70 dark:text-blue-300">
                     <span className="font-semibold truncate">Filtro consultor ativo</span>
                     <button
                       type="button"
@@ -1103,7 +1105,7 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
 
                 <div className="p-2 space-y-2.5 max-h-[300px] md:max-h-[340px] overflow-y-auto overflow-x-auto scroll-rulers">
                   {activeSchedulesByUnit.length === 0 ? (
-                    <div className="py-4 px-2 text-center text-[11px] text-slate-500 space-y-2">
+                    <div className="py-4 px-2 text-center text-[11px] text-slate-500 space-y-2 dark:text-slate-400">
                       <p>
                         Nenhum colaborador com a flag &ldquo;Participa da Fila&rdquo; marcada para os filtros atuais.
                       </p>
@@ -1111,7 +1113,7 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
                         <button
                           type="button"
                           onClick={() => onNavigate('cad_colaboradores')}
-                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-800 hover:bg-slate-100"
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-800 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-100 dark:hover:bg-slate-800"
                         >
                           Configurar em Colaboradores
                         </button>
@@ -1120,7 +1122,7 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
                   ) : (
                     activeSchedulesByUnit.map(({ unit, collabs }) => (
                       <div key={unit.id} className="space-y-1">
-                        <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400 px-1 truncate">
+                        <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400 px-1 truncate dark:text-slate-400">
                           {unit.code} · {unit.name}
                         </div>
                         <div className="space-y-1">
@@ -1132,8 +1134,8 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
                                 key={c.id}
                                 className={`flex items-center justify-between gap-1.5 rounded-lg border px-2 py-1.5 transition-colors ${
                                   isVisible
-                                    ? 'border-slate-200 bg-white'
-                                    : 'border-slate-100 bg-slate-50 opacity-55'
+                                    ? 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900'
+                                    : 'border-slate-100 bg-slate-50 opacity-55 dark:border-slate-800 dark:bg-slate-800/70'
                                 }`}
                               >
                                 <button
@@ -1148,22 +1150,22 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
                                   className="min-w-0 flex-1 text-left"
                                 >
                                   <div className="flex items-center gap-1">
-                                    <span className="font-semibold text-[11px] text-slate-900 truncate">
+                                    <span className="font-semibold text-[11px] text-slate-900 truncate dark:text-slate-100">
                                       {c.name}
                                     </span>
                                     {c.participatesInScheduleQueue && (
-                                      <span className="text-[9px] font-bold text-emerald-700 shrink-0">
+                                      <span className="text-[9px] font-bold text-emerald-700 shrink-0 dark:text-emerald-300">
                                         ✓ Fila
                                       </span>
                                     )}
                                   </div>
-                                  <div className="flex flex-wrap items-center gap-1 text-[9px] text-slate-500">
+                                  <div className="flex flex-wrap items-center gap-1 text-[9px] text-slate-500 dark:text-slate-400">
                                     <span className="truncate max-w-[95px]">{c.jobTitle}</span>
-                                    <span className="font-mono text-slate-700 font-semibold">
+                                    <span className="font-mono text-slate-700 font-semibold dark:text-slate-200">
                                       · {apptCount}
                                     </span>
                                     {c.isNextInQueue && (
-                                      <span className="inline-flex items-center gap-0.5 rounded bg-amber-100 px-1 py-0.2 font-bold text-amber-800 shrink-0">
+                                      <span className="inline-flex items-center gap-0.5 rounded bg-amber-100 px-1 py-0.2 font-bold text-amber-800 shrink-0 dark:bg-amber-900/50 dark:text-amber-300">
                                         <Sparkles className="w-2.5 h-2.5" /> Próx.
                                       </span>
                                     )}
@@ -1175,7 +1177,7 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
                                     type="button"
                                     onClick={() => handleQuickScheduleForCollab(c)}
                                     title={`Agendar próximo horário livre com ${c.name}`}
-                                    className="rounded border border-emerald-200 bg-emerald-50 p-1 text-emerald-700 hover:bg-emerald-100 shrink-0"
+                                    className="rounded border border-emerald-200 bg-emerald-50 p-1 text-emerald-700 hover:bg-emerald-100 shrink-0 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
                                   >
                                     <CalendarPlus className="w-3 h-3" />
                                   </button>
@@ -1191,30 +1193,30 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
               </div>
 
               {/* Fila de Espera (Compacta no container estreito, respeitando filtros e período) */}
-              <div className="rounded-xl border border-slate-200 bg-white overflow-hidden flex flex-col">
-                <div className="px-3 py-2.5 border-b border-slate-100 flex items-center justify-between gap-1 bg-slate-50/60">
-                  <div className="flex items-center gap-1.5 font-display text-xs font-bold text-slate-900 truncate">
-                    <ListChecks className="w-3.5 h-3.5 text-blue-700 shrink-0" />
+              <div className="rounded-xl border border-slate-200 bg-white overflow-hidden flex flex-col dark:border-slate-700 dark:bg-slate-900">
+                <div className="px-3 py-2.5 border-b border-slate-100 flex items-center justify-between gap-1 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-800/60">
+                  <div className="flex items-center gap-1.5 font-display text-xs font-bold text-slate-900 truncate dark:text-slate-100">
+                    <ListChecks className="w-3.5 h-3.5 text-blue-700 shrink-0 dark:text-blue-300" />
                     <span className="truncate">Fila ({sidebarWaitlistItems.length})</span>
                   </div>
                   <button
                     type="button"
                     onClick={() => switchTab('fila')}
-                    className="text-[10px] font-semibold text-blue-700 hover:underline shrink-0"
+                    className="text-[10px] font-semibold text-blue-700 hover:underline shrink-0 dark:text-blue-300"
                   >
                     Gerenciar
                   </button>
                 </div>
 
                 {/* Escopo da Fila: Período Selecionado vs Todas */}
-                <div className="px-2.5 py-1.5 border-b border-slate-100 flex items-center justify-between gap-1 text-[10px] bg-white">
+                <div className="px-2.5 py-1.5 border-b border-slate-100 flex items-center justify-between gap-1 text-[10px] bg-white dark:border-slate-800 dark:bg-slate-900">
                   <button
                     type="button"
                     onClick={() => setWaitlistScope('period')}
                     className={`flex-1 rounded py-0.5 font-semibold text-center ${
                       waitlistScope === 'period'
-                        ? 'bg-slate-900 text-white'
-                        : 'text-slate-600 hover:bg-slate-100'
+                        ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                        : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
                     }`}
                   >
                     No período ({periodFilteredWaitlist.length})
@@ -1224,32 +1226,32 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
                     onClick={() => setWaitlistScope('all')}
                     className={`flex-1 rounded py-0.5 font-semibold text-center ${
                       waitlistScope === 'all'
-                        ? 'bg-slate-900 text-white'
-                        : 'text-slate-600 hover:bg-slate-100'
+                        ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                        : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
                     }`}
                   >
                     Todas ({unitAndConsultantFilteredWaitlist.length})
                   </button>
                 </div>
 
-                <div className="divide-y divide-slate-100 max-h-60 overflow-y-auto overflow-x-auto scroll-rulers">
+                <div className="divide-y divide-slate-100 max-h-60 overflow-y-auto overflow-x-auto scroll-rulers dark:divide-slate-800">
                   {sidebarWaitlistItems.length === 0 ? (
-                    <div className="p-3 text-center text-[11px] text-slate-500">
+                    <div className="p-3 text-center text-[11px] text-slate-500 dark:text-slate-400">
                       {waitlistScope === 'period' && unitAndConsultantFilteredWaitlist.length > 0
                         ? 'Nenhum cliente para este período.'
                         : 'Fila de espera vazia.'}
                     </div>
                   ) : (
                     sidebarWaitlistItems.map((w) => (
-                      <div key={w.id} className="p-2.5 space-y-1.5 hover:bg-slate-50">
+                      <div key={w.id} className="p-2.5 space-y-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">
                         <div className="min-w-0">
-                          <div className="font-semibold text-[11px] text-slate-900 truncate">
+                          <div className="font-semibold text-[11px] text-slate-900 truncate dark:text-slate-100">
                             {w.clientName}
                           </div>
-                          <div className="text-[10px] text-slate-500 truncate">
+                          <div className="text-[10px] text-slate-500 truncate dark:text-slate-400">
                             {w.serviceName}
                           </div>
-                          <div className="font-mono text-[9px] text-slate-500">
+                          <div className="font-mono text-[9px] text-slate-500 dark:text-slate-400">
                             {formatShortDateBR(w.desiredDate)} · {w.desiredTime}
                           </div>
                         </div>
@@ -1275,7 +1277,7 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
                               switchTab('fila');
                             }}
                             title="Editar na fila"
-                            className="rounded border border-slate-200 p-1 text-blue-700 hover:bg-blue-50"
+                            className="rounded border border-slate-200 p-1 text-blue-700 hover:bg-blue-50 dark:border-slate-700 dark:text-blue-300 dark:hover:bg-blue-950/60"
                           >
                             <Edit3 className="w-2.5 h-2.5" />
                           </button>
@@ -1283,7 +1285,7 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
                             type="button"
                             onClick={() => setSidebarDeleteWaitlist(w)}
                             title="Remover da fila"
-                            className="rounded border border-red-200 p-1 text-red-600 hover:bg-red-50"
+                            className="rounded border border-red-200 p-1 text-red-600 hover:bg-red-50 dark:border-red-800/70 dark:text-red-400 dark:hover:bg-red-950/60"
                           >
                             <Trash2 className="w-2.5 h-2.5" />
                           </button>
@@ -1296,27 +1298,27 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
             </aside>
 
             {/* GRADE PRINCIPAL DE AGENDAMENTOS À DIREITA (#04 Data + Horário + Colaborador no topo, #06 Duplo clique amplia coluna, + Réguas Horizontais/Verticais) */}
-            <section className="flex-1 min-w-0 rounded-xl border border-slate-200 bg-white overflow-hidden flex flex-col">
+            <section className="flex-1 min-w-0 rounded-xl border border-slate-200 bg-white overflow-hidden flex flex-col dark:border-slate-700 dark:bg-slate-900">
               {/* Legenda de Cores & Dica de Duplo Clique */}
-              <div className="px-3.5 py-2 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-2 text-[11px] overflow-x-auto scroll-rulers">
+              <div className="px-3.5 py-2 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-2 text-[11px] overflow-x-auto scroll-rulers dark:border-slate-700 dark:bg-slate-800/70">
                 <div className="flex flex-wrap items-center gap-2.5">
                   {STATUS_OPTIONS.map((st) => (
-                    <span key={st.value} className="inline-flex items-center gap-1 text-slate-700 font-medium whitespace-nowrap">
+                    <span key={st.value} className="inline-flex items-center gap-1 text-slate-700 font-medium whitespace-nowrap dark:text-slate-200">
                       <HexColorSwatch
                         hex={config.statusColors[st.value] || DEFAULT_STATUS_COLORS[st.value]}
-                        className="w-3 h-3 rounded-xs border border-slate-300"
+                        className="w-3 h-3 rounded-xs border border-slate-300 dark:border-slate-600"
                       />
                       {st.shortLabel}
                     </span>
                   ))}
                 </div>
-                <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                <div className="flex items-center gap-2 text-[10px] text-slate-500 dark:text-slate-400">
                   <span>Duplo clique na coluna para ampliar/reduzir · Arraste cartões para mover</span>
                   {expandedColKeys.length > 0 && (
                     <button
                       type="button"
                       onClick={() => setExpandedColKeys([])}
-                      className="font-semibold text-blue-700 hover:underline whitespace-nowrap"
+                      className="font-semibold text-blue-700 hover:underline whitespace-nowrap dark:text-blue-300"
                     >
                       Restaurar larguras
                     </button>
@@ -1326,15 +1328,15 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
 
               {/* Seletor rápido de dias quando Semanal ou Período está ativo */}
               {periodRange.dates.length > 1 && (
-                <div className="px-3.5 py-2 border-b border-slate-200 bg-white flex items-center gap-1.5 overflow-x-auto scroll-rulers text-[11px]">
-                  <span className="font-semibold text-slate-500 shrink-0 mr-1">Dias no período:</span>
+                <div className="px-3.5 py-2 border-b border-slate-200 bg-white flex items-center gap-1.5 overflow-x-auto scroll-rulers text-[11px] dark:border-slate-700 dark:bg-slate-900">
+                  <span className="font-semibold text-slate-500 shrink-0 mr-1 dark:text-slate-400">Dias no período:</span>
                   <button
                     type="button"
                     onClick={() => setFocusedSubDay('all')}
                     className={`rounded-md px-2.5 py-1 font-semibold whitespace-nowrap shrink-0 ${
                       focusedSubDay === 'all'
-                        ? 'bg-slate-900 text-white'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                        ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
                     }`}
                   >
                     Todos ({periodRange.dates.length})
@@ -1347,7 +1349,7 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
                       className={`rounded-md px-2.5 py-1 font-mono font-semibold whitespace-nowrap shrink-0 ${
                         focusedSubDay === dKey
                           ? 'bg-emerald-700 text-white'
-                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
                       }`}
                     >
                       {getWeekdayShortBR(dKey)} {formatDayMonthBR(dKey)}
@@ -1383,12 +1385,12 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
 
                   return (
                     <table className="w-max min-w-full border-collapse text-xs">
-                      <thead className="sticky top-0 z-20 bg-slate-50 shadow-2xs">
-                        <tr className="border-b border-slate-200 bg-slate-50">
-                          <th className="w-24 min-w-[96px] py-2.5 px-2.5 text-center font-mono text-[11px] font-bold text-slate-600 border-r border-slate-200 bg-slate-50 sm:sticky sm:left-0 sm:z-30">
+                      <thead className="sticky top-0 z-20 bg-slate-50 shadow-2xs dark:bg-slate-800/70">
+                        <tr className="border-b border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/70">
+                          <th className="w-24 min-w-[96px] py-2.5 px-2.5 text-center font-mono text-[11px] font-bold text-slate-600 border-r border-slate-200 bg-slate-50 sm:sticky sm:left-0 sm:z-30 dark:text-slate-300 dark:border-slate-700 dark:bg-slate-800/70">
                             Data
                           </th>
-                          <th className="w-20 min-w-[78px] py-2.5 px-2 text-center font-mono text-[11px] font-bold text-slate-600 border-r border-slate-200 bg-slate-50 sm:sticky sm:left-24 sm:z-30">
+                          <th className="w-20 min-w-[78px] py-2.5 px-2 text-center font-mono text-[11px] font-bold text-slate-600 border-r border-slate-200 bg-slate-50 sm:sticky sm:left-24 sm:z-30 dark:text-slate-300 dark:border-slate-700 dark:bg-slate-800/70">
                             Horário
                           </th>
                           {cols.map((col) => {
@@ -1398,15 +1400,15 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
                                 key={col.key}
                                 onDoubleClick={() => toggleExpandColumn(col.key)}
                                 title="Dê duplo clique nesta coluna para ampliar ou reduzir a visualização"
-                                className={`py-2.5 px-3 text-left border-r border-slate-200 last:border-r-0 select-none cursor-pointer transition-all ${
+                                className={`py-2.5 px-3 text-left border-r border-slate-200 last:border-r-0 select-none cursor-pointer transition-all dark:border-slate-700 ${
                                   isExpanded
-                                    ? 'w-[380px] min-w-[380px] sm:w-[430px] sm:min-w-[430px] bg-emerald-50/70'
-                                    : 'w-48 min-w-[192px] bg-slate-50 hover:bg-slate-100/80'
+                                    ? 'w-[380px] min-w-[380px] sm:w-[430px] sm:min-w-[430px] bg-emerald-50/70 dark:bg-emerald-950/50'
+                                    : 'w-48 min-w-[192px] bg-slate-50 hover:bg-slate-100/80 dark:bg-slate-800/70'
                                 }`}
                               >
                                 <div className="flex items-center justify-between gap-1.5">
                                   <span
-                                    className={`font-display font-bold text-slate-900 ${
+                                    className={`font-display font-bold text-slate-900 dark:text-slate-100 ${
                                       isExpanded ? 'whitespace-normal text-sm' : 'truncate'
                                     }`}
                                   >
@@ -1414,7 +1416,7 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
                                   </span>
                                   <div className="flex items-center gap-1 shrink-0">
                                     {col.collab?.isNextInQueue && (
-                                      <span className="text-[10px] font-bold text-amber-700">
+                                      <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300">
                                         Próximo
                                       </span>
                                     )}
@@ -1425,19 +1427,19 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
                                         toggleExpandColumn(col.key);
                                       }}
                                       title={isExpanded ? 'Reduzir coluna' : 'Ampliar coluna'}
-                                      className="p-1 rounded text-slate-500 hover:bg-white hover:text-slate-900"
+                                      className="p-1 rounded text-slate-500 hover:bg-white hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
                                     >
                                       {isExpanded ? (
-                                        <Minimize2 className="w-3.5 h-3.5 text-emerald-700" />
+                                        <Minimize2 className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-300" />
                                       ) : (
                                         <Maximize2 className="w-3 h-3" />
                                       )}
                                     </button>
                                   </div>
                                 </div>
-                                <div className="flex items-center justify-between gap-1 text-[10px] font-normal text-slate-500">
+                                <div className="flex items-center justify-between gap-1 text-[10px] font-normal text-slate-500 dark:text-slate-400">
                                   <span className={isExpanded ? '' : 'truncate'}>{col.sub}</span>
-                                  <span className="font-mono text-[10px] text-slate-400 shrink-0">
+                                  <span className="font-mono text-[10px] text-slate-400 shrink-0 dark:text-slate-400">
                                     {displayedGridDates.length === 1
                                       ? formatDayMonthBR(displayedGridDates[0])
                                       : `${formatDayMonthBR(displayedGridDates[0])}–${formatDayMonthBR(
@@ -1451,7 +1453,7 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
                         </tr>
                       </thead>
 
-                      <tbody className="divide-y divide-slate-200">
+                      <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                         {displayedGridDates.map((rowDateKey) => {
                           const coveredSlotsForDate = new Map<string, number>();
                           const weekdayLabel = getWeekdayShortBR(rowDateKey);
@@ -1472,17 +1474,17 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
                                 }`}
                               >
                                 {/* Coluna 1: Data */}
-                                <td className="w-24 min-w-[96px] py-2.5 px-2 text-center bg-slate-50/95 border-r border-slate-200 sm:sticky sm:left-0 sm:z-10">
-                                  <div className="font-mono text-[11px] font-bold text-slate-800 leading-tight">
+                                <td className="w-24 min-w-[96px] py-2.5 px-2 text-center bg-slate-50/95 border-r border-slate-200 sm:sticky sm:left-0 sm:z-10 dark:border-slate-700">
+                                  <div className="font-mono text-[11px] font-bold text-slate-800 leading-tight dark:text-slate-100">
                                     {shortDateLabel}
                                   </div>
-                                  <div className="text-[10px] font-semibold uppercase text-slate-500">
+                                  <div className="text-[10px] font-semibold uppercase text-slate-500 dark:text-slate-400">
                                     {weekdayLabel}
                                   </div>
                                 </td>
 
                                 {/* Coluna 2: Horário */}
-                                <td className="w-20 min-w-[78px] py-2.5 px-2 text-center font-mono text-[11px] font-semibold text-slate-600 bg-slate-50/95 border-r border-slate-200 sm:sticky sm:left-24 sm:z-10">
+                                <td className="w-20 min-w-[78px] py-2.5 px-2 text-center font-mono text-[11px] font-semibold text-slate-600 bg-slate-50/95 border-r border-slate-200 sm:sticky sm:left-24 sm:z-10 dark:text-slate-300 dark:border-slate-700">
                                   {slotTime}
                                 </td>
 
@@ -1588,13 +1590,13 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
                                           ? `Agenda Bloqueada · ${blk.reason} (Duplo clique amplia coluna)`
                                           : `Clique para agendar em ${shortDateLabel} às ${slotTime} · Duplo clique amplia coluna`
                                       }
-                                      className={`relative min-h-[54px] h-14 p-1.5 border-r border-slate-200 last:border-r-0 transition-all ${
+                                      className={`relative min-h-[54px] h-14 p-1.5 border-r border-slate-200 last:border-r-0 transition-all dark:border-slate-700 ${
                                         isExpanded
                                           ? 'w-[380px] min-w-[380px] sm:w-[430px] sm:min-w-[430px] bg-emerald-50/15'
                                           : 'w-48 min-w-[192px]'
                                       } ${
                                         blk
-                                          ? 'bg-slate-100 cursor-not-allowed'
+                                          ? 'bg-slate-100 cursor-not-allowed dark:bg-slate-800'
                                           : 'hover:bg-slate-50/80 cursor-pointer'
                                       }`}
                                     >
@@ -1604,13 +1606,13 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
                                             patternId={`blk-${rowDateKey}-${col.key}-${slotIdx}`}
                                           />
                                           <div
-                                            className={`relative z-10 text-[10px] font-bold text-slate-700 ${
+                                            className={`relative z-10 text-[10px] font-bold text-slate-700 dark:text-slate-200 ${
                                               isExpanded ? '' : 'truncate'
                                             }`}
                                           >
                                             Bloqueado · {blk.reason}
                                           </div>
-                                          <div className="relative z-10 font-mono text-[9px] text-slate-500">
+                                          <div className="relative z-10 font-mono text-[9px] text-slate-500 dark:text-slate-400">
                                             {blk.allDay !== false
                                               ? 'Dia Inteiro'
                                               : `${blk.startTime} - ${blk.endTime}`}
@@ -1622,7 +1624,7 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
                                         </div>
                                       ) : (
                                         <div className="h-full min-h-[42px] flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                                          <span className="inline-flex items-center gap-1 rounded-md border border-dashed border-slate-300 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                                          <span className="inline-flex items-center gap-1 rounded-md border border-dashed border-slate-300 px-2 py-0.5 text-[10px] font-semibold text-slate-500 dark:border-slate-600 dark:text-slate-400">
                                             <Plus className="w-3 h-3" /> {slotTime}
                                           </span>
                                         </div>

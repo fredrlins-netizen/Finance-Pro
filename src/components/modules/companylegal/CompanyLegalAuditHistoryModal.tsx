@@ -34,9 +34,9 @@ interface CompanyLegalAuditHistoryModalProps {
 }
 
 const ACTION_LABELS: Record<string, { label: string; cls: string }> = {
-  PROCESS_CREATED: { label: 'Inclusão', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  PROCESS_UPDATED: { label: 'Alteração', cls: 'bg-blue-50 text-blue-700 border-blue-200' },
-  PROCESS_DELETED: { label: 'Exclusão', cls: 'bg-red-50 text-red-700 border-red-200' },
+  PROCESS_CREATED: { label: 'Inclusão', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800/70' },
+  PROCESS_UPDATED: { label: 'Alteração', cls: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800/70' },
+  PROCESS_DELETED: { label: 'Exclusão', cls: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/60 dark:text-red-300 dark:border-red-800/70' },
 };
 
 const PAGE_SIZE = 15;
@@ -120,23 +120,23 @@ export const CompanyLegalAuditHistoryModal: React.FC<CompanyLegalAuditHistoryMod
       aria-label="Histórico de Movimentações"
     >
       <div
-        className="w-full max-w-5xl max-h-[90vh] rounded-2xl border border-slate-200 bg-white shadow-2xl flex flex-col overflow-hidden"
+        className="w-full max-w-5xl max-h-[90vh] rounded-2xl border border-slate-200 bg-white shadow-2xl flex flex-col overflow-hidden dark:border-slate-700 dark:bg-slate-900"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between gap-3 bg-slate-50">
+        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between gap-3 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/70">
           <div className="flex items-center gap-2 min-w-0">
-            <History className="w-4 h-4 text-slate-600 shrink-0" />
-            <h3 className="font-display text-sm font-bold text-slate-900 truncate">
+            <History className="w-4 h-4 text-slate-600 shrink-0 dark:text-slate-300" />
+            <h3 className="font-display text-sm font-bold text-slate-900 truncate dark:text-slate-100">
               Histórico de Movimentações · <span className="font-mono">{processNumber}</span>
             </h3>
-            <span className="rounded border border-slate-300 bg-white px-2 py-0.5 text-[10px] font-bold uppercase text-slate-600">
+            <span className="rounded border border-slate-300 bg-white px-2 py-0.5 text-[10px] font-bold uppercase text-slate-600 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
               Somente Leitura
             </span>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-700"
             aria-label="Fechar"
           >
             <X className="w-4 h-4" />
@@ -145,15 +145,15 @@ export const CompanyLegalAuditHistoryModal: React.FC<CompanyLegalAuditHistoryMod
 
         <div className="flex-1 overflow-auto p-4">
           {loading ? (
-            <div className="py-12 text-center text-xs text-slate-500">Carregando histórico...</div>
+            <div className="py-12 text-center text-xs text-slate-500 dark:text-slate-400">Carregando histórico...</div>
           ) : flatRows.length === 0 ? (
-            <div className="py-12 text-center text-xs text-slate-400">
+            <div className="py-12 text-center text-xs text-slate-400 dark:text-slate-400">
               Nenhuma movimentação registrada para este item
             </div>
           ) : (
             <table className="w-full text-xs border-collapse">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] font-semibold text-slate-500">
+                <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-400">
                   <th className="px-3 py-2">Data/Hora</th>
                   <th className="px-3 py-2">Usuário</th>
                   <th className="px-3 py-2">Ação</th>
@@ -163,18 +163,18 @@ export const CompanyLegalAuditHistoryModal: React.FC<CompanyLegalAuditHistoryMod
                   <th className="px-3 py-2">Para</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {paged.map((r) => {
                   const act = ACTION_LABELS[r.action] || {
                     label: r.action,
-                    cls: 'bg-slate-100 text-slate-700 border-slate-200',
+                    cls: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700',
                   };
                   return (
-                    <tr key={r.rowKey} className="hover:bg-slate-50/70">
-                      <td className="px-3 py-2 whitespace-nowrap tabular-nums text-slate-600">
+                    <tr key={r.rowKey} className="hover:bg-slate-50/70 dark:hover:bg-slate-800">
+                      <td className="px-3 py-2 whitespace-nowrap tabular-nums text-slate-600 dark:text-slate-300">
                         {formatDateTimeBR(r.createdAt)}
                       </td>
-                      <td className="px-3 py-2 font-medium text-slate-800 whitespace-nowrap">
+                      <td className="px-3 py-2 font-medium text-slate-800 whitespace-nowrap dark:text-slate-100">
                         {r.userName}
                       </td>
                       <td className="px-3 py-2 whitespace-nowrap">
@@ -182,12 +182,12 @@ export const CompanyLegalAuditHistoryModal: React.FC<CompanyLegalAuditHistoryMod
                           {act.label}
                         </span>
                       </td>
-                      <td className="px-3 py-2 font-semibold text-slate-700">{r.fieldLabel}</td>
-                      <td className="px-3 py-2 text-red-700 max-w-[200px] truncate" title={r.fromVal}>
+                      <td className="px-3 py-2 font-semibold text-slate-700 dark:text-slate-200">{r.fieldLabel}</td>
+                      <td className="px-3 py-2 text-red-700 max-w-[200px] truncate dark:text-red-300" title={r.fromVal}>
                         {r.fromVal}
                       </td>
-                      <td className="px-2 py-2 text-center text-slate-400">→</td>
-                      <td className="px-3 py-2 text-emerald-700 max-w-[220px] truncate font-medium" title={r.toVal}>
+                      <td className="px-2 py-2 text-center text-slate-400 dark:text-slate-400">→</td>
+                      <td className="px-3 py-2 text-emerald-700 max-w-[220px] truncate font-medium dark:text-emerald-300" title={r.toVal}>
                         {r.toVal}
                       </td>
                     </tr>
@@ -198,8 +198,8 @@ export const CompanyLegalAuditHistoryModal: React.FC<CompanyLegalAuditHistoryMod
           )}
         </div>
 
-        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-2 text-xs">
-          <div className="text-slate-500">
+        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-2 text-xs dark:border-slate-700 dark:bg-slate-800/70">
+          <div className="text-slate-500 dark:text-slate-400">
             {events.length} evento(s) de auditoria · {flatRows.length} linha(s) detalhada(s)
           </div>
           <div className="flex items-center gap-2">
@@ -209,18 +209,18 @@ export const CompanyLegalAuditHistoryModal: React.FC<CompanyLegalAuditHistoryMod
                   type="button"
                   disabled={page <= 1}
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2.5 py-1 text-slate-700 hover:bg-slate-100 disabled:opacity-40"
+                  className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2.5 py-1 text-slate-700 hover:bg-slate-100 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                 >
                   <ChevronLeft className="w-3.5 h-3.5" /> Anterior
                 </button>
-                <span className="px-2 tabular-nums font-medium text-slate-600">
+                <span className="px-2 tabular-nums font-medium text-slate-600 dark:text-slate-300">
                   {page} / {totalPages}
                 </span>
                 <button
                   type="button"
                   disabled={page >= totalPages}
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2.5 py-1 text-slate-700 hover:bg-slate-100 disabled:opacity-40"
+                  className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2.5 py-1 text-slate-700 hover:bg-slate-100 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                 >
                   Próxima <ChevronRight className="w-3.5 h-3.5" />
                 </button>
@@ -229,7 +229,7 @@ export const CompanyLegalAuditHistoryModal: React.FC<CompanyLegalAuditHistoryMod
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-slate-300 bg-white px-4 py-1.5 font-semibold text-slate-700 hover:bg-slate-100"
+              className="rounded-lg border border-slate-300 bg-white px-4 py-1.5 font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               Fechar
             </button>

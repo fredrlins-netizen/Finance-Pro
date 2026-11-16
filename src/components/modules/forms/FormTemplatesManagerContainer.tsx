@@ -55,11 +55,11 @@ import {
 } from '../../../lib/formTemplateCatalog.ts';
 import {
   buildPrintableHtmlDocument,
-  openPrintWindow,
   replaceTemplateVariables,
   sanitizeTemplateHtml,
   type FormMergeContext,
 } from '../../../lib/formTemplateRenderer.ts';
+import { applyThemeToHtmlDocument, useTheme } from '../../../lib/theme.tsx';
 import {
   ensurePortalBrandingLoaded,
   getCachedLogoNeedsDarkBackdrop,
@@ -590,8 +590,10 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
     }
   };
 
+  const { theme } = useTheme();
+
   const handlePrintRawOrRendered = (title: string, header: string, body: string, footer: string) => {
-    const res = openPrintWindow({
+    const htmlDocument = buildPrintableHtmlDocument({
       title,
       headerHtml: header,
       bodyHtml: body,
@@ -600,12 +602,9 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
       companyName: activeBranding?.companyName,
       logoDarkBackdrop: darkBackdrop,
     });
-    if (!res.opened) {
-      setPreviewTitle(title);
-      setPreviewHtmlDoc(res.htmlDocument);
-      setPreviewModalOpen(true);
-      notify('Janela pop-up bloqueada pelo navegador. Exibindo visualização A4 interna para impressão.');
-    }
+    setPreviewTitle(title);
+    setPreviewHtmlDoc(htmlDocument);
+    setPreviewModalOpen(true);
   };
 
   const handleOpenLiveTestPreview = async () => {
@@ -845,20 +844,20 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
       onClick={() => !savingModalOptions && setModalOptionsTarget(null)}
     >
       <div
-        className="w-full max-w-3xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden flex flex-col max-h-[88vh]"
+        className="w-full max-w-3xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden flex flex-col max-h-[88vh] dark:border-slate-700 dark:bg-slate-900"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-3 border-b border-slate-200 bg-slate-50 px-5 py-3.5">
+        <div className="flex items-start justify-between gap-3 border-b border-slate-200 bg-slate-50 px-5 py-3.5 dark:border-slate-700 dark:bg-slate-800/70">
           <div>
             <div className="flex items-center gap-2">
-              <AppWindow className="w-4 h-4 text-blue-600" />
-              <h3 className="font-display text-sm font-bold text-slate-900">
+              <AppWindow className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                 Opções Modais · Apresentação e Uso do Formulário
               </h3>
             </div>
-            <p className="text-[11px] text-slate-500 mt-0.5">
+            <p className="text-[11px] text-slate-500 mt-0.5 dark:text-slate-400">
               Modelo:{' '}
-              <strong className="text-slate-800">
+              <strong className="text-slate-800 dark:text-slate-100">
                 {modalOptionsTarget.mode === 'list'
                   ? modalOptionsTarget.item.name
                   : name.trim() || 'Novo Modelo A4'}
@@ -870,30 +869,30 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
             type="button"
             disabled={savingModalOptions}
             onClick={() => setModalOptionsTarget(null)}
-            className="rounded-lg p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
+            className="rounded-lg p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="border-b border-slate-100 bg-white px-5 py-3 flex flex-wrap items-center justify-between gap-2.5">
+        <div className="border-b border-slate-100 bg-white px-5 py-3 flex flex-wrap items-center justify-between gap-2.5 dark:border-slate-800 dark:bg-slate-900">
           <div className="relative flex-1 min-w-[200px]">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2" />
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2 dark:text-slate-400" />
             <input
               type="text"
               value={modalRoutineSearch}
               onChange={(e) => setModalRoutineSearch(e.target.value)}
               placeholder="Filtrar tela ou módulo..."
-              className="w-full rounded-lg border border-slate-200 pl-8 pr-2.5 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
+              className="w-full rounded-lg border border-slate-200 pl-8 pr-2.5 py-1.5 text-xs focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             />
           </div>
 
-          <label className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700 cursor-pointer select-none">
+          <label className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700 cursor-pointer select-none dark:text-slate-200">
             <input
               type="checkbox"
               checked={modalOnlyFilter}
               onChange={(e) => setModalOnlyFilter(e.target.checked)}
-              className="rounded border-slate-300 text-blue-600"
+              className="rounded border-slate-300 text-blue-600 dark:border-slate-600 dark:text-blue-400"
             />
             Somente telas com Modal
           </label>
@@ -908,7 +907,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                   )
                 )
               }
-              className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100"
+              className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
             >
               Marcar Todas c/ Modal
             </button>
@@ -917,14 +916,14 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
               onClick={() =>
                 setDraftModalMenuIds(FORM_CONTEXT_REGISTRY.map((r) => r.menuId))
               }
-              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               Marcar Todas
             </button>
             <button
               type="button"
               onClick={() => setDraftModalMenuIds([])}
-              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-500 hover:bg-slate-50"
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"
             >
               Limpar
             </button>
@@ -933,19 +932,19 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
 
         <div className="p-5 overflow-y-auto space-y-4 flex-1">
           {modalOptionsError && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
               {modalOptionsError}
             </div>
           )}
 
           {filteredModalRoutinesByModule.length === 0 ? (
-            <div className="py-8 text-center text-xs text-slate-500">
+            <div className="py-8 text-center text-xs text-slate-500 dark:text-slate-400">
               Nenhuma rotina encontrada para o filtro informado.
             </div>
           ) : (
             filteredModalRoutinesByModule.map(([modName, list]) => (
               <div key={modName} className="space-y-2">
-                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400">
                   {modName}
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -956,8 +955,8 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                         key={r.menuId}
                         className={`flex items-start gap-2.5 rounded-xl border p-3 cursor-pointer transition-colors ${
                           checked
-                            ? 'border-blue-400 bg-blue-50/50'
-                            : 'border-slate-200 bg-white hover:bg-slate-50'
+                            ? 'border-blue-400 bg-blue-50/50 dark:bg-blue-950/50'
+                            : 'border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800'
                         }`}
                       >
                         <input
@@ -970,25 +969,25 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                               setDraftModalMenuIds((prev) => prev.filter((id) => id !== r.menuId));
                             }
                           }}
-                          className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                          className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-600 dark:text-blue-400"
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-1.5">
-                            <span className="text-xs font-bold text-slate-900">{r.label}</span>
+                            <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{r.label}</span>
                             <div className="flex items-center gap-1 shrink-0">
                               {r.targetTypes.includes('modal') && (
-                                <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">
+                                <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300">
                                   Modal
                                 </span>
                               )}
                               {r.targetTypes.includes('grid') && (
-                                <span className="rounded bg-slate-100 border border-slate-200 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+                                <span className="rounded bg-slate-100 border border-slate-200 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300">
                                   Grid
                                 </span>
                               )}
                             </div>
                           </div>
-                          <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                          <p className="text-[11px] text-slate-500 mt-0.5 leading-snug dark:text-slate-400">
                             {r.description}
                           </p>
                         </div>
@@ -1001,8 +1000,8 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
           )}
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-5 py-3">
-          <span className="text-xs font-mono tabular-nums text-slate-600">
+        <div className="flex items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-5 py-3 dark:border-slate-700 dark:bg-slate-800/70">
+          <span className="text-xs font-mono tabular-nums text-slate-600 dark:text-slate-300">
             <strong>{draftModalMenuIds.length}</strong> de {FORM_CONTEXT_REGISTRY.length} rotina(s) marcada(s)
           </span>
           <div className="flex items-center gap-2">
@@ -1010,7 +1009,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
               type="button"
               disabled={savingModalOptions}
               onClick={() => setModalOptionsTarget(null)}
-              className="rounded-lg border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              className="rounded-lg border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               Cancelar
             </button>
@@ -1043,31 +1042,31 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
     return (
       <div className="space-y-4">
         {/* Top Action Bar */}
-        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 flex flex-wrap items-center justify-between gap-3 dark:border-slate-700 dark:bg-slate-900">
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={() => setViewMode('list')}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               Voltar
             </button>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="font-display text-sm font-bold text-slate-900">
+                <h2 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                   {editingId ? 'Editar Modelo A4' : 'Novo Modelo de Documento A4'}
                 </h2>
-                <span className="rounded bg-blue-50 border border-blue-200 px-1.5 py-0.5 text-[10px] font-mono font-bold text-blue-700">
+                <span className="rounded bg-blue-50 border border-blue-200 px-1.5 py-0.5 text-[10px] font-mono font-bold text-blue-700 dark:bg-blue-950/50 dark:border-blue-800/70 dark:text-blue-300">
                   A4 · 210×297mm
                 </span>
                 {docxTemplate && (
-                  <span className="rounded bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 text-[10px] font-mono font-semibold text-emerald-700">
+                  <span className="rounded bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 text-[10px] font-mono font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:border-emerald-800/70 dark:text-emerald-300">
                     DOCX Embutido
                   </span>
                 )}
               </div>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
                 Atalho rápido: <span className="font-mono">Ctrl+Enter</span> para salvar
               </p>
             </div>
@@ -1088,25 +1087,25 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
               type="button"
               disabled={importingDocx}
               onClick={() => docxInputRef.current?.click()}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
-              <FileUp className="w-3.5 h-3.5 text-blue-600" />
+              <FileUp className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
               {importingDocx ? 'Convertendo DOCX...' : 'Importar DOCX'}
             </button>
 
             <button
               type="button"
               onClick={() => void handleOpenLiveTestPreview()}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
-              <Eye className="w-3.5 h-3.5 text-emerald-600" />
+              <Eye className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
               Testar Preenchimento
             </button>
 
             <button
               type="button"
               onClick={openModalOptionsFromEditor}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300 dark:hover:bg-blue-900/60"
             >
               <AppWindow className="w-3.5 h-3.5" />
               Opções Modais ({menuIds.length})
@@ -1118,7 +1117,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                 const { nextHeader, nextBody, nextFooter } = readCurrentZoneHtml();
                 handlePrintRawOrRendered(name || 'Documento A4', nextHeader, nextBody, nextFooter);
               }}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               <Printer className="w-3.5 h-3.5" />
               Imprimir
@@ -1127,7 +1126,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
             <button
               type="button"
               onClick={() => setViewMode('list')}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
             >
               Cancelar
             </button>
@@ -1145,20 +1144,20 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
         </div>
 
         {editorError && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-xs text-red-700 flex items-center justify-between">
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-xs text-red-700 flex items-center justify-between dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
             <span>{editorError}</span>
-            <button type="button" onClick={() => setEditorError('')} className="text-red-500 hover:text-red-800">
+            <button type="button" onClick={() => setEditorError('')} className="text-red-500 hover:text-red-800 dark:hover:text-red-200">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
         )}
 
         {/* Metadata Card */}
-        <div className="rounded-xl border border-slate-200 bg-white p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 grid grid-cols-1 md:grid-cols-2 gap-3 dark:border-slate-700 dark:bg-slate-900">
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-semibold text-slate-700">Nome do Formulário *</label>
-              <span className="text-[10px] font-mono text-slate-400">{name.length}/255</span>
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-200">Nome do Formulário *</label>
+              <span className="text-[10px] font-mono text-slate-400 dark:text-slate-400">{name.length}/255</span>
             </div>
             <input
               type="text"
@@ -1166,17 +1165,17 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Ex: Contrato de Prestação de Serviços / Folha de Rosto"
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-900 focus:border-blue-500 focus:outline-none"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-900 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:text-slate-100"
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Descrição Curta</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1 dark:text-slate-200">Descrição Curta</label>
             <input
               type="text"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Finalidade do modelo para identificação rápida no catálogo e rotinas"
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-900 focus:border-blue-500 focus:outline-none"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-900 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:text-slate-100"
             />
           </div>
         </div>
@@ -1186,14 +1185,14 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
           {/* Left: Rich Toolbar + A4 Sheet Canvas */}
           <div className="flex-1 min-w-0 w-full space-y-3">
             {/* Rich Formatting Toolbar */}
-            <div className="rounded-xl border border-slate-200 bg-white p-2 flex flex-wrap items-center gap-1 sticky top-2 z-20 shadow-xs">
+            <div className="rounded-xl border border-slate-200 bg-white p-2 flex flex-wrap items-center gap-1 sticky top-2 z-20 shadow-xs dark:border-slate-700 dark:bg-slate-900">
               <span
                 className={`rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider mr-1 ${
                   activeZone === 'header'
-                    ? 'bg-blue-100 text-blue-800'
+                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300'
                     : activeZone === 'footer'
-                    ? 'bg-amber-100 text-amber-800'
-                    : 'bg-emerald-100 text-emerald-800'
+                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300'
+                    : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300'
                 }`}
               >
                 {activeZone === 'header' ? 'Cabeçalho' : activeZone === 'footer' ? 'Rodapé' : 'Corpo'}
@@ -1203,7 +1202,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                 type="button"
                 title="Desfazer"
                 onClick={() => execEditorCommand('undo')}
-                className="p-1.5 rounded hover:bg-slate-100 text-slate-700"
+                className="p-1.5 rounded hover:bg-slate-100 text-slate-700 dark:hover:bg-slate-800 dark:text-slate-200"
               >
                 <Undo2 className="w-3.5 h-3.5" />
               </button>
@@ -1211,18 +1210,18 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                 type="button"
                 title="Refazer"
                 onClick={() => execEditorCommand('redo')}
-                className="p-1.5 rounded hover:bg-slate-100 text-slate-700"
+                className="p-1.5 rounded hover:bg-slate-100 text-slate-700 dark:hover:bg-slate-800 dark:text-slate-200"
               >
                 <Redo2 className="w-3.5 h-3.5" />
               </button>
 
-              <span className="h-4 w-px bg-slate-200 mx-0.5" />
+              <span className="h-4 w-px bg-slate-200 mx-0.5 dark:bg-slate-700" />
 
               <select
                 aria-label="Bloco"
                 defaultValue="P"
                 onChange={(e) => execEditorCommand('formatBlock', e.target.value)}
-                className="rounded border border-slate-200 bg-slate-50 px-1.5 py-1 text-[11px] text-slate-700"
+                className="rounded border border-slate-200 bg-slate-50 px-1.5 py-1 text-[11px] text-slate-700 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-200"
               >
                 <option value="P">Parágrafo</option>
                 <option value="H1">Título 1</option>
@@ -1234,7 +1233,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                 aria-label="Fonte"
                 defaultValue="Times New Roman"
                 onChange={(e) => execEditorCommand('fontName', e.target.value)}
-                className="rounded border border-slate-200 bg-slate-50 px-1.5 py-1 text-[11px] text-slate-700"
+                className="rounded border border-slate-200 bg-slate-50 px-1.5 py-1 text-[11px] text-slate-700 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-200"
               >
                 <option value="Times New Roman">Times New Roman</option>
                 <option value="Arial">Arial</option>
@@ -1247,7 +1246,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                 aria-label="Tamanho"
                 defaultValue="3"
                 onChange={(e) => execEditorCommand('fontSize', e.target.value)}
-                className="rounded border border-slate-200 bg-slate-50 px-1.5 py-1 text-[11px] text-slate-700"
+                className="rounded border border-slate-200 bg-slate-50 px-1.5 py-1 text-[11px] text-slate-700 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-200"
               >
                 <option value="1">10px</option>
                 <option value="2">13px</option>
@@ -1257,13 +1256,13 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                 <option value="6">32px</option>
               </select>
 
-              <span className="h-4 w-px bg-slate-200 mx-0.5" />
+              <span className="h-4 w-px bg-slate-200 mx-0.5 dark:bg-slate-700" />
 
               <button
                 type="button"
                 title="Negrito"
                 onClick={() => execEditorCommand('bold')}
-                className="p-1.5 rounded hover:bg-slate-100 text-slate-700"
+                className="p-1.5 rounded hover:bg-slate-100 text-slate-700 dark:hover:bg-slate-800 dark:text-slate-200"
               >
                 <Bold className="w-3.5 h-3.5" />
               </button>
@@ -1271,7 +1270,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                 type="button"
                 title="Itálico"
                 onClick={() => execEditorCommand('italic')}
-                className="p-1.5 rounded hover:bg-slate-100 text-slate-700"
+                className="p-1.5 rounded hover:bg-slate-100 text-slate-700 dark:hover:bg-slate-800 dark:text-slate-200"
               >
                 <Italic className="w-3.5 h-3.5" />
               </button>
@@ -1279,7 +1278,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                 type="button"
                 title="Sublinhado"
                 onClick={() => execEditorCommand('underline')}
-                className="p-1.5 rounded hover:bg-slate-100 text-slate-700"
+                className="p-1.5 rounded hover:bg-slate-100 text-slate-700 dark:hover:bg-slate-800 dark:text-slate-200"
               >
                 <Underline className="w-3.5 h-3.5" />
               </button>
@@ -1287,13 +1286,13 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                 type="button"
                 title="Tachado"
                 onClick={() => execEditorCommand('strikeThrough')}
-                className="p-1.5 rounded hover:bg-slate-100 text-slate-700"
+                className="p-1.5 rounded hover:bg-slate-100 text-slate-700 dark:hover:bg-slate-800 dark:text-slate-200"
               >
                 <Strikethrough className="w-3.5 h-3.5" />
               </button>
 
               <label title="Cor do texto" className="inline-flex items-center px-1 cursor-pointer">
-                <span className="text-[11px] font-bold text-slate-700 mr-0.5">A</span>
+                <span className="text-[11px] font-bold text-slate-700 mr-0.5 dark:text-slate-200">A</span>
                 <input
                   type="color"
                   defaultValue="#0f172a"
@@ -1303,7 +1302,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
               </label>
 
               <label title="Cor de destaque" className="inline-flex items-center px-1 cursor-pointer">
-                <span className="text-[10px] font-bold bg-amber-200 text-slate-800 px-1 rounded mr-0.5">ab</span>
+                <span className="text-[10px] font-bold bg-amber-200 text-slate-800 px-1 rounded mr-0.5 dark:text-slate-100">ab</span>
                 <input
                   type="color"
                   defaultValue="#fef08a"
@@ -1312,37 +1311,37 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                 />
               </label>
 
-              <span className="h-4 w-px bg-slate-200 mx-0.5" />
+              <span className="h-4 w-px bg-slate-200 mx-0.5 dark:bg-slate-700" />
 
-              <button type="button" title="Alinhar à esquerda" onClick={() => execEditorCommand('justifyLeft')} className="p-1.5 rounded hover:bg-slate-100 text-slate-700">
+              <button type="button" title="Alinhar à esquerda" onClick={() => execEditorCommand('justifyLeft')} className="p-1.5 rounded hover:bg-slate-100 text-slate-700 dark:hover:bg-slate-800 dark:text-slate-200">
                 <AlignLeft className="w-3.5 h-3.5" />
               </button>
-              <button type="button" title="Centralizar" onClick={() => execEditorCommand('justifyCenter')} className="p-1.5 rounded hover:bg-slate-100 text-slate-700">
+              <button type="button" title="Centralizar" onClick={() => execEditorCommand('justifyCenter')} className="p-1.5 rounded hover:bg-slate-100 text-slate-700 dark:hover:bg-slate-800 dark:text-slate-200">
                 <AlignCenter className="w-3.5 h-3.5" />
               </button>
-              <button type="button" title="Alinhar à direita" onClick={() => execEditorCommand('justifyRight')} className="p-1.5 rounded hover:bg-slate-100 text-slate-700">
+              <button type="button" title="Alinhar à direita" onClick={() => execEditorCommand('justifyRight')} className="p-1.5 rounded hover:bg-slate-100 text-slate-700 dark:hover:bg-slate-800 dark:text-slate-200">
                 <AlignRight className="w-3.5 h-3.5" />
               </button>
-              <button type="button" title="Justificar" onClick={() => execEditorCommand('justifyFull')} className="p-1.5 rounded hover:bg-slate-100 text-slate-700">
+              <button type="button" title="Justificar" onClick={() => execEditorCommand('justifyFull')} className="p-1.5 rounded hover:bg-slate-100 text-slate-700 dark:hover:bg-slate-800 dark:text-slate-200">
                 <AlignJustify className="w-3.5 h-3.5" />
               </button>
 
-              <span className="h-4 w-px bg-slate-200 mx-0.5" />
+              <span className="h-4 w-px bg-slate-200 mx-0.5 dark:bg-slate-700" />
 
-              <button type="button" title="Lista com marcadores" onClick={() => execEditorCommand('insertUnorderedList')} className="p-1.5 rounded hover:bg-slate-100 text-slate-700">
+              <button type="button" title="Lista com marcadores" onClick={() => execEditorCommand('insertUnorderedList')} className="p-1.5 rounded hover:bg-slate-100 text-slate-700 dark:hover:bg-slate-800 dark:text-slate-200">
                 <List className="w-3.5 h-3.5" />
               </button>
-              <button type="button" title="Lista numerada" onClick={() => execEditorCommand('insertOrderedList')} className="p-1.5 rounded hover:bg-slate-100 text-slate-700">
+              <button type="button" title="Lista numerada" onClick={() => execEditorCommand('insertOrderedList')} className="p-1.5 rounded hover:bg-slate-100 text-slate-700 dark:hover:bg-slate-800 dark:text-slate-200">
                 <ListOrdered className="w-3.5 h-3.5" />
               </button>
-              <button type="button" title="Diminuir recuo" onClick={() => execEditorCommand('outdent')} className="p-1.5 rounded hover:bg-slate-100 text-slate-700">
+              <button type="button" title="Diminuir recuo" onClick={() => execEditorCommand('outdent')} className="p-1.5 rounded hover:bg-slate-100 text-slate-700 dark:hover:bg-slate-800 dark:text-slate-200">
                 <Outdent className="w-3.5 h-3.5" />
               </button>
-              <button type="button" title="Aumentar recuo" onClick={() => execEditorCommand('indent')} className="p-1.5 rounded hover:bg-slate-100 text-slate-700">
+              <button type="button" title="Aumentar recuo" onClick={() => execEditorCommand('indent')} className="p-1.5 rounded hover:bg-slate-100 text-slate-700 dark:hover:bg-slate-800 dark:text-slate-200">
                 <Indent className="w-3.5 h-3.5" />
               </button>
 
-              <span className="h-4 w-px bg-slate-200 mx-0.5" />
+              <span className="h-4 w-px bg-slate-200 mx-0.5 dark:bg-slate-700" />
 
               {/* Table Popover */}
               <div className="relative">
@@ -1354,15 +1353,15 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                     setLinkPopoverOpen(false);
                     setImgToolbarOpen(false);
                   }}
-                  className="p-1.5 rounded hover:bg-slate-100 text-slate-700"
+                  className="p-1.5 rounded hover:bg-slate-100 text-slate-700 dark:hover:bg-slate-800 dark:text-slate-200"
                 >
                   <Table2 className="w-3.5 h-3.5" />
                 </button>
                 {tablePopoverOpen && (
-                  <div className="absolute left-0 top-full mt-1 z-30 w-52 rounded-lg border border-slate-200 bg-white p-3 shadow-lg space-y-2 text-xs">
-                    <div className="font-semibold text-slate-800">Inserir Tabela</div>
+                  <div className="absolute left-0 top-full mt-1 z-30 w-52 rounded-lg border border-slate-200 bg-white p-3 shadow-lg space-y-2 text-xs dark:border-slate-700 dark:bg-slate-900">
+                    <div className="font-semibold text-slate-800 dark:text-slate-100">Inserir Tabela</div>
                     <div className="grid grid-cols-2 gap-2">
-                      <label className="text-[11px] text-slate-600">
+                      <label className="text-[11px] text-slate-600 dark:text-slate-300">
                         Linhas
                         <input
                           type="number"
@@ -1370,10 +1369,10 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                           max={20}
                           value={tableRows}
                           onChange={(e) => setTableRows(Number(e.target.value) || 2)}
-                          className="mt-0.5 w-full rounded border border-slate-200 px-2 py-1"
+                          className="mt-0.5 w-full rounded border border-slate-200 px-2 py-1 dark:border-slate-700"
                         />
                       </label>
-                      <label className="text-[11px] text-slate-600">
+                      <label className="text-[11px] text-slate-600 dark:text-slate-300">
                         Colunas
                         <input
                           type="number"
@@ -1381,12 +1380,12 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                           max={10}
                           value={tableCols}
                           onChange={(e) => setTableCols(Number(e.target.value) || 2)}
-                          className="mt-0.5 w-full rounded border border-slate-200 px-2 py-1"
+                          className="mt-0.5 w-full rounded border border-slate-200 px-2 py-1 dark:border-slate-700"
                         />
                       </label>
                     </div>
                     <div className="flex justify-end gap-1.5">
-                      <button type="button" onClick={() => setTablePopoverOpen(false)} className="px-2 py-1 text-[11px] text-slate-500">
+                      <button type="button" onClick={() => setTablePopoverOpen(false)} className="px-2 py-1 text-[11px] text-slate-500 dark:text-slate-400">
                         Fechar
                       </button>
                       <button type="button" onClick={handleInsertTable} className="rounded bg-blue-600 px-2.5 py-1 text-[11px] font-semibold text-white">
@@ -1407,29 +1406,29 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                     setTablePopoverOpen(false);
                     setImgToolbarOpen(false);
                   }}
-                  className="p-1.5 rounded hover:bg-slate-100 text-slate-700"
+                  className="p-1.5 rounded hover:bg-slate-100 text-slate-700 dark:hover:bg-slate-800 dark:text-slate-200"
                 >
                   <Link2 className="w-3.5 h-3.5" />
                 </button>
                 {linkPopoverOpen && (
-                  <div className="absolute left-0 top-full mt-1 z-30 w-64 rounded-lg border border-slate-200 bg-white p-3 shadow-lg space-y-2 text-xs">
-                    <div className="font-semibold text-slate-800">Inserir Link</div>
+                  <div className="absolute left-0 top-full mt-1 z-30 w-64 rounded-lg border border-slate-200 bg-white p-3 shadow-lg space-y-2 text-xs dark:border-slate-700 dark:bg-slate-900">
+                    <div className="font-semibold text-slate-800 dark:text-slate-100">Inserir Link</div>
                     <input
                       type="url"
                       value={linkUrl}
                       onChange={(e) => setLinkUrl(e.target.value)}
                       placeholder="https://..."
-                      className="w-full rounded border border-slate-200 px-2 py-1 text-xs"
+                      className="w-full rounded border border-slate-200 px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                     />
                     <input
                       type="text"
                       value={linkText}
                       onChange={(e) => setLinkText(e.target.value)}
                       placeholder="Texto exibido (opcional)"
-                      className="w-full rounded border border-slate-200 px-2 py-1 text-xs"
+                      className="w-full rounded border border-slate-200 px-2 py-1 text-xs dark:border-slate-700"
                     />
                     <div className="flex justify-end gap-1.5">
-                      <button type="button" onClick={() => setLinkPopoverOpen(false)} className="px-2 py-1 text-[11px] text-slate-500">
+                      <button type="button" onClick={() => setLinkPopoverOpen(false)} className="px-2 py-1 text-[11px] text-slate-500 dark:text-slate-400">
                         Fechar
                       </button>
                       <button type="button" onClick={handleInsertLink} className="rounded bg-blue-600 px-2.5 py-1 text-[11px] font-semibold text-white">
@@ -1456,7 +1455,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                 type="button"
                 title="Inserir imagem / logo"
                 onClick={() => imgInputRef.current?.click()}
-                className="p-1.5 rounded hover:bg-slate-100 text-slate-700"
+                className="p-1.5 rounded hover:bg-slate-100 text-slate-700 dark:hover:bg-slate-800 dark:text-slate-200"
               >
                 <ImageIcon className="w-3.5 h-3.5" />
               </button>
@@ -1468,33 +1467,33 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                   title="Posicionamento da imagem selecionada"
                   onClick={() => setImgToolbarOpen((v) => !v)}
                   className={`inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium ${
-                    selectedImgEl ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'text-slate-600 hover:bg-slate-100'
+                    selectedImgEl ? 'bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800/70' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
                   }`}
                 >
                   Posição Img
                   <ChevronDown className="w-3 h-3" />
                 </button>
                 {imgToolbarOpen && (
-                  <div className="absolute right-0 top-full mt-1 z-30 w-56 rounded-lg border border-slate-200 bg-white p-2 shadow-lg space-y-1 text-xs">
+                  <div className="absolute right-0 top-full mt-1 z-30 w-56 rounded-lg border border-slate-200 bg-white p-2 shadow-lg space-y-1 text-xs dark:border-slate-700 dark:bg-slate-900">
                     {!selectedImgEl ? (
-                      <div className="p-2 text-[11px] text-slate-500">
+                      <div className="p-2 text-[11px] text-slate-500 dark:text-slate-400">
                         Clique sobre uma imagem dentro do documento A4 para posicioná-la.
                       </div>
                     ) : (
                       <>
-                        <button type="button" onClick={() => applyImagePositionMode('img-behind-text')} className="w-full text-left px-2 py-1 rounded hover:bg-slate-100">Atrás do texto</button>
-                        <button type="button" onClick={() => applyImagePositionMode('img-front-text')} className="w-full text-left px-2 py-1 rounded hover:bg-slate-100">Na frente do texto</button>
-                        <button type="button" onClick={() => applyImagePositionMode('img-float-left')} className="w-full text-left px-2 py-1 rounded hover:bg-slate-100">Alinhado à esquerda</button>
-                        <button type="button" onClick={() => applyImagePositionMode('img-float-right')} className="w-full text-left px-2 py-1 rounded hover:bg-slate-100">Alinhado à direita</button>
-                        <button type="button" onClick={() => applyImagePositionMode('img-center')} className="w-full text-left px-2 py-1 rounded hover:bg-slate-100">Centralizado</button>
-                        <button type="button" onClick={() => applyImagePositionMode('inline')} className="w-full text-left px-2 py-1 rounded hover:bg-slate-100">Em linha com o texto</button>
-                        <div className="border-t border-slate-100 pt-1.5 flex items-center justify-between px-1">
-                          <span className="text-[10px] text-slate-500">Mover 5px:</span>
+                        <button type="button" onClick={() => applyImagePositionMode('img-behind-text')} className="w-full text-left px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800">Atrás do texto</button>
+                        <button type="button" onClick={() => applyImagePositionMode('img-front-text')} className="w-full text-left px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800">Na frente do texto</button>
+                        <button type="button" onClick={() => applyImagePositionMode('img-float-left')} className="w-full text-left px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800">Alinhado à esquerda</button>
+                        <button type="button" onClick={() => applyImagePositionMode('img-float-right')} className="w-full text-left px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800">Alinhado à direita</button>
+                        <button type="button" onClick={() => applyImagePositionMode('img-center')} className="w-full text-left px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800">Centralizado</button>
+                        <button type="button" onClick={() => applyImagePositionMode('inline')} className="w-full text-left px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800">Em linha com o texto</button>
+                        <div className="border-t border-slate-100 pt-1.5 flex items-center justify-between px-1 dark:border-slate-800">
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400">Mover 5px:</span>
                           <div className="flex items-center gap-0.5">
-                            <button type="button" onClick={() => nudgeSelectedImage(-5, 0)} className="p-1 rounded hover:bg-slate-100"><ArrowLeft className="w-3 h-3" /></button>
-                            <button type="button" onClick={() => nudgeSelectedImage(0, -5)} className="p-1 rounded hover:bg-slate-100"><ArrowUp className="w-3 h-3" /></button>
-                            <button type="button" onClick={() => nudgeSelectedImage(0, 5)} className="p-1 rounded hover:bg-slate-100"><ArrowDown className="w-3 h-3" /></button>
-                            <button type="button" onClick={() => nudgeSelectedImage(5, 0)} className="p-1 rounded hover:bg-slate-100"><ArrowRight className="w-3 h-3" /></button>
+                            <button type="button" onClick={() => nudgeSelectedImage(-5, 0)} className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800"><ArrowLeft className="w-3 h-3" /></button>
+                            <button type="button" onClick={() => nudgeSelectedImage(0, -5)} className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800"><ArrowUp className="w-3 h-3" /></button>
+                            <button type="button" onClick={() => nudgeSelectedImage(0, 5)} className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800"><ArrowDown className="w-3 h-3" /></button>
+                            <button type="button" onClick={() => nudgeSelectedImage(5, 0)} className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800"><ArrowRight className="w-3 h-3" /></button>
                           </div>
                         </div>
                       </>
@@ -1503,13 +1502,13 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                 )}
               </div>
 
-              <span className="h-4 w-px bg-slate-200 mx-0.5" />
+              <span className="h-4 w-px bg-slate-200 mx-0.5 dark:bg-slate-700" />
 
               <button
                 type="button"
                 title="Quebra de página A4"
                 onClick={handleInsertPageBreak}
-                className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100"
+                className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 <Scissors className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Quebra Pág.</span>
@@ -1526,7 +1525,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                   );
                   setCodeModalOpen(true);
                 }}
-                className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100"
+                className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 <Code2 className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">HTML</span>
@@ -1534,7 +1533,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
             </div>
 
             {/* A4 Sheet Canvas */}
-            <div className="rounded-xl border border-slate-200 bg-slate-200/70 p-4 sm:p-6 overflow-x-auto">
+            <div className="rounded-xl border border-slate-200 bg-slate-200/70 p-4 sm:p-6 overflow-x-auto dark:border-slate-700">
               {/* Toggle Optional Header / Footer Controls */}
               <div className="mx-auto mb-3 flex flex-wrap items-center justify-between gap-2 max-w-[210mm]">
                 <button
@@ -1551,13 +1550,13 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                       setActiveZone('body');
                     }
                   }}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-50"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-50 dark:border-blue-800/70 dark:bg-slate-900 dark:text-blue-300 dark:hover:bg-blue-950/60"
                 >
                   {showHeader ? <PanelTopClose className="w-3.5 h-3.5" /> : <PanelTopOpen className="w-3.5 h-3.5" />}
                   {showHeader ? 'Ocultar Cabeçalho' : '+ Adicionar Cabeçalho'}
                 </button>
 
-                <span className="text-[11px] font-mono text-slate-500">
+                <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
                   Folha A4 · Clique na zona desejada antes de inserir variáveis
                 </span>
 
@@ -1575,7 +1574,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                       setActiveZone('body');
                     }
                   }}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-amber-700 hover:bg-amber-50"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-amber-700 hover:bg-amber-50 dark:border-amber-800/70 dark:bg-slate-900 dark:text-amber-300 dark:hover:bg-amber-950/60"
                 >
                   {showFooter ? <PanelBottomClose className="w-3.5 h-3.5" /> : <PanelBottomOpen className="w-3.5 h-3.5" />}
                   {showFooter ? 'Ocultar Rodapé' : '+ Adicionar Rodapé'}
@@ -1584,7 +1583,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
 
               {/* Physical A4 Page Container */}
               <div
-                className="mx-auto bg-white shadow-lg border border-slate-300 flex flex-col justify-between"
+                className="mx-auto bg-white shadow-lg border border-slate-300 flex flex-col justify-between dark:bg-slate-900 dark:border-slate-600"
                 style={{
                   width: '210mm',
                   minHeight: '297mm',
@@ -1597,7 +1596,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                 {/* Header Editable Zone */}
                 {showHeader && (
                   <div className="mb-4">
-                    <div className="text-[10px] font-sans font-bold uppercase tracking-wider text-blue-600 mb-1">
+                    <div className="text-[10px] font-sans font-bold uppercase tracking-wider text-blue-600 mb-1 dark:text-blue-400">
                       Cabeçalho (repete em todas as páginas)
                     </div>
                     <div
@@ -1618,7 +1617,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                       className={`min-h-[54px] rounded p-2 outline-none border transition-colors ${
                         activeZone === 'header'
                           ? 'border-blue-500 ring-2 ring-blue-100'
-                          : 'border-dashed border-slate-300'
+                          : 'border-dashed border-slate-300 dark:border-slate-600'
                       }`}
                     />
                   </div>
@@ -1626,7 +1625,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
 
                 {/* Main Body Editable Zone */}
                 <div className="flex-1 flex flex-col">
-                  <div className="text-[10px] font-sans font-bold uppercase tracking-wider text-emerald-600 mb-1">
+                  <div className="text-[10px] font-sans font-bold uppercase tracking-wider text-emerald-600 mb-1 dark:text-emerald-400">
                     Corpo do Documento A4
                   </div>
                   <div
@@ -1647,7 +1646,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                     className={`flex-1 min-h-[210mm] rounded p-3 outline-none border transition-colors relative ${
                       activeZone === 'body'
                         ? 'border-emerald-500 ring-2 ring-emerald-100'
-                        : 'border-dashed border-slate-300'
+                        : 'border-dashed border-slate-300 dark:border-slate-600'
                     }`}
                   />
                 </div>
@@ -1655,7 +1654,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                 {/* Footer Editable Zone */}
                 {showFooter && (
                   <div className="mt-4">
-                    <div className="text-[10px] font-sans font-bold uppercase tracking-wider text-amber-600 mb-1">
+                    <div className="text-[10px] font-sans font-bold uppercase tracking-wider text-amber-600 mb-1 dark:text-amber-400">
                       Rodapé (repete em todas as páginas)
                     </div>
                     <div
@@ -1676,7 +1675,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                       className={`min-h-[48px] rounded p-2 outline-none border transition-colors text-[12px] ${
                         activeZone === 'footer'
                           ? 'border-amber-500 ring-2 ring-amber-100'
-                          : 'border-dashed border-slate-300'
+                          : 'border-dashed border-slate-300 dark:border-slate-600'
                       }`}
                     />
                   </div>
@@ -1687,8 +1686,8 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
 
           {/* Right: Collapsible Sidebar (Variables + Linked Routines) */}
           {sidebarOpen ? (
-            <aside className="w-full lg:w-80 xl:w-96 shrink-0 rounded-xl border border-slate-200 bg-white overflow-hidden lg:sticky lg:top-2">
-              <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2.5 bg-slate-50">
+            <aside className="w-full lg:w-80 xl:w-96 shrink-0 rounded-xl border border-slate-200 bg-white overflow-hidden lg:sticky lg:top-2 dark:border-slate-700 dark:bg-slate-900">
+              <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2.5 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/70">
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
@@ -1696,7 +1695,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                     className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors ${
                       sidebarTab === 'variables'
                         ? 'bg-blue-600 text-white'
-                        : 'text-slate-600 hover:bg-slate-200/70'
+                        : 'text-slate-600 hover:bg-slate-200/70 dark:text-slate-300'
                     }`}
                   >
                     <Variable className="w-3.5 h-3.5" />
@@ -1708,7 +1707,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                     className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors ${
                       sidebarTab === 'routines'
                         ? 'bg-blue-600 text-white'
-                        : 'text-slate-600 hover:bg-slate-200/70'
+                        : 'text-slate-600 hover:bg-slate-200/70 dark:text-slate-300'
                     }`}
                   >
                     <Layers className="w-3.5 h-3.5" />
@@ -1719,7 +1718,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                   type="button"
                   title="Recolher painel lateral"
                   onClick={() => setSidebarOpen(false)}
-                  className="rounded p-1 text-slate-500 hover:bg-slate-200 hover:text-slate-800"
+                  className="rounded p-1 text-slate-500 hover:bg-slate-200 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -1728,16 +1727,16 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
               {sidebarTab === 'variables' && (
                 <div className="p-3 space-y-2.5 max-h-[75vh] overflow-y-auto">
                   <div className="relative">
-                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5 dark:text-slate-400" />
                     <input
                       type="text"
                       value={varSearch}
                       onChange={(e) => setVarSearch(e.target.value)}
                       placeholder="Buscar variável (ex: placa, contrato, cpf)"
-                      className="w-full rounded-lg border border-slate-200 pl-8 pr-2.5 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
+                      className="w-full rounded-lg border border-slate-200 pl-8 pr-2.5 py-1.5 text-xs focus:border-blue-500 focus:outline-none dark:border-slate-700"
                     />
                   </div>
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
                     Clique em qualquer variável abaixo para inserir na posição do cursor.
                   </p>
 
@@ -1748,30 +1747,30 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                         activeRoutinePrefixes === null || activeRoutinePrefixes.has(cat.prefix);
 
                       return (
-                        <div key={cat.id} className="rounded-lg border border-slate-200 overflow-hidden">
+                        <div key={cat.id} className="rounded-lg border border-slate-200 overflow-hidden dark:border-slate-700">
                           <button
                             type="button"
                             onClick={() =>
                               setExpandedCats((prev) => ({ ...prev, [cat.id]: !isExpanded }))
                             }
-                            className="w-full flex items-center justify-between px-2.5 py-2 bg-slate-50 hover:bg-slate-100 text-left"
+                            className="w-full flex items-center justify-between px-2.5 py-2 bg-slate-50 hover:bg-slate-100 text-left dark:bg-slate-800/70 dark:hover:bg-slate-800"
                           >
                             <div className="flex items-center gap-1.5 min-w-0">
                               <span
                                 className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                                  isRoutineSuggested ? 'bg-emerald-500' : 'bg-slate-300'
+                                  isRoutineSuggested ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
                                 }`}
                               />
-                              <span className="text-xs font-semibold text-slate-800 truncate">
+                              <span className="text-xs font-semibold text-slate-800 truncate dark:text-slate-100">
                                 {cat.category}
                               </span>
                             </div>
                             <div className="flex items-center gap-1.5 shrink-0">
-                              <span className="text-[10px] font-mono text-slate-500">
+                              <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
                                 {cat.items.length}
                               </span>
                               <ChevronDown
-                                className={`w-3.5 h-3.5 text-slate-500 transition-transform ${
+                                className={`w-3.5 h-3.5 text-slate-500 transition-transform dark:text-slate-400 ${
                                   isExpanded ? 'rotate-180' : ''
                                 }`}
                               />
@@ -1779,16 +1778,16 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                           </button>
 
                           {isExpanded && (
-                            <div className="divide-y divide-slate-100 bg-white">
+                            <div className="divide-y divide-slate-100 bg-white dark:divide-slate-800 dark:bg-slate-900">
                               {cat.items.map((item) => (
                                 <button
                                   key={item.key}
                                   type="button"
                                   onClick={() => handleInsertVariable(item.token)}
-                                  className="w-full px-2.5 py-1.5 text-left hover:bg-blue-50 transition-colors flex items-center justify-between gap-2"
+                                  className="w-full px-2.5 py-1.5 text-left hover:bg-blue-50 transition-colors flex items-center justify-between gap-2 dark:hover:bg-blue-950/60"
                                 >
-                                  <span className="text-[11px] text-slate-700 truncate">{item.label}</span>
-                                  <code className="text-[10px] font-mono text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded shrink-0">
+                                  <span className="text-[11px] text-slate-700 truncate dark:text-slate-200">{item.label}</span>
+                                  <code className="text-[10px] font-mono text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded shrink-0 dark:text-blue-300 dark:bg-blue-950/50">
                                     {item.token}
                                   </code>
                                 </button>
@@ -1804,16 +1803,16 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
 
               {sidebarTab === 'routines' && (
                 <div className="p-3 space-y-3 max-h-[75vh] overflow-y-auto">
-                  <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 flex items-center justify-between text-xs">
-                    <span className="font-semibold text-slate-700">Vínculo com Rotinas</span>
-                    <span className="font-mono font-bold text-blue-700">
+                  <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 flex items-center justify-between text-xs dark:bg-slate-800/70 dark:border-slate-700">
+                    <span className="font-semibold text-slate-700 dark:text-slate-200">Vínculo com Rotinas</span>
+                    <span className="font-mono font-bold text-blue-700 dark:text-blue-300">
                       {menuIds.length} de {FORM_CONTEXT_REGISTRY.length} selecionadas
                     </span>
                   </div>
 
                   {routinesByModule.map(([modName, list]) => (
                     <div key={modName} className="space-y-1.5">
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1 dark:text-slate-400">
                         {modName}
                       </div>
                       <div className="space-y-1">
@@ -1824,8 +1823,8 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                               key={r.menuId}
                               className={`flex items-start gap-2.5 rounded-lg border p-2 cursor-pointer transition-colors ${
                                 checked
-                                  ? 'border-blue-300 bg-blue-50/50'
-                                  : 'border-slate-200 hover:bg-slate-50'
+                                  ? 'border-blue-300 bg-blue-50/50 dark:border-blue-800/70 dark:bg-blue-950/50'
+                                  : 'border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800'
                               }`}
                             >
                               <input
@@ -1838,25 +1837,25 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                                     setMenuIds((prev) => prev.filter((id) => id !== r.menuId));
                                   }
                                 }}
-                                className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-600 dark:text-blue-400"
                               />
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center justify-between gap-1">
-                                  <span className="text-xs font-semibold text-slate-800">{r.label}</span>
+                                  <span className="text-xs font-semibold text-slate-800 dark:text-slate-100">{r.label}</span>
                                   <div className="flex items-center gap-1 shrink-0">
                                     {r.targetTypes.includes('grid') && (
-                                      <span className="rounded bg-slate-200/80 px-1 py-0.5 text-[9px] font-mono font-bold text-slate-700" title="Disponível no Grid">
+                                      <span className="rounded bg-slate-200/80 px-1 py-0.5 text-[9px] font-mono font-bold text-slate-700 dark:text-slate-200" title="Disponível no Grid">
                                         G
                                       </span>
                                     )}
                                     {r.targetTypes.includes('modal') && (
-                                      <span className="rounded bg-emerald-100 px-1 py-0.5 text-[9px] font-mono font-bold text-emerald-700" title="Disponível no Modal">
+                                      <span className="rounded bg-emerald-100 px-1 py-0.5 text-[9px] font-mono font-bold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300" title="Disponível no Modal">
                                         M
                                       </span>
                                     )}
                                   </div>
                                 </div>
-                                <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">{r.description}</p>
+                                <p className="text-[10px] text-slate-500 mt-0.5 leading-snug dark:text-slate-400">{r.description}</p>
                               </div>
                             </label>
                           );
@@ -1868,12 +1867,12 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
               )}
             </aside>
           ) : (
-            <div className="w-11 shrink-0 rounded-xl border border-slate-200 bg-white p-1.5 flex flex-col items-center gap-2">
+            <div className="w-11 shrink-0 rounded-xl border border-slate-200 bg-white p-1.5 flex flex-col items-center gap-2 dark:border-slate-700 dark:bg-slate-900">
               <button
                 type="button"
                 title="Expandir painel lateral"
                 onClick={() => setSidebarOpen(true)}
-                className="p-2 rounded-lg hover:bg-slate-100 text-slate-700"
+                className="p-2 rounded-lg hover:bg-slate-100 text-slate-700 dark:hover:bg-slate-800 dark:text-slate-200"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
@@ -1884,7 +1883,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                   setSidebarTab('variables');
                   setSidebarOpen(true);
                 }}
-                className="p-2 rounded-lg hover:bg-blue-50 text-blue-700 flex flex-col items-center gap-0.5"
+                className="p-2 rounded-lg hover:bg-blue-50 text-blue-700 flex flex-col items-center gap-0.5 dark:hover:bg-blue-950/60 dark:text-blue-300"
               >
                 <Variable className="w-4 h-4" />
                 <span className="text-[9px] font-bold">Var</span>
@@ -1896,7 +1895,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                   setSidebarTab('routines');
                   setSidebarOpen(true);
                 }}
-                className="p-2 rounded-lg hover:bg-blue-50 text-blue-700 flex flex-col items-center gap-0.5"
+                className="p-2 rounded-lg hover:bg-blue-50 text-blue-700 flex flex-col items-center gap-0.5 dark:hover:bg-blue-950/60 dark:text-blue-300"
               >
                 <Layers className="w-4 h-4" />
                 <span className="text-[9px] font-bold">Rot</span>
@@ -1907,17 +1906,17 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
 
         {/* Code Source Modal */}
         {codeModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-            <div className="w-full max-w-3xl rounded-2xl bg-white p-5 shadow-2xl space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
-                <h3 className="font-display text-sm font-bold text-slate-900">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80">
+            <div className="w-full max-w-3xl rounded-2xl bg-white p-5 shadow-2xl space-y-3 dark:bg-slate-900">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2.5 dark:border-slate-700">
+                <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                   Editar Código Fonte HTML ·{' '}
                   {codeModalZone === 'header' ? 'Cabeçalho' : codeModalZone === 'footer' ? 'Rodapé' : 'Corpo'}
                 </h3>
                 <button
                   type="button"
                   onClick={() => setCodeModalOpen(false)}
-                  className="text-slate-500 hover:text-slate-900"
+                  className="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -1926,13 +1925,13 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                 rows={16}
                 value={codeDraft}
                 onChange={(e) => setCodeDraft(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 p-3 font-mono text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
+                className="w-full rounded-lg border border-slate-200 p-3 font-mono text-xs text-slate-800 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:text-slate-100 dark:bg-slate-950"
               />
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setCodeModalOpen(false)}
-                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700"
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
                 >
                   Cancelar
                 </button>
@@ -1958,18 +1957,18 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
 
         {/* Live Test & Print Fallback Modal */}
         {previewModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-            <div className="w-full max-w-5xl h-[90vh] rounded-2xl bg-white shadow-2xl flex flex-col overflow-hidden">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-3 bg-slate-50">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80">
+            <div className="w-full max-w-5xl h-[90vh] rounded-2xl bg-white shadow-2xl flex flex-col overflow-hidden dark:bg-slate-900">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-3 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/70">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-blue-600" />
-                  <h3 className="font-display text-sm font-bold text-slate-900">{previewTitle}</h3>
+                  <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">{previewTitle}</h3>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => previewIframeRef.current?.contentWindow?.print()}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
                   >
                     <Printer className="w-3.5 h-3.5" />
                     Imprimir Agora
@@ -1985,14 +1984,14 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                       a.click();
                       window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
                     }}
-                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                   >
                     Baixar HTML A4
                   </button>
                   <button
                     type="button"
                     onClick={() => setPreviewModalOpen(false)}
-                    className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-200"
+                    className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-700"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -2000,13 +1999,13 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
               </div>
 
               {contextData && (
-                <div className="border-b border-slate-200 bg-white px-5 py-2.5 grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+                <div className="border-b border-slate-200 bg-white px-5 py-2.5 grid grid-cols-1 md:grid-cols-3 gap-2 text-xs dark:border-slate-700 dark:bg-slate-900">
                   <label className="block">
-                    <span className="text-[10px] font-semibold uppercase text-slate-500">Cliente (Teste)</span>
+                    <span className="text-[10px] font-semibold uppercase text-slate-500 dark:text-slate-400">Cliente (Teste)</span>
                     <select
                       value={selectedClientId}
                       onChange={(e) => setSelectedClientId(e.target.value)}
-                      className="mt-0.5 w-full rounded border border-slate-200 px-2 py-1 text-xs"
+                      className="mt-0.5 w-full rounded border border-slate-200 px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                     >
                       {contextData.clients.map((c) => (
                         <option key={c.id} value={c.id}>
@@ -2016,11 +2015,11 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                     </select>
                   </label>
                   <label className="block">
-                    <span className="text-[10px] font-semibold uppercase text-slate-500">Admissão (Teste)</span>
+                    <span className="text-[10px] font-semibold uppercase text-slate-500 dark:text-slate-400">Admissão (Teste)</span>
                     <select
                       value={selectedAdmissionId}
                       onChange={(e) => setSelectedAdmissionId(e.target.value)}
-                      className="mt-0.5 w-full rounded border border-slate-200 px-2 py-1 text-xs"
+                      className="mt-0.5 w-full rounded border border-slate-200 px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                     >
                       {contextData.admissions.map((a) => (
                         <option key={a.id} value={a.id}>
@@ -2030,11 +2029,11 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                     </select>
                   </label>
                   <label className="block">
-                    <span className="text-[10px] font-semibold uppercase text-slate-500">Processo Jurídico (Teste)</span>
+                    <span className="text-[10px] font-semibold uppercase text-slate-500 dark:text-slate-400">Processo Jurídico (Teste)</span>
                     <select
                       value={selectedProcessId}
                       onChange={(e) => setSelectedProcessId(e.target.value)}
-                      className="mt-0.5 w-full rounded border border-slate-200 px-2 py-1 text-xs"
+                      className="mt-0.5 w-full rounded border border-slate-200 px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                     >
                       {contextData.legalProcesses.map((p) => (
                         <option key={p.id} value={p.id}>
@@ -2046,17 +2045,17 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                 </div>
               )}
 
-              <div className="flex-1 bg-slate-200 p-3 overflow-hidden">
+              <div className="flex-1 bg-slate-200 dark:bg-slate-950 p-3 overflow-hidden">
                 {loadingContext ? (
-                  <div className="h-full flex items-center justify-center text-xs text-slate-600">
+                  <div className="h-full flex items-center justify-center text-xs text-slate-600 dark:text-slate-300">
                     Carregando registros reais para preencher variáveis...
                   </div>
                 ) : (
                   <iframe
                     ref={previewIframeRef}
                     title="Pré-visualização A4"
-                    srcDoc={previewHtmlDoc}
-                    className="w-full h-full rounded-lg border border-slate-300 bg-white"
+                    srcDoc={applyThemeToHtmlDocument(previewHtmlDoc, theme)}
+                    className="w-full h-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950"
                   />
                 )}
               </div>
@@ -2074,20 +2073,20 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
   return (
     <div className="space-y-4">
       {/* Toolbar */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 flex flex-wrap items-center justify-between gap-3 dark:border-slate-700 dark:bg-slate-900">
         <div className="relative flex-1 min-w-[240px] max-w-md">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5 dark:text-slate-400" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar modelo por nome ou descrição..."
-            className="w-full rounded-lg border border-slate-200 pl-9 pr-3 py-2 text-xs text-slate-900 focus:border-blue-500 focus:outline-none"
+            className="w-full rounded-lg border border-slate-200 pl-9 pr-3 py-2 text-xs text-slate-900 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:text-slate-100 dark:bg-slate-950"
           />
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-mono text-slate-500 tabular-nums">
+          <span className="text-xs font-mono text-slate-500 tabular-nums dark:text-slate-400">
             {total} modelo(s) A4
           </span>
           <button
@@ -2101,7 +2100,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                 ? `Configurar modais de exibição para "${selectedTemplate.name}"`
                 : 'Selecione um formulário na lista abaixo'
             }
-            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3.5 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3.5 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300 dark:hover:bg-blue-900/60"
           >
             <AppWindow className="w-4 h-4" />
             Opções Modais
@@ -2123,35 +2122,35 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
       </div>
 
       {selectedTemplate && (
-        <div className="rounded-lg border border-blue-100 bg-blue-50/40 px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
-          <span className="text-slate-700 truncate">
-            Formulário selecionado: <strong className="text-slate-900">{selectedTemplate.name}</strong>
+        <div className="rounded-lg border border-blue-100 bg-blue-50/40 px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-xs dark:border-blue-800/70 dark:bg-blue-950/50">
+          <span className="text-slate-700 truncate dark:text-slate-200">
+            Formulário selecionado: <strong className="text-slate-900 dark:text-slate-100">{selectedTemplate.name}</strong>
           </span>
-          <span className="text-[11px] font-mono text-blue-700">
+          <span className="text-[11px] font-mono text-blue-700 dark:text-blue-300">
             Apresentado em {(selectedTemplate.menuIds || []).length} rotina(s)/modal(ais)
           </span>
         </div>
       )}
 
       {listError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-xs text-red-700">
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-xs text-red-700 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
           {listError}
         </div>
       )}
 
       {/* List Table */}
-      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
         {loading && items.length === 0 ? (
-          <div className="p-8 text-center text-xs text-slate-500">
+          <div className="p-8 text-center text-xs text-slate-500 dark:text-slate-400">
             Carregando modelos de documentos A4...
           </div>
         ) : items.length === 0 ? (
           <div className="p-10 text-center space-y-2">
             <FileText className="w-8 h-8 text-slate-300 mx-auto" />
-            <div className="text-sm font-semibold text-slate-700">
+            <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">
               Nenhum modelo A4 encontrado
             </div>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               Crie um novo formulário ou importe um documento Word (.docx).
             </p>
             <button
@@ -2169,7 +2168,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full min-w-[760px] text-left border-collapse text-xs">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                  <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-400">
                     <th className="px-4 py-3">Nome do Formulário</th>
                     <th className="px-4 py-3">Descrição</th>
                     <th className="px-4 py-3">Rotinas Vinculadas</th>
@@ -2177,7 +2176,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                     <th className="px-4 py-3 text-right">Ações</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {items.map((tpl) => {
                     const linked = Array.isArray(tpl.menuIds) ? tpl.menuIds : [];
                     const isSelected = selectedTemplateId === tpl.id;
@@ -2186,10 +2185,10 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                         key={tpl.id}
                         onClick={() => setSelectedTemplateId(tpl.id)}
                         className={`cursor-pointer transition-colors ${
-                          isSelected ? 'bg-blue-50/70' : 'hover:bg-slate-50/70'
+                          isSelected ? 'bg-blue-50/70 dark:bg-blue-950/50' : 'hover:bg-slate-50/70 dark:hover:bg-slate-800'
                         }`}
                       >
-                        <td className="px-4 py-3 font-semibold text-slate-900">
+                        <td className="px-4 py-3 font-semibold text-slate-900 dark:text-slate-100">
                           <div className="flex items-center gap-2">
                             <input
                               type="radio"
@@ -2197,23 +2196,23 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                               checked={isSelected}
                               onChange={() => setSelectedTemplateId(tpl.id)}
                               onClick={(e) => e.stopPropagation()}
-                              className="text-blue-600 focus:ring-blue-500"
+                              className="text-blue-600 focus:ring-blue-500 dark:text-blue-400"
                             />
                             <span>{tpl.name}</span>
                             {tpl.docxTemplate && (
-                              <span className="rounded bg-blue-50 border border-blue-200 px-1.5 py-0.5 text-[10px] font-mono text-blue-700">
+                              <span className="rounded bg-blue-50 border border-blue-200 px-1.5 py-0.5 text-[10px] font-mono text-blue-700 dark:bg-blue-950/50 dark:border-blue-800/70 dark:text-blue-300">
                                 DOCX
                               </span>
                             )}
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-slate-600 max-w-xs truncate">
+                        <td className="px-4 py-3 text-slate-600 max-w-xs truncate dark:text-slate-300">
                           {tpl.description || '—'}
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex flex-wrap items-center gap-1">
                             {linked.length === 0 ? (
-                              <span className="text-slate-400">Sem vínculo</span>
+                              <span className="text-slate-400 dark:text-slate-400">Sem vínculo</span>
                             ) : (
                               <>
                                 {linked.slice(0, 3).map((mid) => {
@@ -2221,14 +2220,14 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                                   return (
                                     <span
                                       key={mid}
-                                      className="inline-flex items-center gap-1 rounded bg-slate-100 border border-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-slate-700"
+                                      className="inline-flex items-center gap-1 rounded bg-slate-100 border border-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200"
                                     >
                                       {rot?.label || mid}
                                     </span>
                                   );
                                 })}
                                 {linked.length > 3 && (
-                                  <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-mono font-bold text-blue-700">
+                                  <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-mono font-bold text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
                                     +{linked.length - 3}
                                   </span>
                                 )}
@@ -2236,7 +2235,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                             )}
                           </div>
                         </td>
-                        <td className="px-4 py-3 font-mono text-[11px] text-slate-500 tabular-nums">
+                        <td className="px-4 py-3 font-mono text-[11px] text-slate-500 tabular-nums dark:text-slate-400">
                           {formatDateTimeBR(tpl.updatedAt)}
                         </td>
                         <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
@@ -2245,7 +2244,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                               type="button"
                               onClick={() => openModalOptionsForItem(tpl)}
                               title="Opções Modais de Apresentação"
-                              className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100"
+                              className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300 dark:hover:bg-blue-900/60"
                             >
                               <AppWindow className="w-3.5 h-3.5" />
                               Modais
@@ -2254,7 +2253,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                               type="button"
                               onClick={() => openEditEditor(tpl)}
                               title="Editar"
-                              className="rounded-lg p-1.5 text-slate-600 hover:bg-blue-50 hover:text-blue-700"
+                              className="rounded-lg p-1.5 text-slate-600 hover:bg-blue-50 hover:text-blue-700 dark:text-slate-300 dark:hover:bg-blue-950/60"
                             >
                               <Edit3 className="w-4 h-4" />
                             </button>
@@ -2269,7 +2268,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                                 )
                               }
                               title="Imprimir"
-                              className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                              className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
                             >
                               <Printer className="w-4 h-4" />
                             </button>
@@ -2277,7 +2276,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                               type="button"
                               onClick={() => void handleDuplicate(tpl)}
                               title="Duplicar"
-                              className="rounded-lg p-1.5 text-slate-600 hover:bg-emerald-50 hover:text-emerald-700"
+                              className="rounded-lg p-1.5 text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 dark:text-slate-300 dark:hover:bg-emerald-950/60"
                             >
                               <Copy className="w-4 h-4" />
                             </button>
@@ -2285,7 +2284,7 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                               type="button"
                               onClick={() => setDeleteTarget(tpl)}
                               title="Excluir"
-                              className="rounded-lg p-1.5 text-slate-600 hover:bg-red-50 hover:text-red-700"
+                              className="rounded-lg p-1.5 text-slate-600 hover:bg-red-50 hover:text-red-700 dark:text-slate-300 dark:hover:bg-red-950/60"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -2299,19 +2298,19 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
             </div>
 
             {/* Mobile Cards */}
-            <div className="md:hidden divide-y divide-slate-200">
+            <div className="md:hidden divide-y divide-slate-200 dark:divide-slate-700">
               {items.map((tpl) => (
                 <div
                   key={tpl.id}
                   onClick={() => setSelectedTemplateId(tpl.id)}
-                  className={`p-4 space-y-2 ${selectedTemplateId === tpl.id ? 'bg-blue-50/60' : ''}`}
+                  className={`p-4 space-y-2 ${selectedTemplateId === tpl.id ? 'bg-blue-50/60 dark:bg-blue-950/50' : ''}`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <div className="text-xs font-bold text-slate-900">{tpl.name}</div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">{tpl.description || '—'}</div>
+                      <div className="text-xs font-bold text-slate-900 dark:text-slate-100">{tpl.name}</div>
+                      <div className="text-[11px] text-slate-500 mt-0.5 dark:text-slate-400">{tpl.description || '—'}</div>
                     </div>
-                    <span className="text-[10px] font-mono text-slate-400">
+                    <span className="text-[10px] font-mono text-slate-400 dark:text-slate-400">
                       {formatDateTimeBR(tpl.updatedAt)}
                     </span>
                   </div>
@@ -2319,17 +2318,17 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                     <button
                       type="button"
                       onClick={() => openModalOptionsForItem(tpl)}
-                      className="rounded border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700"
+                      className="rounded border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300"
                     >
                       Opções Modais
                     </button>
-                    <button type="button" onClick={() => openEditEditor(tpl)} className="rounded border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-700">
+                    <button type="button" onClick={() => openEditEditor(tpl)} className="rounded border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200">
                       Editar
                     </button>
-                    <button type="button" onClick={() => void handleDuplicate(tpl)} className="rounded border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-700">
+                    <button type="button" onClick={() => void handleDuplicate(tpl)} className="rounded border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200">
                       Duplicar
                     </button>
-                    <button type="button" onClick={() => setDeleteTarget(tpl)} className="rounded border border-red-200 px-2.5 py-1 text-[11px] font-semibold text-red-700">
+                    <button type="button" onClick={() => setDeleteTarget(tpl)} className="rounded border border-red-200 px-2.5 py-1 text-[11px] font-semibold text-red-700 dark:border-red-800/70 dark:text-red-300">
                       Excluir
                     </button>
                   </div>
@@ -2342,15 +2341,15 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
 
       {/* Fallback Print Preview Modal (from list mode) */}
       {previewModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-          <div className="w-full max-w-5xl h-[90vh] rounded-2xl bg-white shadow-2xl flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3 bg-slate-50">
-              <h3 className="font-display text-sm font-bold text-slate-900">{previewTitle}</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80">
+          <div className="w-full max-w-5xl h-[90vh] rounded-2xl bg-white shadow-2xl flex flex-col overflow-hidden dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/70">
+              <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">{previewTitle}</h3>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => previewIframeRef.current?.contentWindow?.print()}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
                 >
                   <Printer className="w-3.5 h-3.5" />
                   Imprimir Agora
@@ -2366,25 +2365,25 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
                     a.click();
                     window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
                   }}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                 >
                   Baixar HTML A4
                 </button>
                 <button
                   type="button"
                   onClick={() => setPreviewModalOpen(false)}
-                  className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-200"
+                  className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-700"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
             </div>
-            <div className="flex-1 bg-slate-200 p-3">
+            <div className="flex-1 bg-slate-200 dark:bg-slate-950 p-3">
               <iframe
                 ref={previewIframeRef}
                 title="Impressão A4"
-                srcDoc={previewHtmlDoc}
-                className="w-full h-full rounded-lg border border-slate-300 bg-white"
+                srcDoc={applyThemeToHtmlDocument(previewHtmlDoc, theme)}
+                className="w-full h-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950"
               />
             </div>
           </div>

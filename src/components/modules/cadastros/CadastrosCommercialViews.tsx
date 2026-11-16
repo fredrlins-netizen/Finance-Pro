@@ -200,7 +200,7 @@ export const BanksCrudView: React.FC<{
   return (
     <div className="space-y-4">
       {feedback && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-medium text-emerald-900 flex items-center justify-between">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-medium text-emerald-900 flex items-center justify-between dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300">
           <span>{feedback}</span>
           <button type="button" onClick={() => setFeedback('')}>
             <X className="w-3.5 h-3.5" />
@@ -208,7 +208,7 @@ export const BanksCrudView: React.FC<{
         </div>
       )}
       {errorMsg && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-800 flex items-center justify-between">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-800 flex items-center justify-between dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
           <span>{errorMsg}</span>
           <button type="button" onClick={() => setErrorMsg('')}>
             <X className="w-3.5 h-3.5" />
@@ -220,23 +220,23 @@ export const BanksCrudView: React.FC<{
         <>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h1 className="font-display text-xl font-bold text-slate-900">Cadastros Comuns · Bancos</h1>
-              <p className="text-xs text-slate-500">
+              <h1 className="font-display text-xl font-bold text-slate-900 dark:text-slate-100">Cadastros Comuns · Bancos</h1>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Instituições financeiras FEBRABAN, Serviços &amp; Percentuais que alimentam o recálculo da Admissão
               </p>
             </div>
             <button
               type="button"
               onClick={() => openForm()}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
             >
               <Plus className="w-3.5 h-3.5" /> Novo Banco
             </button>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-3.5 flex flex-wrap items-center gap-2 text-xs">
+          <div className="rounded-xl border border-slate-200 bg-white p-3.5 flex flex-wrap items-center gap-2 text-xs dark:border-slate-700 dark:bg-slate-900">
             <div className="relative flex-1 min-w-[200px]">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 dark:text-slate-400" />
               <input
                 type="text"
                 value={search}
@@ -245,7 +245,7 @@ export const BanksCrudView: React.FC<{
                   setPage(1);
                 }}
                 placeholder="Buscar por nome, código interno ou código FEBRABAN..."
-                className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-2"
+                className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-2 dark:border-slate-700"
               />
             </div>
             <select
@@ -254,7 +254,7 @@ export const BanksCrudView: React.FC<{
                 setFilterStatus(e.target.value);
                 setPage(1);
               }}
-              className="rounded-lg border border-slate-200 px-3 py-2 font-semibold"
+              className="rounded-lg border border-slate-200 px-3 py-2 font-semibold dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             >
               <option value="">Todos Status</option>
               <option value="ATIVO">ATIVO</option>
@@ -262,10 +262,10 @@ export const BanksCrudView: React.FC<{
             </select>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600">
+                <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
                   <th className="py-3 px-4">
                     <button
                       type="button"
@@ -301,26 +301,26 @@ export const BanksCrudView: React.FC<{
                   <th className="py-3 px-4 text-right">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {paged.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-slate-500">
+                    <td colSpan={5} className="py-8 text-center text-slate-500 dark:text-slate-400">
                       Nenhum banco localizado.
                     </td>
                   </tr>
                 ) : (
                   paged.map((b) => (
-                    <tr key={b.id} className="hover:bg-slate-50/70">
+                    <tr key={b.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800">
                       <td className="py-3 px-4">
-                        <div className="font-semibold text-slate-900">{b.name}</div>
-                        {b.code && <div className="font-mono text-[10px] text-slate-400">{b.code}</div>}
+                        <div className="font-semibold text-slate-900 dark:text-slate-100">{b.name}</div>
+                        {b.code && <div className="font-mono text-[10px] text-slate-400 dark:text-slate-400">{b.code}</div>}
                       </td>
-                      <td className="py-3 px-4 font-mono text-slate-700">{b.febrabanCode || '—'}</td>
-                      <td className="py-3 px-4 text-slate-600">
+                      <td className="py-3 px-4 font-mono text-slate-700 dark:text-slate-200">{b.febrabanCode || '—'}</td>
+                      <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
                         {b.services?.length || 0} serviço(s) · {b.contacts?.length || 0} contato(s)
                       </td>
                       <td className="py-3 px-4">
-                        <span className={b.status === 'ATIVO' ? 'text-emerald-700 font-semibold' : 'text-slate-400 font-semibold'}>
+                        <span className={b.status === 'ATIVO' ? 'text-emerald-700 font-semibold dark:text-emerald-300' : 'text-slate-400 font-semibold dark:text-slate-400'}>
                           {b.status}
                         </span>
                       </td>
@@ -329,7 +329,7 @@ export const BanksCrudView: React.FC<{
                           <button
                             type="button"
                             onClick={() => setAuditTarget({ id: b.id, label: b.name })}
-                            className="rounded-md border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-100"
+                            className="rounded-md border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                             title="Auditoria"
                           >
                             <History className="w-3.5 h-3.5" />
@@ -337,7 +337,7 @@ export const BanksCrudView: React.FC<{
                           <button
                             type="button"
                             onClick={() => openForm(b, false)}
-                            className="rounded-md border border-slate-200 p-1.5 text-blue-700 hover:bg-blue-50"
+                            className="rounded-md border border-slate-200 p-1.5 text-blue-700 hover:bg-blue-50 dark:border-slate-700 dark:text-blue-300 dark:hover:bg-blue-950/60"
                             title="Editar"
                           >
                             <Pencil className="w-3.5 h-3.5" />
@@ -345,7 +345,7 @@ export const BanksCrudView: React.FC<{
                           <button
                             type="button"
                             onClick={() => openForm(b, true)}
-                            className="rounded-md border border-slate-200 p-1.5 text-slate-700 hover:bg-slate-100"
+                            className="rounded-md border border-slate-200 p-1.5 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                             title="Duplicar"
                           >
                             <Copy className="w-3.5 h-3.5" />
@@ -356,7 +356,7 @@ export const BanksCrudView: React.FC<{
                               setDeleteErr('');
                               setDeleteTarget(b);
                             }}
-                            className="rounded-md border border-red-200 p-1.5 text-red-600 hover:bg-red-50"
+                            className="rounded-md border border-red-200 p-1.5 text-red-600 hover:bg-red-50 dark:border-red-800/70 dark:text-red-400 dark:hover:bg-red-950/60"
                             title="Excluir"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -369,7 +369,7 @@ export const BanksCrudView: React.FC<{
               </tbody>
             </table>
 
-            <div className="px-4 py-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
+            <div className="px-4 py-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600 dark:border-slate-800 dark:text-slate-300">
               <span>
                 Total: {filtered.length} banco(s) · Página {page} de {totalPages}
               </span>
@@ -378,7 +378,7 @@ export const BanksCrudView: React.FC<{
                   type="button"
                   disabled={page <= 1}
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2.5 py-1 disabled:opacity-40"
+                  className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2.5 py-1 disabled:opacity-40 dark:border-slate-700"
                 >
                   <ChevronLeft className="w-3.5 h-3.5" /> Anterior
                 </button>
@@ -386,7 +386,7 @@ export const BanksCrudView: React.FC<{
                   type="button"
                   disabled={page >= totalPages}
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2.5 py-1 disabled:opacity-40"
+                  className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2.5 py-1 disabled:opacity-40 dark:border-slate-700"
                 >
                   Próxima <ChevronRight className="w-3.5 h-3.5" />
                 </button>
@@ -396,13 +396,13 @@ export const BanksCrudView: React.FC<{
         </>
       ) : (
         <form onSubmit={handleSave} className="space-y-4 text-xs">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 space-y-4 dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 dark:border-slate-800">
               <div className="flex items-center gap-2">
-                <button type="button" onClick={() => setMode('list')} className="rounded-lg border border-slate-200 p-1.5 text-slate-600">
+                <button type="button" onClick={() => setMode('list')} className="rounded-lg border border-slate-200 p-1.5 text-slate-600 dark:border-slate-700 dark:text-slate-300">
                   <ArrowLeft className="w-4 h-4" />
                 </button>
-                <h2 className="font-display text-base font-bold text-slate-900">
+                <h2 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
                   {editingId ? `Editar Banco · ${name}` : 'Novo Banco Credor'}
                 </h2>
               </div>
@@ -410,7 +410,7 @@ export const BanksCrudView: React.FC<{
                 type="button"
                 disabled={febRefreshing}
                 onClick={handleSyncFebraban}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${febRefreshing ? 'animate-spin' : ''}`} />
                 Sincronizar BrasilAPI ({febrabanBanks.length})
@@ -418,12 +418,12 @@ export const BanksCrudView: React.FC<{
             </div>
 
             {/* Seletor FEBRABAN */}
-            <div className="relative rounded-xl border border-blue-200 bg-blue-50/50 p-3.5 space-y-2">
+            <div className="relative rounded-xl border border-blue-200 bg-blue-50/50 p-3.5 space-y-2 dark:border-blue-800/70 dark:bg-blue-950/50">
               <div className="flex items-center justify-between">
-                <label className="font-bold text-blue-950 flex items-center gap-1.5">
+                <label className="font-bold text-blue-950 flex items-center gap-1.5 dark:text-blue-300">
                   <Landmark className="w-3.5 h-3.5" /> Seletor FEBRABAN (Preenchimento automático)
                 </label>
-                <button type="button" onClick={() => setFebOpen((o) => !o)} className="text-blue-700 font-semibold hover:underline">
+                <button type="button" onClick={() => setFebOpen((o) => !o)} className="text-blue-700 font-semibold hover:underline dark:text-blue-300">
                   {febOpen ? 'Fechar busca' : 'Pesquisar na base FEBRABAN'}
                 </button>
               </div>
@@ -434,9 +434,9 @@ export const BanksCrudView: React.FC<{
                     value={febSearch}
                     onChange={(e) => setFebSearch(e.target.value)}
                     placeholder="Digite código COMPE (ex: 033, 341) ou nome do banco..."
-                    className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2"
+                    className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 dark:border-blue-800/70 dark:bg-slate-900"
                   />
-                  <div className="max-h-48 overflow-y-auto rounded-lg border border-blue-100 bg-white divide-y divide-slate-100">
+                  <div className="max-h-48 overflow-y-auto rounded-lg border border-blue-100 bg-white divide-y divide-slate-100 dark:border-blue-800/70 dark:bg-slate-900 dark:divide-slate-800">
                     {filteredFebraban.map((fb) => (
                       <button
                         key={fb.code}
@@ -447,10 +447,10 @@ export const BanksCrudView: React.FC<{
                           setName(fb.name);
                           setFebOpen(false);
                         }}
-                        className="w-full text-left px-3 py-2 hover:bg-blue-50 flex items-center justify-between gap-2"
+                        className="w-full text-left px-3 py-2 hover:bg-blue-50 flex items-center justify-between gap-2 dark:hover:bg-blue-950/60"
                       >
-                        <span className="font-semibold text-slate-900">{fb.name}</span>
-                        <span className="font-mono text-slate-500">{fb.code} · {fb.fullName}</span>
+                        <span className="font-semibold text-slate-900 dark:text-slate-100">{fb.name}</span>
+                        <span className="font-mono text-slate-500 dark:text-slate-400">{fb.code} · {fb.fullName}</span>
                       </button>
                     ))}
                   </div>
@@ -460,42 +460,42 @@ export const BanksCrudView: React.FC<{
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3.5">
               <div className="lg:col-span-2">
-                <label className="block text-[11px] font-semibold text-slate-500 mb-1">Código Interno</label>
+                <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">Código Interno</label>
                 <input
                   type="text"
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
                   placeholder="BCO-033"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div className="lg:col-span-5">
-                <label className="block text-[11px] font-semibold text-slate-500 mb-1">Nome / Descrição *</label>
+                <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">Nome / Descrição *</label>
                 <input
                   type="text"
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Banco Santander (Brasil) S.A."
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-semibold"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-semibold dark:border-slate-700"
                 />
               </div>
               <div className="lg:col-span-3">
-                <label className="block text-[11px] font-semibold text-slate-500 mb-1">Código FEBRABAN</label>
+                <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">Código FEBRABAN</label>
                 <input
                   type="text"
                   value={febrabanCode}
                   onChange={(e) => setFebrabanCode(e.target.value)}
                   placeholder="033"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div className="lg:col-span-2">
-                <label className="block text-[11px] font-semibold text-slate-500 mb-1">Status</label>
+                <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">Status</label>
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value as 'ATIVO' | 'INATIVO')}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-semibold"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-semibold dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 >
                   <option value="ATIVO">ATIVO</option>
                   <option value="INATIVO">INATIVO</option>
@@ -504,24 +504,24 @@ export const BanksCrudView: React.FC<{
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-500 mb-1">Anotações</label>
+              <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">Anotações</label>
               <textarea
                 rows={2}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 p-2.5"
+                className="w-full rounded-lg border border-slate-200 p-2.5 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               />
             </div>
           </div>
 
           {/* SUBGRADE 1: Serviços Bancários & Percentuais */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3 dark:border-slate-700 dark:bg-slate-900">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-display text-sm font-bold text-slate-900">
+                <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                   Serviços Bancários &amp; Percentuais de Negociação ({services.length})
                 </h3>
-                <p className="text-[11px] text-slate-500">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
                   Ao selecionar este banco em Admissão &amp; Dossiês, os cenários da Seção 05 usam estes percentuais e prazos.
                 </p>
               </div>
@@ -539,16 +539,16 @@ export const BanksCrudView: React.FC<{
                     },
                   ])
                 }
-                className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-3 py-1.5 font-semibold text-white hover:bg-slate-800"
+                className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-3 py-1.5 font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
               >
                 <Plus className="w-3.5 h-3.5" /> Adicionar Serviço
               </button>
             </div>
 
-            <div className="overflow-x-auto border border-slate-200 rounded-xl">
+            <div className="overflow-x-auto border border-slate-200 rounded-xl dark:border-slate-700">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600">
+                  <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600 dark:bg-slate-800/70 dark:border-slate-700 dark:text-slate-300">
                     <th className="py-2 px-3">Serviço</th>
                     <th className="py-2 px-3">Modalidade</th>
                     <th className="py-2 px-3 w-28">Percentual (%)</th>
@@ -556,10 +556,10 @@ export const BanksCrudView: React.FC<{
                     <th className="py-2 px-3 text-right w-16">Ação</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {services.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="py-4 text-center text-slate-400">
+                      <td colSpan={5} className="py-4 text-center text-slate-400 dark:text-slate-400">
                         Nenhum serviço cadastrado. Clique em &quot;Adicionar Serviço&quot;.
                       </td>
                     </tr>
@@ -574,7 +574,7 @@ export const BanksCrudView: React.FC<{
                               setServices((p) => p.map((x, i) => (i === idx ? { ...x, name: e.target.value } : x)))
                             }
                             placeholder="Ex: Quitação à Vista 35%"
-                            className="w-full rounded border border-slate-200 px-2.5 py-1.5"
+                            className="w-full rounded border border-slate-200 px-2.5 py-1.5 dark:border-slate-700"
                           />
                         </td>
                         <td className="p-2">
@@ -589,7 +589,7 @@ export const BanksCrudView: React.FC<{
                                 )
                               );
                             }}
-                            className="w-full rounded border border-slate-200 px-2 py-1.5"
+                            className="w-full rounded border border-slate-200 px-2 py-1.5 dark:border-slate-700"
                           >
                             <option value="">Geral</option>
                             {modalities.map((m) => (
@@ -608,7 +608,7 @@ export const BanksCrudView: React.FC<{
                                 p.map((x, i) => (i === idx ? { ...x, negotiationPercent: e.target.value } : x))
                               )
                             }
-                            className="w-full rounded border border-slate-200 px-2.5 py-1.5 font-mono"
+                            className="w-full rounded border border-slate-200 px-2.5 py-1.5 font-mono dark:border-slate-700"
                           />
                         </td>
                         <td className="p-2">
@@ -623,14 +623,14 @@ export const BanksCrudView: React.FC<{
                                 )
                               )
                             }
-                            className="w-full rounded border border-slate-200 px-2.5 py-1.5 font-mono"
+                            className="w-full rounded border border-slate-200 px-2.5 py-1.5 font-mono dark:border-slate-700"
                           />
                         </td>
                         <td className="p-2 text-right">
                           <button
                             type="button"
                             onClick={() => setServices((p) => p.filter((_, i) => i !== idx))}
-                            className="rounded p-1 text-red-600 hover:bg-red-50"
+                            className="rounded p-1 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/60"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -644,9 +644,9 @@ export const BanksCrudView: React.FC<{
           </div>
 
           {/* SUBGRADE 2: Contatos Bancários */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3 dark:border-slate-700 dark:bg-slate-900">
             <div className="flex items-center justify-between">
-              <h3 className="font-display text-sm font-bold text-slate-900">
+              <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                 Contatos do Banco ({contacts.length})
               </h3>
               <button
@@ -657,16 +657,16 @@ export const BanksCrudView: React.FC<{
                     { name: '', sector: '', phone: '', mobile: '', isWhatsapp: false, email: '' },
                   ])
                 }
-                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50"
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 <Plus className="w-3.5 h-3.5" /> Adicionar Contato
               </button>
             </div>
 
-            <div className="overflow-x-auto border border-slate-200 rounded-xl">
+            <div className="overflow-x-auto border border-slate-200 rounded-xl dark:border-slate-700">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600">
+                  <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600 dark:bg-slate-800/70 dark:border-slate-700 dark:text-slate-300">
                     <th className="py-2 px-3">Nome</th>
                     <th className="py-2 px-3">Setor</th>
                     <th className="py-2 px-3">Telefone</th>
@@ -675,10 +675,10 @@ export const BanksCrudView: React.FC<{
                     <th className="py-2 px-3 text-right w-14">Ação</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {contacts.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-4 text-center text-slate-400">
+                      <td colSpan={6} className="py-4 text-center text-slate-400 dark:text-slate-400">
                         Nenhum contato bancário adicionado.
                       </td>
                     </tr>
@@ -693,7 +693,7 @@ export const BanksCrudView: React.FC<{
                               setContacts((p) => p.map((x, i) => (i === idx ? { ...x, name: e.target.value } : x)))
                             }
                             placeholder="Gerente / Mesa"
-                            className="w-full rounded border border-slate-200 px-2 py-1.5"
+                            className="w-full rounded border border-slate-200 px-2 py-1.5 dark:border-slate-700"
                           />
                         </td>
                         <td className="p-2">
@@ -704,7 +704,7 @@ export const BanksCrudView: React.FC<{
                               setContacts((p) => p.map((x, i) => (i === idx ? { ...x, sector: e.target.value } : x)))
                             }
                             placeholder="Acordos"
-                            className="w-full rounded border border-slate-200 px-2 py-1.5"
+                            className="w-full rounded border border-slate-200 px-2 py-1.5 dark:border-slate-700"
                           />
                         </td>
                         <td className="p-2">
@@ -716,7 +716,7 @@ export const BanksCrudView: React.FC<{
                                 p.map((x, i) => (i === idx ? { ...x, phone: formatPhoneMask(e.target.value) } : x))
                               )
                             }
-                            className="w-full rounded border border-slate-200 px-2 py-1.5 font-mono"
+                            className="w-full rounded border border-slate-200 px-2 py-1.5 font-mono dark:border-slate-700"
                           />
                         </td>
                         <td className="p-2">
@@ -729,9 +729,9 @@ export const BanksCrudView: React.FC<{
                                   p.map((x, i) => (i === idx ? { ...x, mobile: formatPhoneMask(e.target.value) } : x))
                                 )
                               }
-                              className="w-full rounded border border-slate-200 px-2 py-1.5 font-mono"
+                              className="w-full rounded border border-slate-200 px-2 py-1.5 font-mono dark:border-slate-700"
                             />
-                            <label className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700">
+                            <label className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
                               <input
                                 type="checkbox"
                                 checked={c.isWhatsapp}
@@ -752,14 +752,14 @@ export const BanksCrudView: React.FC<{
                             onChange={(e) =>
                               setContacts((p) => p.map((x, i) => (i === idx ? { ...x, email: e.target.value } : x)))
                             }
-                            className="w-full rounded border border-slate-200 px-2 py-1.5"
+                            className="w-full rounded border border-slate-200 px-2 py-1.5 dark:border-slate-700"
                           />
                         </td>
                         <td className="p-2 text-right">
                           <button
                             type="button"
                             onClick={() => setContacts((p) => p.filter((_, i) => i !== idx))}
-                            className="rounded p-1 text-red-600 hover:bg-red-50"
+                            className="rounded p-1 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/60"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -773,7 +773,7 @@ export const BanksCrudView: React.FC<{
           </div>
 
           <div className="flex justify-end gap-2">
-            <button type="button" onClick={() => setMode('list')} className="rounded-lg border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-700">
+            <button type="button" onClick={() => setMode('list')} className="rounded-lg border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
               Cancelar
             </button>
             <button type="submit" disabled={saving} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-5 py-2 font-semibold text-white hover:bg-emerald-700">
@@ -917,7 +917,7 @@ export const ModalitiesCrudView: React.FC<{
   return (
     <div className="space-y-4">
       {feedback && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-medium text-emerald-900 flex items-center justify-between">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-medium text-emerald-900 flex items-center justify-between dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300">
           <span>{feedback}</span>
           <button type="button" onClick={() => setFeedback('')}>
             <X className="w-3.5 h-3.5" />
@@ -925,7 +925,7 @@ export const ModalitiesCrudView: React.FC<{
         </div>
       )}
       {errorMsg && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-800 flex items-center justify-between">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-800 flex items-center justify-between dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
           <span>{errorMsg}</span>
           <button type="button" onClick={() => setErrorMsg('')}>
             <X className="w-3.5 h-3.5" />
@@ -937,37 +937,37 @@ export const ModalitiesCrudView: React.FC<{
         <>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h1 className="font-display text-xl font-bold text-slate-900">Cadastros Comuns · Modalidades</h1>
-              <p className="text-xs text-slate-500">
+              <h1 className="font-display text-xl font-bold text-slate-900 dark:text-slate-100">Cadastros Comuns · Modalidades</h1>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Classificação das operações em Admissão &amp; Dossiês e Serviços Bancários
               </p>
             </div>
             <button
               type="button"
               onClick={() => openForm()}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
             >
               <Plus className="w-3.5 h-3.5" /> Nova Modalidade
             </button>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-3.5">
+          <div className="rounded-xl border border-slate-200 bg-white p-3.5 dark:border-slate-700 dark:bg-slate-900">
             <div className="relative">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 dark:text-slate-400" />
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Buscar por tipo ou descrição..."
-                className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-2 text-xs"
+                className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               />
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600">
+                <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
                   <th className="py-3 px-4">
                     <button
                       type="button"
@@ -1002,13 +1002,13 @@ export const ModalitiesCrudView: React.FC<{
                   <th className="py-3 px-4 text-right">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {filtered.map((m) => (
-                  <tr key={m.id} className="hover:bg-slate-50/70">
-                    <td className="py-3 px-4 font-semibold text-slate-700">{m.type}</td>
-                    <td className="py-3 px-4 font-bold text-slate-900">{m.description}</td>
+                  <tr key={m.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800">
+                    <td className="py-3 px-4 font-semibold text-slate-700 dark:text-slate-200">{m.type}</td>
+                    <td className="py-3 px-4 font-bold text-slate-900 dark:text-slate-100">{m.description}</td>
                     <td className="py-3 px-4">
-                      <span className={m.hasVehicleSection ? 'text-emerald-700 font-semibold' : 'text-slate-400'}>
+                      <span className={m.hasVehicleSection ? 'text-emerald-700 font-semibold dark:text-emerald-300' : 'text-slate-400 dark:text-slate-400'}>
                         {m.hasVehicleSection ? 'Sim (Seção 03)' : 'Não'}
                       </span>
                     </td>
@@ -1017,7 +1017,7 @@ export const ModalitiesCrudView: React.FC<{
                         <button
                           type="button"
                           onClick={() => setAuditTarget({ id: m.id, label: m.description })}
-                          className="rounded-md border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-100"
+                          className="rounded-md border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                           title="Auditoria"
                         >
                           <History className="w-3.5 h-3.5" />
@@ -1025,7 +1025,7 @@ export const ModalitiesCrudView: React.FC<{
                         <button
                           type="button"
                           onClick={() => openForm(m, false)}
-                          className="rounded-md border border-slate-200 p-1.5 text-blue-700 hover:bg-blue-50"
+                          className="rounded-md border border-slate-200 p-1.5 text-blue-700 hover:bg-blue-50 dark:border-slate-700 dark:text-blue-300 dark:hover:bg-blue-950/60"
                           title="Editar"
                         >
                           <Pencil className="w-3.5 h-3.5" />
@@ -1033,7 +1033,7 @@ export const ModalitiesCrudView: React.FC<{
                         <button
                           type="button"
                           onClick={() => openForm(m, true)}
-                          className="rounded-md border border-slate-200 p-1.5 text-slate-700 hover:bg-slate-100"
+                          className="rounded-md border border-slate-200 p-1.5 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                           title="Duplicar"
                         >
                           <Copy className="w-3.5 h-3.5" />
@@ -1044,7 +1044,7 @@ export const ModalitiesCrudView: React.FC<{
                             setDeleteErr('');
                             setDeleteTarget(m);
                           }}
-                          className="rounded-md border border-red-200 p-1.5 text-red-600 hover:bg-red-50"
+                          className="rounded-md border border-red-200 p-1.5 text-red-600 hover:bg-red-50 dark:border-red-800/70 dark:text-red-400 dark:hover:bg-red-950/60"
                           title="Excluir"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -1058,26 +1058,26 @@ export const ModalitiesCrudView: React.FC<{
           </div>
         </>
       ) : (
-        <form onSubmit={handleSave} className="rounded-2xl border border-slate-200 bg-white p-6 space-y-4 text-xs">
-          <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-            <button type="button" onClick={() => setMode('list')} className="rounded-lg border border-slate-200 p-1.5 text-slate-600">
+        <form onSubmit={handleSave} className="rounded-2xl border border-slate-200 bg-white p-6 space-y-4 text-xs dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex items-center gap-2 border-b border-slate-100 pb-3 dark:border-slate-800">
+            <button type="button" onClick={() => setMode('list')} className="rounded-lg border border-slate-200 p-1.5 text-slate-600 dark:border-slate-700 dark:text-slate-300">
               <ArrowLeft className="w-4 h-4" />
             </button>
-            <h2 className="font-display text-base font-bold text-slate-900">
+            <h2 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
               {editingId ? 'Editar Modalidade' : 'Nova Modalidade'}
             </h2>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Tipo * (selecione ou digite um novo)</label>
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Tipo * (selecione ou digite um novo)</label>
               <input
                 type="text"
                 required
                 list="modality-types-list"
                 value={typeVal}
                 onChange={(e) => setTypeVal(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 font-semibold"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 font-semibold dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               />
               <datalist id="modality-types-list">
                 {knownTypes.map((t) => (
@@ -1086,20 +1086,20 @@ export const ModalitiesCrudView: React.FC<{
               </datalist>
             </div>
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Descrição *</label>
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Descrição *</label>
               <input
                 type="text"
                 required
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Ex: CDC Veículo"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 font-semibold"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 font-semibold dark:border-slate-700"
               />
             </div>
           </div>
 
           <div className="flex flex-wrap gap-6 pt-2">
-            <label className="inline-flex items-center gap-2 font-semibold text-slate-800 cursor-pointer">
+            <label className="inline-flex items-center gap-2 font-semibold text-slate-800 cursor-pointer dark:text-slate-100">
               <input
                 type="checkbox"
                 checked={hasVehicleSection}
@@ -1107,14 +1107,14 @@ export const ModalitiesCrudView: React.FC<{
               />
               Exibe seção &quot;03. Informações do Veículo&quot; na ficha de Admissão
             </label>
-            <label className="inline-flex items-center gap-2 font-semibold text-slate-800 cursor-pointer">
+            <label className="inline-flex items-center gap-2 font-semibold text-slate-800 cursor-pointer dark:text-slate-100">
               <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
               Modalidade Ativa
             </label>
           </div>
 
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-            <button type="button" onClick={() => setMode('list')} className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700">
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+            <button type="button" onClick={() => setMode('list')} className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200">
               Cancelar
             </button>
             <button type="submit" disabled={saving} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-5 py-2 font-semibold text-white hover:bg-emerald-700">
@@ -1275,7 +1275,7 @@ export const ProductsCrudView: React.FC<{
   return (
     <div className="space-y-4">
       {feedback && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-medium text-emerald-900 flex items-center justify-between">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-medium text-emerald-900 flex items-center justify-between dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300">
           <span>{feedback}</span>
           <button type="button" onClick={() => setFeedback('')}>
             <X className="w-3.5 h-3.5" />
@@ -1283,7 +1283,7 @@ export const ProductsCrudView: React.FC<{
         </div>
       )}
       {errorMsg && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-800 flex items-center justify-between">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-800 flex items-center justify-between dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
           <span>{errorMsg}</span>
           <button type="button" onClick={() => setErrorMsg('')}>
             <X className="w-3.5 h-3.5" />
@@ -1295,33 +1295,33 @@ export const ProductsCrudView: React.FC<{
         <>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h1 className="font-display text-xl font-bold text-slate-900">Cadastros Comuns · Produtos</h1>
-              <p className="text-xs text-slate-500">Catálogo de Serviços e Materiais vinculados às Unidades de Medida</p>
+              <h1 className="font-display text-xl font-bold text-slate-900 dark:text-slate-100">Cadastros Comuns · Produtos</h1>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Catálogo de Serviços e Materiais vinculados às Unidades de Medida</p>
             </div>
             <button
               type="button"
               onClick={() => openForm()}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
             >
               <Plus className="w-3.5 h-3.5" /> Novo Produto
             </button>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-3.5 flex flex-wrap gap-2 text-xs">
+          <div className="rounded-xl border border-slate-200 bg-white p-3.5 flex flex-wrap gap-2 text-xs dark:border-slate-700 dark:bg-slate-900">
             <div className="relative flex-1 min-w-[200px]">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 dark:text-slate-400" />
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Buscar produto/serviço..."
-                className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-2"
+                className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               />
             </div>
             <select
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
-              className="rounded-lg border border-slate-200 px-3 py-2 font-semibold"
+              className="rounded-lg border border-slate-200 px-3 py-2 font-semibold dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             >
               <option value="">Todos Tipos</option>
               <option value="SERVICO">Serviço</option>
@@ -1329,30 +1329,30 @@ export const ProductsCrudView: React.FC<{
             </select>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600">
+                <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
                   <th className="py-3 px-4">Tipo</th>
                   <th className="py-3 px-4">Descrição</th>
                   <th className="py-3 px-4">Unidade</th>
                   <th className="py-3 px-4 text-right">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {filtered.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-50/70">
-                    <td className="py-3 px-4 font-mono font-semibold text-slate-700">
+                  <tr key={p.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800">
+                    <td className="py-3 px-4 font-mono font-semibold text-slate-700 dark:text-slate-200">
                       {p.type === 'MATERIAL' ? 'Material' : 'Serviço'}
                     </td>
-                    <td className="py-3 px-4 font-bold text-slate-900">{p.description}</td>
-                    <td className="py-3 px-4 font-mono text-slate-700">{p.unitName || '—'}</td>
+                    <td className="py-3 px-4 font-bold text-slate-900 dark:text-slate-100">{p.description}</td>
+                    <td className="py-3 px-4 font-mono text-slate-700 dark:text-slate-200">{p.unitName || '—'}</td>
                     <td className="py-3 px-4 text-right whitespace-nowrap">
                       <div className="inline-flex items-center gap-1">
                         <button
                           type="button"
                           onClick={() => setAuditTarget({ id: p.id, label: p.description })}
-                          className="rounded-md border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-100"
+                          className="rounded-md border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                           title="Auditoria"
                         >
                           <History className="w-3.5 h-3.5" />
@@ -1360,7 +1360,7 @@ export const ProductsCrudView: React.FC<{
                         <button
                           type="button"
                           onClick={() => openForm(p, false)}
-                          className="rounded-md border border-slate-200 p-1.5 text-blue-700 hover:bg-blue-50"
+                          className="rounded-md border border-slate-200 p-1.5 text-blue-700 hover:bg-blue-50 dark:border-slate-700 dark:text-blue-300 dark:hover:bg-blue-950/60"
                           title="Editar"
                         >
                           <Pencil className="w-3.5 h-3.5" />
@@ -1368,7 +1368,7 @@ export const ProductsCrudView: React.FC<{
                         <button
                           type="button"
                           onClick={() => openForm(p, true)}
-                          className="rounded-md border border-slate-200 p-1.5 text-slate-700 hover:bg-slate-100"
+                          className="rounded-md border border-slate-200 p-1.5 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                           title="Duplicar"
                         >
                           <Copy className="w-3.5 h-3.5" />
@@ -1379,7 +1379,7 @@ export const ProductsCrudView: React.FC<{
                             setDeleteErr('');
                             setDeleteTarget(p);
                           }}
-                          className="rounded-md border border-red-200 p-1.5 text-red-600 hover:bg-red-50"
+                          className="rounded-md border border-red-200 p-1.5 text-red-600 hover:bg-red-50 dark:border-red-800/70 dark:text-red-400 dark:hover:bg-red-950/60"
                           title="Excluir"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -1393,46 +1393,46 @@ export const ProductsCrudView: React.FC<{
           </div>
         </>
       ) : (
-        <form onSubmit={handleSave} className="rounded-2xl border border-slate-200 bg-white p-6 space-y-4 text-xs">
-          <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-            <button type="button" onClick={() => setMode('list')} className="rounded-lg border border-slate-200 p-1.5 text-slate-600">
+        <form onSubmit={handleSave} className="rounded-2xl border border-slate-200 bg-white p-6 space-y-4 text-xs dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex items-center gap-2 border-b border-slate-100 pb-3 dark:border-slate-800">
+            <button type="button" onClick={() => setMode('list')} className="rounded-lg border border-slate-200 p-1.5 text-slate-600 dark:border-slate-700 dark:text-slate-300">
               <ArrowLeft className="w-4 h-4" />
             </button>
-            <h2 className="font-display text-base font-bold text-slate-900">
+            <h2 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
               {editingId ? 'Editar Produto / Serviço' : 'Novo Produto / Serviço'}
             </h2>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
             <div className="sm:col-span-3">
-              <label className="block font-semibold text-slate-700 mb-1">Tipo *</label>
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Tipo *</label>
               <select
                 value={typeVal}
                 onChange={(e) => setTypeVal(e.target.value as 'SERVICO' | 'MATERIAL')}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 font-semibold"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 font-semibold dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               >
                 <option value="SERVICO">Serviço</option>
                 <option value="MATERIAL">Material</option>
               </select>
             </div>
             <div className="sm:col-span-5">
-              <label className="block font-semibold text-slate-700 mb-1">Descrição *</label>
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Descrição *</label>
               <input
                 type="text"
                 required
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 font-semibold"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 font-semibold dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               />
             </div>
             <div className="sm:col-span-4">
-              <label className="block font-semibold text-slate-700 mb-1">Unidade de Medida *</label>
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Unidade de Medida *</label>
               <div className="flex gap-1.5">
                 <select
                   required
                   value={unitId}
                   onChange={(e) => setUnitId(e.target.value ? Number(e.target.value) : '')}
-                  className="flex-1 rounded-lg border border-slate-200 px-2.5 py-2 font-mono font-semibold"
+                  className="flex-1 rounded-lg border border-slate-200 px-2.5 py-2 font-mono font-semibold dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 >
                   <option value="">Selecione...</option>
                   {measurementUnits.map((u) => (
@@ -1453,7 +1453,7 @@ export const ProductsCrudView: React.FC<{
                     }
                   }}
                   title="Editar unidade selecionada"
-                  className="rounded-lg border border-slate-200 px-2.5 py-2 text-blue-700 hover:bg-blue-50 disabled:opacity-40"
+                  className="rounded-lg border border-slate-200 px-2.5 py-2 text-blue-700 hover:bg-blue-50 disabled:opacity-40 dark:border-slate-700 dark:text-blue-300 dark:hover:bg-blue-950/60"
                 >
                   <Pencil className="w-3.5 h-3.5" />
                 </button>
@@ -1465,7 +1465,7 @@ export const ProductsCrudView: React.FC<{
                     setMuModal({ open: true, editing: null });
                   }}
                   title="Nova unidade de medida"
-                  className="rounded-lg border border-slate-200 px-2.5 py-2 text-slate-700 hover:bg-slate-100"
+                  className="rounded-lg border border-slate-200 px-2.5 py-2 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                 >
                   <Plus className="w-3.5 h-3.5" />
                 </button>
@@ -1473,8 +1473,8 @@ export const ProductsCrudView: React.FC<{
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-            <button type="button" onClick={() => setMode('list')} className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700">
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+            <button type="button" onClick={() => setMode('list')} className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200">
               Cancelar
             </button>
             <button type="submit" disabled={saving} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-5 py-2 font-semibold text-white hover:bg-emerald-700">
@@ -1486,19 +1486,19 @@ export const ProductsCrudView: React.FC<{
 
       {/* Modal: Unidade de Medida (sigla <= 5 chars + fator de conversão) */}
       {muModal.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-          <form onSubmit={handleSaveMeasurementUnit} className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl space-y-4 text-xs">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-display text-sm font-bold text-slate-900">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80">
+          <form onSubmit={handleSaveMeasurementUnit} className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl space-y-4 text-xs dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+              <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                 {muModal.editing ? 'Editar Unidade de Medida' : 'Nova Unidade de Medida'}
               </h3>
-              <button type="button" onClick={() => setMuModal({ open: false, editing: null })} className="text-slate-400">
+              <button type="button" onClick={() => setMuModal({ open: false, editing: null })} className="text-slate-400 dark:text-slate-400">
                 <X className="w-4 h-4" />
               </button>
             </div>
             <div className="space-y-3">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Sigla (até 5 caracteres) *</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Sigla (até 5 caracteres) *</label>
                 <input
                   type="text"
                   required
@@ -1506,25 +1506,25 @@ export const ProductsCrudView: React.FC<{
                   value={muName}
                   onChange={(e) => setMuName(e.target.value.toUpperCase())}
                   placeholder="UN"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono uppercase font-bold"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono uppercase font-bold dark:border-slate-700"
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Fator de Conversão</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Fator de Conversão</label>
                 <input
                   type="text"
                   value={muFactor}
                   onChange={(e) => setMuFactor(e.target.value)}
                   placeholder="1"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
             </div>
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-              <button type="button" onClick={() => setMuModal({ open: false, editing: null })} className="rounded-lg border border-slate-200 px-3.5 py-2 font-semibold text-slate-700">
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button type="button" onClick={() => setMuModal({ open: false, editing: null })} className="rounded-lg border border-slate-200 px-3.5 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200">
                 Cancelar
               </button>
-              <button type="submit" disabled={muBusy} className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white">
+              <button type="submit" disabled={muBusy} className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white dark:bg-emerald-600">
                 {muBusy ? 'Salvando...' : 'Salvar Unidade'}
               </button>
             </div>
@@ -1671,7 +1671,7 @@ export const SeriesCrudView: React.FC<{
   return (
     <div className="space-y-4">
       {feedback && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-medium text-emerald-900 flex items-center justify-between">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-medium text-emerald-900 flex items-center justify-between dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300">
           <span>{feedback}</span>
           <button type="button" onClick={() => setFeedback('')}>
             <X className="w-3.5 h-3.5" />
@@ -1679,7 +1679,7 @@ export const SeriesCrudView: React.FC<{
         </div>
       )}
       {errorMsg && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-800 flex items-center justify-between">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-800 flex items-center justify-between dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
           <span>{errorMsg}</span>
           <button type="button" onClick={() => setErrorMsg('')}>
             <X className="w-3.5 h-3.5" />
@@ -1691,37 +1691,37 @@ export const SeriesCrudView: React.FC<{
         <>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h1 className="font-display text-xl font-bold text-slate-900">Cadastros Comuns · Série / Números</h1>
-              <p className="text-xs text-slate-500">
+              <h1 className="font-display text-xl font-bold text-slate-900 dark:text-slate-100">Cadastros Comuns · Série / Números</h1>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Prefixos contratuais e contadores sequenciais por unidade utilizados em Admissão &amp; Dossiês
               </p>
             </div>
             <button
               type="button"
               onClick={() => openForm()}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
             >
               <Plus className="w-3.5 h-3.5" /> Nova Série
             </button>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-3.5">
+          <div className="rounded-xl border border-slate-200 bg-white p-3.5 dark:border-slate-700 dark:bg-slate-900">
             <div className="relative">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 dark:text-slate-400" />
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Buscar por sigla ou descrição..."
-                className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-2 text-xs"
+                className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               />
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600">
+                <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
                   <th className="py-3 px-4">Sigla</th>
                   <th className="py-3 px-4">Descrição</th>
                   <th className="py-3 px-4">Nº Geral</th>
@@ -1729,22 +1729,22 @@ export const SeriesCrudView: React.FC<{
                   <th className="py-3 px-4 text-right">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {filtered.map((s) => (
-                  <tr key={s.id} className="hover:bg-slate-50/70">
-                    <td className="py-3 px-4 font-mono font-extrabold text-slate-900">
+                  <tr key={s.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800">
+                    <td className="py-3 px-4 font-mono font-extrabold text-slate-900 dark:text-slate-100">
                       {s.sigla}
-                      {s.isDefault && <span className="ml-2 text-[10px] font-sans text-emerald-700 uppercase">Padrão</span>}
+                      {s.isDefault && <span className="ml-2 text-[10px] font-sans text-emerald-700 uppercase dark:text-emerald-300">Padrão</span>}
                     </td>
-                    <td className="py-3 px-4 font-semibold text-slate-800">{s.description}</td>
-                    <td className="py-3 px-4 font-mono tabular-nums text-slate-700">{s.generalNumber}</td>
-                    <td className="py-3 px-4 text-slate-600">{s.unitNumbering?.length || 0} unidade(s)</td>
+                    <td className="py-3 px-4 font-semibold text-slate-800 dark:text-slate-100">{s.description}</td>
+                    <td className="py-3 px-4 font-mono tabular-nums text-slate-700 dark:text-slate-200">{s.generalNumber}</td>
+                    <td className="py-3 px-4 text-slate-600 dark:text-slate-300">{s.unitNumbering?.length || 0} unidade(s)</td>
                     <td className="py-3 px-4 text-right whitespace-nowrap">
                       <div className="inline-flex items-center gap-1">
                         <button
                           type="button"
                           onClick={() => setAuditTarget({ id: s.id, label: `${s.sigla} - ${s.description}` })}
-                          className="rounded-md border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-100"
+                          className="rounded-md border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                           title="Auditoria"
                         >
                           <History className="w-3.5 h-3.5" />
@@ -1752,7 +1752,7 @@ export const SeriesCrudView: React.FC<{
                         <button
                           type="button"
                           onClick={() => openForm(s, false)}
-                          className="rounded-md border border-slate-200 p-1.5 text-blue-700 hover:bg-blue-50"
+                          className="rounded-md border border-slate-200 p-1.5 text-blue-700 hover:bg-blue-50 dark:border-slate-700 dark:text-blue-300 dark:hover:bg-blue-950/60"
                           title="Editar"
                         >
                           <Pencil className="w-3.5 h-3.5" />
@@ -1760,7 +1760,7 @@ export const SeriesCrudView: React.FC<{
                         <button
                           type="button"
                           onClick={() => openForm(s, true)}
-                          className="rounded-md border border-slate-200 p-1.5 text-slate-700 hover:bg-slate-100"
+                          className="rounded-md border border-slate-200 p-1.5 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                           title="Duplicar"
                         >
                           <Copy className="w-3.5 h-3.5" />
@@ -1771,7 +1771,7 @@ export const SeriesCrudView: React.FC<{
                             setDeleteErr('');
                             setDeleteTarget(s);
                           }}
-                          className="rounded-md border border-red-200 p-1.5 text-red-600 hover:bg-red-50"
+                          className="rounded-md border border-red-200 p-1.5 text-red-600 hover:bg-red-50 dark:border-red-800/70 dark:text-red-400 dark:hover:bg-red-950/60"
                           title="Excluir"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -1786,19 +1786,19 @@ export const SeriesCrudView: React.FC<{
         </>
       ) : (
         <form onSubmit={handleSave} className="space-y-4 text-xs">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 space-y-4">
-            <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-              <button type="button" onClick={() => setMode('list')} className="rounded-lg border border-slate-200 p-1.5 text-slate-600">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 space-y-4 dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-center gap-2 border-b border-slate-100 pb-3 dark:border-slate-800">
+              <button type="button" onClick={() => setMode('list')} className="rounded-lg border border-slate-200 p-1.5 text-slate-600 dark:border-slate-700 dark:text-slate-300">
                 <ArrowLeft className="w-4 h-4" />
               </button>
-              <h2 className="font-display text-base font-bold text-slate-900">
+              <h2 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
                 {editingId ? `Editar Série · ${sigla}` : 'Nova Série / Numeração'}
               </h2>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end">
               <div className="sm:col-span-3">
-                <label className="block font-semibold text-slate-700 mb-1">Sigla *</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Sigla *</label>
                 <input
                   type="text"
                   required
@@ -1806,32 +1806,32 @@ export const SeriesCrudView: React.FC<{
                   value={sigla}
                   onChange={(e) => setSigla(e.target.value.toUpperCase())}
                   placeholder="ADM"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono uppercase font-extrabold"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono uppercase font-extrabold dark:border-slate-700"
                 />
               </div>
               <div className="sm:col-span-5">
-                <label className="block font-semibold text-slate-700 mb-1">Descrição *</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Descrição *</label>
                 <input
                   type="text"
                   required
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Admissão Matriz"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-semibold"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-semibold dark:border-slate-700"
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className="block font-semibold text-slate-700 mb-1">Nº Geral</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Nº Geral</label>
                 <input
                   type="number"
                   min={1}
                   value={generalNumber}
                   onChange={(e) => setGeneralNumber(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div className="sm:col-span-2 pb-2">
-                <label className="inline-flex items-center gap-2 font-semibold text-slate-800 cursor-pointer">
+                <label className="inline-flex items-center gap-2 font-semibold text-slate-800 cursor-pointer dark:text-slate-100">
                   <input type="checkbox" checked={isDefault} onChange={(e) => setIsDefault(e.target.checked)} />
                   Série Padrão
                 </label>
@@ -1840,23 +1840,23 @@ export const SeriesCrudView: React.FC<{
           </div>
 
           {/* SUBGRADE: Numeração por Unidade */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3 dark:border-slate-700 dark:bg-slate-900">
             <div>
-              <h3 className="font-display text-sm font-bold text-slate-900">
+              <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                 Numeração por Unidade ({unitNumbering.length})
               </h3>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
                 Controle sequencial independente salvo diretamente no PostgreSQL por unidade selecionada na Admissão.
               </p>
             </div>
 
-            <div className="flex flex-wrap items-end gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+            <div className="flex flex-wrap items-end gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200 dark:bg-slate-800/70 dark:border-slate-700">
               <div className="flex-1 min-w-[180px]">
-                <label className="block text-[11px] font-semibold text-slate-500 mb-1">Unidade</label>
+                <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">Unidade</label>
                 <select
                   value={newUnitId}
                   onChange={(e) => setNewUnitId(e.target.value ? Number(e.target.value) : '')}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 font-semibold"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 font-semibold dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                 >
                   {units.map((u) => (
                     <option key={u.id} value={u.id}>
@@ -1866,37 +1866,37 @@ export const SeriesCrudView: React.FC<{
                 </select>
               </div>
               <div className="w-32">
-                <label className="block text-[11px] font-semibold text-slate-500 mb-1">Numeração Atual</label>
+                <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">Numeração Atual</label>
                 <input
                   type="number"
                   min={1}
                   value={newUnitNum}
                   onChange={(e) => setNewUnitNum(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 font-mono"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 font-mono dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                 />
               </div>
               <button
                 type="button"
                 onClick={handleAddUnitRow}
-                className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-3.5 py-2 font-semibold text-white hover:bg-slate-800"
+                className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-3.5 py-2 font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
               >
                 <Plus className="w-3.5 h-3.5" /> Definir Unidade
               </button>
             </div>
 
-            <div className="overflow-x-auto border border-slate-200 rounded-xl">
+            <div className="overflow-x-auto border border-slate-200 rounded-xl dark:border-slate-700">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600">
+                  <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600 dark:bg-slate-800/70 dark:border-slate-700 dark:text-slate-300">
                     <th className="py-2 px-3">Unidade</th>
                     <th className="py-2 px-3 w-40">Numeração Atual</th>
                     <th className="py-2 px-3 text-right w-20">Ação</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {unitNumbering.length === 0 ? (
                     <tr>
-                      <td colSpan={3} className="py-4 text-center text-slate-400">
+                      <td colSpan={3} className="py-4 text-center text-slate-400 dark:text-slate-400">
                         Nenhuma numeração específica por unidade definida (usará o Nº Geral).
                       </td>
                     </tr>
@@ -1905,7 +1905,7 @@ export const SeriesCrudView: React.FC<{
                       const u = units.find((x) => x.id === row.unitId);
                       return (
                         <tr key={row.unitId}>
-                          <td className="py-2 px-3 font-semibold text-slate-800">
+                          <td className="py-2 px-3 font-semibold text-slate-800 dark:text-slate-100">
                             {u ? `${u.code} · ${u.name}` : `Unidade #${row.unitId}`}
                           </td>
                           <td className="py-2 px-3">
@@ -1922,14 +1922,14 @@ export const SeriesCrudView: React.FC<{
                                   )
                                 )
                               }
-                              className="w-full rounded border border-slate-200 px-2.5 py-1.5 font-mono"
+                              className="w-full rounded border border-slate-200 px-2.5 py-1.5 font-mono dark:border-slate-700"
                             />
                           </td>
                           <td className="py-2 px-3 text-right">
                             <button
                               type="button"
                               onClick={() => setUnitNumbering((prev) => prev.filter((x) => x.unitId !== row.unitId))}
-                              className="text-red-600 hover:underline font-semibold"
+                              className="text-red-600 hover:underline font-semibold dark:text-red-400"
                             >
                               Remover
                             </button>
@@ -1944,7 +1944,7 @@ export const SeriesCrudView: React.FC<{
           </div>
 
           <div className="flex justify-end gap-2">
-            <button type="button" onClick={() => setMode('list')} className="rounded-lg border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-700">
+            <button type="button" onClick={() => setMode('list')} className="rounded-lg border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
               Cancelar
             </button>
             <button type="submit" disabled={saving} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-5 py-2 font-semibold text-white hover:bg-emerald-700">

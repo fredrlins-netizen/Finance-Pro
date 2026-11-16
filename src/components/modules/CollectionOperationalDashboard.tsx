@@ -497,50 +497,50 @@ export const CollectionOperationalDashboard: React.FC<CollectionOperationalDashb
   return (
     <div className="space-y-5">
       {/* Barra de Filtros & Exportação */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4 flex flex-wrap items-end justify-between gap-3">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 flex flex-wrap items-end justify-between gap-3 dark:border-slate-700 dark:bg-slate-900">
         <div className="flex flex-wrap items-end gap-3">
           <div>
-            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+            <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">
               Vencimento De
             </label>
             <input
               type="date"
               value={dueFrom}
               onChange={(e) => setDueFrom(e.target.value)}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-mono tabular-nums text-slate-900"
+              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-mono tabular-nums text-slate-900 dark:border-slate-700 dark:text-slate-100 dark:bg-slate-950"
             />
           </div>
           <div>
-            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+            <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">
               Vencimento Até
             </label>
             <input
               type="date"
               value={dueTo}
               onChange={(e) => setDueTo(e.target.value)}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-mono tabular-nums text-slate-900"
+              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-mono tabular-nums text-slate-900 dark:border-slate-700 dark:text-slate-100 dark:bg-slate-950"
             />
           </div>
           <div>
-            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+            <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">
               Mês Referência
             </label>
             <input
               type="month"
               value={refMonth}
               onChange={(e) => setRefMonth(e.target.value)}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-mono tabular-nums text-slate-900"
+              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-mono tabular-nums text-slate-900 dark:border-slate-700 dark:text-slate-100 dark:bg-slate-950"
             />
           </div>
           {isAdmin && (
             <div>
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">
                 Responsável
               </label>
               <select
                 value={collaboratorFilter}
                 onChange={(e) => setCollaboratorFilter(e.target.value)}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-900"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               >
                 <option value="">Todos os Operadores</option>
                 <option value="__unassigned__">Sem Atribuição</option>
@@ -560,7 +560,7 @@ export const CollectionOperationalDashboard: React.FC<CollectionOperationalDashb
                 setDueTo('');
                 setCollaboratorFilter('');
               }}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 whitespace-nowrap"
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 whitespace-nowrap dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
             >
               Limpar Filtros
             </button>
@@ -571,15 +571,15 @@ export const CollectionOperationalDashboard: React.FC<CollectionOperationalDashb
           <button
             type="button"
             onClick={() => exportDashboardSnapshotToExcel(buildExportInput())}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-700" />
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-300" />
             Exportar Excel
           </button>
           <button
             type="button"
             onClick={() => exportDashboardSnapshotToPdf(buildExportInput())}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 whitespace-nowrap"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 whitespace-nowrap dark:bg-emerald-600 dark:hover:bg-emerald-500"
           >
             <FileText className="w-3.5 h-3.5" />
             Exportar PDF
@@ -589,32 +589,32 @@ export const CollectionOperationalDashboard: React.FC<CollectionOperationalDashb
 
       {/* Linha 1: 3 Cards de Hoje */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <p className="text-xs font-medium text-slate-500">Vencendo Hoje ({formatDueDateLocalBR(todayIso)})</p>
-          <p className="mt-1.5 font-mono text-xl font-bold text-slate-900 tabular-nums">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Vencendo Hoje ({formatDueDateLocalBR(todayIso)})</p>
+          <p className="mt-1.5 font-mono text-xl font-bold text-slate-900 tabular-nums dark:text-slate-100">
             {formatBRL(todayStats.dueTodayCents)}
           </p>
-          <p className="mt-1 text-xs text-slate-500 font-mono tabular-nums">
+          <p className="mt-1 text-xs text-slate-500 font-mono tabular-nums dark:text-slate-400">
             {todayStats.dueTodayCount} título(s) com vencimento hoje
           </p>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <p className="text-xs font-medium text-slate-500">Vencidos Acumulados</p>
-          <p className="mt-1.5 font-mono text-xl font-bold text-red-600 tabular-nums">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Vencidos Acumulados</p>
+          <p className="mt-1.5 font-mono text-xl font-bold text-red-600 tabular-nums dark:text-red-400">
             {formatBRL(todayStats.overdueAccumCents)}
           </p>
-          <p className="mt-1 text-xs text-slate-500 font-mono tabular-nums">
+          <p className="mt-1 text-xs text-slate-500 font-mono tabular-nums dark:text-slate-400">
             {todayStats.overdueAccumCount} título(s) em atraso na carteira
           </p>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <p className="text-xs font-medium text-slate-500">Baixas Registradas Hoje</p>
-          <p className="mt-1.5 font-mono text-xl font-bold text-emerald-700 tabular-nums">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Baixas Registradas Hoje</p>
+          <p className="mt-1.5 font-mono text-xl font-bold text-emerald-700 tabular-nums dark:text-emerald-300">
             {formatBRL(todayStats.settledTodayCents)}
           </p>
-          <p className="mt-1 text-xs text-slate-500 font-mono tabular-nums">
+          <p className="mt-1 text-xs text-slate-500 font-mono tabular-nums dark:text-slate-400">
             {todayStats.settledTodayCount} liquidação(ões) confirmada(s) hoje
           </p>
         </div>
@@ -622,97 +622,97 @@ export const CollectionOperationalDashboard: React.FC<CollectionOperationalDashb
 
       {/* Linha 2: 4 Cards Acumulados do Período */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <p className="text-xs font-medium text-slate-500">Carteira Total em Aberto</p>
-          <p className="mt-1.5 font-mono text-lg font-bold text-slate-900 tabular-nums">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Carteira Total em Aberto</p>
+          <p className="mt-1.5 font-mono text-lg font-bold text-slate-900 tabular-nums dark:text-slate-100">
             {formatBRL(periodStats.totalBalanceCents)}
           </p>
-          <p className="mt-1 text-xs text-slate-500 font-mono tabular-nums">
+          <p className="mt-1 text-xs text-slate-500 font-mono tabular-nums dark:text-slate-400">
             {periodStats.totalCount} título(s) ativos no período
           </p>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <p className="text-xs font-medium text-slate-500">Taxa de Recuperação</p>
-          <p className="mt-1.5 font-mono text-lg font-bold text-emerald-700 tabular-nums">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Taxa de Recuperação</p>
+          <p className="mt-1.5 font-mono text-lg font-bold text-emerald-700 tabular-nums dark:text-emerald-300">
             {periodStats.recoveryRate.toFixed(1)}%
           </p>
-          <p className="mt-1 text-xs text-slate-500 font-mono tabular-nums">
+          <p className="mt-1 text-xs text-slate-500 font-mono tabular-nums dark:text-slate-400">
             Recuperado: {formatBRL(periodStats.recoveredCents)}
           </p>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <p className="text-xs font-medium text-slate-500">Taxa de Inadimplência</p>
-          <p className="mt-1.5 font-mono text-lg font-bold text-red-600 tabular-nums">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Taxa de Inadimplência</p>
+          <p className="mt-1.5 font-mono text-lg font-bold text-red-600 tabular-nums dark:text-red-400">
             {periodStats.defaultRate.toFixed(1)}%
           </p>
-          <p className="mt-1 text-xs text-slate-500 font-mono tabular-nums">
+          <p className="mt-1 text-xs text-slate-500 font-mono tabular-nums dark:text-slate-400">
             {periodStats.overdueCount} de {periodStats.totalCount} vencidos ({formatBRL(periodStats.overdueBalanceCents)})
           </p>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <p className="text-xs font-medium text-slate-500">DSO (Prazo Médio de Recebimento)</p>
-          <p className="mt-1.5 font-mono text-lg font-bold text-slate-900 tabular-nums">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">DSO (Prazo Médio de Recebimento)</p>
+          <p className="mt-1.5 font-mono text-lg font-bold text-slate-900 tabular-nums dark:text-slate-100">
             {periodStats.dsoDays} dias
           </p>
-          <p className="mt-1 text-xs text-slate-500 font-mono tabular-nums">
+          <p className="mt-1 text-xs text-slate-500 font-mono tabular-nums dark:text-slate-400">
             Mês {refMonth}: {periodStats.monthlyAccumulated.monthRecoveryRatePct.toFixed(1)}% recup.
           </p>
         </div>
       </div>
 
       {/* Linha 3: Recálculo Financeiro da Carteira — Período Selecionado */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
-          <h3 className="text-xs font-bold text-slate-900">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 dark:border-slate-700 dark:bg-slate-900">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5 dark:border-slate-800">
+          <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100">
             Recálculo Financeiro da Carteira — Período Selecionado
           </h3>
-          <span className="text-[11px] text-slate-500 font-mono tabular-nums">
+          <span className="text-[11px] text-slate-500 font-mono tabular-nums dark:text-slate-400">
             Certificado por financial_titles + title_settlements
           </span>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-xs">
           <div>
-            <span className="text-slate-500 block">Valor Original</span>
-            <span className="font-mono font-semibold text-slate-900 tabular-nums mt-0.5 block">
+            <span className="text-slate-500 block dark:text-slate-400">Valor Original</span>
+            <span className="font-mono font-semibold text-slate-900 tabular-nums mt-0.5 block dark:text-slate-100">
               {formatBRL(periodStats.recalc.originalCents)}
             </span>
           </div>
           <div>
-            <span className="text-slate-500 block">(+) Juros</span>
-            <span className="font-mono font-semibold text-slate-800 tabular-nums mt-0.5 block">
+            <span className="text-slate-500 block dark:text-slate-400">(+) Juros</span>
+            <span className="font-mono font-semibold text-slate-800 tabular-nums mt-0.5 block dark:text-slate-100">
               {formatBRL(periodStats.recalc.interestCents)}
             </span>
           </div>
           <div>
-            <span className="text-slate-500 block">(+) Multa</span>
-            <span className="font-mono font-semibold text-slate-800 tabular-nums mt-0.5 block">
+            <span className="text-slate-500 block dark:text-slate-400">(+) Multa</span>
+            <span className="font-mono font-semibold text-slate-800 tabular-nums mt-0.5 block dark:text-slate-100">
               {formatBRL(periodStats.recalc.fineCents)}
             </span>
           </div>
           <div>
-            <span className="text-slate-500 block">(-) Descontos</span>
-            <span className="font-mono font-semibold text-amber-700 tabular-nums mt-0.5 block">
+            <span className="text-slate-500 block dark:text-slate-400">(-) Descontos</span>
+            <span className="font-mono font-semibold text-amber-700 tabular-nums mt-0.5 block dark:text-amber-300">
               {formatBRL(periodStats.recalc.discountCents)}
             </span>
           </div>
           <div>
-            <span className="text-slate-500 block">(=) Atualizado</span>
-            <span className="font-mono font-semibold text-slate-900 tabular-nums mt-0.5 block">
+            <span className="text-slate-500 block dark:text-slate-400">(=) Atualizado</span>
+            <span className="font-mono font-semibold text-slate-900 tabular-nums mt-0.5 block dark:text-slate-100">
               {formatBRL(periodStats.recalc.updatedCents)}
             </span>
           </div>
           <div>
-            <span className="text-slate-500 block">(-) Recebido</span>
-            <span className="font-mono font-semibold text-emerald-700 tabular-nums mt-0.5 block">
+            <span className="text-slate-500 block dark:text-slate-400">(-) Recebido</span>
+            <span className="font-mono font-semibold text-emerald-700 tabular-nums mt-0.5 block dark:text-emerald-300">
               {formatBRL(periodStats.recalc.receivedCents)}
             </span>
           </div>
           <div>
-            <span className="text-slate-700 font-semibold block">(=) Saldo Devedor</span>
-            <span className="font-mono font-bold text-red-600 tabular-nums mt-0.5 block">
+            <span className="text-slate-700 font-semibold block dark:text-slate-200">(=) Saldo Devedor</span>
+            <span className="font-mono font-bold text-red-600 tabular-nums mt-0.5 block dark:text-red-400">
               {formatBRL(periodStats.recalc.balanceCents)}
             </span>
           </div>
@@ -721,10 +721,10 @@ export const CollectionOperationalDashboard: React.FC<CollectionOperationalDashb
 
       {/* Linha 4: Faixa de Atraso (Clicável) + Evolução Diária */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        <div className="lg:col-span-5 rounded-xl border border-slate-200 bg-white p-4 space-y-3">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-            <h3 className="text-xs font-bold text-slate-900">Carteira por Faixa de Atraso</h3>
-            <span className="text-[11px] text-slate-500">Clique para filtrar na grade</span>
+        <div className="lg:col-span-5 rounded-xl border border-slate-200 bg-white p-4 space-y-3 dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 dark:border-slate-800">
+            <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100">Carteira por Faixa de Atraso</h3>
+            <span className="text-[11px] text-slate-500 dark:text-slate-400">Clique para filtrar na grade</span>
           </div>
           <div className="space-y-2.5">
             {periodStats.agingBuckets.map((b) => {
@@ -737,16 +737,16 @@ export const CollectionOperationalDashboard: React.FC<CollectionOperationalDashb
                   key={b.key}
                   type="button"
                   onClick={() => onSelectAgingBucket(b.key)}
-                  className="w-full text-left rounded-lg border border-slate-100 p-2.5 hover:border-slate-300 hover:bg-slate-50/70 transition-colors"
+                  className="w-full text-left rounded-lg border border-slate-100 p-2.5 hover:border-slate-300 hover:bg-slate-50/70 transition-colors dark:border-slate-800 dark:hover:bg-slate-800"
                 >
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-slate-800">{b.label}</span>
-                    <span className="font-mono text-slate-900 font-semibold tabular-nums">
+                    <span className="font-semibold text-slate-800 dark:text-slate-100">{b.label}</span>
+                    <span className="font-mono text-slate-900 font-semibold tabular-nums dark:text-slate-100">
                       {formatBRL(b.balanceCents)}{' '}
-                      <span className="text-slate-500 font-normal">({b.count})</span>
+                      <span className="text-slate-500 font-normal dark:text-slate-400">({b.count})</span>
                     </span>
                   </div>
-                  <div className="mt-1.5 h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
+                  <div className="mt-1.5 h-1.5 w-full rounded-full bg-slate-100 overflow-hidden dark:bg-slate-800">
                     <div
                       className={`h-full ${b.barClass}`}
                       style={{ width: `${Math.max(pct, b.count > 0 ? 3 : 0)}%` }}
@@ -758,18 +758,18 @@ export const CollectionOperationalDashboard: React.FC<CollectionOperationalDashb
           </div>
         </div>
 
-        <div className="lg:col-span-7 rounded-xl border border-slate-200 bg-white p-4 flex flex-col justify-between">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 mb-3">
-            <h3 className="text-xs font-bold text-slate-900">
+        <div className="lg:col-span-7 rounded-xl border border-slate-200 bg-white p-4 flex flex-col justify-between dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 mb-3 dark:border-slate-800">
+            <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100">
               Evolução Diária — Saldo Acumulado vs. Recuperado
             </h3>
-            <span className="text-[11px] text-slate-500 font-mono tabular-nums">
+            <span className="text-[11px] text-slate-500 font-mono tabular-nums dark:text-slate-400">
               {periodStats.dailyEvolution.length} datas com movimentação
             </span>
           </div>
 
           {periodStats.dailyEvolution.length === 0 ? (
-            <div className="h-64 flex items-center justify-center text-xs text-slate-500">
+            <div className="h-64 flex items-center justify-center text-xs text-slate-500 dark:text-slate-400">
               Sem títulos no período selecionado para exibir a evolução diária.
             </div>
           ) : (

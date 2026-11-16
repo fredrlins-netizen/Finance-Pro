@@ -622,11 +622,11 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
   };
 
   const renderSortIcon = (key: OperationalSortKey) => {
-    if (sortKey !== key) return <ArrowUpDown className="w-3 h-3 text-slate-400" />;
+    if (sortKey !== key) return <ArrowUpDown className="w-3 h-3 text-slate-400 dark:text-slate-400" />;
     return sortDir === 'asc' ? (
-      <ArrowUp className="w-3 h-3 text-slate-900" />
+      <ArrowUp className="w-3 h-3 text-slate-900 dark:text-slate-100" />
     ) : (
-      <ArrowDown className="w-3 h-3 text-slate-900" />
+      <ArrowDown className="w-3 h-3 text-slate-900 dark:text-slate-100" />
     );
   };
 
@@ -695,33 +695,33 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
     : 'Minha carteira — aguardando vínculo de colaborador';
 
   const containerClasses = isExpanded
-    ? 'fixed inset-0 z-40 overflow-y-auto bg-slate-50 p-5 space-y-5'
+    ? 'fixed inset-0 z-40 overflow-y-auto bg-slate-50 p-5 space-y-5 dark:bg-slate-800/70'
     : 'space-y-5';
 
   return (
     <div className={containerClasses}>
       {/* Cabeçalho Principal */}
-      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-3 border-b border-slate-200 pb-4">
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-3 border-b border-slate-200 pb-4 dark:border-slate-700">
         <div>
-          <p className="text-xs font-medium text-slate-500">
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
             {isAdmin ? 'Administrador' : linkedCollaborator?.name || currentUser?.name || 'Operador'}{' '}
             · {roleSubtitle}
           </p>
-          <h1 className="mt-1 font-display text-2xl font-bold text-slate-900">
+          <h1 className="mt-1 font-display text-2xl font-bold text-slate-900 dark:text-slate-100">
             Cobrança & Ranking — Operacional
           </h1>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           {/* Abas Principais */}
-          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg border border-slate-200">
+          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg border border-slate-200 dark:bg-slate-800 dark:border-slate-700">
             <button
               type="button"
               onClick={() => setViewMode('GRID')}
               className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 ${
                 viewMode === 'GRID'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-slate-100'
+                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
               }`}
             >
               {isAdmin ? 'Todas as Carteiras' : 'Minha Carteira'} ({scopedPortfolioTitles.length})
@@ -731,8 +731,8 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
               onClick={() => setViewMode('DASHBOARD')}
               className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 ${
                 viewMode === 'DASHBOARD'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-slate-100'
+                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
               }`}
             >
               {isAdmin ? 'Resultados Gerais' : 'Meus Resultados'}
@@ -742,8 +742,8 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
               onClick={() => setViewMode('RANKING')}
               className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 ${
                 viewMode === 'RANKING'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-slate-100'
+                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
               }`}
             >
               Ranking Colaboradores
@@ -753,7 +753,7 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
           <button
             type="button"
             onClick={() => void loadOperationalData('Carteira atualizada.')}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             Atualizar
@@ -762,7 +762,7 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
           <button
             type="button"
             onClick={() => setIsExpanded((p) => !p)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             {isExpanded ? (
               <>
@@ -781,9 +781,9 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
             <button
               type="button"
               onClick={() => onNavigate('collection_coordenacao')}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
-              <UserCog className="w-3.5 h-3.5 text-slate-500" />
+              <UserCog className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
               Coordenação
             </button>
           )}
@@ -792,8 +792,8 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
 
       {/* Aviso de Usuário Operador sem Vínculo */}
       {!loading && !isAdmin && !linkedCollaborator && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-950 flex items-center gap-2.5">
-          <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" />
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-950 flex items-center gap-2.5 dark:border-amber-800/70 dark:bg-amber-950/50 dark:text-amber-300">
+          <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 dark:text-amber-300" />
           <span>
             Seu usuário não está vinculado a um colaborador. Solicite ao administrador que vincule seu cadastro em{' '}
             <strong>Cadastros Comuns → Colaboradores</strong> para visualizar os títulos atribuídos à sua carteira.
@@ -802,12 +802,12 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
       )}
 
       {toast && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-medium text-emerald-900 flex items-center justify-between gap-2">
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-medium text-emerald-900 flex items-center justify-between gap-2 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300">
           <span>{toast}</span>
           <button
             type="button"
             onClick={() => setToast('')}
-            className="text-emerald-700 hover:text-emerald-950"
+            className="text-emerald-700 hover:text-emerald-950 dark:text-emerald-300"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -815,12 +815,12 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
       )}
 
       {errToast && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-900 flex items-center justify-between gap-2">
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-900 flex items-center justify-between gap-2 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
           <span>{errToast}</span>
           <button
             type="button"
             onClick={() => setErrToast('')}
-            className="text-red-700 hover:text-red-950"
+            className="text-red-700 hover:text-red-950 dark:text-red-300"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -844,15 +844,15 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
               }}
               className={`text-left rounded-xl border p-4 transition-colors ${
                 !overdueOnly && !filterAgingBucket
-                  ? 'border-slate-900 bg-white'
-                  : 'border-slate-200 bg-white hover:border-slate-300'
+                  ? 'border-slate-900 bg-white dark:border-emerald-500 dark:bg-slate-900'
+                  : 'border-slate-200 bg-white hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900'
               }`}
             >
-              <p className="text-xs font-medium text-slate-500">Total Títulos Ativos</p>
-              <p className="mt-1.5 font-mono text-2xl font-bold text-slate-900 tabular-nums">
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Total Títulos Ativos</p>
+              <p className="mt-1.5 font-mono text-2xl font-bold text-slate-900 tabular-nums dark:text-slate-100">
                 {gridSummary.activeCount}
               </p>
-              <p className="mt-1 text-xs text-slate-500 font-mono tabular-nums">
+              <p className="mt-1 text-xs text-slate-500 font-mono tabular-nums dark:text-slate-400">
                 {gridSummary.distinctClientsCount} cliente(s) na seleção
               </p>
             </button>
@@ -866,15 +866,15 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
               }}
               className={`text-left rounded-xl border p-4 transition-colors ${
                 filterAgingBucket === 'a_vencer'
-                  ? 'border-emerald-600 bg-emerald-50/30'
-                  : 'border-slate-200 bg-white hover:border-slate-300'
+                  ? 'border-emerald-600 bg-emerald-50/30 dark:bg-emerald-950/50'
+                  : 'border-slate-200 bg-white hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900'
               }`}
             >
-              <p className="text-xs font-medium text-slate-500">A Vencer</p>
-              <p className="mt-1.5 font-mono text-2xl font-bold text-emerald-700 tabular-nums">
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">A Vencer</p>
+              <p className="mt-1.5 font-mono text-2xl font-bold text-emerald-700 tabular-nums dark:text-emerald-300">
                 {gridSummary.dueSoonCount}
               </p>
-              <p className="mt-1 text-xs text-slate-500 font-mono tabular-nums">
+              <p className="mt-1 text-xs text-slate-500 font-mono tabular-nums dark:text-slate-400">
                 {formatBRL(gridSummary.dueSoonCents)}
               </p>
             </button>
@@ -888,25 +888,25 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
               }}
               className={`text-left rounded-xl border p-4 transition-colors ${
                 overdueOnly
-                  ? 'border-red-600 bg-red-50/30'
-                  : 'border-slate-200 bg-white hover:border-slate-300'
+                  ? 'border-red-600 bg-red-50/30 dark:bg-red-950/50'
+                  : 'border-slate-200 bg-white hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900'
               }`}
             >
-              <p className="text-xs font-medium text-slate-500">Vencidos</p>
-              <p className="mt-1.5 font-mono text-2xl font-bold text-red-600 tabular-nums">
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Vencidos</p>
+              <p className="mt-1.5 font-mono text-2xl font-bold text-red-600 tabular-nums dark:text-red-400">
                 {gridSummary.overdueCount}
               </p>
-              <p className="mt-1 text-xs text-slate-500 font-mono tabular-nums">
+              <p className="mt-1 text-xs text-slate-500 font-mono tabular-nums dark:text-slate-400">
                 {formatBRL(gridSummary.overdueCents)}
               </p>
             </button>
 
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <p className="text-xs font-medium text-slate-500">Saldo Devedor Total</p>
-              <p className="mt-1.5 font-mono text-2xl font-bold text-slate-900 tabular-nums">
+            <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Saldo Devedor Total</p>
+              <p className="mt-1.5 font-mono text-2xl font-bold text-slate-900 tabular-nums dark:text-slate-100">
                 {formatBRL(gridSummary.totalOpenBalanceCents)}
               </p>
-              <p className="mt-1 text-xs text-slate-500 font-mono tabular-nums">
+              <p className="mt-1 text-xs text-slate-500 font-mono tabular-nums dark:text-slate-400">
                 Recebido: {formatBRL(gridSummary.footer.receivedCents)}
               </p>
             </div>
@@ -914,23 +914,23 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
 
           {/* Card de Solicitações de Cancelamento */}
           {scopedCancelRequests.length > 0 && (
-            <div className="rounded-xl border border-amber-200 bg-white overflow-hidden">
+            <div className="rounded-xl border border-amber-200 bg-white overflow-hidden dark:border-amber-800/70 dark:bg-slate-900">
               <button
                 type="button"
                 onClick={() => setCancelSectionOpen((p) => !p)}
-                className="w-full px-4 py-3 flex items-center justify-between text-xs font-semibold text-slate-900 hover:bg-amber-50/40"
+                className="w-full px-4 py-3 flex items-center justify-between text-xs font-semibold text-slate-900 hover:bg-amber-50/40 dark:text-slate-100"
               >
                 <span className="tabular-nums">
                   Solicitações de Cancelamento Encaminhadas ({scopedCancelRequests.length})
                 </span>
                 <ChevronDown
-                  className={`w-4 h-4 text-slate-500 transition-transform ${
+                  className={`w-4 h-4 text-slate-500 transition-transform dark:text-slate-400 ${
                     cancelSectionOpen ? 'rotate-180' : ''
                   }`}
                 />
               </button>
               {cancelSectionOpen && (
-                <div className="divide-y divide-slate-100 border-t border-amber-100 max-h-60 overflow-y-auto">
+                <div className="divide-y divide-slate-100 border-t border-amber-100 max-h-60 overflow-y-auto dark:divide-slate-800 dark:border-amber-800/70">
                   {scopedCancelRequests.map((reqNote) => {
                     const cl = clientMap.get(reqNote.clientId);
                     const linkedAdm = reqNote.cancelRequest?.admissionId
@@ -944,17 +944,17 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                         className="px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs"
                       >
                         <div className="min-w-0">
-                          <span className="font-semibold text-slate-900">
+                          <span className="font-semibold text-slate-900 dark:text-slate-100">
                             {cl?.fullName || `Cliente #${reqNote.clientId}`}
                           </span>
-                          <span className="text-slate-500 font-mono tabular-nums">
+                          <span className="text-slate-500 font-mono tabular-nums dark:text-slate-400">
                             {' '}
                             · {reqNote.cancelRequest?.admissionContract || 'Contrato não informado'} ·{' '}
                             {formatDueDateLocalBR(reqNote.cancelRequest?.requestDate)} · Resp:{' '}
                             {reqNote.collaboratorName}
                           </span>
                           {reqNote.note && (
-                            <p className="text-[11px] text-slate-600 truncate max-w-2xl mt-0.5">
+                            <p className="text-[11px] text-slate-600 truncate max-w-2xl mt-0.5 dark:text-slate-300">
                               {reqNote.note}
                             </p>
                           )}
@@ -964,7 +964,7 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                             <button
                               type="button"
                               onClick={() => setAdmissionModalObj(linkedAdm)}
-                              className="rounded border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+                              className="rounded border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                             >
                               Ver Ficha
                             </button>
@@ -974,7 +974,7 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                             onClick={() =>
                               setClientModalState({ clientId: reqNote.clientId, tab: 'dados' })
                             }
-                            className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+                            className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                           >
                             <Eye className="w-3 h-3" />
                             Ver Cliente
@@ -983,7 +983,7 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                             <button
                               type="button"
                               onClick={() => setDeletingCancelNote(reqNote)}
-                              className="p-1 text-slate-400 hover:text-red-600"
+                              className="p-1 text-slate-400 hover:text-red-600 dark:text-slate-400"
                               title="Excluir solicitação"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -999,22 +999,22 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
           )}
 
           {/* Barra de Busca + Filtros Colapsáveis */}
-          <div className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-3">
+          <div className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-3 dark:border-slate-700 dark:bg-slate-900">
             <div className="flex flex-wrap items-center gap-2.5">
               <div className="relative flex-1 min-w-[240px]">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 dark:text-slate-400" />
                 <input
                   type="text"
                   value={searchInput}
                   onChange={(e) => setSearchInput(e.target.value)}
                   placeholder="Buscar por cliente, CPF/CNPJ, nº documento ou histórico..."
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50/60 pl-9 pr-8 py-2 text-xs text-slate-900 focus:bg-white focus:border-slate-900 focus:outline-none"
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50/60 pl-9 pr-8 py-2 text-xs text-slate-900 focus:bg-white focus:border-slate-900 focus:outline-none dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-100 dark:focus:bg-slate-900"
                 />
                 {searchInput && (
                   <button
                     type="button"
                     onClick={() => setSearchInput('')}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -1027,7 +1027,7 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                   setUnitFilter(e.target.value);
                   setPage(1);
                 }}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
               >
                 <option value="all">Todas as Unidades</option>
                 {units.map((u) => (
@@ -1043,7 +1043,7 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                   setFilterUf(e.target.value);
                   setPage(1);
                 }}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
               >
                 <option value="">Todos os Estados (UF)</option>
                 {availableUfs.map((uf) => (
@@ -1062,7 +1062,7 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                 className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors whitespace-nowrap ${
                   overdueOnly
                     ? 'border-red-600 bg-red-600 text-white'
-                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
                 }`}
               >
                 Apenas Vencidos
@@ -1073,8 +1073,8 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                 onClick={() => setFiltersOpen((p) => !p)}
                 className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold whitespace-nowrap ${
                   filtersOpen || activeFilterCount > 0
-                    ? 'border-slate-900 bg-slate-900 text-white'
-                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    ? 'border-slate-900 bg-slate-900 text-white dark:border-emerald-500 dark:bg-emerald-600'
+                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
                 }`}
               >
                 <Filter className="w-3.5 h-3.5" />
@@ -1085,7 +1085,7 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                 <button
                   type="button"
                   onClick={clearAllFilters}
-                  className="text-xs font-semibold text-slate-600 hover:text-slate-900 px-2 whitespace-nowrap"
+                  className="text-xs font-semibold text-slate-600 hover:text-slate-900 px-2 whitespace-nowrap dark:text-slate-300 dark:hover:text-white"
                 >
                   Limpar Filtros
                 </button>
@@ -1093,10 +1093,10 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
             </div>
 
             {filtersOpen && (
-              <div className="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+              <div className="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 dark:border-slate-800">
                 {isAdmin && (
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">
                       Responsável
                     </label>
                     <select
@@ -1105,7 +1105,7 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                         setFilterCollaborator(e.target.value);
                         setPage(1);
                       }}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900"
+                      className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                     >
                       <option value="">Todos os Operadores</option>
                       <option value="__unassigned__">Sem Atribuição</option>
@@ -1119,7 +1119,7 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                 )}
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">
                     Status do Título
                   </label>
                   <select
@@ -1128,7 +1128,7 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                       setFilterStatus(e.target.value);
                       setPage(1);
                     }}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                   >
                     <option value="">Todos os Status</option>
                     <option value="ABERTO">Em Aberto</option>
@@ -1140,7 +1140,7 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">
                     Faixa de Atraso
                   </label>
                   <select
@@ -1149,7 +1149,7 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                       setFilterAgingBucket(e.target.value);
                       setPage(1);
                     }}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                   >
                     <option value="">Todas as Faixas</option>
                     <option value="a_vencer">A Vencer</option>
@@ -1161,7 +1161,7 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">
                     Vencimento De
                   </label>
                   <input
@@ -1171,12 +1171,12 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                       setFilterDueFrom(e.target.value);
                       setPage(1);
                     }}
-                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-mono tabular-nums text-slate-900"
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-mono tabular-nums text-slate-900 dark:border-slate-700 dark:text-slate-100"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">
                     Vencimento Até
                   </label>
                   <input
@@ -1186,7 +1186,7 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                       setFilterDueTo(e.target.value);
                       setPage(1);
                     }}
-                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-mono tabular-nums text-slate-900"
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-mono tabular-nums text-slate-900 dark:border-slate-700 dark:text-slate-100"
                   />
                 </div>
               </div>
@@ -1198,13 +1198,13 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
             <div
               className={`${
                 activeSideTitle && activeSideClient ? 'lg:col-span-7' : 'lg:col-span-12'
-              } rounded-xl border border-slate-200 bg-white overflow-hidden`}
+              } rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900`}
             >
-              <div className="px-4 py-2.5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
-                <span className="font-semibold text-slate-800 tabular-nums">
+              <div className="px-4 py-2.5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 dark:border-slate-800 dark:text-slate-300">
+                <span className="font-semibold text-slate-800 tabular-nums dark:text-slate-100">
                   {sortedTitles.length} título(s) encontrado(s) · Página {safePage} de {totalPages}
                 </span>
-                <span className="text-[11px] text-slate-500">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
                   Duplo clique em qualquer linha para abrir o painel lateral completo
                 </span>
               </div>
@@ -1212,13 +1212,13 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-semibold text-slate-600">
+                    <tr className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
                       <th className="py-2.5 pl-3 pr-2 w-8">Risco</th>
                       <th className="py-2.5 px-2.5">
                         <button
                           type="button"
                           onClick={() => toggleSort('clientName')}
-                          className="inline-flex items-center gap-1 hover:text-slate-900 whitespace-nowrap"
+                          className="inline-flex items-center gap-1 hover:text-slate-900 whitespace-nowrap dark:hover:text-white"
                         >
                           Cliente
                           {renderSortIcon('clientName')}
@@ -1233,7 +1233,7 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                         <button
                           type="button"
                           onClick={() => toggleSort('documentNumber')}
-                          className="inline-flex items-center gap-1 hover:text-slate-900 whitespace-nowrap"
+                          className="inline-flex items-center gap-1 hover:text-slate-900 whitespace-nowrap dark:hover:text-white"
                         >
                           Documento
                           {renderSortIcon('documentNumber')}
@@ -1243,7 +1243,7 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                         <button
                           type="button"
                           onClick={() => toggleSort('dueDate')}
-                          className="inline-flex items-center gap-1 hover:text-slate-900 whitespace-nowrap"
+                          className="inline-flex items-center gap-1 hover:text-slate-900 whitespace-nowrap dark:hover:text-white"
                         >
                           Vencimento
                           {renderSortIcon('dueDate')}
@@ -1253,7 +1253,7 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                         <button
                           type="button"
                           onClick={() => toggleSort('balanceCents')}
-                          className="inline-flex items-center justify-end gap-1 hover:text-slate-900 whitespace-nowrap ml-auto"
+                          className="inline-flex items-center justify-end gap-1 hover:text-slate-900 whitespace-nowrap ml-auto dark:hover:text-white"
                         >
                           Saldo
                           {renderSortIcon('balanceCents')}
@@ -1263,7 +1263,7 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                         <button
                           type="button"
                           onClick={() => toggleSort('agingDays')}
-                          className="inline-flex items-center justify-end gap-1 hover:text-slate-900 whitespace-nowrap ml-auto"
+                          className="inline-flex items-center justify-end gap-1 hover:text-slate-900 whitespace-nowrap ml-auto dark:hover:text-white"
                         >
                           Atraso
                           {renderSortIcon('agingDays')}
@@ -1275,12 +1275,12 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                     </tr>
                   </thead>
 
-                  <tbody className="divide-y divide-slate-100 text-xs">
+                  <tbody className="divide-y divide-slate-100 text-xs dark:divide-slate-800">
                     {loading ? (
                       <tr>
                         <td
                           colSpan={isAdmin ? 12 : 11}
-                          className="py-14 text-center text-xs text-slate-500"
+                          className="py-14 text-center text-xs text-slate-500 dark:text-slate-400"
                         >
                           Carregando carteira certificada de cobrança...
                         </td>
@@ -1289,7 +1289,7 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                       <tr>
                         <td
                           colSpan={isAdmin ? 12 : 11}
-                          className="py-14 text-center text-xs text-slate-500"
+                          className="py-14 text-center text-xs text-slate-500 dark:text-slate-400"
                         >
                           Nenhum título encontrado para os filtros selecionados.
                         </td>
@@ -1337,7 +1337,7 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                               setSidePanelTitleId((prev) => (prev === t.id ? null : t.id))
                             }
                             className={`transition-colors cursor-pointer ${
-                              isSideOpen ? 'bg-slate-900/[0.04]' : 'hover:bg-slate-50/90'
+                              isSideOpen ? 'bg-slate-900/[0.04]' : 'hover:bg-slate-50/90 dark:hover:bg-slate-800'
                             }`}
                           >
                             <td className="py-2.5 pl-3 pr-2">
@@ -1354,10 +1354,10 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                             </td>
 
                             <td className="py-2.5 px-2.5 max-w-[230px]">
-                              <div className="font-semibold text-slate-900 truncate">
+                              <div className="font-semibold text-slate-900 truncate dark:text-slate-100">
                                 {cl?.fullName || t.clientName || `Cliente #${t.clientId}`}
                               </div>
-                              <div className="text-[11px] font-mono text-slate-500 tabular-nums flex flex-wrap items-center gap-x-1.5">
+                              <div className="text-[11px] font-mono text-slate-500 tabular-nums flex flex-wrap items-center gap-x-1.5 dark:text-slate-400">
                                 <span>{cl?.cpfCnpj || '—'}</span>
                                 {cl?.state && <span>· {cl.state.toUpperCase()}</span>}
                                 {unreadWa > 0 && (
@@ -1370,13 +1370,13 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                                         tab: 'whatsapp',
                                       });
                                     }}
-                                    className="text-emerald-700 font-semibold hover:underline"
+                                    className="text-emerald-700 font-semibold hover:underline dark:text-emerald-300"
                                   >
                                     · {unreadWa} msg WhatsApp
                                   </button>
                                 )}
                                 {isBlocked && (
-                                  <span className="text-red-700 font-semibold">
+                                  <span className="text-red-700 font-semibold dark:text-red-300">
                                     · {cl?.status.toUpperCase()}
                                   </span>
                                 )}
@@ -1401,52 +1401,52 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                                       });
                                     }
                                   }}
-                                  className="font-semibold text-slate-900 hover:underline"
+                                  className="font-semibold text-slate-900 hover:underline dark:text-slate-100"
                                 >
                                   {admSummary.fichas}
                                 </button>
                               ) : (
-                                <span className="text-slate-400">0</span>
+                                <span className="text-slate-400 dark:text-slate-400">0</span>
                               )}
                             </td>
 
                             <td className="py-2.5 px-2 text-center font-mono tabular-nums">
                               {admSummary.aditivos > 0 ? (
                                 <div className="leading-tight">
-                                  <span className="font-semibold text-slate-900">
+                                  <span className="font-semibold text-slate-900 dark:text-slate-100">
                                     {admSummary.aditivos}
                                   </span>
                                   {admSummary.latestAddendumDate && (
-                                    <span className="block text-[10px] text-slate-500">
+                                    <span className="block text-[10px] text-slate-500 dark:text-slate-400">
                                       {formatDateBR(admSummary.latestAddendumDate)}
                                     </span>
                                   )}
                                 </div>
                               ) : (
-                                <span className="text-slate-400">0</span>
+                                <span className="text-slate-400 dark:text-slate-400">0</span>
                               )}
                             </td>
 
                             {isAdmin && (
-                              <td className="py-2.5 px-2.5 text-slate-700 max-w-[150px] truncate">
+                              <td className="py-2.5 px-2.5 text-slate-700 max-w-[150px] truncate dark:text-slate-200">
                                 {collab ? (
                                   collab.name
                                 ) : (
-                                  <span className="text-slate-400">Sem atribuição</span>
+                                  <span className="text-slate-400 dark:text-slate-400">Sem atribuição</span>
                                 )}
                               </td>
                             )}
 
-                            <td className="py-2.5 px-2.5 font-mono text-slate-800 tabular-nums whitespace-nowrap">
+                            <td className="py-2.5 px-2.5 font-mono text-slate-800 tabular-nums whitespace-nowrap dark:text-slate-100">
                               <div>{t.documentNumber || t.titleCode}</div>
                               {t.totalInstallments > 1 && (
-                                <div className="text-[10px] text-slate-500">
+                                <div className="text-[10px] text-slate-500 dark:text-slate-400">
                                   Parc. {t.installmentNumber}/{t.totalInstallments}
                                 </div>
                               )}
                             </td>
 
-                            <td className="py-2.5 px-2.5 font-mono text-slate-800 tabular-nums whitespace-nowrap">
+                            <td className="py-2.5 px-2.5 font-mono text-slate-800 tabular-nums whitespace-nowrap dark:text-slate-100">
                               {formatDueDateLocalBR(t.dueDate)}
                             </td>
 
@@ -1454,10 +1454,10 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                               <span
                                 className={
                                   st === 'PAGO'
-                                    ? 'text-emerald-700'
+                                    ? 'text-emerald-700 dark:text-emerald-300'
                                     : days > 0
-                                    ? 'text-red-600'
-                                    : 'text-slate-900'
+                                    ? 'text-red-600 dark:text-red-400'
+                                    : 'text-slate-900 dark:text-slate-100'
                                 }
                               >
                                 {formatBRL(b.balanceCents)}
@@ -1466,30 +1466,30 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
 
                             <td className="py-2.5 px-2.5 text-right font-mono tabular-nums whitespace-nowrap">
                               {st === 'PAGO' ? (
-                                <span className="text-emerald-700 font-semibold">Liquidado</span>
+                                <span className="text-emerald-700 font-semibold dark:text-emerald-300">Liquidado</span>
                               ) : days > 0 ? (
-                                <span className="text-red-600 font-semibold">{days}d</span>
+                                <span className="text-red-600 font-semibold dark:text-red-400">{days}d</span>
                               ) : days === 0 ? (
-                                <span className="text-amber-700 font-semibold">Hoje</span>
+                                <span className="text-amber-700 font-semibold dark:text-amber-300">Hoje</span>
                               ) : (
-                                <span className="text-slate-500">em {Math.abs(days)}d</span>
+                                <span className="text-slate-500 dark:text-slate-400">em {Math.abs(days)}d</span>
                               )}
                             </td>
 
                             <td className="py-2.5 px-2.5 whitespace-nowrap">
-                              <div className="text-slate-800 font-medium">
+                              <div className="text-slate-800 font-medium dark:text-slate-100">
                                 {translateTitleStatus(t.status)}
                               </div>
-                              <div className="text-[10px] text-slate-500">
+                              <div className="text-[10px] text-slate-500 dark:text-slate-400">
                                 {translateCollectionSituation(t.collectionStatus)}
                               </div>
                             </td>
 
-                            <td className="py-2.5 px-2.5 font-mono text-[11px] text-slate-700 tabular-nums whitespace-nowrap">
+                            <td className="py-2.5 px-2.5 font-mono text-[11px] text-slate-700 tabular-nums whitespace-nowrap dark:text-slate-200">
                               {nextContact ? (
                                 formatDueDateLocalBR(nextContact)
                               ) : (
-                                <span className="text-slate-400">—</span>
+                                <span className="text-slate-400 dark:text-slate-400">—</span>
                               )}
                             </td>
 
@@ -1502,11 +1502,11 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                                   type="button"
                                   title="Simulação, Negociação & Contatos (3 Colunas)"
                                   onClick={() => setContactModalTitleId(t.id)}
-                                  className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-800 hover:bg-slate-100"
+                                  className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-800 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
                                 >
-                                  <PhoneCall className="w-3 h-3 text-slate-600" />
+                                  <PhoneCall className="w-3 h-3 text-slate-600 dark:text-slate-300" />
                                   {notesCount > 0 && (
-                                    <span className="font-mono tabular-nums text-slate-900">
+                                    <span className="font-mono tabular-nums text-slate-900 dark:text-slate-100">
                                       {notesCount > 9 ? '9+' : notesCount}
                                     </span>
                                   )}
@@ -1518,7 +1518,7 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                                   onClick={() =>
                                     setSidePanelTitleId((prev) => (prev === t.id ? null : t.id))
                                   }
-                                  className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                                  className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
                                 >
                                   <PanelRightOpen className="w-3.5 h-3.5" />
                                 </button>
@@ -1527,7 +1527,7 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                                   type="button"
                                   title="Histórico de Movimentações e Auditoria"
                                   onClick={() => setHistoryTitle(t)}
-                                  className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                                  className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
                                 >
                                   <History className="w-3.5 h-3.5" />
                                 </button>
@@ -1538,7 +1538,7 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                                   onClick={() =>
                                     setClientModalState({ clientId: t.clientId, tab: 'dados' })
                                   }
-                                  className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                                  className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
                                 >
                                   <User className="w-3.5 h-3.5" />
                                 </button>
@@ -1552,7 +1552,7 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                                       tab: 'whatsapp',
                                     })
                                   }
-                                  className="p-1.5 rounded-md text-emerald-700 hover:bg-emerald-50"
+                                  className="p-1.5 rounded-md text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/60"
                                 >
                                   <MessageSquare className="w-3.5 h-3.5" />
                                 </button>
@@ -1562,7 +1562,7 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                                     type="button"
                                     title="Excluir Título (permitido apenas quando Cancelado)"
                                     onClick={() => setDeletingTitle(t)}
-                                    className="p-1.5 rounded-md text-slate-400 hover:bg-red-50 hover:text-red-600"
+                                    className="p-1.5 rounded-md text-slate-400 hover:bg-red-50 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-950/60"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </button>
@@ -1578,38 +1578,38 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
               </div>
 
               {/* Rodapé: Recálculo Financeiro Consolidado de Todos os Filtrados */}
-              <div className="border-t border-slate-200 bg-slate-50/80 px-4 py-3">
+              <div className="border-t border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/60">
                 <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 text-xs font-mono tabular-nums">
-                  <span className="font-sans font-semibold text-slate-700">
+                  <span className="font-sans font-semibold text-slate-700 dark:text-slate-200">
                     Recálculo Financeiro ({filteredTitles.length} títulos filtrados):
                   </span>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-slate-600">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-slate-600 dark:text-slate-300">
                     <span>
-                      Orig: <strong className="text-slate-900">{formatBRL(gridSummary.footer.originalCents)}</strong>
+                      Orig: <strong className="text-slate-900 dark:text-slate-100">{formatBRL(gridSummary.footer.originalCents)}</strong>
                     </span>
                     <span>·</span>
                     <span>
-                      Juros: <strong className="text-slate-800">{formatBRL(gridSummary.footer.interestCents)}</strong>
+                      Juros: <strong className="text-slate-800 dark:text-slate-100">{formatBRL(gridSummary.footer.interestCents)}</strong>
                     </span>
                     <span>·</span>
                     <span>
-                      Multa: <strong className="text-slate-800">{formatBRL(gridSummary.footer.fineCents)}</strong>
+                      Multa: <strong className="text-slate-800 dark:text-slate-100">{formatBRL(gridSummary.footer.fineCents)}</strong>
                     </span>
                     <span>·</span>
                     <span>
-                      Desc: <strong className="text-amber-700">{formatBRL(gridSummary.footer.discountCents)}</strong>
+                      Desc: <strong className="text-amber-700 dark:text-amber-300">{formatBRL(gridSummary.footer.discountCents)}</strong>
                     </span>
                     <span>·</span>
                     <span>
-                      Atualiz.: <strong className="text-slate-900">{formatBRL(gridSummary.footer.updatedCents)}</strong>
+                      Atualiz.: <strong className="text-slate-900 dark:text-slate-100">{formatBRL(gridSummary.footer.updatedCents)}</strong>
                     </span>
                     <span>·</span>
                     <span>
-                      Recebido: <strong className="text-emerald-700">{formatBRL(gridSummary.footer.receivedCents)}</strong>
+                      Recebido: <strong className="text-emerald-700 dark:text-emerald-300">{formatBRL(gridSummary.footer.receivedCents)}</strong>
                     </span>
                     <span>·</span>
                     <span>
-                      Saldo: <strong className="text-red-600">{formatBRL(gridSummary.footer.balanceCents)}</strong>
+                      Saldo: <strong className="text-red-600 dark:text-red-400">{formatBRL(gridSummary.footer.balanceCents)}</strong>
                     </span>
                   </div>
                 </div>
@@ -1617,8 +1617,8 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
 
               {/* Paginação (50 itens por página) */}
               {totalPages > 1 && (
-                <div className="border-t border-slate-200 bg-white px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs font-mono tabular-nums">
-                  <span className="text-slate-600">
+                <div className="border-t border-slate-200 bg-white px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs font-mono tabular-nums dark:border-slate-700 dark:bg-slate-900">
+                  <span className="text-slate-600 dark:text-slate-300">
                     Exibindo {(safePage - 1) * PAGE_SIZE + 1}–
                     {Math.min(safePage * PAGE_SIZE, sortedTitles.length)} de {sortedTitles.length}
                   </span>
@@ -1627,7 +1627,7 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                       type="button"
                       disabled={safePage <= 1}
                       onClick={() => setPage(1)}
-                      className="rounded border border-slate-200 bg-white px-2.5 py-1 hover:bg-slate-50 disabled:opacity-40"
+                      className="rounded border border-slate-200 bg-white px-2.5 py-1 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
                     >
                       Primeira
                     </button>
@@ -1635,18 +1635,18 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                       type="button"
                       disabled={safePage <= 1}
                       onClick={() => setPage((p) => Math.max(1, p - 1))}
-                      className="rounded border border-slate-200 bg-white px-2.5 py-1 hover:bg-slate-50 disabled:opacity-40"
+                      className="rounded border border-slate-200 bg-white px-2.5 py-1 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
                     >
                       Anterior
                     </button>
-                    <span className="px-2 font-semibold text-slate-900">
+                    <span className="px-2 font-semibold text-slate-900 dark:text-slate-100">
                       {safePage} / {totalPages}
                     </span>
                     <button
                       type="button"
                       disabled={safePage >= totalPages}
                       onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                      className="rounded border border-slate-200 bg-white px-2.5 py-1 hover:bg-slate-50 disabled:opacity-40"
+                      className="rounded border border-slate-200 bg-white px-2.5 py-1 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
                     >
                       Próxima
                     </button>
@@ -1654,7 +1654,7 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                       type="button"
                       disabled={safePage >= totalPages}
                       onClick={() => setPage(totalPages)}
-                      className="rounded border border-slate-200 bg-white px-2.5 py-1 hover:bg-slate-50 disabled:opacity-40"
+                      className="rounded border border-slate-200 bg-white px-2.5 py-1 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
                     >
                       Última
                     </button>

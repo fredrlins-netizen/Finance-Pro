@@ -226,22 +226,22 @@ export const CancelRequestSubmodal: React.FC<{
   };
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/60 p-4">
-      <div className="w-full max-w-xl rounded-xl border border-slate-200 bg-white shadow-xl p-5 space-y-4">
-        <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80">
+      <div className="w-full max-w-xl rounded-xl border border-slate-200 bg-white shadow-xl p-5 space-y-4 dark:border-slate-700 dark:bg-slate-900">
+        <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3 dark:border-slate-800">
           <div>
-            <h3 className="font-display text-base font-bold text-slate-900">
+            <h3 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
               Solicitação de Cancelamento à Coordenação
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Cliente: <strong className="text-slate-800">{client.fullName}</strong> · CPF/CNPJ{' '}
+            <p className="text-xs text-slate-500 mt-0.5 dark:text-slate-400">
+              Cliente: <strong className="text-slate-800 dark:text-slate-100">{client.fullName}</strong> · CPF/CNPJ{' '}
               <span className="font-mono tabular-nums">{client.cpfCnpj}</span>
             </p>
           </div>
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
           >
             <X className="w-4 h-4" />
           </button>
@@ -249,21 +249,21 @@ export const CancelRequestSubmodal: React.FC<{
 
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5 dark:text-slate-200">
               {clientAdmissions.length > 0
                 ? 'Selecione a Ficha de Admissão / Contrato *'
                 : 'Número do Contrato / Referência *'}
             </label>
 
             {clientAdmissions.length > 0 ? (
-              <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 rounded-lg border border-slate-200">
+              <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 rounded-lg border border-slate-200 dark:divide-slate-800 dark:border-slate-700">
                 {clientAdmissions.map((adm) => {
                   const isSelected = selectedAdmissionId === adm.id;
                   return (
                     <label
                       key={adm.id}
                       className={`flex items-start gap-3 px-3.5 py-2.5 cursor-pointer text-xs transition-colors ${
-                        isSelected ? 'bg-slate-900/5' : 'hover:bg-slate-50'
+                        isSelected ? 'bg-slate-900/5' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                       }`}
                     >
                       <input
@@ -275,14 +275,14 @@ export const CancelRequestSubmodal: React.FC<{
                       />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="font-semibold text-slate-900">
+                          <span className="font-semibold text-slate-900 dark:text-slate-100">
                             Ficha {adm.protocolCode} · Contrato {adm.contractNumber}
                           </span>
-                          <span className="font-mono text-[11px] text-slate-600 tabular-nums">
+                          <span className="font-mono text-[11px] text-slate-600 tabular-nums dark:text-slate-300">
                             {formatBRL(adm.serviceFeeCents || adm.debtAmountCents || 0)}
                           </span>
                         </div>
-                        <div className="text-[11px] text-slate-500 mt-0.5">
+                        <div className="text-[11px] text-slate-500 mt-0.5 dark:text-slate-400">
                           {adm.bankName} · {adm.modality} · Status: {adm.status}
                         </div>
                       </div>
@@ -296,32 +296,32 @@ export const CancelRequestSubmodal: React.FC<{
                 value={manualContract}
                 onChange={(e) => setManualContract(e.target.value)}
                 placeholder="Informe o protocolo ou contrato referência..."
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono text-slate-900 focus:border-slate-900 focus:outline-none"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono text-slate-900 focus:border-slate-900 focus:outline-none dark:border-slate-700 dark:text-slate-100"
               />
             )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
+              <label className="block text-xs font-semibold text-slate-700 mb-1 dark:text-slate-200">
                 Data da Solicitação *
               </label>
               <input
                 type="date"
                 value={requestDate}
                 onChange={(e) => setRequestDate(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono tabular-nums text-slate-900 focus:border-slate-900 focus:outline-none"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono tabular-nums text-slate-900 focus:border-slate-900 focus:outline-none dark:border-slate-700 dark:text-slate-100 dark:bg-slate-950"
               />
             </div>
             <div className="flex items-end">
-              <p className="text-[11px] text-slate-500 leading-relaxed">
+              <p className="text-[11px] text-slate-500 leading-relaxed dark:text-slate-400">
                 Ao registrar o contato, a Coordenação e a Gerência receberão notificação automática em tempo real.
               </p>
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
+            <label className="block text-xs font-semibold text-slate-700 mb-1 dark:text-slate-200">
               Observações Gerais do Cancelamento
             </label>
             <textarea
@@ -329,16 +329,16 @@ export const CancelRequestSubmodal: React.FC<{
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Motivo relatado pelo cliente, tentativa de retenção realizada, condições pendentes..."
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-900 focus:border-slate-900 focus:outline-none"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-900 focus:border-slate-900 focus:outline-none dark:border-slate-700 dark:text-slate-100"
             />
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
+        <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap"
+            className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             Cancelar
           </button>
@@ -346,7 +346,7 @@ export const CancelRequestSubmodal: React.FC<{
             type="button"
             disabled={!canConfirm}
             onClick={handleConfirm}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-40 whitespace-nowrap"
+            className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-40 whitespace-nowrap dark:bg-emerald-600 dark:hover:bg-emerald-500"
           >
             Confirmar Vínculo da Solicitação
           </button>
@@ -736,14 +736,14 @@ export const CollectionContactModal: React.FC<{
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-3 sm:p-5">
-      <div className="w-full max-w-7xl max-h-[92vh] flex flex-col rounded-xl border border-slate-200 bg-white shadow-2xl overflow-hidden">
+      <div className="w-full max-w-7xl max-h-[92vh] flex flex-col rounded-xl border border-slate-200 bg-white shadow-2xl overflow-hidden dark:border-slate-700 dark:bg-slate-900">
         {/* Top Header */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-3.5 bg-slate-50/70">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-3.5 bg-slate-50/70 dark:border-slate-700 dark:bg-slate-800/60">
           <div className="min-w-0">
-            <h2 className="font-display text-base font-bold text-slate-900 truncate">
+            <h2 className="font-display text-base font-bold text-slate-900 truncate dark:text-slate-100">
               Negociação, Contato & Histórico — {client.fullName}
             </h2>
-            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500 font-mono tabular-nums">
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500 font-mono tabular-nums dark:text-slate-400">
               <span>CPF/CNPJ {client.cpfCnpj}</span>
               <span>·</span>
               <span>Doc {title.documentNumber || title.titleCode}</span>
@@ -763,15 +763,15 @@ export const CollectionContactModal: React.FC<{
             <button
               type="button"
               onClick={() => onOpenClientWhatsapp(client.id)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 whitespace-nowrap dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
-              <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+              <MessageSquare className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
               WhatsApp 3-Colunas
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-200/70 hover:text-slate-900"
+              className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-200/70 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
             >
               <X className="w-4 h-4" />
             </button>
@@ -781,12 +781,12 @@ export const CollectionContactModal: React.FC<{
         {(modalError || modalFeedback) && (
           <div className="px-5 pt-3">
             {modalError && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-2 text-xs font-medium text-red-800">
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-2 text-xs font-medium text-red-800 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
                 {modalError}
               </div>
             )}
             {modalFeedback && !modalError && (
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs font-medium text-emerald-900">
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs font-medium text-emerald-900 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300">
                 {modalFeedback}
               </div>
             )}
@@ -796,36 +796,36 @@ export const CollectionContactModal: React.FC<{
         {/* 3 Columns Body */}
         <div className="flex-1 overflow-y-auto p-5 grid grid-cols-1 lg:grid-cols-12 gap-5">
           {/* COLUNA 1: SIMULAÇÃO & NEGOCIAÇÃO */}
-          <div className="lg:col-span-4 rounded-xl border border-slate-200 bg-white p-4 space-y-3.5 flex flex-col justify-between">
+          <div className="lg:col-span-4 rounded-xl border border-slate-200 bg-white p-4 space-y-3.5 flex flex-col justify-between dark:border-slate-700 dark:bg-slate-900">
             <div className="space-y-3.5">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                  <Calculator className="w-3.5 h-3.5 text-slate-600" />
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 dark:border-slate-800">
+                <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5 dark:text-slate-100">
+                  <Calculator className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
                   Simulação & Negociação
                 </h3>
-                <span className="text-[11px] font-mono text-slate-500 tabular-nums">
+                <span className="text-[11px] font-mono text-slate-500 tabular-nums dark:text-slate-400">
                   {computeAgingDays(title.dueDate) > 0
                     ? `${computeAgingDays(title.dueDate)}d atraso`
                     : 'A vencer'}
                 </span>
               </div>
 
-              <div className="space-y-1.5 text-xs border-b border-slate-100 pb-3">
+              <div className="space-y-1.5 text-xs border-b border-slate-100 pb-3 dark:border-slate-800">
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500">Valor Original</span>
-                  <span className="font-mono font-semibold text-slate-900 tabular-nums">
+                  <span className="text-slate-500 dark:text-slate-400">Valor Original</span>
+                  <span className="font-mono font-semibold text-slate-900 tabular-nums dark:text-slate-100">
                     {formatBRL(currentBreakdown.originalCents)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500">Recebido (Baixas Reais)</span>
-                  <span className="font-mono font-semibold text-emerald-700 tabular-nums">
+                  <span className="text-slate-500 dark:text-slate-400">Recebido (Baixas Reais)</span>
+                  <span className="font-mono font-semibold text-emerald-700 tabular-nums dark:text-emerald-300">
                     {formatBRL(currentBreakdown.receivedCents)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500">Saldo Atual no Banco</span>
-                  <span className="font-mono font-bold text-slate-900 tabular-nums">
+                  <span className="text-slate-500 dark:text-slate-400">Saldo Atual no Banco</span>
+                  <span className="font-mono font-bold text-slate-900 tabular-nums dark:text-slate-100">
                     {formatBRL(currentBreakdown.balanceCents)}
                   </span>
                 </div>
@@ -833,7 +833,7 @@ export const CollectionContactModal: React.FC<{
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">
                     Juros (R$)
                   </label>
                   <input
@@ -843,11 +843,11 @@ export const CollectionContactModal: React.FC<{
                     value={simInterestInput}
                     onChange={(e) => setSimInterestInput(e.target.value)}
                     disabled={isFinalTitle || isBlockedClient}
-                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-mono tabular-nums text-slate-900 focus:border-slate-900 focus:outline-none disabled:bg-slate-50"
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-mono tabular-nums text-slate-900 focus:border-slate-900 focus:outline-none disabled:bg-slate-50 dark:border-slate-700 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">
                     Multa (R$)
                   </label>
                   <input
@@ -857,11 +857,11 @@ export const CollectionContactModal: React.FC<{
                     value={simFineInput}
                     onChange={(e) => setSimFineInput(e.target.value)}
                     disabled={isFinalTitle || isBlockedClient}
-                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-mono tabular-nums text-slate-900 focus:border-slate-900 focus:outline-none disabled:bg-slate-50"
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-mono tabular-nums text-slate-900 focus:border-slate-900 focus:outline-none disabled:bg-slate-50 dark:border-slate-700 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">
                     Desconto Concedido (R$)
                   </label>
                   <input
@@ -871,11 +871,11 @@ export const CollectionContactModal: React.FC<{
                     value={simDiscountInput}
                     onChange={(e) => setSimDiscountInput(e.target.value)}
                     disabled={isFinalTitle || isBlockedClient}
-                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-mono tabular-nums text-slate-900 focus:border-slate-900 focus:outline-none disabled:bg-slate-50"
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-mono tabular-nums text-slate-900 focus:border-slate-900 focus:outline-none disabled:bg-slate-50 dark:border-slate-700 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">
                     Vencimento Acordado
                   </label>
                   <input
@@ -883,30 +883,30 @@ export const CollectionContactModal: React.FC<{
                     value={simDueDate}
                     onChange={(e) => setSimDueDate(e.target.value)}
                     disabled={isFinalTitle || isBlockedClient}
-                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-mono tabular-nums text-slate-900 focus:border-slate-900 focus:outline-none disabled:bg-slate-50"
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-mono tabular-nums text-slate-900 focus:border-slate-900 focus:outline-none disabled:bg-slate-50 dark:border-slate-700 dark:text-slate-100"
                   />
                 </div>
               </div>
 
-              <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 space-y-1.5 text-xs">
+              <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 space-y-1.5 text-xs dark:border-slate-700 dark:bg-slate-800/60">
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-600">Valor Atualizado Simulado</span>
-                  <span className="font-mono font-semibold text-slate-900 tabular-nums">
+                  <span className="text-slate-600 dark:text-slate-300">Valor Atualizado Simulado</span>
+                  <span className="font-mono font-semibold text-slate-900 tabular-nums dark:text-slate-100">
                     {formatBRL(simulated.updatedCents)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between border-t border-slate-200/80 pt-1.5">
-                  <span className="font-semibold text-slate-900">Novo Saldo Devedor</span>
-                  <span className="font-mono text-sm font-bold text-slate-900 tabular-nums">
+                  <span className="font-semibold text-slate-900 dark:text-slate-100">Novo Saldo Devedor</span>
+                  <span className="font-mono text-sm font-bold text-slate-900 tabular-nums dark:text-slate-100">
                     {formatBRL(simulated.balanceCents)}
                   </span>
                 </div>
                 {simulated.diffCents !== 0 && (
                   <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-slate-500">Diferença vs. Saldo Atual</span>
+                    <span className="text-slate-500 dark:text-slate-400">Diferença vs. Saldo Atual</span>
                     <span
                       className={`font-mono font-semibold tabular-nums ${
-                        simulated.diffCents < 0 ? 'text-emerald-700' : 'text-amber-700'
+                        simulated.diffCents < 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'
                       }`}
                     >
                       {simulated.diffCents > 0 ? '+' : ''}
@@ -919,7 +919,7 @@ export const CollectionContactModal: React.FC<{
 
             <div className="pt-2 space-y-2">
               {(isFinalTitle || isBlockedClient) && (
-                <p className="text-[11px] text-amber-800">
+                <p className="text-[11px] text-amber-800 dark:text-amber-300">
                   {isBlockedClient
                     ? `Cliente com status ${client.status.toUpperCase()}: edição financeira bloqueada.`
                     : `Título com status ${translateTitleStatus(title.status)}: edição bloqueada.`}
@@ -929,7 +929,7 @@ export const CollectionContactModal: React.FC<{
                 type="button"
                 disabled={applyingTitle || isFinalTitle || isBlockedClient}
                 onClick={() => void handleApplySimulationToTitle()}
-                className="w-full rounded-lg border border-slate-900 bg-white px-3.5 py-2 text-xs font-semibold text-slate-900 hover:bg-slate-900 hover:text-white transition-colors disabled:opacity-40 whitespace-nowrap"
+                className="w-full rounded-lg border border-slate-900 bg-white px-3.5 py-2 text-xs font-semibold text-slate-900 hover:bg-slate-900 hover:text-white transition-colors disabled:opacity-40 whitespace-nowrap dark:border-emerald-500 dark:bg-slate-900 dark:text-slate-100"
               >
                 {applyingTitle ? 'Gravando no Título...' : 'Aplicar Alterações ao Título'}
               </button>
@@ -939,26 +939,26 @@ export const CollectionContactModal: React.FC<{
           {/* COLUNA 2: FORMULÁRIO DE CONTATO + INTEGRAÇÃO TELEFONE/UAZAPI/AGENDA */}
           <form
             onSubmit={handleSaveContact}
-            className="lg:col-span-4 rounded-xl border border-slate-200 bg-white p-4 space-y-3 flex flex-col justify-between"
+            className="lg:col-span-4 rounded-xl border border-slate-200 bg-white p-4 space-y-3 flex flex-col justify-between dark:border-slate-700 dark:bg-slate-900"
           >
             <div className="space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                  <Phone className="w-3.5 h-3.5 text-slate-600" />
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 dark:border-slate-800">
+                <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5 dark:text-slate-100">
+                  <Phone className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
                   Registrar Contato
                 </h3>
-                <span className="text-[11px] text-slate-500">Grava snapshot da dívida</span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">Grava snapshot da dívida</span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">
                     Canal *
                   </label>
                   <select
                     value={channel}
                     onChange={(e) => setChannel(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:border-slate-900 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:border-slate-900 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                   >
                     <option value="TELEFONE">Telefone</option>
                     <option value="WHATSAPP">WhatsApp</option>
@@ -969,13 +969,13 @@ export const CollectionContactModal: React.FC<{
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">
                     Status da Negociação *
                   </label>
                   <select
                     value={negotiationStatus}
                     onChange={(e) => handleStatusSelect(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:border-slate-900 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:border-slate-900 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                   >
                     <option value="AGUARDANDO_CONTATO">Aguardando Contato</option>
                     <option value="ENCAMINHOU_BOLETO">Encaminhou Boleto</option>
@@ -995,7 +995,7 @@ export const CollectionContactModal: React.FC<{
 
               {negotiationStatus === 'OUTROS' && (
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">
                     Especificar Status (Outros) *
                   </label>
                   <input
@@ -1004,26 +1004,26 @@ export const CollectionContactModal: React.FC<{
                     value={otherStatusDetail}
                     onChange={(e) => setOtherStatusDetail(e.target.value)}
                     placeholder="Descreva o status específico..."
-                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-900 focus:border-slate-900 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-900 focus:border-slate-900 focus:outline-none dark:border-slate-700 dark:text-slate-100"
                   />
                 </div>
               )}
 
               {negotiationStatus === 'SOLICITA_CANCELAMENTO' && cancelRequestInfo && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-2.5 text-xs space-y-1">
+                <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-2.5 text-xs space-y-1 dark:border-amber-800/70 dark:bg-amber-950/50">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold text-amber-950">
+                    <span className="font-semibold text-amber-950 dark:text-amber-300">
                       Vínculo de Cancelamento Selecionado
                     </span>
                     <button
                       type="button"
                       onClick={() => setCancelSubmodalOpen(true)}
-                      className="text-[11px] font-semibold text-amber-900 underline"
+                      className="text-[11px] font-semibold text-amber-900 underline dark:text-amber-300"
                     >
                       Alterar
                     </button>
                   </div>
-                  <div className="text-[11px] text-amber-900 font-mono">
+                  <div className="text-[11px] text-amber-900 font-mono dark:text-amber-300">
                     {cancelRequestInfo.admissionContract || 'Sem contrato'} · Solicitação:{' '}
                     {formatDueDateLocalBR(cancelRequestInfo.requestDate)}
                   </div>
@@ -1032,21 +1032,21 @@ export const CollectionContactModal: React.FC<{
 
               {negotiationStatus !== 'SOLICITA_CANCELAMENTO' && (
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">
                     Próximo Contato (cria agendamento real na Agenda)
                   </label>
                   <input
                     type="date"
                     value={nextContactDate}
                     onChange={(e) => setNextContactDate(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-mono tabular-nums text-slate-900 focus:border-slate-900 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-mono tabular-nums text-slate-900 focus:border-slate-900 focus:outline-none dark:border-slate-700 dark:text-slate-100 dark:bg-slate-950"
                   />
                 </div>
               )}
 
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-[11px] font-semibold text-slate-600">
+                  <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
                     Nota / Tratativa Realizada *
                   </label>
                   <button
@@ -1059,7 +1059,7 @@ export const CollectionContactModal: React.FC<{
                         // clipboard permission denied
                       }
                     }}
-                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 hover:text-slate-900"
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
                   >
                     <ClipboardPaste className="w-3 h-3" />
                     Colar
@@ -1071,16 +1071,16 @@ export const CollectionContactModal: React.FC<{
                   value={noteText}
                   onChange={(e) => setNoteText(e.target.value)}
                   placeholder="Descreva os termos acordados, objeções, previsão de pagamento ou tratativa..."
-                  className="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-xs text-slate-900 focus:border-slate-900 focus:outline-none"
+                  className="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-xs text-slate-900 focus:border-slate-900 focus:outline-none dark:border-slate-700 dark:text-slate-100"
                 />
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-[11px] font-semibold text-slate-600">
+                  <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
                     Anexos (Bucket da Invicta)
                   </span>
-                  <label className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700 hover:text-slate-900 cursor-pointer">
+                  <label className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700 hover:text-slate-900 cursor-pointer dark:text-slate-200 dark:hover:text-white">
                     <Paperclip className="w-3 h-3" />
                     {uploadingAttachment ? 'Enviando...' : 'Anexar arquivo'}
                     <input
@@ -1100,15 +1100,15 @@ export const CollectionContactModal: React.FC<{
                     {pendingAttachments.map((att) => (
                       <div
                         key={att.id}
-                        className="flex items-center justify-between gap-2 rounded border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px]"
+                        className="flex items-center justify-between gap-2 rounded border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] dark:border-slate-700 dark:bg-slate-800/70"
                       >
-                        <span className="truncate text-slate-800">{att.name}</span>
+                        <span className="truncate text-slate-800 dark:text-slate-100">{att.name}</span>
                         <button
                           type="button"
                           onClick={() =>
                             setPendingAttachments((prev) => prev.filter((x) => x.id !== att.id))
                           }
-                          className="text-slate-400 hover:text-red-600"
+                          className="text-slate-400 hover:text-red-600 dark:text-slate-400"
                         >
                           <X className="w-3 h-3" />
                         </button>
@@ -1122,7 +1122,7 @@ export const CollectionContactModal: React.FC<{
             <button
               type="submit"
               disabled={savingNote || uploadingAttachment || !noteText.trim()}
-              className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-40 whitespace-nowrap"
+              className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-40 whitespace-nowrap dark:bg-emerald-600 dark:hover:bg-emerald-500"
             >
               <Send className="w-3.5 h-3.5" />
               {savingNote ? 'Salvando Contato...' : 'Salvar Contato & Integrações'}
@@ -1130,15 +1130,15 @@ export const CollectionContactModal: React.FC<{
           </form>
 
           {/* COLUNA 3: HISTÓRICO DE CONTATOS (Duplo clique para editar + Excluir + Preview Anexo) */}
-          <div className="lg:col-span-4 rounded-xl border border-slate-200 bg-white p-4 space-y-3 flex flex-col">
-            <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
-              <h3 className="text-xs font-bold text-slate-900 tabular-nums">
+          <div className="lg:col-span-4 rounded-xl border border-slate-200 bg-white p-4 space-y-3 flex flex-col dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5 dark:border-slate-800">
+              <h3 className="text-xs font-bold text-slate-900 tabular-nums dark:text-slate-100">
                 Histórico ({historyNotes.length})
               </h3>
               <button
                 type="button"
                 onClick={() => setShowAllClientNotes((p) => !p)}
-                className="text-[11px] font-semibold text-slate-600 hover:text-slate-900 whitespace-nowrap"
+                className="text-[11px] font-semibold text-slate-600 hover:text-slate-900 whitespace-nowrap dark:text-slate-300 dark:hover:text-white"
               >
                 {showAllClientNotes ? 'Apenas deste título' : 'Ver todos do cliente'}
               </button>
@@ -1154,9 +1154,9 @@ export const CollectionContactModal: React.FC<{
 
             <div className="flex-1 overflow-y-auto space-y-2.5 max-h-[520px] pr-0.5">
               {historyNotes.length === 0 ? (
-                <div className="py-12 text-center text-xs text-slate-500">
+                <div className="py-12 text-center text-xs text-slate-500 dark:text-slate-400">
                   Nenhum contato registrado {showAllClientNotes ? 'para este cliente' : 'neste título'}.
-                  <p className="mt-1 text-[11px] text-slate-400">
+                  <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-400">
                     Dica: duplo clique em uma nota permite editá-la diretamente.
                   </p>
                 </div>
@@ -1175,7 +1175,7 @@ export const CollectionContactModal: React.FC<{
                         setEditNoteNextDate(n.nextContactDate || '');
                         setEditNoteText(n.note || '');
                       }}
-                      className="rounded-lg border border-slate-200 bg-slate-50/40 p-3 text-xs space-y-1.5 hover:border-slate-300 transition-colors"
+                      className="rounded-lg border border-slate-200 bg-slate-50/40 p-3 text-xs space-y-1.5 hover:border-slate-300 transition-colors dark:border-slate-700"
                     >
                       {isEditing ? (
                         <div className="space-y-2">
@@ -1183,7 +1183,7 @@ export const CollectionContactModal: React.FC<{
                             <select
                               value={editNoteChannel}
                               onChange={(e) => setEditNoteChannel(e.target.value)}
-                              className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px]"
+                              className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                             >
                               <option value="TELEFONE">Telefone</option>
                               <option value="WHATSAPP">WhatsApp</option>
@@ -1194,7 +1194,7 @@ export const CollectionContactModal: React.FC<{
                             <select
                               value={editNoteStatus}
                               onChange={(e) => setEditNoteStatus(e.target.value)}
-                              className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px]"
+                              className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                             >
                               <option value="AGUARDANDO_CONTATO">Aguardando Contato</option>
                               <option value="ENCAMINHOU_BOLETO">Encaminhou Boleto</option>
@@ -1210,26 +1210,26 @@ export const CollectionContactModal: React.FC<{
                               value={editNoteOtherDetail}
                               onChange={(e) => setEditNoteOtherDetail(e.target.value)}
                               placeholder="Detalhe do status Outros..."
-                              className="w-full rounded border border-slate-200 bg-white px-2 py-1 text-[11px]"
+                              className="w-full rounded border border-slate-200 bg-white px-2 py-1 text-[11px] dark:border-slate-700 dark:bg-slate-900"
                             />
                           )}
                           <input
                             type="date"
                             value={editNoteNextDate}
                             onChange={(e) => setEditNoteNextDate(e.target.value)}
-                            className="w-full rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-mono"
+                            className="w-full rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-mono dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                           />
                           <textarea
                             rows={3}
                             value={editNoteText}
                             onChange={(e) => setEditNoteText(e.target.value)}
-                            className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs"
+                            className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                           />
                           <div className="flex justify-end gap-1.5">
                             <button
                               type="button"
                               onClick={() => setEditingNoteId(null)}
-                              className="rounded border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600"
+                              className="rounded border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
                             >
                               Cancelar
                             </button>
@@ -1237,7 +1237,7 @@ export const CollectionContactModal: React.FC<{
                               type="button"
                               disabled={savingNote}
                               onClick={() => void handleSaveEditedNote(n.id)}
-                              className="rounded bg-slate-900 px-2.5 py-1 text-[11px] font-semibold text-white"
+                              className="rounded bg-slate-900 px-2.5 py-1 text-[11px] font-semibold text-white dark:bg-emerald-600"
                             >
                               Salvar
                             </button>
@@ -1246,10 +1246,10 @@ export const CollectionContactModal: React.FC<{
                       ) : (
                         <>
                           <div className="flex items-start justify-between gap-2">
-                            <div className="text-[11px] text-slate-500">
-                              <strong className="text-slate-800">{n.collaboratorName || 'Equipe'}</strong>
+                            <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                              <strong className="text-slate-800 dark:text-slate-100">{n.collaboratorName || 'Equipe'}</strong>
                               <span> · {formatChannelLabel(n.channel)} · </span>
-                              <span className="font-medium text-slate-700">
+                              <span className="font-medium text-slate-700 dark:text-slate-200">
                                 {formatNegotiationStatusLabel(n.negotiationStatus, n.otherStatusDetail)}
                               </span>
                             </div>
@@ -1265,7 +1265,7 @@ export const CollectionContactModal: React.FC<{
                                   setEditNoteNextDate(n.nextContactDate || '');
                                   setEditNoteText(n.note || '');
                                 }}
-                                className="p-1 text-slate-400 hover:text-slate-800"
+                                className="p-1 text-slate-400 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
                               >
                                 <Edit3 className="w-3 h-3" />
                               </button>
@@ -1273,38 +1273,38 @@ export const CollectionContactModal: React.FC<{
                                 type="button"
                                 title="Excluir contato"
                                 onClick={() => setDeletingNote(n)}
-                                className="p-1 text-slate-400 hover:text-red-600"
+                                className="p-1 text-slate-400 hover:text-red-600 dark:text-slate-400"
                               >
                                 <Trash2 className="w-3 h-3" />
                               </button>
                             </div>
                           </div>
 
-                          <p className="text-xs text-slate-800 whitespace-pre-line leading-relaxed">
+                          <p className="text-xs text-slate-800 whitespace-pre-line leading-relaxed dark:text-slate-100">
                             {n.note}
                           </p>
 
-                          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] font-mono text-slate-500 tabular-nums">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] font-mono text-slate-500 tabular-nums dark:text-slate-400">
                             <span>{formatDateTimeBR(n.createdAt)}</span>
                             {n.nextContactDate && (
-                              <span className="text-slate-700 font-semibold">
+                              <span className="text-slate-700 font-semibold dark:text-slate-200">
                                 · Próx. contato: {formatDueDateLocalBR(n.nextContactDate)}
                               </span>
                             )}
                           </div>
 
                           {n.debtSnapshotJson && (
-                            <div className="text-[11px] font-mono text-slate-500 tabular-nums pt-1 border-t border-slate-200/70">
+                            <div className="text-[11px] font-mono text-slate-500 tabular-nums pt-1 border-t border-slate-200/70 dark:text-slate-400">
                               Snapshot: Orig {formatBRL(n.debtSnapshotJson.originalCents)} · Desc{' '}
                               {formatBRL(n.debtSnapshotJson.discountCents)} · Saldo{' '}
-                              <strong className="text-slate-800">
+                              <strong className="text-slate-800 dark:text-slate-100">
                                 {formatBRL(n.debtSnapshotJson.balanceCents)}
                               </strong>
                             </div>
                           )}
 
                           {n.cancelRequest && (
-                            <div className="text-[11px] text-amber-900 pt-1 border-t border-amber-200/70">
+                            <div className="text-[11px] text-amber-900 pt-1 border-t border-amber-200/70 dark:text-amber-300">
                               Solicitação Cancelamento: {n.cancelRequest.admissionContract || 'Contrato'} ·{' '}
                               {formatDueDateLocalBR(n.cancelRequest.requestDate)}
                             </div>
@@ -1320,17 +1320,17 @@ export const CollectionContactModal: React.FC<{
                                 return (
                                   <div
                                     key={att.id}
-                                    className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-white px-2 py-1 text-[11px]"
+                                    className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-white px-2 py-1 text-[11px] dark:border-slate-700 dark:bg-slate-900"
                                   >
-                                    <Paperclip className="w-3 h-3 text-slate-400" />
-                                    <span className="truncate max-w-[130px] text-slate-700">
+                                    <Paperclip className="w-3 h-3 text-slate-400 dark:text-slate-400" />
+                                    <span className="truncate max-w-[130px] text-slate-700 dark:text-slate-200">
                                       {att.name}
                                     </span>
                                     {linkedDoc && (
                                       <button
                                         type="button"
                                         onClick={() => setPreviewDoc(linkedDoc)}
-                                        className="font-semibold text-slate-700 hover:text-slate-950"
+                                        className="font-semibold text-slate-700 hover:text-slate-950 dark:text-slate-200"
                                       >
                                         Ver
                                       </button>
@@ -1339,7 +1339,7 @@ export const CollectionContactModal: React.FC<{
                                       <button
                                         type="button"
                                         onClick={() => void downloadAuthenticatedUri(downloadUri, att.name)}
-                                        className="font-semibold text-slate-600 hover:text-slate-900"
+                                        className="font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
                                       >
                                         Baixar
                                       </button>
@@ -1646,14 +1646,14 @@ export const CollectionSidePanel: React.FC<{
     pagedDocs.length > 0 && pagedDocs.every((d) => selectedDocIds.includes(d.id));
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden flex flex-col max-h-[820px]">
+    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden flex flex-col max-h-[820px] dark:border-slate-700 dark:bg-slate-900">
       {/* Cabeçalho do Painel Lateral */}
-      <div className="flex items-start justify-between gap-2 border-b border-slate-200 px-4 py-3.5 bg-slate-50/70">
+      <div className="flex items-start justify-between gap-2 border-b border-slate-200 px-4 py-3.5 bg-slate-50/70 dark:border-slate-700 dark:bg-slate-800/60">
         <div className="min-w-0">
-          <h3 className="font-display text-sm font-bold text-slate-900 truncate">
+          <h3 className="font-display text-sm font-bold text-slate-900 truncate dark:text-slate-100">
             {client.fullName}
           </h3>
-          <p className="text-[11px] font-mono text-slate-500 tabular-nums mt-0.5">
+          <p className="text-[11px] font-mono text-slate-500 tabular-nums mt-0.5 dark:text-slate-400">
             CPF/CNPJ {client.cpfCnpj} · UF {client.state || 'N/I'} · {client.status.toUpperCase()}
           </p>
         </div>
@@ -1661,23 +1661,23 @@ export const CollectionSidePanel: React.FC<{
           <button
             type="button"
             onClick={() => onOpenClientModal(client.id, 'whatsapp')}
-            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 whitespace-nowrap"
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 whitespace-nowrap dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
-            <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+            <MessageSquare className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
             WhatsApp
           </button>
           <button
             type="button"
             onClick={() => onOpenClientModal(client.id, 'dados')}
-            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 whitespace-nowrap"
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 whitespace-nowrap dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
-            <User className="w-3.5 h-3.5 text-slate-500" />
+            <User className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
             Cliente
           </button>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200/70 hover:text-slate-800"
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200/70 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
           >
             <X className="w-4 h-4" />
           </button>
@@ -1686,22 +1686,22 @@ export const CollectionSidePanel: React.FC<{
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {panelError && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
             {panelError}
           </div>
         )}
 
         {/* Resumo do Título Selecionado + Botão 3 Colunas */}
-        <div className="rounded-lg border border-slate-200 p-3.5 space-y-2.5">
+        <div className="rounded-lg border border-slate-200 p-3.5 space-y-2.5 dark:border-slate-700">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-bold text-slate-900 font-mono tabular-nums">
+            <span className="text-xs font-bold text-slate-900 font-mono tabular-nums dark:text-slate-100">
               Doc {title.documentNumber || title.titleCode} · Venc. {formatDueDateLocalBR(title.dueDate)}
             </span>
-            <span className="font-mono text-xs font-bold text-slate-900 tabular-nums">
+            <span className="font-mono text-xs font-bold text-slate-900 tabular-nums dark:text-slate-100">
               {formatBRL(breakdown.balanceCents)}
             </span>
           </div>
-          <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-slate-500 font-mono tabular-nums">
+          <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-slate-500 font-mono tabular-nums dark:text-slate-400">
             <span>Orig: {formatBRL(breakdown.originalCents)}</span>
             <span>·</span>
             <span>Rec: {formatBRL(breakdown.receivedCents)}</span>
@@ -1712,7 +1712,7 @@ export const CollectionSidePanel: React.FC<{
             <button
               type="button"
               onClick={() => onOpenContactModal(title)}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800 whitespace-nowrap"
+              className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800 whitespace-nowrap dark:bg-emerald-600 dark:hover:bg-emerald-500"
             >
               <Calculator className="w-3.5 h-3.5" />
               Simular & Registrar Contato ({notes.filter((n) => n.titleId === title.id).length})
@@ -1721,15 +1721,15 @@ export const CollectionSidePanel: React.FC<{
         </div>
 
         {/* Baixa Rápida (+25 pts) */}
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3 space-y-2">
-          <div className="text-xs font-bold text-emerald-950">
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3 space-y-2 dark:border-emerald-800/70 dark:bg-emerald-950/50">
+          <div className="text-xs font-bold text-emerald-950 dark:text-emerald-300">
             Baixar Pagamento & Creditar Ranking (+25 pts)
           </div>
           <div className="flex flex-col sm:flex-row gap-2">
             <select
               value={selectedCategoryId}
               onChange={(e) => setSelectedCategoryId(e.target.value)}
-              className="flex-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800"
+              className="flex-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
             >
               {categories.map((cat) => (
                 <option key={cat.id} value={String(cat.id)}>
@@ -1752,24 +1752,24 @@ export const CollectionSidePanel: React.FC<{
         {/* Fichas de Admissão Vinculadas */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <h4 className="text-xs font-bold text-slate-900">
+            <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">
               Fichas de Admissão ({clientAdmissions.length})
             </h4>
           </div>
           {clientAdmissions.length === 0 ? (
-            <p className="text-xs text-slate-500">Nenhuma ficha de admissão cadastrada para este cliente.</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Nenhuma ficha de admissão cadastrada para este cliente.</p>
           ) : (
-            <div className="divide-y divide-slate-100 rounded-lg border border-slate-200">
+            <div className="divide-y divide-slate-100 rounded-lg border border-slate-200 dark:divide-slate-800 dark:border-slate-700">
               {clientAdmissions.map((adm) => (
                 <div
                   key={adm.id}
                   className="flex items-center justify-between gap-2 px-3 py-2 text-xs"
                 >
                   <div className="min-w-0">
-                    <div className="font-semibold text-slate-900 truncate">
+                    <div className="font-semibold text-slate-900 truncate dark:text-slate-100">
                       {adm.protocolCode} · Contrato {adm.contractNumber}
                     </div>
-                    <div className="text-[11px] text-slate-500">
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">
                       {adm.bankName} · {adm.modality} · {adm.status}
                     </div>
                   </div>
@@ -1777,7 +1777,7 @@ export const CollectionSidePanel: React.FC<{
                     <button
                       type="button"
                       onClick={() => onOpenAdmissionModal(adm)}
-                      className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0"
+                      className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                     >
                       <FileText className="w-3 h-3" />
                       Ver Ficha
@@ -1792,14 +1792,14 @@ export const CollectionSidePanel: React.FC<{
         {/* Lista de Títulos do Cliente (com Ver Cancelados) */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <h4 className="text-xs font-bold text-slate-900 tabular-nums">
+            <h4 className="text-xs font-bold text-slate-900 tabular-nums dark:text-slate-100">
               Títulos do Cliente ({visibleClientTitles.length})
             </h4>
             {cancelledCount > 0 && (
               <button
                 type="button"
                 onClick={() => setShowCancelledTitles((p) => !p)}
-                className="text-[11px] font-semibold text-slate-600 hover:text-slate-900 whitespace-nowrap"
+                className="text-[11px] font-semibold text-slate-600 hover:text-slate-900 whitespace-nowrap dark:text-slate-300 dark:hover:text-white"
               >
                 {showCancelledTitles
                   ? 'Ocultar Cancelados'
@@ -1807,7 +1807,7 @@ export const CollectionSidePanel: React.FC<{
               </button>
             )}
           </div>
-          <div className="max-h-44 overflow-y-auto divide-y divide-slate-100 rounded-lg border border-slate-200">
+          <div className="max-h-44 overflow-y-auto divide-y divide-slate-100 rounded-lg border border-slate-200 dark:divide-slate-800 dark:border-slate-700">
             {visibleClientTitles.map((t) => {
               const b = computeTitleFinancialBreakdown(t, settledByTitleMap);
               const selected = t.id === title.id;
@@ -1817,18 +1817,18 @@ export const CollectionSidePanel: React.FC<{
                   type="button"
                   onClick={() => onSelectTitle(t)}
                   className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between gap-2 transition-colors ${
-                    selected ? 'bg-slate-900/5 font-semibold' : 'hover:bg-slate-50'
+                    selected ? 'bg-slate-900/5 font-semibold' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                   }`}
                 >
                   <div className="min-w-0">
-                    <span className="font-mono text-slate-900 truncate block">
+                    <span className="font-mono text-slate-900 truncate block dark:text-slate-100">
                       {t.documentNumber || t.titleCode} · Venc. {formatDueDateLocalBR(t.dueDate)}
                     </span>
-                    <span className="text-[11px] text-slate-500">
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
                       {translateTitleStatus(t.status)}
                     </span>
                   </div>
-                  <span className="font-mono text-xs text-slate-900 tabular-nums shrink-0">
+                  <span className="font-mono text-xs text-slate-900 tabular-nums shrink-0 dark:text-slate-100">
                     {formatBRL(b.balanceCents)}
                   </span>
                 </button>
@@ -1840,19 +1840,19 @@ export const CollectionSidePanel: React.FC<{
         {/* Últimas Tratativas do Cliente */}
         {clientNotes.length > 0 && (
           <div className="space-y-1.5">
-            <h4 className="text-xs font-bold text-slate-900 tabular-nums">
+            <h4 className="text-xs font-bold text-slate-900 tabular-nums dark:text-slate-100">
               Últimos Contatos ({clientNotes.length})
             </h4>
-            <div className="max-h-36 overflow-y-auto divide-y divide-slate-100 rounded-lg border border-slate-200">
+            <div className="max-h-36 overflow-y-auto divide-y divide-slate-100 rounded-lg border border-slate-200 dark:divide-slate-800 dark:border-slate-700">
               {clientNotes.slice(0, 6).map((n) => (
                 <div key={n.id} className="px-3 py-2 text-[11px] space-y-0.5">
-                  <div className="flex items-center justify-between text-slate-500 font-mono tabular-nums">
+                  <div className="flex items-center justify-between text-slate-500 font-mono tabular-nums dark:text-slate-400">
                     <span>
                       {n.collaboratorName} · {formatChannelLabel(n.channel)}
                     </span>
                     <span>{formatDateBR(n.createdAt)}</span>
                   </div>
-                  <div className="text-slate-800 line-clamp-2">{n.note}</div>
+                  <div className="text-slate-800 line-clamp-2 dark:text-slate-100">{n.note}</div>
                 </div>
               ))}
             </div>
@@ -1860,17 +1860,17 @@ export const CollectionSidePanel: React.FC<{
         )}
 
         {/* Documentos Armazenados (Bucket da Invicta) */}
-        <div className="space-y-2.5 pt-1 border-t border-slate-100">
+        <div className="space-y-2.5 pt-1 border-t border-slate-100 dark:border-slate-800">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5 tabular-nums">
-              <FolderOpen className="w-3.5 h-3.5 text-slate-600" />
+            <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5 tabular-nums dark:text-slate-100">
+              <FolderOpen className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
               Documentos Armazenados ({clientDocs.length})
             </h4>
             <div className="flex items-center gap-1.5">
               <select
                 value={docCategoryUpload}
                 onChange={(e) => setDocCategoryUpload(e.target.value)}
-                className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700"
+                className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
               >
                 <option value="comprovante">Comprovante</option>
                 <option value="aditivo">Aditivo</option>
@@ -1878,7 +1878,7 @@ export const CollectionSidePanel: React.FC<{
                 <option value="pessoal">Pessoal</option>
                 <option value="termo_cancelamento">Termo Cancelamento</option>
               </select>
-              <label className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-slate-800 cursor-pointer whitespace-nowrap">
+              <label className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-slate-800 cursor-pointer whitespace-nowrap dark:bg-emerald-600 dark:hover:bg-emerald-500">
                 <Upload className="w-3 h-3" />
                 {uploadingDoc ? 'Enviando...' : 'Anexar'}
                 <input
@@ -1900,7 +1900,7 @@ export const CollectionSidePanel: React.FC<{
             value={docSearchInput}
             onChange={(e) => setDocSearchInput(e.target.value)}
             placeholder="Filtrar documentos por nome, categoria ou autor..."
-            className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-800 focus:border-slate-900 focus:outline-none"
+            className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-800 focus:border-slate-900 focus:outline-none dark:border-slate-700 dark:text-slate-100 dark:bg-slate-950"
           />
 
           {previewDoc && (
@@ -1912,12 +1912,12 @@ export const CollectionSidePanel: React.FC<{
           )}
 
           {pagedDocs.length === 0 ? (
-            <div className="py-6 text-center text-xs text-slate-500 rounded-lg border border-slate-200">
+            <div className="py-6 text-center text-xs text-slate-500 rounded-lg border border-slate-200 dark:text-slate-400 dark:border-slate-700">
               Nenhum documento armazenado para este filtro.
             </div>
           ) : (
-            <div className="rounded-lg border border-slate-200 overflow-hidden">
-              <div className="flex items-center justify-between bg-slate-50 px-3 py-1.5 border-b border-slate-200 text-[11px] text-slate-600">
+            <div className="rounded-lg border border-slate-200 overflow-hidden dark:border-slate-700">
+              <div className="flex items-center justify-between bg-slate-50 px-3 py-1.5 border-b border-slate-200 text-[11px] text-slate-600 dark:bg-slate-800/70 dark:border-slate-700 dark:text-slate-300">
                 <label className="inline-flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
@@ -1949,14 +1949,14 @@ export const CollectionSidePanel: React.FC<{
                         }
                       }
                     }}
-                    className="font-semibold text-slate-800 hover:underline"
+                    className="font-semibold text-slate-800 hover:underline dark:text-slate-100"
                   >
                     Baixar selecionados
                   </button>
                 )}
               </div>
 
-              <div className="divide-y divide-slate-100 max-h-56 overflow-y-auto">
+              <div className="divide-y divide-slate-100 max-h-56 overflow-y-auto dark:divide-slate-800">
                 {pagedDocs.map((doc) => {
                   const checked = selectedDocIds.includes(doc.id);
                   const uri = doc.storageUri?.startsWith('/api/')
@@ -1965,7 +1965,7 @@ export const CollectionSidePanel: React.FC<{
                   return (
                     <div
                       key={doc.id}
-                      className="flex items-center justify-between gap-2 px-3 py-2 text-xs hover:bg-slate-50"
+                      className="flex items-center justify-between gap-2 px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-800"
                     >
                       <label className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer">
                         <input
@@ -1980,10 +1980,10 @@ export const CollectionSidePanel: React.FC<{
                           }}
                         />
                         <div className="min-w-0">
-                          <span className="font-medium text-slate-900 truncate block">
+                          <span className="font-medium text-slate-900 truncate block dark:text-slate-100">
                             {doc.fileName}
                           </span>
-                          <span className="text-[11px] font-mono text-slate-500 tabular-nums">
+                          <span className="text-[11px] font-mono text-slate-500 tabular-nums dark:text-slate-400">
                             {doc.docCategory} · {formatBytes(doc.sizeBytes)} ·{' '}
                             {formatDateBR(doc.createdAt)}
                           </span>
@@ -1994,7 +1994,7 @@ export const CollectionSidePanel: React.FC<{
                           type="button"
                           title="Visualizar no Bucket"
                           onClick={() => setPreviewDoc(doc)}
-                          className="p-1 text-slate-500 hover:text-slate-900"
+                          className="p-1 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
                         >
                           <Eye className="w-3.5 h-3.5" />
                         </button>
@@ -2002,7 +2002,7 @@ export const CollectionSidePanel: React.FC<{
                           type="button"
                           title="Baixar arquivo"
                           onClick={() => void downloadAuthenticatedUri(uri, doc.fileName)}
-                          className="p-1 text-slate-500 hover:text-slate-900"
+                          className="p-1 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
                         >
                           <Download className="w-3.5 h-3.5" />
                         </button>
@@ -2011,7 +2011,7 @@ export const CollectionSidePanel: React.FC<{
                             type="button"
                             title="Excluir arquivo"
                             onClick={() => setDeletingDoc(doc)}
-                            className="p-1 text-slate-400 hover:text-red-600"
+                            className="p-1 text-slate-400 hover:text-red-600 dark:text-slate-400"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -2023,7 +2023,7 @@ export const CollectionSidePanel: React.FC<{
               </div>
 
               {totalDocPages > 1 && (
-                <div className="flex items-center justify-between bg-slate-50 px-3 py-1.5 border-t border-slate-200 text-[11px] font-mono tabular-nums">
+                <div className="flex items-center justify-between bg-slate-50 px-3 py-1.5 border-t border-slate-200 text-[11px] font-mono tabular-nums dark:bg-slate-800/70 dark:border-slate-700">
                   <span>
                     Pág. {docPage}/{totalDocPages}
                   </span>
@@ -2032,7 +2032,7 @@ export const CollectionSidePanel: React.FC<{
                       type="button"
                       disabled={docPage <= 1}
                       onClick={() => setDocPage((p) => Math.max(1, p - 1))}
-                      className="rounded border border-slate-200 bg-white px-2 py-0.5 disabled:opacity-40"
+                      className="rounded border border-slate-200 bg-white px-2 py-0.5 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900"
                     >
                       Anterior
                     </button>
@@ -2040,7 +2040,7 @@ export const CollectionSidePanel: React.FC<{
                       type="button"
                       disabled={docPage >= totalDocPages}
                       onClick={() => setDocPage((p) => Math.min(totalDocPages, p + 1))}
-                      className="rounded border border-slate-200 bg-white px-2 py-0.5 disabled:opacity-40"
+                      className="rounded border border-slate-200 bg-white px-2 py-0.5 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900"
                     >
                       Próxima
                     </button>
@@ -2052,11 +2052,11 @@ export const CollectionSidePanel: React.FC<{
         </div>
 
         {/* Suspensão / Cancelamento / Reativação Integrada ao Jurídico & Escavador */}
-        <div className="rounded-lg border border-slate-200 bg-slate-50/50 overflow-hidden">
+        <div className="rounded-lg border border-slate-200 bg-slate-50/50 overflow-hidden dark:border-slate-700 dark:bg-slate-800/60">
           <button
             type="button"
             onClick={() => setRiskOpen((p) => !p)}
-            className="w-full px-3 py-2.5 flex items-center justify-between text-xs font-semibold text-slate-800 hover:bg-slate-100/70"
+            className="w-full px-3 py-2.5 flex items-center justify-between text-xs font-semibold text-slate-800 hover:bg-slate-100/70 dark:text-slate-100"
           >
             <span>
               {client.status === 'suspenso' || client.status === 'cancelado'
@@ -2064,21 +2064,21 @@ export const CollectionSidePanel: React.FC<{
                 : 'Suspender ou Cancelar Cliente (Sincronia Jurídico & Escavador)'}
             </span>
             <ChevronDown
-              className={`w-4 h-4 text-slate-400 transition-transform ${
+              className={`w-4 h-4 text-slate-400 transition-transform dark:text-slate-400 ${
                 riskOpen ? 'rotate-180' : ''
               }`}
             />
           </button>
           {riskOpen && (
-            <div className="p-3 border-t border-slate-200 space-y-2.5 bg-white">
+            <div className="p-3 border-t border-slate-200 space-y-2.5 bg-white dark:border-slate-700 dark:bg-slate-900">
               <input
                 type="text"
                 value={statusReason}
                 onChange={(e) => setStatusReason(e.target.value)}
                 placeholder="Informe a causa obrigatória (gravada no Jurídico e Escavador)..."
-                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-900"
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-900 dark:border-slate-700 dark:text-slate-100"
               />
-              <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
+              <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer dark:text-slate-300">
                 <input
                   type="checkbox"
                   checked={cancelFutureTitles}
@@ -2102,7 +2102,7 @@ export const CollectionSidePanel: React.FC<{
                   type="button"
                   disabled={busyAction}
                   onClick={() => void handleClientStatusChange('suspenso')}
-                  className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-100 disabled:opacity-45"
+                  className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-100 disabled:opacity-45 dark:border-amber-800/70 dark:bg-amber-950/50 dark:text-amber-300 dark:hover:bg-amber-900/60"
                 >
                   <PauseCircle className="w-3.5 h-3.5" />
                   Suspender

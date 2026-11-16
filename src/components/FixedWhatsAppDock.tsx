@@ -52,7 +52,7 @@ const DockBucketAudio: React.FC<{ sha256: string }> = ({ sha256 }) => {
       type="button"
       onClick={loadAudio}
       disabled={loading}
-      className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-800"
+      className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200"
     >
       <Volume2 className="w-3.5 h-3.5" />
       {loading ? 'Carregando áudio do Bucket...' : 'Ouvir áudio arquivado (BucketDaInvicta)'}
@@ -214,17 +214,17 @@ export const FixedWhatsAppDock: React.FC<FixedWhatsAppDockProps> = ({
   };
 
   const content = (
-    <div className="flex flex-col h-full bg-white border-l border-slate-200">
+    <div className="flex flex-col h-full bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-2 bg-slate-50/70">
+      <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 bg-slate-50/70 dark:bg-slate-900">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0" />
-            <h3 className="font-display text-sm font-bold text-slate-900 truncate">
+            <MessageSquare className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
               WhatsApp · GoTalk & UaZapi
             </h3>
           </div>
-          <p className="text-[11px] text-slate-500 truncate">
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
             {threads.length} conversas ativas · Transcrição Ivi
           </p>
         </div>
@@ -234,16 +234,16 @@ export const FixedWhatsAppDock: React.FC<FixedWhatsAppDockProps> = ({
             onClick={handleSimulateInboundAudio}
             disabled={busy || !activeThread}
             title="Simular recebimento de áudio para Ivi transcrever"
-            className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 min-h-[34px]"
+            className="inline-flex items-center gap-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 min-h-[34px]"
           >
-            <Mic className="w-3.5 h-3.5 text-blue-600" />
+            <Mic className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
             Áudio
           </button>
           <button
             type="button"
             onClick={onCloseDesktop}
             title="Recolher painel WhatsApp"
-            className="hidden xl:inline-flex items-center justify-center p-1.5 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+            className="hidden xl:inline-flex items-center justify-center p-1.5 rounded-md text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-100"
           >
             <PanelRightClose className="w-4 h-4" />
           </button>
@@ -251,7 +251,7 @@ export const FixedWhatsAppDock: React.FC<FixedWhatsAppDockProps> = ({
             type="button"
             onClick={onCloseMobile}
             aria-label="Fechar WhatsApp"
-            className="xl:hidden p-2 rounded-md text-slate-500 hover:bg-slate-100 min-h-[40px] min-w-[40px] flex items-center justify-center"
+            className="xl:hidden p-2 rounded-md text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 min-h-[40px] min-w-[40px] flex items-center justify-center"
           >
             <X className="w-4 h-4" />
           </button>
@@ -259,7 +259,7 @@ export const FixedWhatsAppDock: React.FC<FixedWhatsAppDockProps> = ({
       </div>
 
       {/* Thread Selector */}
-      <div className="flex gap-1.5 overflow-x-auto px-3 py-2 border-b border-slate-100 bg-white">
+      <div className="flex gap-1.5 overflow-x-auto px-3 py-2 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
         {threads.map((t) => {
           const isActive = t.id === activeThread?.id;
           return (
@@ -269,19 +269,19 @@ export const FixedWhatsAppDock: React.FC<FixedWhatsAppDockProps> = ({
               onClick={() => setActiveThreadId(t.id)}
               className={`px-2.5 py-1.5 rounded-lg text-left shrink-0 transition-colors border ${
                 isActive
-                  ? 'border-emerald-600 bg-emerald-50 text-emerald-950'
-                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  ? 'border-emerald-600 dark:border-emerald-500 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-950 dark:text-emerald-200'
+                  : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'
               }`}
             >
               <div className="text-xs font-semibold whitespace-nowrap flex items-center gap-1.5">
                 <span>{t.contactName.split(' ')[0]}</span>
                 {t.unreadCount > 0 && (
-                  <span className="font-mono text-[10px] font-bold text-emerald-700 tabular-nums">
+                  <span className="font-mono text-[10px] font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
                     ({t.unreadCount})
                   </span>
                 )}
               </div>
-              <div className="text-[10px] text-slate-500 font-mono">
+              <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
                 {t.provider.toUpperCase()}
               </div>
             </button>
@@ -296,7 +296,7 @@ export const FixedWhatsAppDock: React.FC<FixedWhatsAppDockProps> = ({
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-slate-50/50">
+      <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-slate-50/50 dark:bg-slate-950/60">
         {threadMessages.map((msg) => {
           const isOutbound = msg.direction === 'outbound';
           return (
@@ -304,38 +304,38 @@ export const FixedWhatsAppDock: React.FC<FixedWhatsAppDockProps> = ({
               key={msg.id}
               className={`rounded-xl border p-2.5 text-xs ${
                 isOutbound
-                  ? 'ml-5 border-emerald-200 bg-emerald-50/70 text-slate-900'
-                  : 'mr-5 border-slate-200 bg-white text-slate-800'
+                  ? 'ml-5 border-emerald-200 dark:border-emerald-800/70 bg-emerald-50/70 dark:bg-emerald-950/50 text-slate-900 dark:text-slate-100'
+                  : 'mr-5 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200'
               }`}
             >
-              <div className="flex items-center justify-between gap-2 text-[10px] text-slate-500 mb-1">
-                <span className="font-semibold text-slate-700">{msg.senderName}</span>
+              <div className="flex items-center justify-between gap-2 text-[10px] text-slate-500 dark:text-slate-400 mb-1">
+                <span className="font-semibold text-slate-700 dark:text-slate-200">{msg.senderName}</span>
                 <span className="font-mono flex items-center gap-1">
                   {formatDateTimeBR(msg.createdAt)}
-                  {isOutbound && msg.ackStatus === 1 && <Check className="w-3 h-3 text-slate-400" />}
-                  {isOutbound && msg.ackStatus === 2 && <CheckCheck className="w-3 h-3 text-slate-500" />}
-                  {isOutbound && msg.ackStatus === 3 && <CheckCheck className="w-3 h-3 text-blue-600" />}
+                  {isOutbound && msg.ackStatus === 1 && <Check className="w-3 h-3 text-slate-400 dark:text-slate-400" />}
+                  {isOutbound && msg.ackStatus === 2 && <CheckCheck className="w-3 h-3 text-slate-500 dark:text-slate-400" />}
+                  {isOutbound && msg.ackStatus === 3 && <CheckCheck className="w-3 h-3 text-blue-600 dark:text-blue-400" />}
                 </span>
               </div>
               {msg.deletedInOrigin && (
-                <div className="mb-1 text-[10px] font-medium text-amber-700">
+                <div className="mb-1 text-[10px] font-medium text-amber-700 dark:text-amber-300">
                   Apagada na origem (preservada no CRM)
                 </div>
               )}
               <p className="leading-relaxed whitespace-pre-wrap">{msg.body}</p>
               {msg.attachmentName && (
-                <div className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-slate-600">
+                <div className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-slate-600 dark:text-slate-300">
                   <FileText className="w-3 h-3 shrink-0" />
                   <span className="truncate">{msg.attachmentName}</span>
                 </div>
               )}
 
               {msg.contentType === 'audio' && (
-                <div className="mt-2 pt-2 border-t border-slate-100 space-y-1.5">
+                <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
                   {msg.mediaSha256 && <DockBucketAudio sha256={msg.mediaSha256} />}
                   {msg.iviAudioTranscript ? (
-                    <div className="rounded-lg bg-blue-50/80 border border-blue-100 p-2 text-[11px] text-blue-950">
-                      <div className="flex items-center gap-1 font-semibold text-blue-800 mb-0.5">
+                    <div className="rounded-lg bg-blue-50/80 dark:bg-blue-950/60 border border-blue-100 dark:border-blue-800/70 p-2 text-[11px] text-blue-950 dark:text-blue-100">
+                      <div className="flex items-center gap-1 font-semibold text-blue-800 dark:text-blue-300 mb-0.5">
                         <Sparkles className="w-3 h-3" />
                         Transcrição Ivi
                       </div>
@@ -346,7 +346,7 @@ export const FixedWhatsAppDock: React.FC<FixedWhatsAppDockProps> = ({
                       type="button"
                       onClick={() => handleTranscribe(msg.id)}
                       disabled={busy}
-                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 hover:text-blue-800"
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
                     >
                       <Headphones className="w-3 h-3" />
                       Transcrever áudio com Ivi
@@ -359,7 +359,7 @@ export const FixedWhatsAppDock: React.FC<FixedWhatsAppDockProps> = ({
                 <button
                   type="button"
                   onClick={() => handleCopyText(msg.iviAudioTranscript || msg.body)}
-                  className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-500 hover:text-slate-900"
+                  className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
                 >
                   <Copy className="w-3 h-3" />
                   Copiar p/ Cobrança
@@ -372,19 +372,19 @@ export const FixedWhatsAppDock: React.FC<FixedWhatsAppDockProps> = ({
 
       {/* HSM Template Picker Drawer */}
       {showTemplatePicker && activeThread && (
-        <div className="border-t border-slate-200 bg-slate-50 p-3 space-y-2 text-xs">
+        <div className="border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 p-3 space-y-2 text-xs">
           <div className="flex items-center justify-between">
-            <span className="font-bold text-slate-800">Disparar Template HSM (GoTalk)</span>
+            <span className="font-bold text-slate-800 dark:text-slate-100">Disparar Template HSM (GoTalk)</span>
             <button
               type="button"
               onClick={() => setShowTemplatePicker(false)}
-              className="text-slate-500 hover:text-slate-800"
+              className="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
             >
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
           {templates.length === 0 ? (
-            <div className="text-[11px] text-slate-500">
+            <div className="text-[11px] text-slate-500 dark:text-slate-400">
               Sincronize os templates em Configurações → IA Ivi & Conectores API primeiro.
             </div>
           ) : (
@@ -395,7 +395,7 @@ export const FixedWhatsAppDock: React.FC<FixedWhatsAppDockProps> = ({
                   setSelectedTplName(e.target.value);
                   setTplVars({});
                 }}
-                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs"
+                className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-2.5 py-1.5 text-xs"
               >
                 <option value="">Selecione um template HSM...</option>
                 {templates.map((t) => (
@@ -419,10 +419,10 @@ export const FixedWhatsAppDock: React.FC<FixedWhatsAppDockProps> = ({
                         placeholder={`Variável {{${v}}}`}
                         value={tplVars[v] || ''}
                         onChange={(e) => setTplVars((prev) => ({ ...prev, [v]: e.target.value }))}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs"
+                        className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-2.5 py-1.5 text-xs"
                       />
                     ))}
-                    <div className="rounded-lg bg-white border border-slate-200 p-2 text-[11px] text-slate-700 whitespace-pre-wrap">
+                    <div className="rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-2 text-[11px] text-slate-700 dark:text-slate-200 whitespace-pre-wrap">
                       {(tpl.bodyText || tpl.templateName).replace(/\{\{(\d+)\}\}/g, (_, n) => tplVars[n] || `{{${n}}}`)}
                     </div>
                     <button
@@ -452,7 +452,7 @@ export const FixedWhatsAppDock: React.FC<FixedWhatsAppDockProps> = ({
                           setBusy(false);
                         }
                       }}
-                      className="w-full rounded-lg bg-emerald-600 px-3 py-1.5 font-semibold text-white hover:bg-emerald-700"
+                      className="w-full rounded-lg bg-emerald-600 px-3 py-1.5 font-semibold text-white hover:bg-emerald-700 dark:hover:bg-emerald-500"
                     >
                       Enviar Template HSM
                     </button>
@@ -465,10 +465,10 @@ export const FixedWhatsAppDock: React.FC<FixedWhatsAppDockProps> = ({
       )}
 
       {/* Composer */}
-      <form onSubmit={handleSend} className="p-3 border-t border-slate-200 bg-white flex gap-1.5">
+      <form onSubmit={handleSend} className="p-3 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex gap-1.5">
         <label
           title="Enviar PDF, imagem ou áudio (GoTalk / UaZapi)"
-          className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-slate-700 hover:bg-slate-100 min-h-[40px] cursor-pointer"
+          className="inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2.5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 min-h-[40px] cursor-pointer"
         >
           <Paperclip className="w-4 h-4" />
           <input type="file" className="hidden" disabled={busy || !activeThread} onChange={handleUploadFile} />
@@ -478,7 +478,7 @@ export const FixedWhatsAppDock: React.FC<FixedWhatsAppDockProps> = ({
             type="button"
             onClick={() => setShowTemplatePicker((s) => !s)}
             title="Enviar Template HSM GoTalk"
-            className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-slate-700 hover:bg-slate-100 min-h-[40px]"
+            className="inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2.5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 min-h-[40px]"
           >
             <FileText className="w-4 h-4" />
           </button>
@@ -488,13 +488,13 @@ export const FixedWhatsAppDock: React.FC<FixedWhatsAppDockProps> = ({
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder="Responder via GoTalk / UaZapi..."
-          className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 focus:bg-white focus:border-emerald-600 focus:outline-none min-h-[40px]"
+          className="flex-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-900 focus:border-emerald-600 focus:outline-none min-h-[40px]"
         />
         <button
           type="submit"
           disabled={busy || !draft.trim()}
           aria-label="Enviar mensagem"
-          className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-3.5 text-white hover:bg-emerald-700 disabled:opacity-50 min-h-[40px]"
+          className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-3.5 text-white hover:bg-emerald-700 dark:hover:bg-emerald-500 disabled:opacity-50 min-h-[40px]"
         >
           <Send className="w-4 h-4" />
         </button>
@@ -513,7 +513,7 @@ export const FixedWhatsAppDock: React.FC<FixedWhatsAppDockProps> = ({
 
       {/* Slide-over Drawer for 5", 7", 10" (and desktop when reopened on narrow viewports) */}
       {isMobileOpen && (
-        <div className="xl:hidden fixed inset-0 z-50 flex justify-end bg-slate-900/40 backdrop-blur-xs">
+        <div className="xl:hidden fixed inset-0 z-50 flex justify-end bg-slate-900/40 dark:bg-slate-950/75 backdrop-blur-xs">
           <div className="flex-1" onClick={onCloseMobile} />
           <div className="w-full max-w-sm h-full shadow-2xl">{content}</div>
         </div>

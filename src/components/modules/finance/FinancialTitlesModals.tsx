@@ -177,31 +177,31 @@ export const SettlementModal: React.FC<SettlementModalProps> = ({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 dark:bg-slate-950/80" onClick={onClose}>
       <div
-        className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden text-xs"
+        className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden text-xs dark:border-slate-700 dark:bg-slate-900"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50 dark:border-slate-700 dark:bg-slate-800/70">
           <div>
-            <h3 className="font-display text-base font-bold text-slate-900">
+            <h3 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
               {mode === 'total' ? 'Baixa Total' : 'Baixa Parcial'} · Contas a {scope === 'RECEBER' ? 'Receber' : 'Pagar'}
             </h3>
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
               {titles.length} título(s) selecionado(s) · Atualiza título(s) e gera movimentação bancária conciliada
             </p>
           </div>
-          <button type="button" onClick={onClose} className="p-1 text-slate-400 hover:text-slate-700">
+          <button type="button" onClick={onClose} className="p-1 text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="px-5 pt-3 border-b border-slate-200 flex items-center gap-2">
+        <div className="px-5 pt-3 border-b border-slate-200 flex items-center gap-2 dark:border-slate-700">
           <button
             type="button"
             onClick={() => setTab('valores')}
             className={`px-3 py-2 font-semibold border-b-2 ${
-              tab === 'valores' ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500'
+              tab === 'valores' ? 'border-slate-900 text-slate-900 dark:border-emerald-500 dark:text-slate-100' : 'border-transparent text-slate-500 dark:text-slate-400'
             }`}
           >
             1. Valores & Datas
@@ -210,7 +210,7 @@ export const SettlementModal: React.FC<SettlementModalProps> = ({
             type="button"
             onClick={() => setTab('conta')}
             className={`px-3 py-2 font-semibold border-b-2 ${
-              tab === 'conta' ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500'
+              tab === 'conta' ? 'border-slate-900 text-slate-900 dark:border-emerald-500 dark:text-slate-100' : 'border-transparent text-slate-500 dark:text-slate-400'
             }`}
           >
             2. Conta & Histórico
@@ -219,23 +219,23 @@ export const SettlementModal: React.FC<SettlementModalProps> = ({
 
         <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
           {err && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-800">{err}</div>
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-800 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">{err}</div>
           )}
 
           {tab === 'valores' ? (
             <>
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Data da Baixa *</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Data da Baixa *</label>
                   <input
                     type="date"
                     value={paymentDate}
                     onChange={(e) => setPaymentDate(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-mono"
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">
                     {mode === 'total' ? 'Saldo Total (R$)' : 'Valor a Baixar (R$) *'}
                   </label>
                   <input
@@ -243,54 +243,54 @@ export const SettlementModal: React.FC<SettlementModalProps> = ({
                     disabled={mode === 'total'}
                     value={mode === 'total' ? centsToMaskInput(totalOpenCents) : amountMask}
                     onChange={(e) => setAmountMask(formatCurrencyTyping(e.target.value))}
-                    className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-mono font-bold text-right disabled:bg-slate-50 tabular-nums"
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-mono font-bold text-right disabled:bg-slate-50 tabular-nums dark:border-slate-700"
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Juros (+)</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Juros (+)</label>
                   <input
                     type="text"
                     value={interestMask}
                     onChange={(e) => setInterestMask(formatCurrencyTyping(e.target.value))}
-                    className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-mono text-right tabular-nums"
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-mono text-right tabular-nums dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Multa (+)</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Multa (+)</label>
                   <input
                     type="text"
                     value={fineMask}
                     onChange={(e) => setFineMask(formatCurrencyTyping(e.target.value))}
-                    className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-mono text-right tabular-nums"
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-mono text-right tabular-nums dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Desconto (-)</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Desconto (-)</label>
                   <input
                     type="text"
                     value={discountMask}
                     onChange={(e) => setDiscountMask(formatCurrencyTyping(e.target.value))}
-                    className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-mono text-right tabular-nums"
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-mono text-right tabular-nums dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   />
                 </div>
               </div>
 
-              <div className="rounded-xl border border-slate-200 overflow-hidden">
-                <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 font-semibold text-slate-700">
+              <div className="rounded-xl border border-slate-200 overflow-hidden dark:border-slate-700">
+                <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 font-semibold text-slate-700 dark:bg-slate-800/70 dark:border-slate-700 dark:text-slate-200">
                   Títulos incluídos nesta baixa
                 </div>
                 <table className="w-full text-left text-[11px]">
-                  <thead className="text-slate-500 border-b border-slate-100">
+                  <thead className="text-slate-500 border-b border-slate-100 dark:text-slate-400 dark:border-slate-800">
                     <tr>
                       <th className="px-3 py-1.5">Documento</th>
                       <th className="px-3 py-1.5">Vencimento</th>
                       <th className="px-3 py-1.5 text-right">Saldo Aberto</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {titles.map((t) => (
                       <tr key={t.id}>
-                        <td className="px-3 py-1.5 font-mono font-semibold text-slate-900">
+                        <td className="px-3 py-1.5 font-mono font-semibold text-slate-900 dark:text-slate-100">
                           {t.documentNumber || t.titleCode} · {t.clientName || '—'}
                         </td>
                         <td className="px-3 py-1.5 font-mono tabular-nums">{formatIsoDateToBR(t.dueDate)}</td>
@@ -307,11 +307,11 @@ export const SettlementModal: React.FC<SettlementModalProps> = ({
             <div className="space-y-3.5">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Conta Bancária *</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Conta Bancária *</label>
                   <select
                     value={bankAccountId}
                     onChange={(e) => setBankAccountId(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 bg-white"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                   >
                     <option value="">Selecione...</option>
                     {bankAccounts.map((b) => (
@@ -323,11 +323,11 @@ export const SettlementModal: React.FC<SettlementModalProps> = ({
                   </select>
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Forma de Pagamento</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Forma de Pagamento</label>
                   <select
                     value={paymentMethod}
                     onChange={(e) => setPaymentMethod(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 bg-white"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                   >
                     {PAYMENT_METHODS.map((m) => (
                       <option key={m} value={m}>
@@ -338,34 +338,34 @@ export const SettlementModal: React.FC<SettlementModalProps> = ({
                 </div>
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Histórico do Movimento Bancário</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Histórico do Movimento Bancário</label>
                 <textarea
                   rows={2}
                   value={history}
                   onChange={(e) => setHistory(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
             </div>
           )}
 
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 flex flex-wrap items-center justify-between gap-2">
-            <span className="text-emerald-900 font-semibold">
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 flex flex-wrap items-center justify-between gap-2 dark:border-emerald-800/70 dark:bg-emerald-950/50">
+            <span className="text-emerald-900 font-semibold dark:text-emerald-300">
               Valor líquido a {scope === 'RECEBER' ? 'entrar' : 'sair'} na conta selecionada:
             </span>
-            <span className="font-mono text-base font-bold text-emerald-700 tabular-nums">
+            <span className="font-mono text-base font-bold text-emerald-700 tabular-nums dark:text-emerald-300">
               {formatBRL(netCents)}
             </span>
           </div>
         </div>
 
-        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
-          <span className="text-[11px] text-slate-500">Atalho: Ctrl+Enter para confirmar</span>
+        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between dark:border-slate-700 dark:bg-slate-800/70">
+          <span className="text-[11px] text-slate-500 dark:text-slate-400">Atalho: Ctrl+Enter para confirmar</span>
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-700"
+              className="rounded-lg border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
             >
               Cancelar
             </button>
@@ -475,34 +475,34 @@ export const DeductionModal: React.FC<DeductionModalProps> = ({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 dark:bg-slate-950/80" onClick={onClose}>
       <div
-        className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden text-xs"
+        className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden text-xs dark:border-slate-700 dark:bg-slate-900"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-amber-50/70">
+        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-amber-50/70 dark:border-slate-700 dark:bg-amber-950/50">
           <div className="flex items-center gap-2">
-            <Link2 className="w-4 h-4 text-amber-700" />
+            <Link2 className="w-4 h-4 text-amber-700 dark:text-amber-300" />
             <div>
-              <h3 className="font-display text-sm font-bold text-slate-900">{title}</h3>
-              <p className="text-[11px] text-slate-600">{subtitle}</p>
+              <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">{title}</h3>
+              <p className="text-[11px] text-slate-600 dark:text-slate-300">{subtitle}</p>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="p-1 text-slate-400 hover:text-slate-700">
+          <button type="button" onClick={onClose} className="p-1 text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
             <X className="w-4 h-4" />
           </button>
         </div>
 
         <div className="p-5 space-y-4 max-h-[65vh] overflow-y-auto">
-          {err && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-800">{err}</div>}
-          <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-            <span className="text-slate-600">Saldo total a compensar nos títulos destino:</span>
-            <span className="font-mono font-bold text-slate-900 tabular-nums">{formatBRL(targetSum)}</span>
+          {err && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-800 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">{err}</div>}
+          <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/70">
+            <span className="text-slate-600 dark:text-slate-300">Saldo total a compensar nos títulos destino:</span>
+            <span className="font-mono font-bold text-slate-900 tabular-nums dark:text-slate-100">{formatBRL(targetSum)}</span>
           </div>
 
-          <div className="border border-slate-200 rounded-xl overflow-hidden">
+          <div className="border border-slate-200 rounded-xl overflow-hidden dark:border-slate-700">
             <table className="w-full text-left text-[11px]">
-              <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
+              <thead className="bg-slate-50 text-slate-500 border-b border-slate-200 dark:bg-slate-800/70 dark:text-slate-400 dark:border-slate-700">
                 <tr>
                   <th className="px-3 py-2 w-8">Usar</th>
                   <th className="px-3 py-2">Tipo / Documento</th>
@@ -510,7 +510,7 @@ export const DeductionModal: React.FC<DeductionModalProps> = ({
                   <th className="px-3 py-2 text-right w-32">Valor a Deduzir</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {availableCredits.map((c) => {
                   const bal = getBal(c);
                   return (
@@ -523,14 +523,14 @@ export const DeductionModal: React.FC<DeductionModalProps> = ({
                         />
                       </td>
                       <td className="px-3 py-2">
-                        <div className="font-mono font-semibold text-slate-900">
+                        <div className="font-mono font-semibold text-slate-900 dark:text-slate-100">
                           {c.documentNumber || c.titleCode}
                         </div>
-                        <div className="text-[10px] text-amber-800 font-semibold">
+                        <div className="text-[10px] text-amber-800 font-semibold dark:text-amber-300">
                           {String(c.titleType).toUpperCase()} · {c.description}
                         </div>
                       </td>
-                      <td className="px-3 py-2 text-right font-mono font-bold tabular-nums text-slate-700">
+                      <td className="px-3 py-2 text-right font-mono font-bold tabular-nums text-slate-700 dark:text-slate-200">
                         {formatBRL(bal)}
                       </td>
                       <td className="px-3 py-2">
@@ -541,7 +541,7 @@ export const DeductionModal: React.FC<DeductionModalProps> = ({
                           onChange={(e) =>
                             setAmountMap((p) => ({ ...p, [c.id]: formatCurrencyTyping(e.target.value) }))
                           }
-                          className="w-full rounded border border-slate-200 px-2 py-1 text-right font-mono disabled:bg-slate-50 tabular-nums"
+                          className="w-full rounded border border-slate-200 px-2 py-1 text-right font-mono disabled:bg-slate-50 tabular-nums dark:border-slate-700"
                         />
                       </td>
                     </tr>
@@ -552,16 +552,16 @@ export const DeductionModal: React.FC<DeductionModalProps> = ({
           </div>
 
           <div className="flex items-center justify-between text-xs font-semibold">
-            <span className="text-slate-600">Total da dedução selecionada:</span>
-            <span className="font-mono text-amber-800 font-bold tabular-nums">{formatBRL(totalToApply)}</span>
+            <span className="text-slate-600 dark:text-slate-300">Total da dedução selecionada:</span>
+            <span className="font-mono text-amber-800 font-bold tabular-nums dark:text-amber-300">{formatBRL(totalToApply)}</span>
           </div>
         </div>
 
-        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2">
+        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2 dark:border-slate-700 dark:bg-slate-800/70">
           <button
             type="button"
             onClick={() => (onSkip ? onSkip() : onClose())}
-            className="rounded-lg border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-700"
+            className="rounded-lg border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
           >
             {skipLabel}
           </button>
@@ -569,7 +569,7 @@ export const DeductionModal: React.FC<DeductionModalProps> = ({
             type="button"
             disabled={busy || totalToApply <= 0}
             onClick={handleApply}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
           >
             <Link2 className="w-3.5 h-3.5" />
             {busy ? 'Aplicando...' : 'Aplicar Dedução'}
@@ -624,47 +624,47 @@ export const ReleaseProtestProvisionModal: React.FC<ReleaseModalProps> = ({ titl
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 dark:bg-slate-950/80" onClick={onClose}>
       <form
         onSubmit={handleConfirm}
-        className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden text-xs"
+        className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden text-xs dark:border-slate-700 dark:bg-slate-900"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50 dark:border-slate-700 dark:bg-slate-800/70">
           <div className="flex items-center gap-2">
-            <Unlock className="w-4 h-4 text-emerald-700" />
-            <h3 className="font-display text-sm font-bold text-slate-900">
+            <Unlock className="w-4 h-4 text-emerald-700 dark:text-emerald-300" />
+            <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
               Liberar {releaseType === 'PROTEST' ? 'Protesto' : 'Provisão'}
             </h3>
           </div>
           <button type="button" onClick={onClose}>
-            <X className="w-4 h-4 text-slate-400" />
+            <X className="w-4 h-4 text-slate-400 dark:text-slate-400" />
           </button>
         </div>
 
         <div className="p-5 space-y-3">
-          {err && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-800">{err}</div>}
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-1">
-            <div className="font-mono font-bold text-slate-900">
+          {err && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-800 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">{err}</div>}
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-1 dark:border-slate-700 dark:bg-slate-800/70">
+            <div className="font-mono font-bold text-slate-900 dark:text-slate-100">
               {title.documentNumber || title.titleCode} · {formatBRL(getBal(title))}
             </div>
-            <div className="text-slate-600">{title.clientName || '—'} · {title.description}</div>
+            <div className="text-slate-600 dark:text-slate-300">{title.clientName || '—'} · {title.description}</div>
           </div>
           <div>
-            <label className="block font-semibold text-slate-700 mb-1">Motivo da Liberação *</label>
+            <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Motivo da Liberação *</label>
             <textarea
               rows={3}
               required
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Descreva a autorização ou justificativa para retornar o título ao status ABERTO..."
-              className="w-full rounded-lg border border-slate-200 p-2.5"
+              className="w-full rounded-lg border border-slate-200 p-2.5 dark:border-slate-700"
             />
           </div>
         </div>
 
-        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-700">
+        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex justify-end gap-2 dark:border-slate-700 dark:bg-slate-800/70">
+          <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
             Cancelar
           </button>
           <button type="submit" disabled={busy} className="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white hover:bg-emerald-700">
@@ -765,31 +765,31 @@ export const CancelSettlementModal: React.FC<CancelSettlementModalProps> = ({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 dark:bg-slate-950/80" onClick={onClose}>
       <div
-        className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden text-xs"
+        className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden text-xs dark:border-slate-700 dark:bg-slate-900"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-red-50/60">
+        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-red-50/60 dark:border-slate-700 dark:bg-red-950/50">
           <div>
-            <h3 className="font-display text-sm font-bold text-slate-900">Cancelar Baixa(s) & Estornar Saldo Bancário</h3>
-            <p className="text-[11px] text-slate-600">
+            <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">Cancelar Baixa(s) & Estornar Saldo Bancário</h3>
+            <p className="text-[11px] text-slate-600 dark:text-slate-300">
               Ao cancelar uma baixa, o título reabre o saldo correspondente e o lançamento no movimento bancário é estornado.
             </p>
           </div>
           <button type="button" onClick={onClose}>
-            <X className="w-4 h-4 text-slate-400" />
+            <X className="w-4 h-4 text-slate-400 dark:text-slate-400" />
           </button>
         </div>
 
         <div className="p-5 space-y-3 max-h-[60vh] overflow-y-auto">
-          {err && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-800">{err}</div>}
+          {err && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-800 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">{err}</div>}
           {fetchedRows.length === 0 ? (
-            <div className="py-8 text-center text-slate-500">Nenhuma baixa elegível encontrada nos títulos selecionados.</div>
+            <div className="py-8 text-center text-slate-500 dark:text-slate-400">Nenhuma baixa elegível encontrada nos títulos selecionados.</div>
           ) : (
-            <div className="rounded-xl border border-slate-200 overflow-hidden">
+            <div className="rounded-xl border border-slate-200 overflow-hidden dark:border-slate-700">
               <table className="w-full text-left text-[11px]">
-                <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
+                <thead className="bg-slate-50 text-slate-500 border-b border-slate-200 dark:bg-slate-800/70 dark:text-slate-400 dark:border-slate-700">
                   <tr>
                     <th className="px-3 py-2 w-8">Est.</th>
                     <th className="px-3 py-2">Documento</th>
@@ -798,7 +798,7 @@ export const CancelSettlementModal: React.FC<CancelSettlementModalProps> = ({
                     <th className="px-3 py-2 text-right">Valor Baixado</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {fetchedRows.map((r) => (
                     <tr key={r.id}>
                       <td className="px-3 py-2">
@@ -815,7 +815,7 @@ export const CancelSettlementModal: React.FC<CancelSettlementModalProps> = ({
                       <td className="px-3 py-2 font-mono font-semibold">{r.titleDoc}</td>
                       <td className="px-3 py-2 font-mono">{formatIsoDateToBR(r.settlementDate)}</td>
                       <td className="px-3 py-2">{r.origin} · {r.paymentMethod}</td>
-                      <td className="px-3 py-2 text-right font-mono font-bold tabular-nums text-emerald-700">
+                      <td className="px-3 py-2 text-right font-mono font-bold tabular-nums text-emerald-700 dark:text-emerald-300">
                         {formatBRL(r.amountCents)}
                       </td>
                     </tr>
@@ -826,10 +826,10 @@ export const CancelSettlementModal: React.FC<CancelSettlementModalProps> = ({
           )}
         </div>
 
-        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
-          <span className="text-[11px] text-slate-500">Atalho: Ctrl+Enter para confirmar</span>
+        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between dark:border-slate-700 dark:bg-slate-800/70">
+          <span className="text-[11px] text-slate-500 dark:text-slate-400">Atalho: Ctrl+Enter para confirmar</span>
           <div className="flex gap-2">
-            <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-700">
+            <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
               Fechar
             </button>
             <button
@@ -922,51 +922,51 @@ export const RecurringInstallmentsModal: React.FC<RecurringModalProps> = ({
   if (!modelTitle) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 dark:bg-slate-950/80" onClick={onClose}>
       <div
-        className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden text-xs"
+        className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden text-xs dark:border-slate-700 dark:bg-slate-900"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50 dark:border-slate-700 dark:bg-slate-800/70">
           <div className="flex items-center gap-2">
-            <Repeat className="w-4 h-4 text-blue-700" />
+            <Repeat className="w-4 h-4 text-blue-700 dark:text-blue-300" />
             <div>
-              <h3 className="font-display text-sm font-bold text-slate-900">Lançamento Recorrente Mensal</h3>
-              <p className="text-[11px] text-slate-500">
+              <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">Lançamento Recorrente Mensal</h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
                 Modelo: {modelTitle.documentNumber || modelTitle.titleCode} · {modelTitle.clientName}
               </p>
             </div>
           </div>
           <button type="button" onClick={onClose}>
-            <X className="w-4 h-4 text-slate-400" />
+            <X className="w-4 h-4 text-slate-400 dark:text-slate-400" />
           </button>
         </div>
 
         <div className="p-5 space-y-4">
-          {err && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-800">{err}</div>}
+          {err && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-800 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">{err}</div>}
           <div className="grid grid-cols-2 gap-4 items-end">
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Qtd. Parcelas Futuras (1 a 120) *</label>
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Qtd. Parcelas Futuras (1 a 120) *</label>
               <input
                 type="number"
                 min={1}
                 max={120}
                 value={qty}
                 onChange={(e) => setQty(Math.min(120, Math.max(1, Number(e.target.value || 1))))}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono font-bold"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono font-bold dark:border-slate-700"
               />
             </div>
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
-              <div className="text-[10px] text-slate-500">Valor unitário replicado</div>
-              <div className="font-mono font-bold text-slate-900 tabular-nums">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5 dark:border-slate-700 dark:bg-slate-800/70">
+              <div className="text-[10px] text-slate-500 dark:text-slate-400">Valor unitário replicado</div>
+              <div className="font-mono font-bold text-slate-900 tabular-nums dark:text-slate-100">
                 {formatBRL((modelTitle.originalValueCents ?? 0) > 0 ? (modelTitle.originalValueCents ?? 0) : modelTitle.amountCents)}
               </div>
             </div>
           </div>
 
-          <div className="border border-slate-200 rounded-xl max-h-56 overflow-y-auto">
+          <div className="border border-slate-200 rounded-xl max-h-56 overflow-y-auto dark:border-slate-700">
             <table className="w-full text-left text-[11px]">
-              <thead className="bg-slate-50 text-slate-500 border-b border-slate-200 sticky top-0">
+              <thead className="bg-slate-50 text-slate-500 border-b border-slate-200 sticky top-0 dark:bg-slate-800/70 dark:text-slate-400 dark:border-slate-700">
                 <tr>
                   <th className="px-3 py-1.5">Parcela</th>
                   <th className="px-3 py-1.5">Documento</th>
@@ -974,7 +974,7 @@ export const RecurringInstallmentsModal: React.FC<RecurringModalProps> = ({
                   <th className="px-3 py-1.5 text-right">Valor</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {preview.map((p) => (
                   <tr key={p.num}>
                     <td className="px-3 py-1.5 font-mono">{p.num}</td>
@@ -986,20 +986,20 @@ export const RecurringInstallmentsModal: React.FC<RecurringModalProps> = ({
               </tbody>
             </table>
             {qty > 24 && (
-              <div className="px-3 py-1.5 bg-slate-50 text-slate-500 text-center text-[10px]">
+              <div className="px-3 py-1.5 bg-slate-50 text-slate-500 text-center text-[10px] dark:bg-slate-800/70 dark:text-slate-400">
                 ... e mais {qty - 24} parcelas mensais subsequentes.
               </div>
             )}
           </div>
         </div>
 
-        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
-          <span className="text-[11px] text-slate-500">Atalho: Ctrl+Enter para gerar</span>
+        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between dark:border-slate-700 dark:bg-slate-800/70">
+          <span className="text-[11px] text-slate-500 dark:text-slate-400">Atalho: Ctrl+Enter para gerar</span>
           <div className="flex gap-2">
-            <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-700">
+            <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
               Cancelar
             </button>
-            <button type="button" disabled={busy} onClick={handleConfirm} className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800">
+            <button type="button" disabled={busy} onClick={handleConfirm} className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500">
               {busy ? 'Gerando...' : `Gerar ${qty} Parcelas`}
             </button>
           </div>
@@ -1034,29 +1034,29 @@ export const ViewChildrenModal: React.FC<ViewChildrenModalProps> = ({ parentTitl
   if (!parentTitle) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onClick={onClose}>
-      <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden text-xs" onClick={(e) => e.stopPropagation()}>
-        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 dark:bg-slate-950/80" onClick={onClose}>
+      <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden text-xs dark:border-slate-700 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50 dark:border-slate-700 dark:bg-slate-800/70">
           <div>
-            <h3 className="font-display text-sm font-bold text-slate-900">
+            <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
               Parcelas Recorrentes de {parentTitle.documentNumber || parentTitle.titleCode}
             </h3>
-            <p className="text-[11px] text-slate-500">Clique em qualquer parcela para abrir e editar</p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">Clique em qualquer parcela para abrir e editar</p>
           </div>
           <button type="button" onClick={onClose}>
-            <X className="w-4 h-4 text-slate-400" />
+            <X className="w-4 h-4 text-slate-400 dark:text-slate-400" />
           </button>
         </div>
 
         <div className="p-5 max-h-[65vh] overflow-y-auto">
           {loading ? (
-            <div className="py-8 text-center text-slate-500">Carregando parcelas...</div>
+            <div className="py-8 text-center text-slate-500 dark:text-slate-400">Carregando parcelas...</div>
           ) : children.length === 0 ? (
-            <div className="py-8 text-center text-slate-500">Nenhuma parcela filha encontrada para este título modelo.</div>
+            <div className="py-8 text-center text-slate-500 dark:text-slate-400">Nenhuma parcela filha encontrada para este título modelo.</div>
           ) : (
-            <div className="border border-slate-200 rounded-xl overflow-hidden">
+            <div className="border border-slate-200 rounded-xl overflow-hidden dark:border-slate-700">
               <table className="w-full text-left text-[11px]">
-                <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
+                <thead className="bg-slate-50 text-slate-500 border-b border-slate-200 dark:bg-slate-800/70 dark:text-slate-400 dark:border-slate-700">
                   <tr>
                     <th className="px-3 py-2">Documento</th>
                     <th className="px-3 py-2">Parcela</th>
@@ -1066,7 +1066,7 @@ export const ViewChildrenModal: React.FC<ViewChildrenModalProps> = ({ parentTitl
                     <th className="px-3 py-2">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {children.map((ch) => (
                     <tr
                       key={ch.id}
@@ -1076,7 +1076,7 @@ export const ViewChildrenModal: React.FC<ViewChildrenModalProps> = ({ parentTitl
                       }}
                       className="hover:bg-blue-50/40 cursor-pointer"
                     >
-                      <td className="px-3 py-2 font-mono font-semibold text-blue-700">
+                      <td className="px-3 py-2 font-mono font-semibold text-blue-700 dark:text-blue-300">
                         {ch.documentNumber || ch.titleCode}
                       </td>
                       <td className="px-3 py-2 font-mono">{ch.installmentNumber}/{ch.totalInstallments}</td>
@@ -1185,61 +1185,61 @@ export const GroupInvoiceModal: React.FC<GroupInvoiceModalProps> = ({ open, titl
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onClick={onClose}>
-      <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden text-xs" onClick={(e) => e.stopPropagation()}>
-        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-blue-50/70">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 dark:bg-slate-950/80" onClick={onClose}>
+      <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden text-xs dark:border-slate-700 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-blue-50/70 dark:border-slate-700 dark:bg-blue-950/50">
           <div className="flex items-center gap-2">
-            <Layers className="w-4 h-4 text-blue-700" />
+            <Layers className="w-4 h-4 text-blue-700 dark:text-blue-300" />
             <div>
-              <h3 className="font-display text-sm font-bold text-slate-900">Gerar Faturas (Agrupamento de Títulos)</h3>
-              <p className="text-[11px] text-slate-600">
+              <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">Gerar Faturas (Agrupamento de Títulos)</h3>
+              <p className="text-[11px] text-slate-600 dark:text-slate-300">
                 Agrupando {titles.length} título(s) · Valor consolidado: {formatBRL(totalBal)}
               </p>
             </div>
           </div>
           <button type="button" onClick={onClose}>
-            <X className="w-4 h-4 text-slate-400" />
+            <X className="w-4 h-4 text-slate-400 dark:text-slate-400" />
           </button>
         </div>
 
         <div className="p-5 space-y-4 max-h-[65vh] overflow-y-auto">
-          {err && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-800">{err}</div>}
+          {err && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-800 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">{err}</div>}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Doc. Base *</label>
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Doc. Base *</label>
               <input
                 type="text"
                 value={baseDoc}
                 onChange={(e) => setBaseDoc(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-mono font-bold"
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-mono font-bold dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               />
             </div>
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Parcelas (1-60)</label>
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Parcelas (1-60)</label>
               <input
                 type="number"
                 min={1}
                 max={60}
                 value={installments}
                 onChange={(e) => setInstallments(Math.min(60, Math.max(1, Number(e.target.value || 1))))}
-                className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-mono"
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-mono dark:border-slate-700"
               />
             </div>
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">1º Vencimento</label>
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">1º Vencimento</label>
               <input
                 type="date"
                 value={firstDueDate}
                 onChange={(e) => setFirstDueDate(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-mono"
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               />
             </div>
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Intervalo</label>
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Intervalo</label>
               <select
                 value={intervalDays}
                 onChange={(e) => setIntervalDays(Number(e.target.value))}
-                className="w-full rounded-lg border border-slate-200 px-2.5 py-2 bg-white"
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-2 bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               >
                 {[7, 10, 15, 20, 30, 45, 60, 90].map((d) => (
                   <option key={d} value={d}>
@@ -1250,12 +1250,12 @@ export const GroupInvoiceModal: React.FC<GroupInvoiceModalProps> = ({ open, titl
             </div>
           </div>
 
-          <div className="border border-slate-200 rounded-xl overflow-hidden">
-            <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 font-semibold text-slate-700">
+          <div className="border border-slate-200 rounded-xl overflow-hidden dark:border-slate-700">
+            <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 font-semibold text-slate-700 dark:bg-slate-800/70 dark:border-slate-700 dark:text-slate-200">
               Pré-visualização das Faturas a Emitir
             </div>
             <table className="w-full text-left text-[11px]">
-              <thead className="text-slate-500 border-b border-slate-100">
+              <thead className="text-slate-500 border-b border-slate-100 dark:text-slate-400 dark:border-slate-800">
                 <tr>
                   <th className="px-3 py-1.5">Parcela</th>
                   <th className="px-3 py-1.5">Nº Documento</th>
@@ -1263,11 +1263,11 @@ export const GroupInvoiceModal: React.FC<GroupInvoiceModalProps> = ({ open, titl
                   <th className="px-3 py-1.5 text-right">Valor</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {schedulePreview.map((s) => (
                   <tr key={s.num}>
                     <td className="px-3 py-1.5 font-mono">{s.num}/{installments}</td>
-                    <td className="px-3 py-1.5 font-mono font-semibold text-blue-700">{s.doc}</td>
+                    <td className="px-3 py-1.5 font-mono font-semibold text-blue-700 dark:text-blue-300">{s.doc}</td>
                     <td className="px-3 py-1.5 font-mono">{formatIsoDateToBR(s.due)}</td>
                     <td className="px-3 py-1.5 text-right font-mono font-bold tabular-nums">{formatBRL(s.val)}</td>
                   </tr>
@@ -1277,10 +1277,10 @@ export const GroupInvoiceModal: React.FC<GroupInvoiceModalProps> = ({ open, titl
           </div>
         </div>
 
-        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
-          <span className="text-[11px] text-slate-500">Atalho: Ctrl+Enter para gerar</span>
+        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between dark:border-slate-700 dark:bg-slate-800/70">
+          <span className="text-[11px] text-slate-500 dark:text-slate-400">Atalho: Ctrl+Enter para gerar</span>
           <div className="flex gap-2">
-            <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-700">
+            <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
               Cancelar
             </button>
             <button type="button" disabled={busy} onClick={handleConfirm} className="rounded-lg bg-blue-700 px-4 py-2 font-semibold text-white hover:bg-blue-800">
@@ -1312,30 +1312,30 @@ export const InvoiceTraceModal: React.FC<InvoiceTraceModalProps> = ({
   const invoices = groupRows.filter((r) => String(r.titleType).toUpperCase() === 'FATURA');
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onClick={onClose}>
-      <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden text-xs" onClick={(e) => e.stopPropagation()}>
-        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 dark:bg-slate-950/80" onClick={onClose}>
+      <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden text-xs dark:border-slate-700 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50 dark:border-slate-700 dark:bg-slate-800/70">
           <div>
-            <h3 className="font-display text-sm font-bold text-slate-900">
+            <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
               Rastreio de Faturamento · Grupo {targetTitle.invoiceGroupId?.slice(0, 8)}
             </h3>
-            <p className="text-[11px] text-slate-500">Origem dos títulos agrupados e faturas geradas</p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">Origem dos títulos agrupados e faturas geradas</p>
           </div>
           <button type="button" onClick={onClose}>
-            <X className="w-4 h-4 text-slate-400" />
+            <X className="w-4 h-4 text-slate-400 dark:text-slate-400" />
           </button>
         </div>
 
         <div className="p-5 space-y-4 max-h-[65vh] overflow-y-auto">
-          <div className="border border-slate-200 rounded-xl overflow-hidden">
-            <div className="px-3 py-2 bg-slate-50 font-semibold text-slate-700 border-b border-slate-200">
+          <div className="border border-slate-200 rounded-xl overflow-hidden dark:border-slate-700">
+            <div className="px-3 py-2 bg-slate-50 font-semibold text-slate-700 border-b border-slate-200 dark:bg-slate-800/70 dark:text-slate-200 dark:border-slate-700">
               Títulos Originais Agrupados ({origins.length})
             </div>
             <table className="w-full text-left text-[11px]">
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {origins.map((o) => (
                   <tr key={o.id} onClick={() => { onClose(); onOpenTitle(o); }} className="hover:bg-blue-50/40 cursor-pointer">
-                    <td className="px-3 py-2 font-mono font-semibold text-blue-700">{o.documentNumber || o.titleCode}</td>
+                    <td className="px-3 py-2 font-mono font-semibold text-blue-700 dark:text-blue-300">{o.documentNumber || o.titleCode}</td>
                     <td className="px-3 py-2">{o.description}</td>
                     <td className="px-3 py-2 font-mono">{formatIsoDateToBR(o.dueDate)}</td>
                     <td className="px-3 py-2 text-right font-mono tabular-nums">{formatBRL(o.originalValueCents || o.amountCents)}</td>
@@ -1345,15 +1345,15 @@ export const InvoiceTraceModal: React.FC<InvoiceTraceModalProps> = ({
             </table>
           </div>
 
-          <div className="border border-blue-200 rounded-xl overflow-hidden">
-            <div className="px-3 py-2 bg-blue-50 font-semibold text-blue-900 border-b border-blue-200">
+          <div className="border border-blue-200 rounded-xl overflow-hidden dark:border-blue-800/70">
+            <div className="px-3 py-2 bg-blue-50 font-semibold text-blue-900 border-b border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800/70">
               Faturas Emitidas ({invoices.length})
             </div>
             <table className="w-full text-left text-[11px]">
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {invoices.map((inv) => (
                   <tr key={inv.id} onClick={() => { onClose(); onOpenTitle(inv); }} className="hover:bg-blue-50/40 cursor-pointer">
-                    <td className="px-3 py-2 font-mono font-semibold text-blue-700">{inv.documentNumber || inv.titleCode}</td>
+                    <td className="px-3 py-2 font-mono font-semibold text-blue-700 dark:text-blue-300">{inv.documentNumber || inv.titleCode}</td>
                     <td className="px-3 py-2 font-mono">{inv.installmentNumber}/{inv.totalInstallments}</td>
                     <td className="px-3 py-2 font-mono">{formatIsoDateToBR(inv.dueDate)}</td>
                     <td className="px-3 py-2 text-right font-mono font-bold tabular-nums">{formatBRL(inv.amountCents)}</td>
@@ -1450,97 +1450,97 @@ export const EditPartnerModal: React.FC<EditPartnerModalProps> = ({ person, labe
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 dark:bg-slate-950/80" onClick={onClose}>
       <form
         onSubmit={handleSave}
-        className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden text-xs"
+        className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden text-xs dark:border-slate-700 dark:bg-slate-900"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-          <h3 className="font-display text-sm font-bold text-slate-900">Editar Cadastro de {label}</h3>
+        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50 dark:border-slate-700 dark:bg-slate-800/70">
+          <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">Editar Cadastro de {label}</h3>
           <button type="button" onClick={onClose}>
-            <X className="w-4 h-4 text-slate-400" />
+            <X className="w-4 h-4 text-slate-400 dark:text-slate-400" />
           </button>
         </div>
 
         <div className="p-5 space-y-3 max-h-[70vh] overflow-y-auto">
-          {err && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-800">{err}</div>}
+          {err && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-800 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">{err}</div>}
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
             <div className="sm:col-span-6">
-              <label className="block font-semibold text-slate-700 mb-1">Nome / Razão Social *</label>
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Nome / Razão Social *</label>
               <input
                 type="text"
                 required
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               />
             </div>
             <div className="sm:col-span-2">
-              <label className="block font-semibold text-slate-700 mb-1">Tipo</label>
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Tipo</label>
               <select
                 value={personNature}
                 onChange={(e) => setPersonNature(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-2.5 py-2 bg-white"
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-2 bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               >
                 <option value="PF">PF</option>
                 <option value="PJ">PJ</option>
               </select>
             </div>
             <div className="sm:col-span-4">
-              <label className="block font-semibold text-slate-700 mb-1">CPF / CNPJ</label>
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">CPF / CNPJ</label>
               <input
                 type="text"
                 value={cpfCnpj}
                 onChange={(e) => setCpfCnpj(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               />
             </div>
             <div className="sm:col-span-4">
-              <label className="block font-semibold text-slate-700 mb-1">Telefone</label>
-              <input type="text" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono" />
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Telefone</label>
+              <input type="text" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
             </div>
             <div className="sm:col-span-4">
-              <label className="block font-semibold text-slate-700 mb-1">WhatsApp</label>
-              <input type="text" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono" />
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">WhatsApp</label>
+              <input type="text" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
             </div>
             <div className="sm:col-span-4">
-              <label className="block font-semibold text-slate-700 mb-1">E-mail</label>
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2" />
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">E-mail</label>
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
             </div>
             <div className="sm:col-span-3">
-              <label className="block font-semibold text-slate-700 mb-1">CEP</label>
-              <input type="text" value={zipCode} onChange={(e) => setZipCode(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono" />
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">CEP</label>
+              <input type="text" value={zipCode} onChange={(e) => setZipCode(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
             </div>
             <div className="sm:col-span-7">
-              <label className="block font-semibold text-slate-700 mb-1">Endereço</label>
-              <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2" />
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Endereço</label>
+              <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
             </div>
             <div className="sm:col-span-2">
-              <label className="block font-semibold text-slate-700 mb-1">Número</label>
-              <input type="text" value={addressNumber} onChange={(e) => setAddressNumber(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2" />
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Número</label>
+              <input type="text" value={addressNumber} onChange={(e) => setAddressNumber(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
             </div>
             <div className="sm:col-span-4">
-              <label className="block font-semibold text-slate-700 mb-1">Bairro</label>
-              <input type="text" value={neighborhood} onChange={(e) => setNeighborhood(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2" />
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Bairro</label>
+              <input type="text" value={neighborhood} onChange={(e) => setNeighborhood(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
             </div>
             <div className="sm:col-span-6">
-              <label className="block font-semibold text-slate-700 mb-1">Cidade</label>
-              <input type="text" value={city} onChange={(e) => setCity(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2" />
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Cidade</label>
+              <input type="text" value={city} onChange={(e) => setCity(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
             </div>
             <div className="sm:col-span-2">
-              <label className="block font-semibold text-slate-700 mb-1">UF</label>
-              <input type="text" maxLength={2} value={stateUf} onChange={(e) => setStateUf(e.target.value.toUpperCase())} className="w-full rounded-lg border border-slate-200 px-3 py-2 uppercase font-mono" />
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">UF</label>
+              <input type="text" maxLength={2} value={stateUf} onChange={(e) => setStateUf(e.target.value.toUpperCase())} className="w-full rounded-lg border border-slate-200 px-3 py-2 uppercase font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
             </div>
             <div className="sm:col-span-12">
-              <label className="block font-semibold text-slate-700 mb-1">Observações</label>
-              <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2" />
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Observações</label>
+              <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
             </div>
           </div>
         </div>
 
-        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-700">
+        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex justify-end gap-2 dark:border-slate-700 dark:bg-slate-800/70">
+          <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
             Cancelar
           </button>
           <button type="submit" disabled={busy} className="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white hover:bg-emerald-700">
@@ -1628,34 +1628,34 @@ export const CancelTitlesModal: React.FC<CancelTitlesModalProps> = ({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onClick={onClose}>
-      <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden text-xs" onClick={(e) => e.stopPropagation()}>
-        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-red-50/70">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 dark:bg-slate-950/80" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden text-xs dark:border-slate-700 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-red-50/70 dark:border-slate-700 dark:bg-red-950/50">
           <div className="flex items-center gap-2">
-            <ShieldAlert className="w-4 h-4 text-red-700" />
-            <h3 className="font-display text-sm font-bold text-slate-900">
+            <ShieldAlert className="w-4 h-4 text-red-700 dark:text-red-300" />
+            <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
               {isInvoiceGroup ? 'Cancelar Grupo de Faturas' : `Confirmar Cancelamento (${titles.length})`}
             </h3>
           </div>
           <button type="button" onClick={onClose}>
-            <X className="w-4 h-4 text-slate-400" />
+            <X className="w-4 h-4 text-slate-400 dark:text-slate-400" />
           </button>
         </div>
 
         <div className="p-5 space-y-3">
-          {err && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-800">{err}</div>}
+          {err && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-800 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">{err}</div>}
           {isInvoiceGroup ? (
-            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-blue-950 leading-relaxed">
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-blue-950 leading-relaxed dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300">
               Esta operação cancelará as faturas deste grupo e <strong>reabrirá automaticamente os títulos de origem</strong> para o status ABERTO com saldo restaurado.
             </div>
           ) : (
-            <p className="text-slate-600 leading-relaxed">
+            <p className="text-slate-600 leading-relaxed dark:text-slate-300">
               Os títulos abaixo terão o status alterado para <strong>CANCELADO</strong> e saldo zerado. Caso necessite voltar atrás depois, utilize a opção <em>Reabrir Título</em>.
             </p>
           )}
 
           {impact && (impact.collectionNotesCount > 0 || impact.negotiationsCount > 0 || impact.legalProcessesCount > 0) && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900 space-y-1">
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900 space-y-1 dark:border-amber-800/70 dark:bg-amber-950/50 dark:text-amber-300">
               <div className="font-bold">Impacto detectado na operação:</div>
               <div>
                 Cobrança: {impact.collectionNotesCount} · Negociações ativas: {impact.negotiationsCount} · Processos Jurídicos: {impact.legalProcessesCount}
@@ -1663,10 +1663,10 @@ export const CancelTitlesModal: React.FC<CancelTitlesModalProps> = ({
             </div>
           )}
 
-          <div className="border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-44 overflow-y-auto">
+          <div className="border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-44 overflow-y-auto dark:border-slate-700 dark:divide-slate-800">
             {titles.map((t) => (
               <div key={t.id} className="px-3 py-2 flex items-center justify-between">
-                <span className="font-mono font-semibold text-slate-900">
+                <span className="font-mono font-semibold text-slate-900 dark:text-slate-100">
                   {t.documentNumber || t.titleCode} · {t.clientName || '—'}
                 </span>
                 <span className="font-mono font-bold tabular-nums">{formatBRL(t.amountCents)}</span>
@@ -1675,8 +1675,8 @@ export const CancelTitlesModal: React.FC<CancelTitlesModalProps> = ({
           </div>
         </div>
 
-        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-700">
+        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex justify-end gap-2 dark:border-slate-700 dark:bg-slate-800/70">
+          <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
             Voltar
           </button>
           <button type="button" disabled={busy} onClick={handleConfirm} className="rounded-lg bg-red-600 px-4 py-2 font-semibold text-white hover:bg-red-700">
@@ -1719,25 +1719,25 @@ export const DeleteTitleConfirmModal: React.FC<DeleteTitleConfirmModalProps> = (
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onClick={onClose}>
-      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden text-xs" onClick={(e) => e.stopPropagation()}>
-        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-red-50">
-          <div className="flex items-center gap-2 text-red-900">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 dark:bg-slate-950/80" onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden text-xs dark:border-slate-700 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-red-50 dark:border-slate-700 dark:bg-red-950/50">
+          <div className="flex items-center gap-2 text-red-900 dark:text-red-300">
             <Trash2 className="w-4 h-4" />
             <h3 className="font-display text-sm font-bold">Excluir Título Definitivamente</h3>
           </div>
           <button type="button" onClick={onClose}>
-            <X className="w-4 h-4 text-slate-400" />
+            <X className="w-4 h-4 text-slate-400 dark:text-slate-400" />
           </button>
         </div>
         <div className="p-5 space-y-3">
-          {err && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-800">{err}</div>}
-          <p className="text-slate-600">
+          {err && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-800 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">{err}</div>}
+          <p className="text-slate-600 dark:text-slate-300">
             Deseja excluir permanentemente o título cancelado <strong>{target.documentNumber || target.titleCode}</strong> ({formatBRL(target.amountCents)})? Esta ação não pode ser desfeita.
           </p>
         </div>
-        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-700">
+        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex justify-end gap-2 dark:border-slate-700 dark:bg-slate-800/70">
+          <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
             Cancelar
           </button>
           <button type="button" disabled={busy} onClick={handleDelete} className="rounded-lg bg-red-600 px-4 py-2 font-semibold text-white hover:bg-red-700">
@@ -1794,27 +1794,27 @@ export const AdmissionViewerModal: React.FC<AdmissionViewerModalProps> = ({
   if (!admissionId) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 dark:bg-slate-950/80" onClick={onClose}>
       <div
-        className="w-full max-w-4xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden text-xs max-h-[85vh] flex flex-col"
+        className="w-full max-w-4xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden text-xs max-h-[85vh] flex flex-col dark:border-slate-700 dark:bg-slate-900"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50 dark:border-slate-700 dark:bg-slate-800/70">
           <div className="flex items-center gap-2">
-            <FileText className="w-4 h-4 text-blue-700" />
+            <FileText className="w-4 h-4 text-blue-700 dark:text-blue-300" />
             <div>
-              <h3 className="font-display text-sm font-bold text-slate-900">
+              <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                 Ficha de Admissão & Contrato · Ref. {contractRef}
               </h3>
-              <p className="text-[11px] text-slate-500">Consulta de origem operacional e dossiê documental</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">Consulta de origem operacional e dossiê documental</p>
             </div>
           </div>
           <button type="button" onClick={onClose}>
-            <X className="w-4 h-4 text-slate-400" />
+            <X className="w-4 h-4 text-slate-400 dark:text-slate-400" />
           </button>
         </div>
 
-        <div className="px-5 pt-2 border-b border-slate-200 flex items-center gap-2 overflow-x-auto">
+        <div className="px-5 pt-2 border-b border-slate-200 flex items-center gap-2 overflow-x-auto dark:border-slate-700">
           {[
             { id: 'geral' as const, label: 'Dados Gerais & Veículo' },
             { id: 'financeiro' as const, label: 'Financeiro & Cenários' },
@@ -1826,7 +1826,7 @@ export const AdmissionViewerModal: React.FC<AdmissionViewerModalProps> = ({
               type="button"
               onClick={() => setTab(t.id)}
               className={`px-3 py-2 font-semibold border-b-2 whitespace-nowrap ${
-                tab === t.id ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500'
+                tab === t.id ? 'border-slate-900 text-slate-900 dark:border-emerald-500 dark:text-slate-100' : 'border-transparent text-slate-500 dark:text-slate-400'
               }`}
             >
               {t.label}
@@ -1836,65 +1836,65 @@ export const AdmissionViewerModal: React.FC<AdmissionViewerModalProps> = ({
 
         <div className="p-5 overflow-y-auto flex-1">
           {loading ? (
-            <div className="py-12 text-center text-slate-500">Carregando ficha completa...</div>
+            <div className="py-12 text-center text-slate-500 dark:text-slate-400">Carregando ficha completa...</div>
           ) : !data ? (
-            <div className="py-12 text-center text-slate-500">Ficha de admissão não localizada.</div>
+            <div className="py-12 text-center text-slate-500 dark:text-slate-400">Ficha de admissão não localizada.</div>
           ) : tab === 'geral' ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div className="rounded-lg border border-slate-200 p-3">
-                <div className="text-[10px] text-slate-500">Protocolo</div>
-                <div className="font-mono font-bold text-slate-900">{data.admission.protocolCode}</div>
+              <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                <div className="text-[10px] text-slate-500 dark:text-slate-400">Protocolo</div>
+                <div className="font-mono font-bold text-slate-900 dark:text-slate-100">{data.admission.protocolCode}</div>
               </div>
-              <div className="rounded-lg border border-slate-200 p-3">
-                <div className="text-[10px] text-slate-500">Cliente</div>
-                <div className="font-bold text-slate-900">{data.client?.fullName || '—'}</div>
-                <div className="font-mono text-[11px] text-slate-500">{data.client?.cpfCnpj || ''}</div>
+              <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                <div className="text-[10px] text-slate-500 dark:text-slate-400">Cliente</div>
+                <div className="font-bold text-slate-900 dark:text-slate-100">{data.client?.fullName || '—'}</div>
+                <div className="font-mono text-[11px] text-slate-500 dark:text-slate-400">{data.client?.cpfCnpj || ''}</div>
               </div>
-              <div className="rounded-lg border border-slate-200 p-3">
-                <div className="text-[10px] text-slate-500">Banco / Modalidade</div>
-                <div className="font-bold text-slate-900">{data.admission.bankName}</div>
-                <div className="text-slate-600">{data.admission.modality || data.admission.debtType}</div>
+              <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                <div className="text-[10px] text-slate-500 dark:text-slate-400">Banco / Modalidade</div>
+                <div className="font-bold text-slate-900 dark:text-slate-100">{data.admission.bankName}</div>
+                <div className="text-slate-600 dark:text-slate-300">{data.admission.modality || data.admission.debtType}</div>
               </div>
-              <div className="rounded-lg border border-slate-200 p-3">
-                <div className="text-[10px] text-slate-500">Veículo</div>
-                <div className="font-semibold text-slate-900">{data.admission.vehicleModel || 'Não informado'}</div>
-                <div className="font-mono text-slate-500">Placa: {data.admission.vehiclePlate || '—'}</div>
+              <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                <div className="text-[10px] text-slate-500 dark:text-slate-400">Veículo</div>
+                <div className="font-semibold text-slate-900 dark:text-slate-100">{data.admission.vehicleModel || 'Não informado'}</div>
+                <div className="font-mono text-slate-500 dark:text-slate-400">Placa: {data.admission.vehiclePlate || '—'}</div>
               </div>
-              <div className="rounded-lg border border-slate-200 p-3">
-                <div className="text-[10px] text-slate-500">Status Auditoria</div>
-                <div className="font-bold text-blue-700 uppercase">{data.admission.status}</div>
+              <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                <div className="text-[10px] text-slate-500 dark:text-slate-400">Status Auditoria</div>
+                <div className="font-bold text-blue-700 uppercase dark:text-blue-300">{data.admission.status}</div>
               </div>
-              <div className="rounded-lg border border-slate-200 p-3">
-                <div className="text-[10px] text-slate-500">Consultor</div>
-                <div className="font-semibold text-slate-900">{data.admission.consultantName || '—'}</div>
+              <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                <div className="text-[10px] text-slate-500 dark:text-slate-400">Consultor</div>
+                <div className="font-semibold text-slate-900 dark:text-slate-100">{data.admission.consultantName || '—'}</div>
               </div>
             </div>
           ) : tab === 'financeiro' ? (
             <div className="space-y-4">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="rounded-lg border border-slate-200 p-3">
-                  <div className="text-[10px] text-slate-500">Dívida Declarada</div>
-                  <div className="font-mono font-bold text-slate-900 tabular-nums">{formatBRL(data.admission.debtAmountCents)}</div>
+                <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400">Dívida Declarada</div>
+                  <div className="font-mono font-bold text-slate-900 tabular-nums dark:text-slate-100">{formatBRL(data.admission.debtAmountCents)}</div>
                 </div>
-                <div className="rounded-lg border border-slate-200 p-3">
-                  <div className="text-[10px] text-slate-500">Taxa de Serviço</div>
-                  <div className="font-mono font-bold text-emerald-700 tabular-nums">{formatBRL(data.admission.serviceFeeCents)}</div>
+                <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400">Taxa de Serviço</div>
+                  <div className="font-mono font-bold text-emerald-700 tabular-nums dark:text-emerald-300">{formatBRL(data.admission.serviceFeeCents)}</div>
                 </div>
-                <div className="rounded-lg border border-slate-200 p-3">
-                  <div className="text-[10px] text-slate-500">Parcelas</div>
-                  <div className="font-mono font-bold text-slate-900">{data.admission.installmentsCount}x</div>
+                <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400">Parcelas</div>
+                  <div className="font-mono font-bold text-slate-900 dark:text-slate-100">{data.admission.installmentsCount}x</div>
                 </div>
-                <div className="rounded-lg border border-slate-200 p-3">
-                  <div className="text-[10px] text-slate-500">Taxa Inicial</div>
-                  <div className="font-mono font-bold text-slate-900 tabular-nums">{formatBRL(data.admission.initialInstallmentCents)}</div>
+                <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400">Taxa Inicial</div>
+                  <div className="font-mono font-bold text-slate-900 tabular-nums dark:text-slate-100">{formatBRL(data.admission.initialInstallmentCents)}</div>
                 </div>
               </div>
 
               {data.recalcScenarios.length > 0 && (
-                <div className="border border-slate-200 rounded-xl overflow-hidden">
-                  <div className="px-3 py-2 bg-slate-50 font-semibold border-b border-slate-200">Cenários de Recálculo</div>
+                <div className="border border-slate-200 rounded-xl overflow-hidden dark:border-slate-700">
+                  <div className="px-3 py-2 bg-slate-50 font-semibold border-b border-slate-200 dark:bg-slate-800/70 dark:border-slate-700">Cenários de Recálculo</div>
                   <table className="w-full text-left text-[11px]">
-                    <thead className="text-slate-500 border-b border-slate-100">
+                    <thead className="text-slate-500 border-b border-slate-100 dark:text-slate-400 dark:border-slate-800">
                       <tr>
                         <th className="px-3 py-1.5">Taxa Contrato</th>
                         <th className="px-3 py-1.5">Média BACEN</th>
@@ -1903,14 +1903,14 @@ export const AdmissionViewerModal: React.FC<AdmissionViewerModalProps> = ({
                         <th className="px-3 py-1.5 text-right">Economia Projetada</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {data.recalcScenarios.map((sc) => (
                         <tr key={sc.id}>
                           <td className="px-3 py-2 font-mono">{sc.contractRateMonthlyPct}% a.m.</td>
                           <td className="px-3 py-2 font-mono">{sc.bacenAvgRateMonthlyPct}% a.m.</td>
                           <td className="px-3 py-2 text-right font-mono tabular-nums">{formatBRL(sc.originalInstallmentCents)}</td>
                           <td className="px-3 py-2 text-right font-mono tabular-nums">{formatBRL(sc.fairInstallmentCents)}</td>
-                          <td className="px-3 py-2 text-right font-mono font-bold text-emerald-700 tabular-nums">{formatBRL(sc.projectedSavingsCents)}</td>
+                          <td className="px-3 py-2 text-right font-mono font-bold text-emerald-700 tabular-nums dark:text-emerald-300">{formatBRL(sc.projectedSavingsCents)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1919,12 +1919,12 @@ export const AdmissionViewerModal: React.FC<AdmissionViewerModalProps> = ({
               )}
             </div>
           ) : tab === 'docs' ? (
-            <div className="border border-slate-200 rounded-xl overflow-hidden">
+            <div className="border border-slate-200 rounded-xl overflow-hidden dark:border-slate-700">
               {data.documents.length === 0 ? (
-                <div className="py-8 text-center text-slate-500">Nenhum anexo localizado no dossiê.</div>
+                <div className="py-8 text-center text-slate-500 dark:text-slate-400">Nenhum anexo localizado no dossiê.</div>
               ) : (
                 <table className="w-full text-left text-[11px]">
-                  <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
+                  <thead className="bg-slate-50 text-slate-500 border-b border-slate-200 dark:bg-slate-800/70 dark:text-slate-400 dark:border-slate-700">
                     <tr>
                       <th className="px-3 py-2">Arquivo</th>
                       <th className="px-3 py-2">Categoria</th>
@@ -1932,19 +1932,19 @@ export const AdmissionViewerModal: React.FC<AdmissionViewerModalProps> = ({
                       <th className="px-3 py-2 text-right">Acesso</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {data.documents.map((doc) => (
                       <tr key={doc.id}>
                         <td className="px-3 py-2 font-semibold">{doc.fileName}</td>
                         <td className="px-3 py-2">{doc.docCategory}</td>
-                        <td className="px-3 py-2 font-mono text-slate-500">{doc.folderPath}</td>
+                        <td className="px-3 py-2 font-mono text-slate-500 dark:text-slate-400">{doc.folderPath}</td>
                         <td className="px-3 py-2 text-right">
                           {doc.storageUri ? (
                             <a
                               href={doc.storageUri}
                               target="_blank"
                               rel="noreferrer"
-                              className="inline-flex items-center gap-1 text-blue-700 font-semibold hover:underline"
+                              className="inline-flex items-center gap-1 text-blue-700 font-semibold hover:underline dark:text-blue-300"
                             >
                               <ExternalLink className="w-3 h-3" />
                               Abrir
@@ -1962,18 +1962,18 @@ export const AdmissionViewerModal: React.FC<AdmissionViewerModalProps> = ({
           ) : (
             <div className="space-y-3">
               {data.legalProcesses.length === 0 ? (
-                <div className="py-8 text-center text-slate-500">Nenhum processo judicial vinculado a esta admissão.</div>
+                <div className="py-8 text-center text-slate-500 dark:text-slate-400">Nenhum processo judicial vinculado a esta admissão.</div>
               ) : (
                 data.legalProcesses.map((proc) => (
-                  <div key={proc.id} className="rounded-xl border border-slate-200 p-3 space-y-2">
-                    <div className="flex items-center justify-between font-bold text-slate-900">
+                  <div key={proc.id} className="rounded-xl border border-slate-200 p-3 space-y-2 dark:border-slate-700">
+                    <div className="flex items-center justify-between font-bold text-slate-900 dark:text-slate-100">
                       <span className="flex items-center gap-1.5 font-mono">
-                        <Scale className="w-3.5 h-3.5 text-blue-700" />
+                        <Scale className="w-3.5 h-3.5 text-blue-700 dark:text-blue-300" />
                         {proc.processNumber} · {proc.courtName}
                       </span>
-                      <span className="text-[11px] uppercase text-blue-700">{proc.status}</span>
+                      <span className="text-[11px] uppercase text-blue-700 dark:text-blue-300">{proc.status}</span>
                     </div>
-                    <div className="text-slate-600">
+                    <div className="text-slate-600 dark:text-slate-300">
                       {proc.actionType}
                       {proc.lastMovementAt ? ` · Última movimentação em ${formatIsoDateToBR(proc.lastMovementAt)}` : ''}
                     </div>
@@ -2028,35 +2028,35 @@ export const TitleAuditModal: React.FC<TitleAuditModalProps> = ({ target, scope,
   const slice = logs.slice((page - 1) * pageSize, page * pageSize);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 dark:bg-slate-950/80" onClick={onClose}>
       <div
-        className="w-full max-w-4xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden text-xs max-h-[85vh] flex flex-col"
+        className="w-full max-w-4xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden text-xs max-h-[85vh] flex flex-col dark:border-slate-700 dark:bg-slate-900"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50 dark:border-slate-700 dark:bg-slate-800/70">
           <div className="flex items-center gap-2">
-            <History className="w-4 h-4 text-slate-700" />
+            <History className="w-4 h-4 text-slate-700 dark:text-slate-200" />
             <div>
-              <h3 className="font-display text-sm font-bold text-slate-900">
+              <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                 Auditoria do Título · {target.documentNumber || target.titleCode}
               </h3>
-              <p className="text-[11px] text-slate-500">Trilha completa de criação, edições, baixas, estornos e régua ({logs.length} eventos)</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">Trilha completa de criação, edições, baixas, estornos e régua ({logs.length} eventos)</p>
             </div>
           </div>
           <button type="button" onClick={onClose}>
-            <X className="w-4 h-4 text-slate-400" />
+            <X className="w-4 h-4 text-slate-400 dark:text-slate-400" />
           </button>
         </div>
 
         <div className="p-5 overflow-y-auto flex-1">
           {loading ? (
-            <div className="py-10 text-center text-slate-500">Carregando trilha de auditoria...</div>
+            <div className="py-10 text-center text-slate-500 dark:text-slate-400">Carregando trilha de auditoria...</div>
           ) : logs.length === 0 ? (
-            <div className="py-10 text-center text-slate-500">Nenhum evento de auditoria registrado para este título.</div>
+            <div className="py-10 text-center text-slate-500 dark:text-slate-400">Nenhum evento de auditoria registrado para este título.</div>
           ) : (
-            <div className="border border-slate-200 rounded-xl overflow-hidden">
+            <div className="border border-slate-200 rounded-xl overflow-hidden dark:border-slate-700">
               <table className="w-full text-left text-[11px]">
-                <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
+                <thead className="bg-slate-50 text-slate-500 border-b border-slate-200 dark:bg-slate-800/70 dark:text-slate-400 dark:border-slate-700">
                   <tr>
                     <th className="px-3 py-2">Data/Hora</th>
                     <th className="px-3 py-2">Usuário</th>
@@ -2064,20 +2064,20 @@ export const TitleAuditModal: React.FC<TitleAuditModalProps> = ({ target, scope,
                     <th className="px-3 py-2">Alterações (Campo · De → Para)</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {slice.map((l) => (
                     <tr key={l.id}>
-                      <td className="px-3 py-2 font-mono tabular-nums whitespace-nowrap text-slate-600">
+                      <td className="px-3 py-2 font-mono tabular-nums whitespace-nowrap text-slate-600 dark:text-slate-300">
                         {new Date(l.createdAt).toLocaleString('pt-BR')}
                       </td>
-                      <td className="px-3 py-2 font-semibold text-slate-800">{l.userName}</td>
-                      <td className="px-3 py-2 font-mono text-slate-700">{l.action}</td>
+                      <td className="px-3 py-2 font-semibold text-slate-800 dark:text-slate-100">{l.userName}</td>
+                      <td className="px-3 py-2 font-mono text-slate-700 dark:text-slate-200">{l.action}</td>
                       <td className="px-3 py-2 space-y-0.5">
                         {(l.details?.changes || []).map((c, idx) => (
-                          <div key={idx} className="text-slate-700">
+                          <div key={idx} className="text-slate-700 dark:text-slate-200">
                             <span className="font-semibold">{c.field}:</span>{' '}
-                            <span className="text-slate-500">{c.from || '—'}</span> →{' '}
-                            <span className="font-semibold text-slate-900">{c.to || '—'}</span>
+                            <span className="text-slate-500 dark:text-slate-400">{c.from || '—'}</span> →{' '}
+                            <span className="font-semibold text-slate-900 dark:text-slate-100">{c.to || '—'}</span>
                           </div>
                         ))}
                       </td>
@@ -2090,8 +2090,8 @@ export const TitleAuditModal: React.FC<TitleAuditModalProps> = ({ target, scope,
         </div>
 
         {totalPages > 1 && (
-          <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
-            <span className="text-[11px] text-slate-500">
+          <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between dark:border-slate-700 dark:bg-slate-800/70">
+            <span className="text-[11px] text-slate-500 dark:text-slate-400">
               Página {page} de {totalPages}
             </span>
             <div className="flex gap-2">
@@ -2099,7 +2099,7 @@ export const TitleAuditModal: React.FC<TitleAuditModalProps> = ({ target, scope,
                 type="button"
                 disabled={page <= 1}
                 onClick={() => setPage((p) => p - 1)}
-                className="rounded border border-slate-200 bg-white px-3 py-1 font-semibold disabled:opacity-40"
+                className="rounded border border-slate-200 bg-white px-3 py-1 font-semibold disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900"
               >
                 Anterior
               </button>
@@ -2107,7 +2107,7 @@ export const TitleAuditModal: React.FC<TitleAuditModalProps> = ({ target, scope,
                 type="button"
                 disabled={page >= totalPages}
                 onClick={() => setPage((p) => p + 1)}
-                className="rounded border border-slate-200 bg-white px-3 py-1 font-semibold disabled:opacity-40"
+                className="rounded border border-slate-200 bg-white px-3 py-1 font-semibold disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900"
               >
                 Próxima
               </button>

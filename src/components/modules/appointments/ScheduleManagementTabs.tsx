@@ -149,16 +149,16 @@ export const BlocksTabView: React.FC<{
       {/* Formulário Bloquear Agenda de Profissional */}
       <form
         onSubmit={handleSubmit}
-        className="rounded-xl border border-slate-200 bg-white p-5 space-y-4 text-xs overflow-x-auto scroll-rulers"
+        className="rounded-xl border border-slate-200 bg-white p-5 space-y-4 text-xs overflow-x-auto scroll-rulers dark:border-slate-700 dark:bg-slate-900"
       >
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 dark:border-slate-800">
           <div className="flex items-center gap-2">
-            <Ban className="w-4 h-4 text-amber-700" />
+            <Ban className="w-4 h-4 text-amber-700 dark:text-amber-300" />
             <div>
-              <h3 className="font-display text-sm font-bold text-slate-900">
+              <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                 Bloquear Agenda de Profissional
               </h3>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
                 Slots bloqueados aparecem hachurados na grade e impedem criação ou movimentação de horários.
               </p>
             </div>
@@ -166,7 +166,7 @@ export const BlocksTabView: React.FC<{
           <button
             type="button"
             onClick={onBack}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             <ArrowLeft className="w-3.5 h-3.5" /> Voltar
           </button>
@@ -174,14 +174,14 @@ export const BlocksTabView: React.FC<{
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
           <div className="sm:col-span-2">
-            <label className="block font-semibold text-slate-700 mb-1">
+            <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">
               Consultor Responsável *
             </label>
             <select
               required
               value={collabId}
               onChange={(e) => setCollabId(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 font-medium text-slate-900"
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 font-medium text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
             >
               <option value="">Selecione...</option>
               {activeCollabs.map((c) => (
@@ -193,7 +193,7 @@ export const BlocksTabView: React.FC<{
           </div>
 
           <div>
-            <label className="block font-semibold text-slate-700 mb-1">Data Início *</label>
+            <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Data Início *</label>
             <input
               type="date"
               required
@@ -202,55 +202,55 @@ export const BlocksTabView: React.FC<{
                 setStartDate(e.target.value);
                 if (endDate < e.target.value) setEndDate(e.target.value);
               }}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700"
             />
           </div>
 
           <div>
-            <label className="block font-semibold text-slate-700 mb-1">Data Fim *</label>
+            <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Data Fim *</label>
             <input
               type="date"
               required
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             />
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-4">
-          <label className="inline-flex items-center gap-2 font-semibold text-slate-800 cursor-pointer">
+          <label className="inline-flex items-center gap-2 font-semibold text-slate-800 cursor-pointer dark:text-slate-100">
             <input
               type="checkbox"
               checked={allDay}
               onChange={(e) => setAllDay(e.target.checked)}
-              className="h-4 w-4 rounded border-slate-300 text-slate-900"
+              className="h-4 w-4 rounded border-slate-300 text-slate-900 dark:border-slate-600 dark:text-slate-100"
             />
             Bloquear dia inteiro
           </label>
 
           {!allDay && (
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-semibold text-slate-600">Hora Início:</span>
+              <span className="font-semibold text-slate-600 dark:text-slate-300">Hora Início:</span>
               <input
                 type="time"
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
-                className="rounded-lg border border-slate-200 px-2.5 py-1.5 font-mono"
+                className="rounded-lg border border-slate-200 px-2.5 py-1.5 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               />
-              <span className="font-semibold text-slate-600">Hora Fim:</span>
+              <span className="font-semibold text-slate-600 dark:text-slate-300">Hora Fim:</span>
               <input
                 type="time"
                 value={endTime}
                 onChange={(e) => setEndTime(e.target.value)}
-                className="rounded-lg border border-slate-200 px-2.5 py-1.5 font-mono"
+                className="rounded-lg border border-slate-200 px-2.5 py-1.5 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               />
             </div>
           )}
         </div>
 
         <div>
-          <label className="block font-semibold text-slate-700 mb-1.5">
+          <label className="block font-semibold text-slate-700 mb-1.5 dark:text-slate-200">
             Repetir nos dias da semana
           </label>
           <div className="flex flex-wrap gap-1.5">
@@ -263,8 +263,8 @@ export const BlocksTabView: React.FC<{
                   onClick={() => toggleWeekday(d.value)}
                   className={`rounded-lg border px-3 py-1.5 font-semibold transition-colors ${
                     checked
-                      ? 'border-slate-900 bg-slate-900 text-white'
-                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      ? 'border-slate-900 bg-slate-900 text-white dark:border-emerald-500 dark:bg-emerald-600'
+                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
                   }`}
                 >
                   {d.short}
@@ -276,21 +276,21 @@ export const BlocksTabView: React.FC<{
 
         <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
           <div className="sm:col-span-9">
-            <label className="block font-semibold text-slate-700 mb-1">Motivo *</label>
+            <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Motivo *</label>
             <input
               type="text"
               required
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Ex: Visita externa, Reunião de alinhamento, Férias, Atestado..."
-              className="w-full rounded-lg border border-slate-200 px-3 py-2"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700"
             />
           </div>
           <div className="sm:col-span-3 flex justify-end">
             <button
               type="submit"
               disabled={saving}
-              className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2.5 font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+              className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2.5 font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
             >
               <Ban className="w-3.5 h-3.5" />
               {saving ? 'Salvando...' : 'Registrar Bloqueio'}
@@ -299,23 +299,23 @@ export const BlocksTabView: React.FC<{
         </div>
 
         {err && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 font-medium">
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 font-medium dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
             {err}
           </div>
         )}
       </form>
 
       {/* Grade de Dados: Lista de Bloqueios Ativos com réguas horizontal e vertical */}
-      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden text-xs">
-        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between">
-          <h4 className="font-display text-sm font-bold text-slate-900">
+      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden text-xs dark:border-slate-700 dark:bg-slate-900">
+        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between dark:border-slate-700">
+          <h4 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
             Lista de Bloqueios Ativos ({blocks.length})
           </h4>
         </div>
         <div className="overflow-x-auto overflow-y-auto max-h-[55vh] scroll-rulers">
           <table className="w-full min-w-[680px] text-left border-collapse">
-            <thead className="sticky top-0 z-10 bg-slate-50">
-              <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-500">
+            <thead className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-800/70">
+              <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-400">
                 <th className="py-2.5 px-4">Consultor</th>
                 <th className="py-2.5 px-4">Período</th>
                 <th className="py-2.5 px-4">Horário</th>
@@ -325,10 +325,10 @@ export const BlocksTabView: React.FC<{
                 <th className="py-2.5 px-4 text-right">Ações</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {blocks.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-slate-500">
+                  <td colSpan={7} className="py-8 text-center text-slate-500 dark:text-slate-400">
                     Nenhum bloqueio cadastrado no momento.
                   </td>
                 </tr>
@@ -349,20 +349,20 @@ export const BlocksTabView: React.FC<{
                       : `${b.startTime || toTimeKey(new Date(b.startAt))} - ${b.endTime || toTimeKey(new Date(b.endAt))}`;
 
                   return (
-                    <tr key={b.id} className="hover:bg-slate-50/70">
-                      <td className="py-3 px-4 font-semibold text-slate-900">
+                    <tr key={b.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800">
+                      <td className="py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">
                         {b.collaboratorName || 'Consultor'}
                       </td>
-                      <td className="py-3 px-4 font-mono text-slate-700 whitespace-nowrap">
+                      <td className="py-3 px-4 font-mono text-slate-700 whitespace-nowrap dark:text-slate-200">
                         {formatShortDateBR(sKey)}
                         {eKey !== sKey ? ` → ${formatShortDateBR(eKey)}` : ''}
                       </td>
-                      <td className="py-3 px-4 font-mono text-slate-700 whitespace-nowrap">
+                      <td className="py-3 px-4 font-mono text-slate-700 whitespace-nowrap dark:text-slate-200">
                         {timeLabel}
                       </td>
-                      <td className="py-3 px-4 text-slate-600">{wDays}</td>
-                      <td className="py-3 px-4 text-slate-800">{b.reason}</td>
-                      <td className="py-3 px-4 text-slate-500">{b.createdBy}</td>
+                      <td className="py-3 px-4 text-slate-600 dark:text-slate-300">{wDays}</td>
+                      <td className="py-3 px-4 text-slate-800 dark:text-slate-100">{b.reason}</td>
+                      <td className="py-3 px-4 text-slate-500 dark:text-slate-400">{b.createdBy}</td>
                       <td className="py-3 px-4 text-right whitespace-nowrap">
                         <div className="inline-flex items-center gap-1">
                           <button
@@ -375,7 +375,7 @@ export const BlocksTabView: React.FC<{
                               )
                             }
                             title="Histórico de Auditoria"
-                            className="rounded-md border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-100"
+                            className="rounded-md border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                           >
                             <History className="w-3.5 h-3.5" />
                           </button>
@@ -386,7 +386,7 @@ export const BlocksTabView: React.FC<{
                               setDeleteTarget(b);
                             }}
                             title="Remover Bloqueio"
-                            className="rounded-md border border-red-200 p-1.5 text-red-600 hover:bg-red-50"
+                            className="rounded-md border border-red-200 p-1.5 text-red-600 hover:bg-red-50 dark:border-red-800/70 dark:text-red-400 dark:hover:bg-red-950/60"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -593,12 +593,12 @@ export const WaitlistTabView: React.FC<{
     <div className="space-y-5">
       <form
         onSubmit={handleSubmit}
-        className="rounded-xl border border-slate-200 bg-white p-5 space-y-4 text-xs overflow-x-auto scroll-rulers"
+        className="rounded-xl border border-slate-200 bg-white p-5 space-y-4 text-xs overflow-x-auto scroll-rulers dark:border-slate-700 dark:bg-slate-900"
       >
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 dark:border-slate-800">
           <div className="flex items-center gap-2">
-            <ListChecks className="w-4 h-4 text-blue-700" />
-            <h3 className="font-display text-sm font-bold text-slate-900">
+            <ListChecks className="w-4 h-4 text-blue-700 dark:text-blue-300" />
+            <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
               {editingItem ? `Alterar Registro na Fila #${editingItem.id}` : 'Adicionar Registro na Fila de Espera'}
             </h3>
           </div>
@@ -610,7 +610,7 @@ export const WaitlistTabView: React.FC<{
                   onCancelEdit();
                   resetFields();
                 }}
-                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-600 hover:bg-slate-50"
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
               >
                 <X className="w-3.5 h-3.5" /> Cancelar Edição
               </button>
@@ -618,7 +618,7 @@ export const WaitlistTabView: React.FC<{
             <button
               type="button"
               onClick={onBack}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               <ArrowLeft className="w-3.5 h-3.5" /> Voltar
             </button>
@@ -627,12 +627,12 @@ export const WaitlistTabView: React.FC<{
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
-            <label className="block font-semibold text-slate-700 mb-1">Cliente *</label>
+            <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Cliente *</label>
             {selectedClient ? (
-              <div className="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-2">
+              <div className="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-2 dark:border-emerald-800/70 dark:bg-emerald-950/50">
                 <div className="flex items-center gap-2 min-w-0">
-                  <User className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
-                  <span className="font-bold text-slate-900 truncate">{selectedClient.fullName}</span>
+                  <User className="w-3.5 h-3.5 text-emerald-700 shrink-0 dark:text-emerald-300" />
+                  <span className="font-bold text-slate-900 truncate dark:text-slate-100">{selectedClient.fullName}</span>
                 </div>
                 <button
                   type="button"
@@ -640,7 +640,7 @@ export const WaitlistTabView: React.FC<{
                     setSelectedClient(null);
                     setClientQuery('');
                   }}
-                  className="text-[11px] font-semibold text-blue-700 hover:underline shrink-0"
+                  className="text-[11px] font-semibold text-blue-700 hover:underline shrink-0 dark:text-blue-300"
                 >
                   Trocar
                 </button>
@@ -648,18 +648,18 @@ export const WaitlistTabView: React.FC<{
             ) : (
               <div className="space-y-1">
                 <div className="relative">
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5 dark:text-slate-400" />
                   <input
                     type="text"
                     value={clientQuery}
                     onChange={(e) => setClientQuery(e.target.value)}
                     placeholder="Buscar cliente por nome, CPF ou telefone..."
-                    className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-2"
+                    className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-2 dark:border-slate-700"
                   />
                 </div>
-                {searching && <div className="text-[11px] text-slate-500">Buscando...</div>}
+                {searching && <div className="text-[11px] text-slate-500 dark:text-slate-400">Buscando...</div>}
                 {clientResults.length > 0 && (
-                  <div className="max-h-36 overflow-y-auto rounded-lg border border-slate-200 divide-y divide-slate-100 bg-white scroll-rulers">
+                  <div className="max-h-36 overflow-y-auto rounded-lg border border-slate-200 divide-y divide-slate-100 bg-white scroll-rulers dark:border-slate-700 dark:divide-slate-800 dark:bg-slate-900">
                     {clientResults.map((c) => (
                       <button
                         key={c.id}
@@ -672,10 +672,10 @@ export const WaitlistTabView: React.FC<{
                             unitId: c.unitId,
                           })
                         }
-                        className="w-full px-3 py-2 text-left hover:bg-slate-50 flex justify-between"
+                        className="w-full px-3 py-2 text-left hover:bg-slate-50 flex justify-between dark:hover:bg-slate-800"
                       >
-                        <span className="font-semibold text-slate-900 truncate">{c.fullName}</span>
-                        <span className="font-mono text-[10px] text-slate-500">{c.whatsapp || c.phone}</span>
+                        <span className="font-semibold text-slate-900 truncate dark:text-slate-100">{c.fullName}</span>
+                        <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400">{c.whatsapp || c.phone}</span>
                       </button>
                     ))}
                   </div>
@@ -685,12 +685,12 @@ export const WaitlistTabView: React.FC<{
           </div>
 
           <div>
-            <label className="block font-semibold text-slate-700 mb-1">Serviço Pretendido *</label>
+            <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Serviço Pretendido *</label>
             <select
               required
               value={serviceId}
               onChange={(e) => setServiceId(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 font-medium"
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 font-medium dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
             >
               <option value="">Selecione...</option>
               {services.map((s) => (
@@ -704,11 +704,11 @@ export const WaitlistTabView: React.FC<{
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
-            <label className="block font-semibold text-slate-700 mb-1">Consultor Preferencial</label>
+            <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Consultor Preferencial</label>
             <select
               value={preferredCollabId}
               onChange={(e) => setPreferredCollabId(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2"
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
             >
               <option value="">Sem preferência</option>
               {activeCollabs.map((c) => (
@@ -719,41 +719,41 @@ export const WaitlistTabView: React.FC<{
             </select>
           </div>
           <div>
-            <label className="block font-semibold text-slate-700 mb-1">Data Pretendida</label>
+            <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Data Pretendida</label>
             <input
               type="date"
               value={desiredDate}
               onChange={(e) => setDesiredDate(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             />
           </div>
           <div>
-            <label className="block font-semibold text-slate-700 mb-1">Horário Inicial</label>
+            <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Horário Inicial</label>
             <input
               type="time"
               value={desiredTime}
               onChange={(e) => setDesiredTime(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             />
           </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
           <div className="sm:col-span-9">
-            <label className="block font-semibold text-slate-700 mb-1">Observações</label>
+            <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Observações</label>
             <input
               type="text"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Preferência de turno, urgência do contrato..."
-              className="w-full rounded-lg border border-slate-200 px-3 py-2"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             />
           </div>
           <div className="sm:col-span-3">
             <button
               type="submit"
               disabled={saving}
-              className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+              className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
             >
               <Plus className="w-3.5 h-3.5" />
               {saving ? 'Salvando...' : editingItem ? 'Atualizar Fila' : 'Incluir na Fila'}
@@ -762,23 +762,23 @@ export const WaitlistTabView: React.FC<{
         </div>
 
         {err && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 font-medium">
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 font-medium dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
             {err}
           </div>
         )}
       </form>
 
       {/* Grade Clientes Aguardando Horário com réguas horizontal e vertical */}
-      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden text-xs">
-        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between">
-          <h4 className="font-display text-sm font-bold text-slate-900">
+      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden text-xs dark:border-slate-700 dark:bg-slate-900">
+        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between dark:border-slate-700">
+          <h4 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
             Clientes Aguardando Horário ({waitlist.length})
           </h4>
         </div>
         <div className="overflow-x-auto overflow-y-auto max-h-[55vh] scroll-rulers">
           <table className="w-full min-w-[680px] text-left border-collapse">
-            <thead className="sticky top-0 z-10 bg-slate-50">
-              <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-500">
+            <thead className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-800/70">
+              <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-400">
                 <th className="py-2.5 px-4">Cliente</th>
                 <th className="py-2.5 px-4">Serviço</th>
                 <th className="py-2.5 px-4">Consultor Preferencial</th>
@@ -787,32 +787,32 @@ export const WaitlistTabView: React.FC<{
                 <th className="py-2.5 px-4 text-right">Ações</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {waitlist.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-500">
+                  <td colSpan={6} className="py-8 text-center text-slate-500 dark:text-slate-400">
                     Nenhum cliente aguardando encaixe na fila de espera.
                   </td>
                 </tr>
               ) : (
                 waitlist.map((w) => (
-                  <tr key={w.id} className="hover:bg-slate-50/70">
+                  <tr key={w.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800">
                     <td className="py-3 px-4">
-                      <div className="font-semibold text-slate-900">{w.clientName}</div>
-                      <div className="font-mono text-[10px] text-slate-500">
+                      <div className="font-semibold text-slate-900 dark:text-slate-100">{w.clientName}</div>
+                      <div className="font-mono text-[10px] text-slate-500 dark:text-slate-400">
                         {w.clientPhone || 'Sem telefone'}
                       </div>
                     </td>
-                    <td className="py-3 px-4 font-medium text-slate-800">
+                    <td className="py-3 px-4 font-medium text-slate-800 dark:text-slate-100">
                       {w.serviceName} ({w.serviceDurationMinutes} min)
                     </td>
-                    <td className="py-3 px-4 text-slate-700">
+                    <td className="py-3 px-4 text-slate-700 dark:text-slate-200">
                       {w.preferredCollaboratorName || 'Sem preferência'}
                     </td>
-                    <td className="py-3 px-4 font-mono text-slate-700 whitespace-nowrap">
+                    <td className="py-3 px-4 font-mono text-slate-700 whitespace-nowrap dark:text-slate-200">
                       {formatShortDateBR(w.desiredDate)} · {w.desiredTime}
                     </td>
-                    <td className="py-3 px-4 text-slate-600 max-w-xs truncate">{w.notes || '—'}</td>
+                    <td className="py-3 px-4 text-slate-600 max-w-xs truncate dark:text-slate-300">{w.notes || '—'}</td>
                     <td className="py-3 px-4 text-right whitespace-nowrap">
                       <div className="inline-flex items-center gap-1.5">
                         <button
@@ -826,7 +826,7 @@ export const WaitlistTabView: React.FC<{
                           type="button"
                           onClick={() => onStartEdit(w)}
                           title="Editar Registro"
-                          className="rounded-md border border-slate-200 p-1.5 text-blue-700 hover:bg-blue-50"
+                          className="rounded-md border border-slate-200 p-1.5 text-blue-700 hover:bg-blue-50 dark:border-slate-700 dark:text-blue-300 dark:hover:bg-blue-950/60"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
                         </button>
@@ -834,7 +834,7 @@ export const WaitlistTabView: React.FC<{
                           type="button"
                           onClick={() => onOpenAudit('waitlist', w.id, w.clientName)}
                           title="Auditoria"
-                          className="rounded-md border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-100"
+                          className="rounded-md border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                         >
                           <History className="w-3.5 h-3.5" />
                         </button>
@@ -845,7 +845,7 @@ export const WaitlistTabView: React.FC<{
                             setDeleteTarget(w);
                           }}
                           title="Remover da Fila"
-                          className="rounded-md border border-red-200 p-1.5 text-red-600 hover:bg-red-50"
+                          className="rounded-md border border-red-200 p-1.5 text-red-600 hover:bg-red-50 dark:border-red-800/70 dark:text-red-400 dark:hover:bg-red-950/60"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -955,12 +955,12 @@ export const ServicesTabView: React.FC<{
 
   return (
     <div className="space-y-4 text-xs">
-      <div className="rounded-xl border border-slate-200 bg-white px-5 py-3.5 flex flex-wrap items-center justify-between gap-3">
+      <div className="rounded-xl border border-slate-200 bg-white px-5 py-3.5 flex flex-wrap items-center justify-between gap-3 dark:border-slate-700 dark:bg-slate-900">
         <div>
-          <h3 className="font-display text-sm font-bold text-slate-900">
+          <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
             Catálogo de Serviços da Agenda ({services.length})
           </h3>
-          <p className="text-[11px] text-slate-500">
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">
             Cada serviço calcula automaticamente o horário final do agendamento com base na duração configurada.
           </p>
         </div>
@@ -968,14 +968,14 @@ export const ServicesTabView: React.FC<{
           <button
             type="button"
             onClick={() => (formOpen ? setFormOpen(false) : onBack())}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 font-semibold text-slate-700 hover:bg-slate-50"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             <ArrowLeft className="w-3.5 h-3.5" /> Voltar
           </button>
           <button
             type="button"
             onClick={openNew}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 font-semibold text-white hover:bg-slate-800"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
           >
             <Plus className="w-3.5 h-3.5" /> Novo Serviço
           </button>
@@ -985,16 +985,16 @@ export const ServicesTabView: React.FC<{
       {formOpen && (
         <form
           onSubmit={handleSave}
-          className="rounded-xl border border-slate-200 bg-white p-5 space-y-4 overflow-x-auto scroll-rulers"
+          className="rounded-xl border border-slate-200 bg-white p-5 space-y-4 overflow-x-auto scroll-rulers dark:border-slate-700 dark:bg-slate-900"
         >
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-            <span className="font-display text-sm font-bold text-slate-900">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 dark:border-slate-800">
+            <span className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
               {editId ? 'Editar Serviço' : 'Cadastrar Novo Serviço'}
             </span>
             <button
               type="button"
               onClick={() => setFormOpen(false)}
-              className="inline-flex items-center gap-1 text-slate-600 hover:text-slate-900 font-semibold"
+              className="inline-flex items-center gap-1 text-slate-600 hover:text-slate-900 font-semibold dark:text-slate-300 dark:hover:text-white"
             >
               <ArrowLeft className="w-3.5 h-3.5" /> Voltar à Lista
             </button>
@@ -1002,65 +1002,65 @@ export const ServicesTabView: React.FC<{
 
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
             <div className="sm:col-span-2">
-              <label className="block font-semibold text-slate-700 mb-1">Nome do Serviço *</label>
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Nome do Serviço *</label>
               <input
                 type="text"
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Ex: Reunião de Admissão Presencial"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700"
               />
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Duração (min)</label>
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Duração (min)</label>
               <input
                 type="number"
                 min={5}
                 max={480}
                 value={durationMinutes}
                 onChange={(e) => setDurationMinutes(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               />
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Preço (R$)</label>
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Preço (R$)</label>
               <input
                 type="text"
                 value={priceReais}
                 onChange={(e) => setPriceReais(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               />
             </div>
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
-              <label className="font-semibold text-slate-700">Cor Padrão:</label>
+              <label className="font-semibold text-slate-700 dark:text-slate-200">Cor Padrão:</label>
               <input
                 type="color"
                 value={color}
                 onChange={(e) => setColor(e.target.value)}
-                className="h-8 w-12 cursor-pointer rounded border border-slate-200 bg-white p-0.5"
+                className="h-8 w-12 cursor-pointer rounded border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               />
               <HexColorSwatch hex={color} />
-              <span className="font-mono text-[11px] text-slate-500">{color}</span>
+              <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400">{color}</span>
             </div>
 
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => setFormOpen(false)}
-                className="rounded-lg border border-slate-200 px-3.5 py-2 font-semibold text-slate-700"
+                className="rounded-lg border border-slate-200 px-3.5 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={saving}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
               >
                 <Check className="w-3.5 h-3.5" />
                 {saving ? 'Salvando...' : 'Salvar Serviço'}
@@ -1069,7 +1069,7 @@ export const ServicesTabView: React.FC<{
           </div>
 
           {err && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 font-medium">
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 font-medium dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
               {err}
             </div>
           )}
@@ -1081,40 +1081,40 @@ export const ServicesTabView: React.FC<{
           {services.map((srv) => (
             <div
               key={srv.id}
-              className="rounded-xl border border-slate-200 bg-white overflow-hidden flex flex-col justify-between"
+              className="rounded-xl border border-slate-200 bg-white overflow-hidden flex flex-col justify-between dark:border-slate-700 dark:bg-slate-900"
             >
               <div className="p-4 flex items-start gap-3">
-                <HexColorSwatch hex={srv.color || '#e0e7ff'} className="w-2.5 h-12 rounded-sm shrink-0 border border-slate-200" />
+                <HexColorSwatch hex={srv.color || '#e0e7ff'} className="w-2.5 h-12 rounded-sm shrink-0 border border-slate-200 dark:border-slate-700" />
                 <div className="min-w-0 flex-1 space-y-1.5">
-                  <div className="font-display text-sm font-bold text-slate-900 leading-snug">
+                  <div className="font-display text-sm font-bold text-slate-900 leading-snug dark:text-slate-100">
                     {srv.name}
                   </div>
-                  <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-600">
+                  <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-600 dark:text-slate-300">
                     <span className="inline-flex items-center gap-1 font-mono font-semibold">
-                      <Clock className="w-3.5 h-3.5 text-slate-400" />
+                      <Clock className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
                       {srv.durationMinutes} min
                     </span>
-                    <span className="font-mono font-bold text-emerald-700">
+                    <span className="font-mono font-bold text-emerald-700 dark:text-emerald-300">
                       {srv.priceCents > 0 ? formatBRL(srv.priceCents) : 'Cortesia / Padrão'}
                     </span>
                   </div>
                 </div>
               </div>
 
-              <div className="px-4 py-2.5 border-t border-slate-100 bg-slate-50/70 flex items-center justify-between">
-                <span className="font-mono text-[10px] text-slate-400">#{srv.id}</span>
+              <div className="px-4 py-2.5 border-t border-slate-100 bg-slate-50/70 flex items-center justify-between dark:border-slate-800 dark:bg-slate-800/60">
+                <span className="font-mono text-[10px] text-slate-400 dark:text-slate-400">#{srv.id}</span>
                 <div className="inline-flex items-center gap-1.5">
                   <button
                     type="button"
                     onClick={() => onOpenAudit('schedule_service', srv.id, srv.name)}
-                    className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-100"
+                    className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
                   >
                     <History className="w-3 h-3" /> Auditoria
                   </button>
                   <button
                     type="button"
                     onClick={() => openEdit(srv)}
-                    className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-50"
+                    className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-900 dark:text-blue-300 dark:hover:bg-blue-950/60"
                   >
                     <Edit3 className="w-3 h-3" /> Editar
                   </button>
@@ -1181,16 +1181,16 @@ export const ScheduleConfigTabView: React.FC<{
   return (
     <form
       onSubmit={handleSave}
-      className="rounded-xl border border-slate-200 bg-white p-5 space-y-6 text-xs max-w-4xl overflow-x-auto overflow-y-auto scroll-rulers"
+      className="rounded-xl border border-slate-200 bg-white p-5 space-y-6 text-xs max-w-4xl overflow-x-auto overflow-y-auto scroll-rulers dark:border-slate-700 dark:bg-slate-900"
     >
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 dark:border-slate-800">
         <div className="flex items-center gap-2">
-          <Settings className="w-4 h-4 text-slate-700" />
+          <Settings className="w-4 h-4 text-slate-700 dark:text-slate-200" />
           <div>
-            <h3 className="font-display text-sm font-bold text-slate-900">
+            <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
               Configurações da Grade &amp; Cores por Status
             </h3>
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
               Define os horários exibidos na régua esquerda, intervalo dos slots e paleta dos cartões de agendamento.
             </p>
           </div>
@@ -1199,14 +1199,14 @@ export const ScheduleConfigTabView: React.FC<{
           <button
             type="button"
             onClick={onBack}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             <ArrowLeft className="w-3.5 h-3.5" /> Voltar
           </button>
           <button
             type="button"
             onClick={() => onOpenAudit('system', 'schedule_config', 'Configurações da Agenda')}
-            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50"
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             <History className="w-3.5 h-3.5" /> Auditoria
           </button>
@@ -1215,33 +1215,33 @@ export const ScheduleConfigTabView: React.FC<{
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div>
-          <label className="block font-semibold text-slate-700 mb-1">Horário de Início da Grade</label>
+          <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Horário de Início da Grade</label>
           <input
             type="time"
             required
             value={startTime}
             onChange={(e) => setStartTime(e.target.value)}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono font-semibold"
+            className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono font-semibold dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
           />
         </div>
 
         <div>
-          <label className="block font-semibold text-slate-700 mb-1">Horário de Término da Grade</label>
+          <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Horário de Término da Grade</label>
           <input
             type="time"
             required
             value={endTime}
             onChange={(e) => setEndTime(e.target.value)}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono font-semibold"
+            className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono font-semibold dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
           />
         </div>
 
         <div>
-          <label className="block font-semibold text-slate-700 mb-1">Intervalo entre Slots</label>
+          <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Intervalo entre Slots</label>
           <select
             value={slotInterval}
             onChange={(e) => setSlotInterval(Number(e.target.value))}
-            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono font-semibold"
+            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono font-semibold dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
           >
             <option value={15}>15 minutos</option>
             <option value={30}>30 minutos</option>
@@ -1251,8 +1251,8 @@ export const ScheduleConfigTabView: React.FC<{
         </div>
       </div>
 
-      <div className="space-y-3 border-t border-slate-100 pt-4">
-        <div className="font-bold text-slate-800 uppercase tracking-wide text-[11px]">
+      <div className="space-y-3 border-t border-slate-100 pt-4 dark:border-slate-800">
+        <div className="font-bold text-slate-800 uppercase tracking-wide text-[11px] dark:text-slate-100">
           Cores Personalizadas por Status do Agendamento
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -1261,21 +1261,21 @@ export const ScheduleConfigTabView: React.FC<{
             return (
               <div
                 key={st.value}
-                className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 px-3 py-2.5 bg-slate-50/50"
+                className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 px-3 py-2.5 bg-slate-50/50 dark:border-slate-700 dark:bg-slate-800/60"
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <HexColorSwatch hex={val} />
-                  <span className="font-semibold text-slate-800 truncate">{st.label}</span>
+                  <span className="font-semibold text-slate-800 truncate dark:text-slate-100">{st.label}</span>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className="font-mono text-[10px] text-slate-500 uppercase">{val}</span>
+                  <span className="font-mono text-[10px] text-slate-500 uppercase dark:text-slate-400">{val}</span>
                   <input
                     type="color"
                     value={val}
                     onChange={(e) =>
                       setStatusColors((prev) => ({ ...prev, [st.value]: e.target.value }))
                     }
-                    className="h-7 w-9 cursor-pointer rounded border border-slate-200 bg-white p-0.5"
+                    className="h-7 w-9 cursor-pointer rounded border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900"
                   />
                 </div>
               </div>
@@ -1285,12 +1285,12 @@ export const ScheduleConfigTabView: React.FC<{
       </div>
 
       {err && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 font-medium">
+        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 font-medium dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
           {err}
         </div>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-100">
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
         <button
           type="button"
           onClick={() => {
@@ -1299,7 +1299,7 @@ export const ScheduleConfigTabView: React.FC<{
             setSlotInterval(30);
             setStatusColors(DEFAULT_STATUS_COLORS);
           }}
-          className="text-slate-600 font-semibold hover:text-slate-900"
+          className="text-slate-600 font-semibold hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
         >
           Restaurar Padrão Inicial
         </button>
@@ -1307,14 +1307,14 @@ export const ScheduleConfigTabView: React.FC<{
           <button
             type="button"
             onClick={onBack}
-            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-4 py-2.5 font-semibold text-slate-700 hover:bg-slate-50"
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-4 py-2.5 font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             <ArrowLeft className="w-3.5 h-3.5" /> Voltar
           </button>
           <button
             type="submit"
             disabled={saving}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-5 py-2.5 font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-5 py-2.5 font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
           >
             <Check className="w-3.5 h-3.5" />
             {saving ? 'Salvando...' : 'Salvar Configurações'}

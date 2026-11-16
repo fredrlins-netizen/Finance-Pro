@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import { apiFetch, formatDateTimeBR, getAuthToken } from '../../../lib/api.ts';
+import { DossierDocumentPreviewModal } from '../../DossierDocumentViewer.tsx';
 
 interface SharedPartnerDoc {
   id: number;
@@ -80,6 +81,10 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [pendingDelete, setPendingDelete] = useState<SharedPartnerDoc[]>([]);
   const [deleting, setDeleting] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState<{
+    doc: SharedPartnerDoc;
+    blobUrl: string;
+  } | null>(null);
 
   // Admin ACL options
   const [aclReady, setAclReady] = useState(false);
@@ -212,14 +217,17 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
       if (preview) {
-        window.open(url, '_blank', 'noopener,noreferrer');
+        setPreviewDoc((prev) => {
+          if (prev?.blobUrl) URL.revokeObjectURL(prev.blobUrl);
+          return { doc, blobUrl: url };
+        });
       } else {
         const a = document.createElement('a');
         a.href = url;
         a.download = doc.fileName;
         a.click();
+        window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
       }
-      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao abrir documento.');
     }
@@ -381,14 +389,14 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
   const allOnPageSelected = items.length > 0 && items.every((it) => selectedIds.has(it.id));
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3">
+    <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3 dark:border-slate-700 dark:bg-slate-800/60">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
-            <ShieldCheck className="w-4 h-4 text-emerald-600" />
+          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5 dark:text-slate-100">
+            <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             Documentos Compartilhados do Parceiro · {clientName}
           </h4>
-          <p className="text-[11px] text-slate-500">
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">
             Pasta privada no Bucket da Invicta ({total} arquivo(s) localizado(s))
           </p>
         </div>
@@ -398,9 +406,9 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
             <button
               type="button"
               onClick={() => void openAclModal('folder')}
-              className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
-              <FolderLock className="w-3.5 h-3.5 text-blue-600" />
+              <FolderLock className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
               Acesso da pasta
             </button>
             <button
@@ -409,7 +417,7 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
                 const legacyIds = items.filter((d) => !d.hasAcl).map((d) => d.id);
                 setSelectedIds(new Set(legacyIds));
               }}
-              className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
+              className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               Selecionar legados exibidos
             </button>
@@ -417,7 +425,7 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
               <button
                 type="button"
                 onClick={() => void openLegacyProtect()}
-                className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-slate-800"
+                className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
               >
                 <Lock className="w-3 h-3 text-emerald-400" />
                 Proteger selecionados ({selectedIds.size})
@@ -426,9 +434,9 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
             <button
               type="button"
               onClick={() => void loadLegacyHistory(1)}
-              className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
-              <History className="w-3.5 h-3.5 text-slate-500" />
+              <History className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
               Histórico ACL legado
             </button>
           </div>
@@ -438,13 +446,13 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
       {/* Filter & Bulk bar */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5 dark:text-slate-400" />
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar arquivo, pasta ou categoria..."
-            className="w-full rounded-lg border border-slate-200 bg-white pl-8 pr-3 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
+            className="w-full rounded-lg border border-slate-200 bg-white pl-8 pr-3 py-1.5 text-xs focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
           />
         </div>
         <select
@@ -454,7 +462,7 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
             setPage(1);
             setCursors([0]);
           }}
-          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs"
+          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
         >
           <option value="">Todas categorias</option>
           <option value="contrato">Contrato</option>
@@ -467,7 +475,7 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
           <button
             type="button"
             onClick={() => setPendingDelete(items.filter((i) => selectedIds.has(i.id)))}
-            className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100"
+            className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300 dark:hover:bg-red-900/60"
           >
             <Trash2 className="w-3.5 h-3.5" />
             Excluir selecionados ({selectedIds.size})
@@ -476,21 +484,21 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</div>
+        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">{error}</div>
       )}
       {success && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300">
           {success}
         </div>
       )}
 
       {/* Inline Delete Confirmation */}
       {pendingDelete.length > 0 && (
-        <div className="rounded-xl border border-red-300 bg-red-50 p-3 space-y-2 text-xs">
-          <div className="font-bold text-red-800">
+        <div className="rounded-xl border border-red-300 bg-red-50 p-3 space-y-2 text-xs dark:border-red-800/70 dark:bg-red-950/50">
+          <div className="font-bold text-red-800 dark:text-red-300">
             Confirmar exclusão de {pendingDelete.length} documento(s) de {clientName}?
           </div>
-          <div className="text-red-700">
+          <div className="text-red-700 dark:text-red-300">
             Os arquivos selecionados ({pendingDelete.map((d) => d.fileName).join(', ')}) serão movidos para a lixeira.
           </div>
           <div className="flex items-center gap-2">
@@ -505,7 +513,7 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
             <button
               type="button"
               onClick={() => setPendingDelete([])}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-100"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               Cancelar
             </button>
@@ -514,10 +522,10 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
       )}
 
       {/* Documents Table */}
-      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
         <table className="w-full text-xs">
           <thead>
-            <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] font-semibold text-slate-500">
+            <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-400">
               <th className="px-2.5 py-2 w-8">
                 <input
                   type="checkbox"
@@ -537,22 +545,22 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
               <th className="px-2.5 py-2 text-right">Ações</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {loading ? (
               <tr>
-                <td colSpan={5} className="px-3 py-6 text-center text-slate-400">
+                <td colSpan={5} className="px-3 py-6 text-center text-slate-400 dark:text-slate-400">
                   Carregando documentos do parceiro...
                 </td>
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-3 py-6 text-center text-slate-400">
+                <td colSpan={5} className="px-3 py-6 text-center text-slate-400 dark:text-slate-400">
                   Nenhum documento compartilhado encontrado para este parceiro.
                 </td>
               </tr>
             ) : (
               items.map((doc) => (
-                <tr key={doc.id} className="hover:bg-slate-50/70">
+                <tr key={doc.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800">
                   <td className="px-2.5 py-2">
                     <input
                       type="checkbox"
@@ -566,19 +574,19 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
                     />
                   </td>
                   <td className="px-2.5 py-2">
-                    <div className="font-semibold text-slate-800 flex items-center gap-1.5">
+                    <div className="font-semibold text-slate-800 flex items-center gap-1.5 dark:text-slate-100">
                       <span>{doc.fileName}</span>
                       {doc.hasAcl && (
-                        <span className="rounded border border-blue-200 bg-blue-50 px-1 py-0.5 text-[9px] font-bold text-blue-700">
+                        <span className="rounded border border-blue-200 bg-blue-50 px-1 py-0.5 text-[9px] font-bold text-blue-700 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300">
                           ACL
                         </span>
                       )}
                     </div>
                   </td>
-                  <td className="px-2.5 py-2 text-slate-600">
-                    {doc.docCategory} · <span className="text-slate-400">{doc.folderPath}</span>
+                  <td className="px-2.5 py-2 text-slate-600 dark:text-slate-300">
+                    {doc.docCategory} · <span className="text-slate-400 dark:text-slate-400">{doc.folderPath}</span>
                   </td>
-                  <td className="px-2.5 py-2 text-slate-500 whitespace-nowrap">
+                  <td className="px-2.5 py-2 text-slate-500 whitespace-nowrap dark:text-slate-400">
                     {formatDateTimeBR(doc.createdAt)}
                   </td>
                   <td className="px-2.5 py-2 text-right whitespace-nowrap space-x-1">
@@ -586,7 +594,7 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
                       type="button"
                       onClick={() => void handleOpenSecureFile(doc, true)}
                       title="Ver"
-                      className="inline-flex items-center gap-1 rounded border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100"
+                      className="inline-flex items-center gap-1 rounded border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                     >
                       <Eye className="w-3 h-3" /> Ver
                     </button>
@@ -594,7 +602,7 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
                       type="button"
                       onClick={() => void handleOpenSecureFile(doc, false)}
                       title="Baixar"
-                      className="inline-flex items-center gap-1 rounded border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100"
+                      className="inline-flex items-center gap-1 rounded border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                     >
                       <Download className="w-3 h-3" /> Baixar
                     </button>
@@ -603,7 +611,7 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
                         type="button"
                         onClick={() => void openAclModal('file', doc)}
                         title="Acesso do arquivo"
-                        className="inline-flex items-center gap-1 rounded border border-slate-200 px-2 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-50"
+                        className="inline-flex items-center gap-1 rounded border border-slate-200 px-2 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-50 dark:border-slate-700 dark:text-blue-300 dark:hover:bg-blue-950/60"
                       >
                         <Lock className="w-3 h-3" /> Acesso
                       </button>
@@ -612,7 +620,7 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
                       type="button"
                       onClick={() => setPendingDelete([doc])}
                       title="Excluir"
-                      className="inline-flex items-center gap-1 rounded border border-red-200 px-2 py-1 text-[11px] font-medium text-red-700 hover:bg-red-50"
+                      className="inline-flex items-center gap-1 rounded border border-red-200 px-2 py-1 text-[11px] font-medium text-red-700 hover:bg-red-50 dark:border-red-800/70 dark:text-red-300 dark:hover:bg-red-950/60"
                     >
                       <Trash2 className="w-3 h-3" />
                     </button>
@@ -626,7 +634,7 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
 
       {/* Pagination */}
       {(page > 1 || hasMore) && (
-        <div className="flex items-center justify-between text-xs text-slate-600">
+        <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-300">
           <span>
             Página {page} · Mostrando {items.length} de {total}
           </span>
@@ -635,7 +643,7 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
               type="button"
               disabled={page <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="rounded border border-slate-200 bg-white px-2.5 py-1 hover:bg-slate-100 disabled:opacity-40"
+              className="rounded border border-slate-200 bg-white px-2.5 py-1 hover:bg-slate-100 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
             >
               Anterior
             </button>
@@ -651,7 +659,7 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
                 });
                 setPage((p) => p + 1);
               }}
-              className="rounded border border-slate-200 bg-white px-2.5 py-1 hover:bg-slate-100 disabled:opacity-40"
+              className="rounded border border-slate-200 bg-white px-2.5 py-1 hover:bg-slate-100 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
             >
               Próxima
             </button>
@@ -662,17 +670,17 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
       {/* ACL Folder / File Modal */}
       {aclModal && (
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-4"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80"
           role="dialog"
           aria-modal="true"
           onClick={() => !aclSaving && setAclModal(null)}
         >
           <div
-            className="w-full max-w-2xl rounded-2xl bg-white border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+            className="w-full max-w-2xl rounded-2xl bg-white border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[85vh] dark:bg-slate-900 dark:border-slate-700"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-              <h4 className="text-sm font-bold text-slate-900">
+            <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between bg-slate-50 dark:border-slate-700 dark:bg-slate-800/70">
+              <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">
                 {aclModal.mode === 'folder'
                   ? `Acesso à pasta do cliente: ${clientName}`
                   : `Acesso: ${aclModal.doc?.fileName}`}
@@ -680,14 +688,14 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
               <button
                 type="button"
                 onClick={() => !aclSaving && setAclModal(null)}
-                className="p-1 text-slate-400 hover:text-slate-700"
+                className="p-1 text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
             <div className="p-4 overflow-y-auto space-y-3 text-xs">
               {aclModal.mode === 'file' && (
-                <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-semibold text-slate-800">
+                <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-semibold text-slate-800 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-100">
                   <input
                     type="checkbox"
                     checked={aclOverride}
@@ -705,21 +713,21 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
               )}
 
               {(aclModal.mode === 'folder' || aclOverride) && aclDraftGroups.length === 0 && aclDraftUsers.length === 0 && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800">
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800 dark:border-amber-800/70 dark:bg-amber-950/50 dark:text-amber-300">
                   Nenhum grupo ou usuário selecionado: o acesso será exclusivo de administradores.
                 </div>
               )}
 
               {aclError && (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700">{aclError}</div>
+                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">{aclError}</div>
               )}
 
               {aclLoading ? (
-                <div className="py-8 text-center text-slate-500">Carregando regras...</div>
+                <div className="py-8 text-center text-slate-500 dark:text-slate-400">Carregando regras...</div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 opacity-100">
-                  <div className="rounded-xl border border-slate-200 p-3 space-y-2">
-                    <div className="font-bold text-slate-700">Grupos Autorizados</div>
+                  <div className="rounded-xl border border-slate-200 p-3 space-y-2 dark:border-slate-700">
+                    <div className="font-bold text-slate-700 dark:text-slate-200">Grupos Autorizados</div>
                     <div className="max-h-48 overflow-y-auto space-y-1">
                       {aclGroups.map((g) => (
                         <label key={g.id} className="flex items-center gap-2 py-1">
@@ -739,14 +747,14 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
                     </div>
                   </div>
 
-                  <div className="rounded-xl border border-slate-200 p-3 space-y-2">
-                    <div className="font-bold text-slate-700">Usuários Autorizados</div>
+                  <div className="rounded-xl border border-slate-200 p-3 space-y-2 dark:border-slate-700">
+                    <div className="font-bold text-slate-700 dark:text-slate-200">Usuários Autorizados</div>
                     <input
                       type="text"
                       value={aclSearch}
                       onChange={(e) => setAclSearch(e.target.value)}
                       placeholder="Buscar usuário..."
-                      className="w-full rounded border border-slate-200 px-2.5 py-1 text-xs"
+                      className="w-full rounded border border-slate-200 px-2.5 py-1 text-xs dark:border-slate-700"
                     />
                     <div className="max-h-40 overflow-y-auto space-y-1">
                       {aclUsers.map((u) => (
@@ -773,7 +781,7 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
                           setAclUserPage(np);
                           void loadAclOptions(aclSearch, np, true);
                         }}
-                        className="text-[11px] font-semibold text-blue-600 hover:underline"
+                        className="text-[11px] font-semibold text-blue-600 hover:underline dark:text-blue-400"
                       >
                         Carregar mais usuários
                       </button>
@@ -782,12 +790,12 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
                 </div>
               )}
             </div>
-            <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex justify-end gap-2 text-xs">
+            <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex justify-end gap-2 text-xs dark:border-slate-700 dark:bg-slate-800/70">
               <button
                 type="button"
                 disabled={aclSaving}
                 onClick={() => setAclModal(null)}
-                className="rounded-lg border border-slate-300 bg-white px-4 py-1.5 font-semibold text-slate-700 hover:bg-slate-100"
+                className="rounded-lg border border-slate-300 bg-white px-4 py-1.5 font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 Cancelar
               </button>
@@ -795,7 +803,7 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
                 type="button"
                 disabled={aclLoading || aclSaving}
                 onClick={() => void saveAclModal()}
-                className="rounded-lg bg-slate-900 px-4 py-1.5 font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                className="rounded-lg bg-slate-900 px-4 py-1.5 font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
               >
                 {aclSaving ? 'Salvando...' : 'Salvar permissões'}
               </button>
@@ -807,55 +815,55 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
       {/* Legacy Protection Opt-in Modal */}
       {legacyOptInOpen && (
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-4"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80"
           role="dialog"
           aria-modal="true"
           onClick={() => !legacySaving && setLegacyOptInOpen(false)}
         >
           <div
-            className="w-full max-w-lg rounded-2xl bg-white border border-slate-200 shadow-2xl overflow-hidden"
+            className="w-full max-w-lg rounded-2xl bg-white border border-slate-200 shadow-2xl overflow-hidden dark:bg-slate-900 dark:border-slate-700"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-              <h4 className="text-sm font-bold text-slate-900">Confirmar proteção de anexos legados</h4>
+            <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between bg-slate-50 dark:border-slate-700 dark:bg-slate-800/70">
+              <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">Confirmar proteção de anexos legados</h4>
               <button
                 type="button"
                 onClick={() => !legacySaving && setLegacyOptInOpen(false)}
-                className="p-1 text-slate-400 hover:text-slate-700"
+                className="p-1 text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
             <div className="p-4 space-y-3 text-xs">
               {legacyImpactLoading ? (
-                <div className="py-6 text-center text-slate-500">Calculando impacto...</div>
+                <div className="py-6 text-center text-slate-500 dark:text-slate-400">Calculando impacto...</div>
               ) : legacyImpact ? (
                 <>
-                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-1">
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-1 dark:border-slate-700 dark:bg-slate-800/70">
                     <div>Arquivos selecionados: <strong>{legacyImpact.legacyCount}</strong></div>
                     <div>Regra da pasta configurada: <strong>{legacyImpact.folderConfigured ? 'Sim' : 'Não'}</strong></div>
                     <div>Grupos autorizados: <strong>{legacyImpact.groupsCount}</strong> · Usuários: <strong>{legacyImpact.usersCount}</strong></div>
                   </div>
                   {!legacyImpact.folderConfigured && (
-                    <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700">
+                    <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
                       Nenhuma regra da pasta configurada. Clique em &quot;Configurar regra da pasta&quot; primeiro.
                     </div>
                   )}
-                  <div className="max-h-40 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-lg">
+                  <div className="max-h-40 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-lg dark:divide-slate-800 dark:border-slate-700">
                     {legacyImpact.files.map((f) => (
                       <div key={f.id} className="px-3 py-1.5 flex items-center justify-between">
                         <span className="font-medium truncate">{f.fileName}</span>
-                        <span className="text-[10px] text-slate-500">{f.module} · {f.category}</span>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400">{f.module} · {f.category}</span>
                       </div>
                     ))}
                   </div>
                 </>
               ) : null}
               {legacyError && (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700">{legacyError}</div>
+                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">{legacyError}</div>
               )}
             </div>
-            <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex justify-end gap-2 text-xs">
+            <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex justify-end gap-2 text-xs dark:border-slate-700 dark:bg-slate-800/70">
               {!legacyImpact?.folderConfigured && (
                 <button
                   type="button"
@@ -863,7 +871,7 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
                     setLegacyOptInOpen(false);
                     void openAclModal('folder');
                   }}
-                  className="rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 font-semibold text-blue-700"
+                  className="rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 font-semibold text-blue-700 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300"
                 >
                   Configurar regra da pasta
                 </button>
@@ -872,7 +880,7 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
                 type="button"
                 disabled={legacySaving}
                 onClick={() => setLegacyOptInOpen(false)}
-                className="rounded-lg border border-slate-300 bg-white px-4 py-1.5 font-semibold text-slate-700"
+                className="rounded-lg border border-slate-300 bg-white px-4 py-1.5 font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
               >
                 Cancelar
               </button>
@@ -880,7 +888,7 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
                 type="button"
                 disabled={legacySaving || !legacyImpact?.folderConfigured}
                 onClick={() => void confirmLegacyProtect()}
-                className="rounded-lg bg-slate-900 px-4 py-1.5 font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                className="rounded-lg bg-slate-900 px-4 py-1.5 font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
               >
                 {legacySaving ? 'Protegendo...' : 'Confirmar proteção'}
               </button>
@@ -892,36 +900,36 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
       {/* Legacy History Modal */}
       {legacyHistoryOpen && (
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-4"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80"
           role="dialog"
           aria-modal="true"
           onClick={() => setLegacyHistoryOpen(false)}
         >
           <div
-            className="w-full max-w-3xl rounded-2xl bg-white border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+            className="w-full max-w-3xl rounded-2xl bg-white border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[85vh] dark:bg-slate-900 dark:border-slate-700"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-              <h4 className="text-sm font-bold text-slate-900">
+            <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between bg-slate-50 dark:border-slate-700 dark:bg-slate-800/70">
+              <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">
                 Histórico de proteção dos anexos legados ({legacyHistoryTotal})
               </h4>
               <button
                 type="button"
                 onClick={() => setLegacyHistoryOpen(false)}
-                className="p-1 text-slate-400 hover:text-slate-700"
+                className="p-1 text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
             <div className="p-4 overflow-auto flex-1 text-xs">
               {legacyHistoryLoading ? (
-                <div className="py-8 text-center text-slate-500">Carregando histórico...</div>
+                <div className="py-8 text-center text-slate-500 dark:text-slate-400">Carregando histórico...</div>
               ) : legacyHistoryItems.length === 0 ? (
-                <div className="py-8 text-center text-slate-400">Nenhuma proteção legada registrada.</div>
+                <div className="py-8 text-center text-slate-400 dark:text-slate-400">Nenhuma proteção legada registrada.</div>
               ) : (
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b border-slate-200 text-left text-[11px] font-semibold text-slate-500">
+                    <tr className="border-b border-slate-200 text-left text-[11px] font-semibold text-slate-500 dark:border-slate-700 dark:text-slate-400">
                       <th className="py-2 pr-3">Arquivo</th>
                       <th className="py-2 pr-3">Módulo / Categoria</th>
                       <th className="py-2 pr-3">Responsável</th>
@@ -929,18 +937,18 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
                       <th className="py-2 text-right">Ação</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {legacyHistoryItems.map((rec) => (
                       <tr key={rec.docId}>
-                        <td className="py-2 pr-3 font-medium text-slate-800">{rec.fileName}</td>
-                        <td className="py-2 pr-3 text-slate-500">{rec.module} · {rec.category}</td>
-                        <td className="py-2 pr-3 text-slate-700">{rec.protectedBy || 'Usuário removido'}</td>
-                        <td className="py-2 pr-3 text-slate-500 whitespace-nowrap">{formatDateTimeBR(rec.protectedAt)}</td>
+                        <td className="py-2 pr-3 font-medium text-slate-800 dark:text-slate-100">{rec.fileName}</td>
+                        <td className="py-2 pr-3 text-slate-500 dark:text-slate-400">{rec.module} · {rec.category}</td>
+                        <td className="py-2 pr-3 text-slate-700 dark:text-slate-200">{rec.protectedBy || 'Usuário removido'}</td>
+                        <td className="py-2 pr-3 text-slate-500 whitespace-nowrap dark:text-slate-400">{formatDateTimeBR(rec.protectedAt)}</td>
                         <td className="py-2 text-right">
                           <button
                             type="button"
                             onClick={() => setPendingUndo(rec)}
-                            className="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-100"
+                            className="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-100 dark:border-amber-800/70 dark:bg-amber-950/50 dark:text-amber-300 dark:hover:bg-amber-900/60"
                           >
                             <RotateCcw className="w-3 h-3" /> Reverter proteção
                           </button>
@@ -951,11 +959,11 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
                 </table>
               )}
             </div>
-            <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex justify-end text-xs">
+            <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex justify-end text-xs dark:border-slate-700 dark:bg-slate-800/70">
               <button
                 type="button"
                 onClick={() => setLegacyHistoryOpen(false)}
-                className="rounded-lg border border-slate-300 bg-white px-4 py-1.5 font-semibold text-slate-700"
+                className="rounded-lg border border-slate-300 bg-white px-4 py-1.5 font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
               >
                 Fechar
               </button>
@@ -971,9 +979,9 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
           role="alertdialog"
           aria-modal="true"
         >
-          <div className="w-full max-w-md rounded-2xl bg-white border border-slate-200 p-5 shadow-2xl space-y-3 text-xs">
-            <h4 className="text-sm font-bold text-slate-900">Reverter a proteção deste anexo?</h4>
-            <p className="text-slate-600">
+          <div className="w-full max-w-md rounded-2xl bg-white border border-slate-200 p-5 shadow-2xl space-y-3 text-xs dark:bg-slate-900 dark:border-slate-700">
+            <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">Reverter a proteção deste anexo?</h4>
+            <p className="text-slate-600 dark:text-slate-300">
               O arquivo <strong>{pendingUndo.fileName}</strong> retornará às regras anteriores à adesão. O arquivo e seu registro físico permanecerão intactos.
             </p>
             <div className="flex justify-end gap-2 pt-2">
@@ -981,7 +989,7 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
                 type="button"
                 disabled={undoSaving}
                 onClick={() => setPendingUndo(null)}
-                className="rounded-lg border border-slate-300 bg-white px-3.5 py-1.5 font-semibold text-slate-700"
+                className="rounded-lg border border-slate-300 bg-white px-3.5 py-1.5 font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
               >
                 Cancelar
               </button>
@@ -997,6 +1005,20 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
           </div>
         </div>
       )}
+      <DossierDocumentPreviewModal
+        open={Boolean(previewDoc)}
+        title={previewDoc?.doc.fileName || ''}
+        subtitle={
+          previewDoc ? `${previewDoc.doc.folderPath} · SHA256:${previewDoc.doc.sha256Hash}` : ''
+        }
+        mimeType={previewDoc?.doc.mimeType || ''}
+        blobUrl={previewDoc?.blobUrl || ''}
+        onDownload={previewDoc ? () => void handleOpenSecureFile(previewDoc.doc, false) : undefined}
+        onClose={() => {
+          if (previewDoc?.blobUrl) URL.revokeObjectURL(previewDoc.blobUrl);
+          setPreviewDoc(null);
+        }}
+      />
     </div>
   );
 };

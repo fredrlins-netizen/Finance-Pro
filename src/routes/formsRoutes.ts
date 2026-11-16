@@ -668,7 +668,20 @@ export function registerFormsRoutes(
     '/api/forms/ivi-generate',
     requireAuth,
     requireModule('forms'),
-    modelUpload.single('file'),
+    (req: AuthRequest, res: Response, next) => {
+      modelUpload.single('file')(req, res, (err: unknown) => {
+        if (err) {
+          const msg =
+            err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE'
+              ? 'Arquivo modelo excede o limite de 12 MB.'
+              : err instanceof Error
+              ? err.message
+              : 'Falha ao processar arquivo anexado.';
+          return res.status(400).json({ error: msg });
+        }
+        next();
+      });
+    },
     async (req: AuthRequest, res: Response) => {
       try {
         const body = req.body as {

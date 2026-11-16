@@ -323,11 +323,11 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
   };
 
   const renderSortIcon = (field: SortField) => {
-    if (sortField !== field) return <ArrowUpDown className="w-3 h-3 text-slate-400 inline ml-1" />;
+    if (sortField !== field) return <ArrowUpDown className="w-3 h-3 text-slate-400 inline ml-1 dark:text-slate-400" />;
     return sortDir === 'asc' ? (
-      <ChevronUp className="w-3.5 h-3.5 text-slate-900 inline ml-0.5" />
+      <ChevronUp className="w-3.5 h-3.5 text-slate-900 inline ml-0.5 dark:text-slate-100" />
     ) : (
-      <ChevronDown className="w-3.5 h-3.5 text-slate-900 inline ml-0.5" />
+      <ChevronDown className="w-3.5 h-3.5 text-slate-900 inline ml-0.5 dark:text-slate-100" />
     );
   };
 
@@ -663,17 +663,17 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
   return (
     <div className="space-y-4">
       {/* Header: Account Selector & Live Account Balance + Action Bar */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4 dark:border-slate-700 dark:bg-slate-900">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-1 min-w-0">
             <div className="min-w-[240px] sm:max-w-xs w-full">
-              <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+              <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">
                 Conta Corrente
               </label>
               <select
                 value={selectedAccountId}
                 onChange={(e) => setSelectedAccountId(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               >
                 <option value="all">Todas as Contas</option>
                 {bankAccounts.map((acc) => (
@@ -684,8 +684,8 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
               </select>
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 min-w-[220px]">
-              <div className="text-[11px] font-medium text-slate-500">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 min-w-[220px] dark:border-slate-700 dark:bg-slate-800/70">
+              <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
                 {selectedAccountId === 'all'
                   ? 'Saldo Total (Todas as Contas)'
                   : 'Saldo Atual da Conta'}
@@ -693,8 +693,8 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
               <div
                 className={`mt-0.5 font-mono text-lg font-bold tabular-nums ${
                   movementsWithAccumulated.headerBalanceCents >= 0
-                    ? 'text-emerald-700'
-                    : 'text-red-600'
+                    ? 'text-emerald-700 dark:text-emerald-300'
+                    : 'text-red-600 dark:text-red-400'
                 }`}
               >
                 {formatSignedBRL(movementsWithAccumulated.headerBalanceCents)}
@@ -709,8 +709,8 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
               onClick={() => setFiltersOpen((prev) => !prev)}
               className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold transition-colors whitespace-nowrap ${
                 filtersOpen
-                  ? 'border-slate-900 bg-slate-900 text-white'
-                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  ? 'border-slate-900 bg-slate-900 text-white dark:border-emerald-500 dark:bg-emerald-600'
+                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
               }`}
             >
               <Filter className="w-3.5 h-3.5" />
@@ -720,7 +720,7 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
               type="button"
               onClick={openDepositModal}
               disabled={bankAccounts.length === 0}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 whitespace-nowrap disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 whitespace-nowrap disabled:opacity-50 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
             >
               <ArrowDownCircle className="w-3.5 h-3.5" />
               Depósito
@@ -729,7 +729,7 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
               type="button"
               onClick={openWithdrawModal}
               disabled={bankAccounts.length === 0}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100 whitespace-nowrap disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100 whitespace-nowrap disabled:opacity-50 dark:border-amber-800/70 dark:bg-amber-950/50 dark:text-amber-300 dark:hover:bg-amber-900/60"
             >
               <ArrowUpCircle className="w-3.5 h-3.5" />
               Saque
@@ -738,7 +738,7 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
               type="button"
               onClick={openTransferModal}
               disabled={bankAccounts.length < 2}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-800 hover:bg-blue-100 whitespace-nowrap disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-800 hover:bg-blue-100 whitespace-nowrap disabled:opacity-50 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300 dark:hover:bg-blue-900/60"
             >
               <ArrowLeftRight className="w-3.5 h-3.5" />
               Transferência
@@ -747,7 +747,7 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
               type="button"
               onClick={openGenericNewModal}
               disabled={bankAccounts.length === 0}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 whitespace-nowrap disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 whitespace-nowrap disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
             >
               <Plus className="w-3.5 h-3.5 text-emerald-400" />
               Novo Lançamento
@@ -757,31 +757,31 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
 
         {/* Collapsible Filters Panel (Seção 2.4) */}
         {filtersOpen && (
-          <div className="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 text-xs">
+          <div className="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 text-xs dark:border-slate-800">
             <div>
-              <label className="block font-semibold text-slate-600 mb-1">De</label>
+              <label className="block font-semibold text-slate-600 mb-1 dark:text-slate-300">De</label>
               <input
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 font-mono"
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               />
             </div>
             <div>
-              <label className="block font-semibold text-slate-600 mb-1">Até</label>
+              <label className="block font-semibold text-slate-600 mb-1 dark:text-slate-300">Até</label>
               <input
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 font-mono"
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               />
             </div>
             <div>
-              <label className="block font-semibold text-slate-600 mb-1">Tipo</label>
+              <label className="block font-semibold text-slate-600 mb-1 dark:text-slate-300">Tipo</label>
               <select
                 value={typeFilter}
                 onChange={(e) => setTypeFilter(e.target.value as any)}
-                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               >
                 <option value="ALL">Todos</option>
                 <option value="CREDITO">Crédito</option>
@@ -789,11 +789,11 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
               </select>
             </div>
             <div>
-              <label className="block font-semibold text-slate-600 mb-1">Origem</label>
+              <label className="block font-semibold text-slate-600 mb-1 dark:text-slate-300">Origem</label>
               <select
                 value={originFilter}
                 onChange={(e) => setOriginFilter(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               >
                 <option value="ALL">Todos</option>
                 <option value="BAIXA_RECEBER">Baixa Receber</option>
@@ -806,11 +806,11 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
               </select>
             </div>
             <div>
-              <label className="block font-semibold text-slate-600 mb-1">Status</label>
+              <label className="block font-semibold text-slate-600 mb-1 dark:text-slate-300">Status</label>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               >
                 <option value="ALL">Todos</option>
                 <option value="CONCILIADO">Conciliado</option>
@@ -818,15 +818,15 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
               </select>
             </div>
             <div>
-              <label className="block font-semibold text-slate-600 mb-1">Pesquisar</label>
+              <label className="block font-semibold text-slate-600 mb-1 dark:text-slate-300">Pesquisar</label>
               <div className="relative">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2" />
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2 dark:text-slate-400" />
                 <input
                   type="text"
                   value={searchText}
                   onChange={(e) => setSearchText(e.target.value)}
                   placeholder="Descrição ou documento..."
-                  className="w-full rounded-lg border border-slate-200 pl-8 pr-2.5 py-1.5"
+                  className="w-full rounded-lg border border-slate-200 pl-8 pr-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
             </div>
@@ -835,7 +835,7 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
       </div>
 
       {toast && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-medium text-emerald-900 flex items-center justify-between">
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-medium text-emerald-900 flex items-center justify-between dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300">
           <span>{toast}</span>
           <button type="button" onClick={() => setToast('')}>
             <X className="w-3.5 h-3.5" />
@@ -844,7 +844,7 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
       )}
 
       {errorBanner && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-900 flex items-center justify-between">
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-900 flex items-center justify-between dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
           <span>{errorBanner}</span>
           <button type="button" onClick={() => setErrorBanner('')}>
             <X className="w-3.5 h-3.5" />
@@ -854,41 +854,41 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
 
       {/* Indicadores do Período (Seção 2.3) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="text-[11px] font-medium text-slate-500">Total Entradas</div>
-          <div className="mt-1 font-mono text-lg font-bold text-emerald-700 tabular-nums">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Total Entradas</div>
+          <div className="mt-1 font-mono text-lg font-bold text-emerald-700 tabular-nums dark:text-emerald-300">
             {formatBRL(periodSummary.entries)}
           </div>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="text-[11px] font-medium text-slate-500">Total Saídas</div>
-          <div className="mt-1 font-mono text-lg font-bold text-red-600 tabular-nums">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Total Saídas</div>
+          <div className="mt-1 font-mono text-lg font-bold text-red-600 tabular-nums dark:text-red-400">
             {formatSignedBRL(-periodSummary.exits)}
           </div>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="text-[11px] font-medium text-slate-500">Saldo Período</div>
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Saldo Período</div>
           <div
             className={`mt-1 font-mono text-lg font-bold tabular-nums ${
-              periodSummary.periodBalance >= 0 ? 'text-slate-900' : 'text-red-600'
+              periodSummary.periodBalance >= 0 ? 'text-slate-900 dark:text-slate-100' : 'text-red-600 dark:text-red-400'
             }`}
           >
             {formatSignedBRL(periodSummary.periodBalance)}
           </div>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="text-[11px] font-medium text-slate-500">Quantidade de movimentos</div>
-          <div className="mt-1 font-mono text-lg font-bold text-blue-700 tabular-nums">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Quantidade de movimentos</div>
+          <div className="mt-1 font-mono text-lg font-bold text-blue-700 tabular-nums dark:text-blue-300">
             {periodSummary.count} registro(s)
           </div>
         </div>
       </div>
 
       {/* Data Grid (Seção 3) */}
-      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
         <div className="overflow-x-auto max-h-[540px] overflow-y-auto scroll-rulers">
           <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 text-[11px] font-semibold text-slate-600 border-b border-slate-200 sticky top-0 z-10">
+            <thead className="bg-slate-50 text-[11px] font-semibold text-slate-600 border-b border-slate-200 sticky top-0 z-10 dark:bg-slate-800/70 dark:text-slate-300 dark:border-slate-700">
               <tr>
                 {(
                   [
@@ -911,7 +911,7 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
                         handleSortToggle(field);
                       }
                     }}
-                    className={`px-3 py-3 cursor-pointer select-none hover:bg-slate-100 whitespace-nowrap ${
+                    className={`px-3 py-3 cursor-pointer select-none hover:bg-slate-100 whitespace-nowrap dark:hover:bg-slate-800 ${
                       field === 'entrada' || field === 'saida' ? 'text-right' : ''
                     }`}
                   >
@@ -930,7 +930,7 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
                       handleSortToggle('status');
                     }
                   }}
-                  className="px-3 py-3 cursor-pointer select-none hover:bg-slate-100 whitespace-nowrap"
+                  className="px-3 py-3 cursor-pointer select-none hover:bg-slate-100 whitespace-nowrap dark:hover:bg-slate-800"
                 >
                   Status
                   {renderSortIcon('status')}
@@ -938,10 +938,10 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
                 <th className="px-3 py-3 text-right whitespace-nowrap">Ações</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {sortedRows.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-10 text-center text-slate-500">
+                  <td colSpan={9} className="py-10 text-center text-slate-500 dark:text-slate-400">
                     Nenhuma movimentação encontrada para o período selecionado.
                   </td>
                 </tr>
@@ -957,18 +957,18 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
                         rowRefs.current[row.id] = el;
                       }}
                       className={`transition-colors ${
-                        isHighlighted ? 'bg-blue-100/80' : 'hover:bg-slate-50'
+                        isHighlighted ? 'bg-blue-100/80' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                       }`}
                     >
-                      <td className="px-3 py-2.5 font-mono text-slate-700 whitespace-nowrap">
+                      <td className="px-3 py-2.5 font-mono text-slate-700 whitespace-nowrap dark:text-slate-200">
                         {formatIsoDateToBR(row.isoDate)}
                       </td>
-                      <td className="px-3 py-2.5 font-medium text-slate-900 max-w-[260px]">
+                      <td className="px-3 py-2.5 font-medium text-slate-900 max-w-[260px] dark:text-slate-100">
                         <div className="flex items-center gap-1.5">
                           {isLinked && (
                             <span
                               title={`Vinculado a Título (${row.titleSource})`}
-                              className="text-blue-600 shrink-0"
+                              className="text-blue-600 shrink-0 dark:text-blue-400"
                             >
                               <Link2 className="w-3.5 h-3.5" />
                             </span>
@@ -978,26 +978,26 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
                           </span>
                         </div>
                         {row.categoryName && (
-                          <div className="text-[10px] text-slate-400 truncate">{row.categoryName}</div>
+                          <div className="text-[10px] text-slate-400 truncate dark:text-slate-400">{row.categoryName}</div>
                         )}
                       </td>
-                      <td className="px-3 py-2.5 font-mono text-slate-600 whitespace-nowrap">
+                      <td className="px-3 py-2.5 font-mono text-slate-600 whitespace-nowrap dark:text-slate-300">
                         {row.documentNumber || '-'}
                       </td>
                       <td className="px-3 py-2.5 whitespace-nowrap">
-                        <span className="inline-block rounded bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700">
+                        <span className="inline-block rounded bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                           {originLabel}
                         </span>
                       </td>
-                      <td className="px-3 py-2.5 font-mono font-semibold text-emerald-700 text-right tabular-nums whitespace-nowrap">
+                      <td className="px-3 py-2.5 font-mono font-semibold text-emerald-700 text-right tabular-nums whitespace-nowrap dark:text-emerald-300">
                         {row.movementType === 'CREDITO' ? formatBRL(row.amountCents) : '-'}
                       </td>
-                      <td className="px-3 py-2.5 font-mono font-semibold text-red-600 text-right tabular-nums whitespace-nowrap">
+                      <td className="px-3 py-2.5 font-mono font-semibold text-red-600 text-right tabular-nums whitespace-nowrap dark:text-red-400">
                         {row.movementType === 'DEBITO' ? formatSignedBRL(-row.amountCents) : '-'}
                       </td>
                       <td
                         className={`px-3 py-2.5 font-mono font-bold text-right tabular-nums whitespace-nowrap ${
-                          row.accumulatedBalanceCents >= 0 ? 'text-slate-900' : 'text-red-600'
+                          row.accumulatedBalanceCents >= 0 ? 'text-slate-900 dark:text-slate-100' : 'text-red-600 dark:text-red-400'
                         }`}
                       >
                         {formatSignedBRL(row.accumulatedBalanceCents)}
@@ -1006,8 +1006,8 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
                         <span
                           className={`inline-block rounded px-2 py-0.5 text-[10px] font-bold ${
                             row.status === 'CONCILIADO'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-amber-100 text-amber-800'
+                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300'
+                              : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300'
                           }`}
                         >
                           {row.status === 'CONCILIADO' ? 'Conciliado' : 'Pendente'}
@@ -1019,7 +1019,7 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
                             type="button"
                             onClick={() => openEditRow(row)}
                             title={isLinked ? 'Lançamento vinculado' : 'Editar lançamento'}
-                            className="text-blue-700 hover:text-blue-900 p-1"
+                            className="text-blue-700 hover:text-blue-900 p-1 dark:text-blue-300 dark:hover:text-blue-200"
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
@@ -1027,7 +1027,7 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
                             type="button"
                             onClick={() => openDeleteRow(row)}
                             title={isLinked ? 'Lançamento vinculado' : 'Excluir lançamento'}
-                            className="text-red-600 hover:text-red-800 p-1"
+                            className="text-red-600 hover:text-red-800 p-1 dark:text-red-400 dark:hover:text-red-200"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -1036,7 +1036,7 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
                               type="button"
                               onClick={() => onNavigate('finance_operacao')}
                               title="Ver título no Financeiro"
-                              className="text-indigo-600 hover:text-indigo-900 p-1"
+                              className="text-indigo-600 hover:text-indigo-900 p-1 dark:text-indigo-400 dark:hover:text-indigo-200"
                             >
                               <ExternalLink className="w-3.5 h-3.5" />
                             </button>
@@ -1045,7 +1045,7 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
                             type="button"
                             onClick={() => setAuditTarget(row)}
                             title="Histórico de Auditoria"
-                            className="text-slate-500 hover:text-slate-900 p-1"
+                            className="text-slate-500 hover:text-slate-900 p-1 dark:text-slate-400 dark:hover:text-white"
                           >
                             <History className="w-3.5 h-3.5" />
                           </button>
@@ -1057,20 +1057,20 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
               )}
             </tbody>
             {sortedRows.length > 0 && (
-              <tfoot className="bg-slate-50 border-t border-slate-200 font-mono text-xs font-bold text-slate-900">
+              <tfoot className="bg-slate-50 border-t border-slate-200 font-mono text-xs font-bold text-slate-900 dark:bg-slate-800/70 dark:border-slate-700 dark:text-slate-100">
                 <tr>
-                  <td colSpan={4} className="px-3 py-3 text-right font-sans text-slate-600">
+                  <td colSpan={4} className="px-3 py-3 text-right font-sans text-slate-600 dark:text-slate-300">
                     Totais do Período ({periodSummary.count} movimentos):
                   </td>
-                  <td className="px-3 py-3 text-right text-emerald-700 tabular-nums">
+                  <td className="px-3 py-3 text-right text-emerald-700 tabular-nums dark:text-emerald-300">
                     {formatBRL(periodSummary.entries)}
                   </td>
-                  <td className="px-3 py-3 text-right text-red-600 tabular-nums">
+                  <td className="px-3 py-3 text-right text-red-600 tabular-nums dark:text-red-400">
                     {formatSignedBRL(-periodSummary.exits)}
                   </td>
                   <td
                     className={`px-3 py-3 text-right tabular-nums ${
-                      periodSummary.periodBalance >= 0 ? 'text-slate-900' : 'text-red-600'
+                      periodSummary.periodBalance >= 0 ? 'text-slate-900 dark:text-slate-100' : 'text-red-600 dark:text-red-400'
                     }`}
                   >
                     {formatSignedBRL(periodSummary.periodBalance)}
@@ -1086,28 +1086,28 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
       {/* ================= MODAL 1: NOVO / EDITAR LANÇAMENTO (Seção 4) ================= */}
       {genericModalOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 dark:bg-slate-950/80"
           onClick={() => setGenericModalOpen(false)}
         >
           <div
-            className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs"
+            className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs dark:border-slate-700 dark:bg-slate-900"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-display text-base font-bold text-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+              <h3 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
                 {editingMovement ? 'Editar Lançamento' : 'Novo Lançamento'}
               </h3>
               <button
                 type="button"
                 onClick={() => setGenericModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700"
+                className="text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {genError && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 font-medium">
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 font-medium dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
                 {genError}
               </div>
             )}
@@ -1121,17 +1121,17 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
             >
               {/* Dados do Lançamento */}
               <div className="space-y-3">
-                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400">
                   Dados do Lançamento
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="sm:col-span-2">
-                    <label className="block font-semibold text-slate-700 mb-1">Conta Corrente *</label>
+                    <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Conta Corrente *</label>
                     <select
                       required
                       value={genAccountId}
                       onChange={(e) => setGenAccountId(Number(e.target.value))}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                     >
                       <option value={0}>Selecione...</option>
                       {bankAccounts.map((acc) => (
@@ -1142,78 +1142,78 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
                     </select>
                   </div>
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Data *</label>
+                    <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Data *</label>
                     <input
                       type="date"
                       required
                       value={genDate}
                       onChange={(e) => setGenDate(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Tipo *</label>
+                    <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Tipo *</label>
                     <select
                       value={genType}
                       onChange={(e) => {
                         setGenType(e.target.value as 'CREDITO' | 'DEBITO');
                         setGenCategoryId('');
                       }}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 font-semibold"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 font-semibold dark:border-slate-700"
                     >
                       <option value="DEBITO">Débito (Saída)</option>
                       <option value="CREDITO">Crédito (Entrada)</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Valor (R$) *</label>
+                    <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Valor (R$) *</label>
                     <input
                       type="text"
                       required
                       value={genAmountMask}
                       onChange={(e) => setGenAmountMask(formatCurrencyTyping(e.target.value))}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono font-bold text-right"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono font-bold text-right dark:border-slate-700"
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Nº Documento</label>
+                    <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Nº Documento</label>
                     <input
                       type="text"
                       value={genDoc}
                       onChange={(e) => setGenDoc(e.target.value)}
                       placeholder="Opcional"
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                     />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="block font-semibold text-slate-700 mb-1">Descrição *</label>
+                    <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Descrição *</label>
                     <input
                       type="text"
                       required
                       value={genDesc}
                       onChange={(e) => setGenDesc(e.target.value)}
                       placeholder="Ex: Tarifa bancária mensal"
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700"
                     />
                   </div>
                 </div>
               </div>
 
               {/* Classificação */}
-              <div className="space-y-3 pt-2 border-t border-slate-100">
-                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400">
                   Classificação
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="sm:col-span-3">
-                    <label className="block font-semibold text-slate-700 mb-1">
+                    <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">
                       Categoria (Plano de Contas) *
                     </label>
                     <select
                       required
                       value={genCategoryId}
                       onChange={(e) => setGenCategoryId(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                     >
                       <option value="">
                         Selecione ({genType === 'CREDITO' ? 'Receitas analíticas' : 'Despesas analíticas'})...
@@ -1226,11 +1226,11 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
                     </select>
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="block font-semibold text-slate-700 mb-1">Origem</label>
+                    <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Origem</label>
                     <select
                       value={genOrigin}
                       onChange={(e) => setGenOrigin(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                     >
                       <option value="MANUAL">Manual</option>
                       <option value="TARIFA">Tarifa</option>
@@ -1244,11 +1244,11 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
                     </select>
                   </div>
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Status</label>
+                    <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Status</label>
                     <select
                       value={genStatus}
                       onChange={(e) => setGenStatus(e.target.value as 'PENDENTE' | 'CONCILIADO')}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                     >
                       <option value="PENDENTE">Pendente</option>
                       <option value="CONCILIADO">Conciliado</option>
@@ -1257,14 +1257,14 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-                <span className="text-[10px] text-slate-400">Atalho: Ctrl+Enter para salvar</span>
+              <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
+                <span className="text-[10px] text-slate-400 dark:text-slate-400">Atalho: Ctrl+Enter para salvar</span>
                 <div className="flex gap-2">
                   <button
                     type="button"
                     disabled={genBusy}
                     onClick={() => setGenericModalOpen(false)}
-                    className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700 hover:bg-slate-50"
+                    className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                   >
                     Cancelar
                   </button>
@@ -1284,27 +1284,27 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
 
       {/* ================= MODAL 2: DEPÓSITO (Seção 5) ================= */}
       {depositOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-display text-base font-bold text-slate-900">Depósito</h3>
-              <button type="button" onClick={() => setDepositOpen(false)} className="text-slate-400 hover:text-slate-700">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 dark:bg-slate-950/80">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+              <h3 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">Depósito</h3>
+              <button type="button" onClick={() => setDepositOpen(false)} className="text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
                 <X className="w-4 h-4" />
               </button>
             </div>
             {depError && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 font-medium">
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 font-medium dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
                 {depError}
               </div>
             )}
             <form onSubmit={submitDeposit} className="space-y-3">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Conta *</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Conta *</label>
                 <select
                   required
                   value={depAccountId}
                   onChange={(e) => setDepAccountId(Number(e.target.value))}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 >
                   {bankAccounts.map((acc) => (
                     <option key={acc.id} value={acc.id}>
@@ -1315,44 +1315,44 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Data *</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Data *</label>
                   <input
                     type="date"
                     required
                     value={depDate}
                     onChange={(e) => setDepDate(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Valor (R$) *</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Valor (R$) *</label>
                   <input
                     type="text"
                     required
                     value={depAmountMask}
                     onChange={(e) => setDepAmountMask(formatCurrencyTyping(e.target.value))}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono font-bold text-right"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono font-bold text-right dark:border-slate-700"
                   />
                 </div>
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Descrição *</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Descrição *</label>
                 <input
                   type="text"
                   required
                   value={depDesc}
                   onChange={(e) => setDepDesc(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">
                   Categoria (Plano de Contas — opcional)
                 </label>
                 <select
                   value={depCatId}
                   onChange={(e) => setDepCatId(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 >
                   <option value="">Sem seleção</option>
                   {analyticRevenues.map((cat) => (
@@ -1363,21 +1363,21 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
                 </select>
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Status</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Status</label>
                 <select
                   value={depStatus}
                   onChange={(e) => setDepStatus(e.target.value as 'PENDENTE' | 'CONCILIADO')}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 >
                   <option value="PENDENTE">Pendente</option>
                   <option value="CONCILIADO">Conciliado</option>
                 </select>
               </div>
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setDepositOpen(false)}
-                  className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700"
+                  className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
                 >
                   Cancelar
                 </button>
@@ -1396,27 +1396,27 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
 
       {/* ================= MODAL 3: SAQUE (Seção 6) ================= */}
       {withdrawOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-display text-base font-bold text-slate-900">Saque</h3>
-              <button type="button" onClick={() => setWithdrawOpen(false)} className="text-slate-400 hover:text-slate-700">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 dark:bg-slate-950/80">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+              <h3 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">Saque</h3>
+              <button type="button" onClick={() => setWithdrawOpen(false)} className="text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
                 <X className="w-4 h-4" />
               </button>
             </div>
             {wdError && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 font-medium">
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 font-medium dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
                 {wdError}
               </div>
             )}
             <form onSubmit={submitWithdraw} className="space-y-3">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Conta *</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Conta *</label>
                 <select
                   required
                   value={wdAccountId}
                   onChange={(e) => setWdAccountId(Number(e.target.value))}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 >
                   {bankAccounts.map((acc) => (
                     <option key={acc.id} value={acc.id}>
@@ -1427,44 +1427,44 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Data *</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Data *</label>
                   <input
                     type="date"
                     required
                     value={wdDate}
                     onChange={(e) => setWdDate(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Valor (R$) *</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Valor (R$) *</label>
                   <input
                     type="text"
                     required
                     value={wdAmountMask}
                     onChange={(e) => setWdAmountMask(formatCurrencyTyping(e.target.value))}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono font-bold text-right"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono font-bold text-right dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   />
                 </div>
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Descrição *</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Descrição *</label>
                 <input
                   type="text"
                   required
                   value={wdDesc}
                   onChange={(e) => setWdDesc(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">
                   Categoria (Plano de Contas — opcional)
                 </label>
                 <select
                   value={wdCatId}
                   onChange={(e) => setWdCatId(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 >
                   <option value="">Sem seleção</option>
                   {analyticExpenses.map((cat) => (
@@ -1475,21 +1475,21 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
                 </select>
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Status</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Status</label>
                 <select
                   value={wdStatus}
                   onChange={(e) => setWdStatus(e.target.value as 'PENDENTE' | 'CONCILIADO')}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 >
                   <option value="PENDENTE">Pendente</option>
                   <option value="CONCILIADO">Conciliado</option>
                 </select>
               </div>
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setWithdrawOpen(false)}
-                  className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700"
+                  className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
                 >
                   Cancelar
                 </button>
@@ -1508,24 +1508,24 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
 
       {/* ================= MODAL 4: TRANSFERÊNCIA ENTRE CONTAS (Seção 7) ================= */}
       {transferOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-display text-base font-bold text-slate-900">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 dark:bg-slate-950/80">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+              <h3 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
                 Transferência entre Contas
               </h3>
-              <button type="button" onClick={() => setTransferOpen(false)} className="text-slate-400 hover:text-slate-700">
+              <button type="button" onClick={() => setTransferOpen(false)} className="text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
                 <X className="w-4 h-4" />
               </button>
             </div>
             {trError && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 font-medium">
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 font-medium dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
                 {trError}
               </div>
             )}
             <form onSubmit={submitTransfer} className="space-y-3">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">
                   Conta de Origem (Débito) *
                 </label>
                 <select
@@ -1536,7 +1536,7 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
                     setTrSrcId(nextSrc);
                     if (trDstId === nextSrc) setTrDstId(0);
                   }}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700"
                 >
                   {bankAccounts.map((acc) => (
                     <option key={acc.id} value={acc.id}>
@@ -1546,14 +1546,14 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
                 </select>
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">
                   Conta de Destino (Crédito) *
                 </label>
                 <select
                   required
                   value={trDstId}
                   onChange={(e) => setTrDstId(Number(e.target.value))}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 >
                   <option value={0}>Selecione a conta de destino...</option>
                   {bankAccounts
@@ -1567,44 +1567,44 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Data *</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Data *</label>
                   <input
                     type="date"
                     required
                     value={trDate}
                     onChange={(e) => setTrDate(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Valor (R$) *</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Valor (R$) *</label>
                   <input
                     type="text"
                     required
                     value={trAmountMask}
                     onChange={(e) => setTrAmountMask(formatCurrencyTyping(e.target.value))}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono font-bold text-right"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono font-bold text-right dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   />
                 </div>
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Descrição *</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Descrição *</label>
                 <input
                   type="text"
                   required
                   value={trDesc}
                   onChange={(e) => setTrDesc(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">
                   Categoria (Plano de Contas — opcional)
                 </label>
                 <select
                   value={trCatId}
                   onChange={(e) => setTrCatId(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 >
                   <option value="">Sem seleção</option>
                   {analyticExpenses.map((cat) => (
@@ -1615,21 +1615,21 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
                 </select>
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Status</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Status</label>
                 <select
                   value={trStatus}
                   onChange={(e) => setTrStatus(e.target.value as 'PENDENTE' | 'CONCILIADO')}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 >
                   <option value="PENDENTE">Pendente</option>
                   <option value="CONCILIADO">Conciliado</option>
                 </select>
               </div>
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setTransferOpen(false)}
-                  className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700"
+                  className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
                 >
                   Cancelar
                 </button>
@@ -1649,20 +1649,20 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
       {/* ================= MODAL 5: LANÇAMENTO VINCULADO (Seção 8.1) ================= */}
       {linkedTarget && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80"
           onClick={() => setLinkedTarget(null)}
         >
           <div
-            className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs"
+            className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs dark:border-slate-700 dark:bg-slate-900"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start gap-3">
-              <div className="h-9 w-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+              <div className="h-9 w-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 dark:bg-blue-900/50 dark:text-blue-300">
                 <Link2 className="w-5 h-5" />
               </div>
               <div className="space-y-1">
-                <h3 className="font-display text-sm font-bold text-slate-900">Lançamento Vinculado</h3>
-                <p className="text-slate-600 leading-relaxed">
+                <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">Lançamento Vinculado</h3>
+                <p className="text-slate-600 leading-relaxed dark:text-slate-300">
                   Este lançamento foi gerado automaticamente pela baixa de um título em{' '}
                   <strong>
                     {linkedTarget.titleSource === 'PAGAR' ? 'Contas a Pagar' : 'Contas a Receber'}
@@ -1672,26 +1672,26 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
               </div>
             </div>
 
-            <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 space-y-1.5">
+            <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 space-y-1.5 dark:bg-slate-800/70 dark:border-slate-700">
               <div>
-                <span className="text-slate-500">Descrição:</span>{' '}
-                <strong className="text-slate-900">{linkedTarget.description}</strong>
+                <span className="text-slate-500 dark:text-slate-400">Descrição:</span>{' '}
+                <strong className="text-slate-900 dark:text-slate-100">{linkedTarget.description}</strong>
               </div>
               <div>
-                <span className="text-slate-500">Data:</span>{' '}
-                <strong className="font-mono text-slate-900">
+                <span className="text-slate-500 dark:text-slate-400">Data:</span>{' '}
+                <strong className="font-mono text-slate-900 dark:text-slate-100">
                   {formatIsoDateToBR(toIsoDateOnly(linkedTarget.movementDate))}
                 </strong>
               </div>
               <div>
-                <span className="text-slate-500">Valor:</span>{' '}
-                <strong className="font-mono text-slate-900">
+                <span className="text-slate-500 dark:text-slate-400">Valor:</span>{' '}
+                <strong className="font-mono text-slate-900 dark:text-slate-100">
                   {formatBRL(linkedTarget.amountCents)}
                 </strong>
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
               {onNavigate && (
                 <button
                   type="button"
@@ -1702,7 +1702,7 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
                     setLinkedTarget(null);
                     onNavigate(targetScopeMod, { titleId: targetTitleId });
                   }}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3.5 py-2 font-semibold text-blue-800 hover:bg-blue-100"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3.5 py-2 font-semibold text-blue-800 hover:bg-blue-100 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300 dark:hover:bg-blue-900/60"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
                   Ver Título
@@ -1711,7 +1711,7 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
               <button
                 type="button"
                 onClick={() => setLinkedTarget(null)}
-                className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800"
+                className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
               >
                 Entendido
               </button>
@@ -1722,57 +1722,57 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
 
       {/* ================= MODAL 6: CONFIRMAR EXCLUSÃO (Seção 8.2) ================= */}
       {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs dark:border-slate-700 dark:bg-slate-900">
             <div className="flex items-start gap-3">
-              <div className="h-9 w-9 rounded-xl bg-red-100 text-red-700 flex items-center justify-center shrink-0">
+              <div className="h-9 w-9 rounded-xl bg-red-100 text-red-700 flex items-center justify-center shrink-0 dark:bg-red-900/50 dark:text-red-300">
                 <AlertTriangle className="w-5 h-5" />
               </div>
               <div className="space-y-1">
-                <h3 className="font-display text-sm font-bold text-slate-900">Confirmar Exclusão</h3>
-                <p className="text-slate-600 leading-relaxed">
+                <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">Confirmar Exclusão</h3>
+                <p className="text-slate-600 leading-relaxed dark:text-slate-300">
                   A exclusão deste lançamento é permanente e não pode ser desfeita.
                 </p>
               </div>
             </div>
 
-            <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 space-y-1.5">
+            <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 space-y-1.5 dark:bg-slate-800/70 dark:border-slate-700">
               <div>
-                <span className="text-slate-500">Descrição:</span>{' '}
-                <strong className="text-slate-900">{deleteTarget.description}</strong>
+                <span className="text-slate-500 dark:text-slate-400">Descrição:</span>{' '}
+                <strong className="text-slate-900 dark:text-slate-100">{deleteTarget.description}</strong>
               </div>
               <div>
-                <span className="text-slate-500">Data:</span>{' '}
-                <strong className="font-mono text-slate-900">
+                <span className="text-slate-500 dark:text-slate-400">Data:</span>{' '}
+                <strong className="font-mono text-slate-900 dark:text-slate-100">
                   {formatIsoDateToBR(toIsoDateOnly(deleteTarget.movementDate))}
                 </strong>
               </div>
               <div>
-                <span className="text-slate-500">Tipo:</span>{' '}
-                <strong className="text-slate-900">
+                <span className="text-slate-500 dark:text-slate-400">Tipo:</span>{' '}
+                <strong className="text-slate-900 dark:text-slate-100">
                   {String(deleteTarget.movementType).toUpperCase() === 'CREDITO' ? 'Entrada' : 'Saída'}
                 </strong>
               </div>
               <div>
-                <span className="text-slate-500">Valor:</span>{' '}
-                <strong className="font-mono text-slate-900">
+                <span className="text-slate-500 dark:text-slate-400">Valor:</span>{' '}
+                <strong className="font-mono text-slate-900 dark:text-slate-100">
                   {formatBRL(deleteTarget.amountCents)}
                 </strong>
               </div>
             </div>
 
             {deleteError && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 font-medium">
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 font-medium dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
                 {deleteError}
               </div>
             )}
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
               <button
                 type="button"
                 disabled={deleteBusy}
                 onClick={() => setDeleteTarget(null)}
-                className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700 hover:bg-slate-50"
+                className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 Cancelar
               </button>

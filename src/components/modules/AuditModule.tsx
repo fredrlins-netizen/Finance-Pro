@@ -74,13 +74,13 @@ interface AuditContextResponse {
 type AuditTabId = 'conferencia' | 'documentos' | 'ficha' | 'boletos';
 
 const STATUS_DISPLAY: Record<string, { label: string; tone: string }> = {
-  aguardando_auditoria: { label: 'Aguardando Auditoria', tone: 'text-amber-700' },
-  auditada: { label: 'Em Análise (Salva)', tone: 'text-blue-700' },
-  devolvida_admissao: { label: 'Devolvida à Admissão', tone: 'text-red-700' },
-  retorno_auditoria: { label: 'Retorno Comercial', tone: 'text-red-700' },
-  aprovada: { label: 'Aprovada', tone: 'text-emerald-700' },
-  em_andamento: { label: 'Em Andamento', tone: 'text-emerald-700' },
-  concluido: { label: 'Concluída', tone: 'text-emerald-700' },
+  aguardando_auditoria: { label: 'Aguardando Auditoria', tone: 'text-amber-700 dark:text-amber-300' },
+  auditada: { label: 'Em Análise (Salva)', tone: 'text-blue-700 dark:text-blue-300' },
+  devolvida_admissao: { label: 'Devolvida à Admissão', tone: 'text-red-700 dark:text-red-300' },
+  retorno_auditoria: { label: 'Retorno Comercial', tone: 'text-red-700 dark:text-red-300' },
+  aprovada: { label: 'Aprovada', tone: 'text-emerald-700 dark:text-emerald-300' },
+  em_andamento: { label: 'Em Andamento', tone: 'text-emerald-700 dark:text-emerald-300' },
+  concluido: { label: 'Concluída', tone: 'text-emerald-700 dark:text-emerald-300' },
 };
 
 export const AuditModule: React.FC<AuditModuleProps> = ({
@@ -790,7 +790,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
     );
 
   const activeStatusDisplay = activeAdmission
-    ? STATUS_DISPLAY[activeAdmission.status] || { label: activeAdmission.status, tone: 'text-slate-700' }
+    ? STATUS_DISPLAY[activeAdmission.status] || { label: activeAdmission.status, tone: 'text-slate-700 dark:text-slate-200' }
     : null;
 
   const showLateralInsights = Boolean(
@@ -800,12 +800,12 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
   return (
     <div className="space-y-5">
       {/* Header & Queue Status Filter Tabs (default = Todos em Auditoria) */}
-      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-3 border-b border-slate-200 pb-4">
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-3 border-b border-slate-200 pb-4 dark:border-slate-700">
         <div>
-          <p className="text-xs font-medium text-slate-500">
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
             Varredura Automática de Checklist em Base · Conferência Documental em Tela Dedicada · Emissão de Boletos
           </p>
-          <h1 className="mt-1 font-display text-2xl font-bold tracking-tight text-slate-900">
+          <h1 className="mt-1 font-display text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
             Auditoria &amp; Validação de Fichas
           </h1>
         </div>
@@ -813,7 +813,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
         <div
           role="tablist"
           aria-label="Filtrar Data Grid de auditoria"
-          className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg overflow-x-auto"
+          className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg overflow-x-auto dark:bg-slate-800"
         >
           {[
             { id: 'all', label: `Todos em Auditoria (${admissions.length})` },
@@ -830,8 +830,8 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
               onClick={() => setStatusFilter(t.id)}
               className={`px-3 py-1.5 text-xs font-semibold rounded-md whitespace-nowrap shrink-0 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 ${
                 statusFilter === t.id
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-slate-100'
+                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
               }`}
             >
               {t.label}
@@ -862,14 +862,14 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
       {feedback && (
         <div
           role="status"
-          className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-medium text-emerald-900 flex items-center justify-between gap-2"
+          className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-medium text-emerald-900 flex items-center justify-between gap-2 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300"
         >
           <span>{feedback}</span>
           <button
             type="button"
             onClick={() => setFeedback('')}
             aria-label="Dispensar aviso"
-            className="text-emerald-700 hover:text-emerald-900"
+            className="text-emerald-700 hover:text-emerald-900 dark:text-emerald-300 dark:hover:text-emerald-200"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -878,14 +878,14 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
       {errorMsg && (
         <div
           role="alert"
-          className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium text-red-900 flex items-center justify-between gap-2"
+          className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium text-red-900 flex items-center justify-between gap-2 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300"
         >
           <span>{errorMsg}</span>
           <button
             type="button"
             onClick={() => setErrorMsg('')}
             aria-label="Dispensar erro"
-            className="text-red-700 hover:text-red-900"
+            className="text-red-700 hover:text-red-900 dark:text-red-300 dark:hover:text-red-200"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -894,30 +894,30 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
 
       {/* KPI Strip */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="text-xs text-slate-500 font-medium">Aguardando / Em Análise</div>
-          <div className="mt-1 font-mono text-2xl font-bold text-amber-700 tabular-nums">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <div className="text-xs text-slate-500 font-medium dark:text-slate-400">Aguardando / Em Análise</div>
+          <div className="mt-1 font-mono text-2xl font-bold text-amber-700 tabular-nums dark:text-amber-300">
             {pendingCount}
           </div>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="text-xs text-slate-500 font-medium">Inconsistências Ivi (Base)</div>
-          <div className="mt-1 font-mono text-2xl font-bold text-red-700 tabular-nums">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <div className="text-xs text-slate-500 font-medium dark:text-slate-400">Inconsistências Ivi (Base)</div>
+          <div className="mt-1 font-mono text-2xl font-bold text-red-700 tabular-nums dark:text-red-300">
             {totalInconsistencies}
           </div>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="text-xs text-slate-500 font-medium">Auditorias Aprovadas</div>
-          <div className="mt-1 font-mono text-2xl font-bold text-emerald-700 tabular-nums">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <div className="text-xs text-slate-500 font-medium dark:text-slate-400">Auditorias Aprovadas</div>
+          <div className="mt-1 font-mono text-2xl font-bold text-emerald-700 tabular-nums dark:text-emerald-300">
             {totalAudited}
           </div>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="text-xs text-slate-500 font-medium">Economia IA (Base de Dados)</div>
-          <div className="mt-1 font-mono text-2xl font-bold text-slate-900 tabular-nums">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <div className="text-xs text-slate-500 font-medium dark:text-slate-400">Economia IA (Base de Dados)</div>
+          <div className="mt-1 font-mono text-2xl font-bold text-slate-900 tabular-nums dark:text-slate-100">
             {cacheStats.totalAiCallsSaved}
           </div>
-          <div className="text-[11px] text-slate-500 font-mono tabular-nums">
+          <div className="text-[11px] text-slate-500 font-mono tabular-nums dark:text-slate-400">
             {cacheStats.cachedDecisions} decisão(ões) gravada(s)
           </div>
         </div>
@@ -926,16 +926,16 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
       {/* DATA GRID: TODOS OS CLIENTES EM AUDITORIA (3 Containers Horizontais + Ação para Modal Específico) */}
       <section
         aria-label="Data Grid de Clientes em Auditoria"
-        className="rounded-xl border border-slate-200 bg-white overflow-hidden"
+        className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900"
       >
-        <div className="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2.5 text-xs">
+        <div className="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2.5 text-xs dark:border-slate-700">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-bold text-slate-900">
+            <span className="font-bold text-slate-900 dark:text-slate-100">
               Data Grid · Clientes em Auditoria ({filtered.length})
             </span>
             <span className="text-slate-300">·</span>
-            <span className="inline-flex items-center gap-1 text-slate-600 font-mono text-[11px]">
-              <Database className="w-3.5 h-3.5 text-emerald-700" />
+            <span className="inline-flex items-center gap-1 text-slate-600 font-mono text-[11px] dark:text-slate-300">
+              <Database className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-300" />
               Decisões salvas em base local ({cacheStats.cachedDecisions}) · Zero custo IA na varredura
             </span>
           </div>
@@ -945,7 +945,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
               type="button"
               disabled={sweepBusy}
               onClick={() => runIviSweepAll(false, false)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50 whitespace-nowrap min-h-[36px]"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50 whitespace-nowrap min-h-[36px] dark:border-slate-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
             >
               {sweepBusy ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -958,7 +958,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
               aria-label="Quantidade por página"
               value={pageSize}
               onChange={(e) => setPageSize(Number(e.target.value))}
-              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 min-h-[36px]"
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 min-h-[36px] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
             >
               <option value={10}>10 / pág</option>
               <option value={20}>20 / pág</option>
@@ -969,7 +969,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
         </div>
 
         {/* Column Header Bar */}
-        <div className="hidden md:flex items-center gap-4 px-4 py-2 bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+        <div className="hidden md:flex items-center gap-4 px-4 py-2 bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:bg-slate-800/70 dark:border-slate-700 dark:text-slate-400">
           <div className="md:w-60 lg:w-64 shrink-0">Dados do Cliente</div>
           <div className="md:w-48 lg:w-52 shrink-0 pl-4">Situação, Valor &amp; Status</div>
           <div className="flex-1 min-w-0 pl-4">Verificação Checklist Ivi &amp; Considerações</div>
@@ -977,7 +977,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
         </div>
 
         {pagedQueue.length === 0 ? (
-          <div className="p-8 text-center space-y-2 text-xs text-slate-500">
+          <div className="p-8 text-center space-y-2 text-xs text-slate-500 dark:text-slate-400">
             <p>Nenhum cliente encontrado no filtro atual.</p>
             {statusFilter !== 'all' && (
               <button
@@ -986,21 +986,21 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                   setStatusFilter('all');
                   setSearchQuery('');
                 }}
-                className="font-semibold text-blue-700 hover:underline"
+                className="font-semibold text-blue-700 hover:underline dark:text-blue-300"
               >
                 Exibir todos os clientes em Auditoria ({admissions.length})
               </button>
             )}
           </div>
         ) : (
-          <div className="divide-y divide-slate-200">
+          <div className="divide-y divide-slate-200 dark:divide-slate-700">
             {pagedQueue.map((adm) => {
               const client = clients.find((c) => c.id === adm.clientId);
               const isOpenInModal = modalAdmissionId === adm.id;
               const isSelected = selectedAdmissionId === adm.id;
               const stDisp = STATUS_DISPLAY[adm.status] || {
                 label: adm.status,
-                tone: 'text-slate-700',
+                tone: 'text-slate-700 dark:text-slate-200',
               };
               const iviSnap = adm.iviAuditAnalysisJson;
               const checkItems = iviSnap?.checklistItemsChecked || [];
@@ -1036,7 +1036,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                 <div
                   key={adm.id}
                   className={`p-4 transition-colors ${
-                    isOpenInModal || isSelected ? 'bg-blue-50/50' : 'hover:bg-slate-50/80'
+                    isOpenInModal || isSelected ? 'bg-blue-50/50 dark:bg-blue-950/50' : 'hover:bg-slate-50/80'
                   }`}
                 >
                   <div className="flex flex-col md:flex-row md:items-stretch gap-4">
@@ -1048,21 +1048,21 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                     >
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs font-bold text-slate-900">
+                          <span className="font-mono text-xs font-bold text-slate-900 dark:text-slate-100">
                             {adm.protocolCode}
                           </span>
-                          <span className="text-[10px] font-mono text-slate-400">
+                          <span className="text-[10px] font-mono text-slate-400 dark:text-slate-400">
                             {adm.modality || adm.debtType}
                           </span>
                         </div>
-                        <div className="mt-1 text-sm font-semibold text-slate-900 truncate">
+                        <div className="mt-1 text-sm font-semibold text-slate-900 truncate dark:text-slate-100">
                           {client?.fullName || `Cliente #${adm.clientId}`}
                         </div>
-                        <div className="mt-0.5 text-[11px] text-slate-500 truncate">
+                        <div className="mt-0.5 text-[11px] text-slate-500 truncate dark:text-slate-400">
                           {adm.bankName} · #{adm.contractNumber}
                         </div>
                       </div>
-                      <div className="text-[11px] font-mono text-slate-400 tabular-nums">
+                      <div className="text-[11px] font-mono text-slate-400 tabular-nums dark:text-slate-400">
                         Admissão: {formatDateBR(adm.createdAt)}
                       </div>
                     </button>
@@ -1073,16 +1073,16 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                         <div className={`text-xs font-semibold ${stDisp.tone}`}>
                           {stDisp.label}
                         </div>
-                        <div className="mt-1 font-mono text-sm font-bold text-slate-900 tabular-nums">
+                        <div className="mt-1 font-mono text-sm font-bold text-slate-900 tabular-nums dark:text-slate-100">
                           {formatBRL(adm.debtAmountCents)}
                         </div>
                         <div className="mt-0.5 text-[11px]">
                           {adm.returnedCount > 0 ? (
-                            <span className="text-red-600 font-semibold">
+                            <span className="text-red-600 font-semibold dark:text-red-400">
                               {adm.returnedCount} devolução(ões)
                             </span>
                           ) : (
-                            <span className="text-slate-400">Sem devoluções</span>
+                            <span className="text-slate-400 dark:text-slate-400">Sem devoluções</span>
                           )}
                         </div>
                       </div>
@@ -1090,14 +1090,14 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                       {activeReviewer && (
                         <div
                           role="status"
-                          className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[11px] text-blue-900 space-y-0.5"
+                          className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[11px] text-blue-900 space-y-0.5 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300"
                         >
                           <div className="font-bold flex items-center gap-1.5">
-                            <Lock className="w-3 h-3 text-blue-700 shrink-0" />
+                            <Lock className="w-3 h-3 text-blue-700 shrink-0 dark:text-blue-300" />
                             <span className="truncate">Em análise por {activeReviewer}</span>
                           </div>
                           {adm.activeReviewerSince && (
-                            <div className="font-mono text-[10px] text-blue-700 tabular-nums">
+                            <div className="font-mono text-[10px] text-blue-700 tabular-nums dark:text-blue-300">
                               Aberto em {formatDateTimeBR(adm.activeReviewerSince)}
                             </div>
                           )}
@@ -1110,8 +1110,8 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                       {/* Sub-bloco Verificação Ivi do Checklist */}
                       <div className="space-y-1">
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="flex flex-wrap items-center gap-1.5 font-semibold text-slate-900">
-                            <Bot className="w-3.5 h-3.5 text-slate-700 shrink-0" />
+                          <div className="flex flex-wrap items-center gap-1.5 font-semibold text-slate-900 dark:text-slate-100">
+                            <Bot className="w-3.5 h-3.5 text-slate-700 shrink-0 dark:text-slate-200" />
                             <span>Checklist Ivi</span>
                             {iviSnap && (
                               <>
@@ -1119,8 +1119,8 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                                 <span
                                   className={
                                     incCount > 0
-                                      ? 'text-red-700 font-bold'
-                                      : 'text-emerald-700 font-semibold'
+                                      ? 'text-red-700 font-bold dark:text-red-300'
+                                      : 'text-emerald-700 font-semibold dark:text-emerald-300'
                                   }
                                 >
                                   {incCount} inconsistência(s)
@@ -1129,8 +1129,8 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                                 <span
                                   className={
                                     attCount > 0
-                                      ? 'text-amber-800 font-bold'
-                                      : 'text-slate-500 font-medium'
+                                      ? 'text-amber-800 font-bold dark:text-amber-300'
+                                      : 'text-slate-500 font-medium dark:text-slate-400'
                                   }
                                 >
                                   {attCount} medida(s) de atenção
@@ -1141,7 +1141,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
 
                           <div className="flex items-center gap-2">
                             {iviSnap && (
-                              <span className="font-mono text-[10px] text-slate-400 tabular-nums">
+                              <span className="font-mono text-[10px] text-slate-400 tabular-nums dark:text-slate-400">
                                 {iviSnap.fromDatabaseCache || iviSnap.provider === 'local_rules_db'
                                   ? 'Base DB · 0 IA'
                                   : `IA · ${iviSnap.provider}`}{' '}
@@ -1152,7 +1152,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                               type="button"
                               disabled={inlineIviBusyId === adm.id}
                               onClick={() => handleQuickRunIvi(adm.id)}
-                              className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                              className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                             >
                               {inlineIviBusyId === adm.id ? (
                                 <Loader2 className="w-3 h-3 animate-spin" />
@@ -1166,15 +1166,15 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
 
                         {iviSnap ? (
                           <div className="space-y-0.5">
-                            <p className="text-slate-600 leading-snug line-clamp-2">
+                            <p className="text-slate-600 leading-snug line-clamp-2 dark:text-slate-300">
                               {iviSnap.executiveSummary}
                             </p>
                             {primaryAlertItem && (
                               <p
                                 className={`text-[11px] font-medium line-clamp-1 ${
                                   primaryAlertItem.classification === 'INCONSISTENCIA'
-                                    ? 'text-red-700'
-                                    : 'text-amber-800'
+                                    ? 'text-red-700 dark:text-red-300'
+                                    : 'text-amber-800 dark:text-amber-300'
                                 }`}
                               >
                                 {primaryAlertItem.classification === 'INCONSISTENCIA'
@@ -1185,24 +1185,24 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                             )}
                           </div>
                         ) : (
-                          <p className="text-slate-400 italic">
+                          <p className="text-slate-400 italic dark:text-slate-400">
                             Aguardando varredura do checklist na base de dados. Clique em &quot;Verificar Base&quot; ou abra a auditoria.
                           </p>
                         )}
                       </div>
 
                       {/* Sub-bloco Considerações do Usuário (Nome, Data e Hora) */}
-                      <div className="border-t border-slate-100 pt-2 space-y-1.5">
+                      <div className="border-t border-slate-100 pt-2 space-y-1.5 dark:border-slate-800">
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold text-slate-800">
-                            <User className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                          <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold text-slate-800 dark:text-slate-100">
+                            <User className="w-3.5 h-3.5 text-slate-500 shrink-0 dark:text-slate-400" />
                             <span>Considerações do Usuário</span>
                             {latestCons && (
                               <>
                                 <span className="text-slate-300">·</span>
-                                <span className="text-slate-900">{latestCons.authorName}</span>
+                                <span className="text-slate-900 dark:text-slate-100">{latestCons.authorName}</span>
                                 <span className="text-slate-300">·</span>
-                                <span className="font-mono font-normal text-slate-500 tabular-nums">
+                                <span className="font-mono font-normal text-slate-500 tabular-nums dark:text-slate-400">
                                   {formatDateTimeBR(latestCons.createdAt)}
                                 </span>
                               </>
@@ -1219,7 +1219,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                                 setInlineNoteText('');
                               }
                             }}
-                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 hover:underline"
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 hover:underline dark:text-blue-300"
                           >
                             <MessageSquarePlus className="w-3 h-3" />
                             {isEditingInline ? 'Fechar' : 'Registrar consideração'}
@@ -1227,9 +1227,9 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                         </div>
 
                         {latestCons ? (
-                          <p className="text-slate-700 leading-snug line-clamp-2">{latestCons.text}</p>
+                          <p className="text-slate-700 leading-snug line-clamp-2 dark:text-slate-200">{latestCons.text}</p>
                         ) : (
-                          <p className="text-slate-400 italic">
+                          <p className="text-slate-400 italic dark:text-slate-400">
                             Nenhuma consideração registrada nesta ficha.
                           </p>
                         )}
@@ -1241,10 +1241,10 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                               value={inlineNoteText}
                               onChange={(e) => setInlineNoteText(e.target.value)}
                               placeholder="Escreva suas considerações sobre este dossiê..."
-                              className="w-full rounded-lg border border-slate-200 bg-white p-2 text-xs text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+                              className="w-full rounded-lg border border-slate-200 bg-white p-2 text-xs text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                             />
                             <div className="flex flex-wrap items-center justify-between gap-2">
-                              <span className="text-[11px] text-slate-500 font-mono">
+                              <span className="text-[11px] text-slate-500 font-mono dark:text-slate-400">
                                 Carimbo: {currentUser?.name || 'Usuário autenticado'} ·{' '}
                                 {formatDateTimeBR(new Date())}
                               </span>
@@ -1255,7 +1255,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                                     setInlineNoteAdmissionId(null);
                                     setInlineNoteText('');
                                   }}
-                                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
+                                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
                                 >
                                   Cancelar
                                 </button>
@@ -1263,7 +1263,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                                   type="button"
                                   disabled={inlineNoteSaving || !inlineNoteText.trim()}
                                   onClick={() => handleQuickSaveConsideration(adm.id)}
-                                  className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-3 py-1 text-[11px] font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                                  className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-3 py-1 text-[11px] font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
                                 >
                                   {inlineNoteSaving && <Loader2 className="w-3 h-3 animate-spin" />}
                                   Salvar Consideração
@@ -1280,7 +1280,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                       <button
                         type="button"
                         onClick={() => openClientAuditModal(adm.id)}
-                        className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 whitespace-nowrap w-full md:w-auto min-h-[38px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+                        className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 whitespace-nowrap w-full md:w-auto min-h-[38px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 dark:bg-emerald-600 dark:hover:bg-emerald-500"
                       >
                         <FileSearch className="w-3.5 h-3.5" />
                         Abrir Auditoria
@@ -1288,7 +1288,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                       <button
                         type="button"
                         onClick={() => openClientAuditModal(adm.id, 'documentos')}
-                        className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap w-full md:w-auto min-h-[34px]"
+                        className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap w-full md:w-auto min-h-[34px] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                       >
                         Ver Documentos
                       </button>
@@ -1301,12 +1301,12 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
         )}
 
         {totalPages > 1 && (
-          <div className="px-4 py-2.5 border-t border-slate-100 bg-slate-50 flex items-center justify-between text-xs text-slate-600">
+          <div className="px-4 py-2.5 border-t border-slate-100 bg-slate-50 flex items-center justify-between text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-800/70 dark:text-slate-300">
             <button
               type="button"
               disabled={safePage <= 1}
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              className="font-semibold hover:text-slate-900 disabled:opacity-40"
+              className="font-semibold hover:text-slate-900 disabled:opacity-40 dark:hover:text-white"
             >
               ← Anterior
             </button>
@@ -1317,7 +1317,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
               type="button"
               disabled={safePage >= totalPages}
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              className="font-semibold hover:text-slate-900 disabled:opacity-40"
+              className="font-semibold hover:text-slate-900 disabled:opacity-40 dark:hover:text-white"
             >
               Próxima →
             </button>
@@ -1331,22 +1331,22 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
           role="dialog"
           aria-modal="true"
           aria-label={`Auditoria do Cliente ${activeAdmission.protocolCode}`}
-          className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/60 p-2 sm:p-4"
+          className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/60 p-2 sm:p-4 dark:bg-slate-950/80"
         >
-          <div className="w-full max-w-[1440px] h-[94vh] rounded-2xl border border-slate-200 bg-slate-50 shadow-2xl flex flex-col overflow-hidden">
+          <div className="w-full max-w-[1440px] h-[94vh] rounded-2xl border border-slate-200 bg-slate-50 shadow-2xl flex flex-col overflow-hidden dark:border-slate-700 dark:bg-slate-800/70">
             {/* Top Modal Bar */}
-            <header className="px-5 py-3 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0">
+            <header className="px-5 py-3 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0 dark:bg-slate-900 dark:border-slate-700">
               <div className="flex flex-wrap items-center gap-2.5 text-xs min-w-0">
-                <span className="font-mono font-bold text-slate-900">
+                <span className="font-mono font-bold text-slate-900 dark:text-slate-100">
                   {activeAdmission.protocolCode}
                 </span>
                 <span className="text-slate-300">·</span>
-                <span className="font-display font-bold text-sm text-slate-900 truncate">
+                <span className="font-display font-bold text-sm text-slate-900 truncate dark:text-slate-100">
                   {activeClient?.fullName || `Cliente #${activeAdmission.clientId}`}
                 </span>
                 <span className="text-slate-300">·</span>
-                <span className="inline-flex items-center gap-1 font-medium text-blue-800">
-                  <Lock className="w-3.5 h-3.5 text-blue-700" />
+                <span className="inline-flex items-center gap-1 font-medium text-blue-800 dark:text-blue-300">
+                  <Lock className="w-3.5 h-3.5 text-blue-700 dark:text-blue-300" />
                   Em análise por {activeAdmission.activeReviewerName || currentUser?.name || 'Auditor'}
                 </span>
               </div>
@@ -1358,8 +1358,8 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                   aria-pressed={insightsOpen}
                   className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold whitespace-nowrap min-h-[36px] ${
                     insightsOpen
-                      ? 'border-slate-900 bg-slate-900 text-white hover:bg-slate-800'
-                      : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                      ? 'border-slate-900 bg-slate-900 text-white hover:bg-slate-800 dark:border-emerald-500 dark:bg-emerald-600 dark:hover:bg-emerald-500'
+                      : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
                   }`}
                 >
                   <Bot className="w-3.5 h-3.5" />
@@ -1368,7 +1368,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                 <button
                   type="button"
                   onClick={closeClientAuditModal}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-100 min-h-[36px]"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-100 min-h-[36px] dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
                 >
                   <X className="w-3.5 h-3.5" />
                   Fechar e Liberar Ficha
@@ -1381,7 +1381,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
               {feedback && (
                 <div
                   role="status"
-                  className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-medium text-emerald-900"
+                  className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-medium text-emerald-900 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300"
                 >
                   {feedback}
                 </div>
@@ -1389,7 +1389,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
               {errorMsg && (
                 <div
                   role="alert"
-                  className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-900"
+                  className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-900 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300"
                 >
                   {errorMsg}
                 </div>
@@ -1402,25 +1402,25 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                   } space-y-4`}
                 >
                   {/* Active Dossier Header + Sub-Tab Navigation */}
-                  <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 border-b border-slate-100 pb-4">
+                  <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4 dark:border-slate-700 dark:bg-slate-900">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 border-b border-slate-100 pb-4 dark:border-slate-800">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2 text-xs">
-                          <span className="font-mono font-bold text-blue-700">
+                          <span className="font-mono font-bold text-blue-700 dark:text-blue-300">
                             {activeAdmission.protocolCode}
                           </span>
                           <span className="text-slate-300">·</span>
-                          <span className="text-slate-600">Unidade {activeUnit?.name || 'Matriz'}</span>
+                          <span className="text-slate-600 dark:text-slate-300">Unidade {activeUnit?.name || 'Matriz'}</span>
                           <span className="text-slate-300">·</span>
-                          <span className={`font-semibold ${activeStatusDisplay?.tone || 'text-slate-700'}`}>
+                          <span className={`font-semibold ${activeStatusDisplay?.tone || 'text-slate-700 dark:text-slate-200'}`}>
                             {activeStatusDisplay?.label}
                           </span>
-                          {loadingContext && <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />}
+                          {loadingContext && <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400 dark:text-slate-400" />}
                         </div>
-                        <h2 className="mt-1 font-display text-xl font-bold text-slate-900 truncate">
+                        <h2 className="mt-1 font-display text-xl font-bold text-slate-900 truncate dark:text-slate-100">
                           {activeClient?.fullName || `Cliente #${activeAdmission.clientId}`}
                         </h2>
-                        <p className="text-xs text-slate-500 font-mono">
+                        <p className="text-xs text-slate-500 font-mono dark:text-slate-400">
                           CPF/CNPJ: {activeClient?.cpfCnpj || '—'} · Contrato #{activeAdmission.contractNumber} ·{' '}
                           {activeAdmission.bankName}
                           {activeTitular ? ` · Titular: ${activeTitular.fullName}` : ''}
@@ -1446,7 +1446,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                         <button
                           type="button"
                           onClick={() => setActiveTab('boletos')}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap min-h-[38px]"
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap min-h-[38px] dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                         >
                           <History className="w-3.5 h-3.5" />
                           Boletos &amp; Histórico
@@ -1458,7 +1458,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                               closeClientAuditModal();
                               onNavigate('admission', { clientId: activeClient.id, tab: 'clientes' });
                             }}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap min-h-[38px]"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap min-h-[38px] dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                           >
                             Abrir Cadastro
                             <ArrowUpRight className="w-3.5 h-3.5" />
@@ -1469,43 +1469,43 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
 
                     {/* Compact 4-Metric Financial Bar */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                      <div className="rounded-lg border border-slate-100 bg-slate-50/70 px-3 py-2.5">
-                        <div className="text-[11px] text-slate-500">Passivo / Modalidade</div>
-                        <div className="mt-0.5 font-mono font-bold text-slate-900 tabular-nums">
+                      <div className="rounded-lg border border-slate-100 bg-slate-50/70 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-800/60">
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">Passivo / Modalidade</div>
+                        <div className="mt-0.5 font-mono font-bold text-slate-900 tabular-nums dark:text-slate-100">
                           {formatBRL(activeAdmission.debtAmountCents)}
                         </div>
-                        <div className="text-[11px] text-slate-500 truncate">
+                        <div className="text-[11px] text-slate-500 truncate dark:text-slate-400">
                           {activeAdmission.modality || activeAdmission.debtType}
                         </div>
                       </div>
-                      <div className="rounded-lg border border-slate-100 bg-slate-50/70 px-3 py-2.5">
-                        <div className="text-[11px] text-slate-500">2x Boletos Iniciais</div>
-                        <div className="mt-0.5 font-mono font-bold text-emerald-700 tabular-nums">
+                      <div className="rounded-lg border border-slate-100 bg-slate-50/70 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-800/60">
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">2x Boletos Iniciais</div>
+                        <div className="mt-0.5 font-mono font-bold text-emerald-700 tabular-nums dark:text-emerald-300">
                           {formatBRL(activeAdmission.initialInstallmentCents)}
                         </div>
-                        <div className="text-[11px] text-slate-500">
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">
                           Honorários: {formatBRL(activeAdmission.serviceFeeCents)}
                         </div>
                       </div>
-                      <div className="rounded-lg border border-slate-100 bg-slate-50/70 px-3 py-2.5">
-                        <div className="text-[11px] text-slate-500">Documentos no Cofre</div>
-                        <div className="mt-0.5 font-mono font-bold text-slate-900 tabular-nums">
+                      <div className="rounded-lg border border-slate-100 bg-slate-50/70 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-800/60">
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">Documentos no Cofre</div>
+                        <div className="mt-0.5 font-mono font-bold text-slate-900 tabular-nums dark:text-slate-100">
                           {activeDocs.length} arquivo(s)
                         </div>
                         <button
                           type="button"
                           onClick={() => setActiveTab('documentos')}
-                          className="text-[11px] font-semibold text-blue-700 hover:underline"
+                          className="text-[11px] font-semibold text-blue-700 hover:underline dark:text-blue-300"
                         >
                           Visualizar documentos →
                         </button>
                       </div>
-                      <div className="rounded-lg border border-slate-100 bg-slate-50/70 px-3 py-2.5">
-                        <div className="text-[11px] text-slate-500">Checklist &amp; Boletos</div>
-                        <div className="mt-0.5 font-mono font-bold text-slate-900 tabular-nums">
+                      <div className="rounded-lg border border-slate-100 bg-slate-50/70 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-800/60">
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">Checklist &amp; Boletos</div>
+                        <div className="mt-0.5 font-mono font-bold text-slate-900 tabular-nums dark:text-slate-100">
                           {checkedCount}/{applicableChecklist.length} itens
                         </div>
-                        <div className="text-[11px] text-slate-500">
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">
                           {contextData?.titles?.length || 0} título(s) gerado(s)
                         </div>
                       </div>
@@ -1513,7 +1513,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
 
                     {/* Previous critique warning if returned */}
                     {activeAdmission.auditRejectionReason && (
-                      <div className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs text-red-900">
+                      <div className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs text-red-900 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
                         <strong>Última devolução registrada:</strong> {activeAdmission.auditRejectionReason}
                       </div>
                     )}
@@ -1522,7 +1522,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                     <div
                       role="tablist"
                       aria-label="Etapas de análise do dossiê"
-                      className="flex items-center gap-1.5 border-t border-slate-100 pt-3 overflow-x-auto"
+                      className="flex items-center gap-1.5 border-t border-slate-100 pt-3 overflow-x-auto dark:border-slate-800"
                     >
                       {[
                         { id: 'conferencia' as const, label: 'Conferência & Checklist Ivi', icon: Bot },
@@ -1549,8 +1549,8 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                             onClick={() => setActiveTab(tab.id)}
                             className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold whitespace-nowrap shrink-0 transition-colors min-h-[38px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 ${
                               active
-                                ? 'bg-slate-900 text-white'
-                                : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                                ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                                : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
                             }`}
                           >
                             <Icon className="w-3.5 h-3.5 shrink-0" />
@@ -1576,11 +1576,11 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                       {/* Interactive Persistent Checklist */}
                       <section
                         aria-label="Checklist de conformidade"
-                        className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 text-xs"
+                        className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 text-xs dark:border-slate-700 dark:bg-slate-900"
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 font-bold text-slate-900 text-sm">
-                            <ClipboardCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <div className="flex items-center gap-2 font-bold text-slate-900 text-sm dark:text-slate-100">
+                            <ClipboardCheck className="w-4 h-4 text-emerald-600 shrink-0 dark:text-emerald-400" />
                             <span>
                               Checklist de Conferência ({checkedCount}/{applicableChecklist.length})
                             </span>
@@ -1599,7 +1599,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                                 }
                                 setCheckedIds(next);
                               }}
-                              className="text-xs font-semibold text-blue-700 hover:underline"
+                              className="text-xs font-semibold text-blue-700 hover:underline dark:text-blue-300"
                             >
                               {checkedCount === applicableChecklist.length
                                 ? 'Desmarcar todos'
@@ -1609,11 +1609,11 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                         </div>
 
                         {applicableChecklist.length === 0 ? (
-                          <p className="text-slate-500">
+                          <p className="text-slate-500 dark:text-slate-400">
                             Nenhum item ativo configurado para esta modalidade.
                           </p>
                         ) : (
-                          <div className="divide-y divide-slate-100 rounded-lg border border-slate-200">
+                          <div className="divide-y divide-slate-100 rounded-lg border border-slate-200 dark:divide-slate-800 dark:border-slate-700">
                             {applicableChecklist.map((item) => {
                               const key = String(item.id);
                               const isChecked = Boolean(checkedIds[key]);
@@ -1621,7 +1621,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                                 <label
                                   key={item.id}
                                   className={`flex items-start gap-3 px-3.5 py-2.5 cursor-pointer transition-colors ${
-                                    isChecked ? 'bg-emerald-50/50' : 'hover:bg-slate-50'
+                                    isChecked ? 'bg-emerald-50/50 dark:bg-emerald-950/50' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                                   }`}
                                 >
                                   <input
@@ -1633,24 +1633,24 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                                         [key]: e.target.checked,
                                       }))
                                     }
-                                    className="mt-0.5 rounded border-slate-300"
+                                    className="mt-0.5 rounded border-slate-300 dark:border-slate-600"
                                   />
                                   <div className="min-w-0 flex-1">
                                     <div className="flex items-center justify-between gap-2">
-                                      <span className="font-semibold text-slate-900">
-                                        <span className="font-mono text-[11px] text-slate-400 mr-1.5">
+                                      <span className="font-semibold text-slate-900 dark:text-slate-100">
+                                        <span className="font-mono text-[11px] text-slate-400 mr-1.5 dark:text-slate-400">
                                           #{String(item.sortOrder).padStart(2, '0')}
                                         </span>
                                         {item.title}
                                       </span>
                                       {item.modalityCondition && (
-                                        <span className="font-mono text-[10px] font-semibold uppercase text-blue-700 shrink-0">
+                                        <span className="font-mono text-[10px] font-semibold uppercase text-blue-700 shrink-0 dark:text-blue-300">
                                           {item.modalityCondition}
                                         </span>
                                       )}
                                     </div>
                                     {item.description && (
-                                      <p className="mt-0.5 text-[11px] text-slate-500 leading-snug">
+                                      <p className="mt-0.5 text-[11px] text-slate-500 leading-snug dark:text-slate-400">
                                         {item.description}
                                       </p>
                                     )}
@@ -1666,12 +1666,12 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <label
                               htmlFor={`audit-notes-${activeAdmission.id}`}
-                              className="block font-semibold text-slate-800"
+                              className="block font-semibold text-slate-800 dark:text-slate-100"
                             >
                               Considerações do Usuário / Parecer do Auditor
                             </label>
                             {activeAdmission.auditManualNotesBy && (
-                              <span className="font-mono text-[11px] text-slate-500">
+                              <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400">
                                 Último registro: {activeAdmission.auditManualNotesBy}
                                 {activeAdmission.auditManualNotesAt
                                   ? ` · ${formatDateTimeBR(activeAdmission.auditManualNotesAt)}`
@@ -1685,9 +1685,9 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                             value={manualNotes}
                             onChange={(e) => setManualNotes(e.target.value)}
                             placeholder="Registre observações da conferência documental, pendências conversadas com o comercial ou alertas para o Jurídico..."
-                            className="w-full rounded-lg border border-slate-200 bg-white p-2.5 text-xs text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+                            className="w-full rounded-lg border border-slate-200 bg-white p-2.5 text-xs text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                           />
-                          <div className="flex items-center justify-between text-[11px] text-slate-400">
+                          <div className="flex items-center justify-between text-[11px] text-slate-400 dark:text-slate-400">
                             <span>
                               Ao salvar, será carimbado com {currentUser?.name || 'usuário autenticado'} e data/hora atual.
                             </span>
@@ -1695,21 +1695,21 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
 
                           {Array.isArray(activeAdmission.auditConsiderationsJson) &&
                             activeAdmission.auditConsiderationsJson.length > 0 && (
-                              <div className="rounded-lg border border-slate-100 bg-slate-50/70 divide-y divide-slate-100">
+                              <div className="rounded-lg border border-slate-100 bg-slate-50/70 divide-y divide-slate-100 dark:border-slate-800 dark:bg-slate-800/60 dark:divide-slate-800">
                                 {activeAdmission.auditConsiderationsJson
                                   .slice(-5)
                                   .reverse()
                                   .map((entry) => (
                                     <div key={entry.id} className="px-3 py-2 space-y-0.5">
                                       <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
-                                        <span className="font-semibold text-slate-800">
+                                        <span className="font-semibold text-slate-800 dark:text-slate-100">
                                           {entry.authorName}
                                         </span>
-                                        <span className="font-mono text-slate-400 tabular-nums">
+                                        <span className="font-mono text-slate-400 tabular-nums dark:text-slate-400">
                                           {formatDateTimeBR(entry.createdAt)}
                                         </span>
                                       </div>
-                                      <p className="text-slate-700 leading-snug">{entry.text}</p>
+                                      <p className="text-slate-700 leading-snug dark:text-slate-200">{entry.text}</p>
                                     </div>
                                   ))}
                               </div>
@@ -1721,14 +1721,14 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                       {canDecide ? (
                         <section
                           aria-label="Decisão de auditoria"
-                          className="rounded-xl border border-slate-200 bg-white p-4 space-y-3.5 text-xs"
+                          className="rounded-xl border border-slate-200 bg-white p-4 space-y-3.5 text-xs dark:border-slate-700 dark:bg-slate-900"
                         >
                           <div className="flex flex-wrap items-center justify-between gap-2">
-                            <h3 className="text-sm font-bold text-slate-900">
+                            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
                               Decisão de Auditoria &amp; Emissão de Boletos
                             </h3>
                             {isElectricVehicle && (
-                              <span className="inline-flex items-center gap-1 text-xs font-bold text-red-700">
+                              <span className="inline-flex items-center gap-1 text-xs font-bold text-red-700 dark:text-red-300">
                                 <AlertTriangle className="w-3.5 h-3.5" />
                                 Veículo elétrico sinalizado (bloqueio padrão ativo)
                               </span>
@@ -1737,30 +1737,30 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
 
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
                             <div>
-                              <label className="block font-semibold text-slate-700 mb-1">
+                              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">
                                 Banco / API dos 2 Boletos Iniciais
                               </label>
                               <select
                                 value={boletoProvider}
                                 onChange={(e) => setBoletoProvider(e.target.value)}
-                                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium min-h-[40px]"
+                                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium min-h-[40px] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                               >
                                 <option value="santander">API Banco Santander (Padrão)</option>
                                 <option value="terceiros">API de Terceiros (Cora / Inter)</option>
                               </select>
                             </div>
 
-                            <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-medium text-slate-800 cursor-pointer min-h-[40px]">
+                            <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-medium text-slate-800 cursor-pointer min-h-[40px] dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-100">
                               <input
                                 type="checkbox"
                                 checked={hasSearchSeizure}
                                 onChange={(e) => setHasSearchSeizure(e.target.checked)}
                               />
-                              <Search className="w-3.5 h-3.5 text-blue-700 shrink-0" />
+                              <Search className="w-3.5 h-3.5 text-blue-700 shrink-0 dark:text-blue-300" />
                               <span>Alerta Busca e Apreensão (Escavador)</span>
                             </label>
 
-                            <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-medium text-slate-800 cursor-pointer min-h-[40px]">
+                            <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-medium text-slate-800 cursor-pointer min-h-[40px] dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-100">
                               <input
                                 type="checkbox"
                                 checked={notifyDepartments}
@@ -1770,12 +1770,12 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                             </label>
                           </div>
 
-                          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                             <button
                               type="button"
                               disabled={busy}
                               onClick={() => handleSaveProgress('auditada')}
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 min-h-[40px]"
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 min-h-[40px] dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
                             >
                               <Save className="w-3.5 h-3.5" />
                               Salvar Progresso (Em Análise)
@@ -1786,7 +1786,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                                 type="button"
                                 disabled={busy}
                                 onClick={() => setRejectModalOpen(true)}
-                                className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3.5 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 min-h-[40px]"
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3.5 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 min-h-[40px] dark:border-red-800/70 dark:bg-slate-900 dark:text-red-300 dark:hover:bg-red-950/60"
                               >
                                 <RotateCcw className="w-3.5 h-3.5" />
                                 Devolver p/ Admissão
@@ -1804,9 +1804,9 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                           </div>
                         </section>
                       ) : (
-                        <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                          <div className="flex items-center gap-2 text-emerald-900 font-semibold">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs dark:border-emerald-800/70 dark:bg-emerald-950/50">
+                          <div className="flex items-center gap-2 text-emerald-900 font-semibold dark:text-emerald-300">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 dark:text-emerald-400" />
                             Dossiê já aprovado e roteado para Jurídico, Negociações e Contas a Receber.
                           </div>
                           {onNavigate && activeClient && (
@@ -1817,7 +1817,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                                   closeClientAuditModal();
                                   onNavigate('legal', { clientId: activeClient.id });
                                 }}
-                                className="font-semibold text-blue-700 hover:underline"
+                                className="font-semibold text-blue-700 hover:underline dark:text-blue-300"
                               >
                                 Ver Jurídico →
                               </button>
@@ -1827,7 +1827,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                                   closeClientAuditModal();
                                   onNavigate('finance_receber', { clientId: activeClient.id });
                                 }}
-                                className="font-semibold text-blue-700 hover:underline"
+                                className="font-semibold text-blue-700 hover:underline dark:text-blue-300"
                               >
                                 Ver Contas a Receber →
                               </button>
@@ -1986,17 +1986,17 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
           role="dialog"
           aria-modal="true"
           aria-labelledby="reject-dialog-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 dark:bg-slate-950/80"
         >
           <form
             onSubmit={handleConfirmReject}
-            className="w-full max-w-lg rounded-xl bg-white p-5 border border-slate-200 shadow-xl space-y-3"
+            className="w-full max-w-lg rounded-xl bg-white p-5 border border-slate-200 shadow-xl space-y-3 dark:bg-slate-900 dark:border-slate-700"
           >
-            <div id="reject-dialog-title" className="flex items-center gap-2 text-red-700 font-bold text-sm">
+            <div id="reject-dialog-title" className="flex items-center gap-2 text-red-700 font-bold text-sm dark:text-red-300">
               <ShieldAlert className="w-4 h-4" />
               Devolver Dossiê {activeAdmission.protocolCode} para Admissão
             </div>
-            <p className="text-xs text-slate-600">
+            <p className="text-xs text-slate-600 dark:text-slate-300">
               Descreva de forma clara a divergência documental ou cadastral. Esta crítica abre uma nova rodada auditada com o Comercial.
             </p>
             <textarea
@@ -2005,13 +2005,13 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
               placeholder="Ex: CRLV ilegível ou procuração sem assinatura do titular..."
-              className="w-full rounded-lg border border-slate-200 p-2.5 text-xs text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
+              className="w-full rounded-lg border border-slate-200 p-2.5 text-xs text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:border-slate-700 dark:text-slate-100"
             />
             <div className="flex justify-end gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => setRejectModalOpen(false)}
-                className="rounded-lg border border-slate-200 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 min-h-[38px]"
+                className="rounded-lg border border-slate-200 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 min-h-[38px] dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 Cancelar
               </button>
@@ -2033,22 +2033,22 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
           role="dialog"
           aria-modal="true"
           aria-labelledby="approve-confirm-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 dark:bg-slate-950/80"
         >
-          <div className="w-full max-w-md rounded-xl bg-white p-5 border border-slate-200 shadow-xl space-y-3 text-xs">
-            <div id="approve-confirm-title" className="flex items-center gap-2 font-bold text-sm text-amber-800">
-              <AlertTriangle className="w-4 h-4 text-amber-600" />
+          <div className="w-full max-w-md rounded-xl bg-white p-5 border border-slate-200 shadow-xl space-y-3 text-xs dark:bg-slate-900 dark:border-slate-700">
+            <div id="approve-confirm-title" className="flex items-center gap-2 font-bold text-sm text-amber-800 dark:text-amber-300">
+              <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
               Confirmar Aprovação com Pendências
             </div>
 
             {confirmApproveModal.electricWarning && (
-              <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-red-900">
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-red-900 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
                 <strong>Veículo elétrico sinalizado:</strong> A regra padrão recomenda não concluir processos de veículos elétricos sem validação especial. Deseja prosseguir mesmo assim?
               </div>
             )}
 
             {confirmApproveModal.pendingChecklistCount > 0 && (
-              <p className="text-slate-700">
+              <p className="text-slate-700 dark:text-slate-200">
                 Existem <strong>{confirmApproveModal.pendingChecklistCount}</strong> item(ns) desmarcado(s) no checklist de conferência desta modalidade. Deseja concluir a auditoria e emitir os boletos?
               </p>
             )}
@@ -2057,7 +2057,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
               <button
                 type="button"
                 onClick={() => setConfirmApproveModal(null)}
-                className="rounded-lg border border-slate-200 px-3.5 py-2 font-semibold text-slate-700 hover:bg-slate-50 min-h-[38px]"
+                className="rounded-lg border border-slate-200 px-3.5 py-2 font-semibold text-slate-700 hover:bg-slate-50 min-h-[38px] dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 Voltar à Conferência
               </button>

@@ -77,16 +77,16 @@ const SecureBucketAudio: React.FC<{
   }, [sha256]);
 
   return (
-    <div className="mt-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 space-y-1">
-      <div className="flex items-center justify-between gap-2 text-[10px] text-slate-500">
-        <span className="inline-flex items-center gap-1 font-medium text-slate-700 truncate">
-          <Volume2 className="w-3 h-3 text-blue-700 shrink-0" />
+    <div className="mt-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 space-y-1 dark:border-slate-700 dark:bg-slate-800/70">
+      <div className="flex items-center justify-between gap-2 text-[10px] text-slate-500 dark:text-slate-400">
+        <span className="inline-flex items-center gap-1 font-medium text-slate-700 truncate dark:text-slate-200">
+          <Volume2 className="w-3 h-3 text-blue-700 shrink-0 dark:text-blue-300" />
           {fileName || 'Áudio arquivado (BucketDaInvicta)'}
         </span>
         <span className="font-mono tabular-nums shrink-0">{sha256.slice(0, 10)}</span>
       </div>
-      {loading && <div className="text-[10px] text-slate-400">Decriptando áudio do bucket...</div>}
-      {error && <div className="text-[10px] text-red-600">{error}</div>}
+      {loading && <div className="text-[10px] text-slate-400 dark:text-slate-400">Decriptando áudio do bucket...</div>}
+      {error && <div className="text-[10px] text-red-600 dark:text-red-400">{error}</div>}
       {objectUrl && (
         <audio controls preload="metadata" className="w-full h-8" src={objectUrl} />
       )}
@@ -840,18 +840,18 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4 dark:border-slate-700">
         <div>
-          <p className="text-xs font-medium text-slate-500">
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
             GoTalk · UaZapi (Chat & Voz) · Maton (Instagram, Facebook, E-mail) · Fila de Consultores
           </p>
-          <h1 className="mt-1 font-display text-2xl font-bold text-slate-900">
+          <h1 className="mt-1 font-display text-2xl font-bold text-slate-900 dark:text-slate-100">
             Prospecção & Agendamentos
           </h1>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg overflow-x-auto scroll-rulers">
+          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg overflow-x-auto scroll-rulers dark:bg-slate-800">
             {[
               { id: 'atendimento', label: `Atendimento (${leads.length})` },
               { id: 'agenda', label: `Agenda (${appointments.length})` },
@@ -864,8 +864,8 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                 onClick={() => setTab(t.id as typeof tab)}
                 className={`px-3 py-1.5 text-xs font-semibold rounded-md whitespace-nowrap transition-colors ${
                   tab === t.id
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-slate-100'
+                    : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
                 }`}
               >
                 {t.label}
@@ -904,15 +904,15 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
       />
 
       {statusBanner && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-medium text-emerald-900 flex items-center justify-between gap-2">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-medium text-emerald-900 flex items-center justify-between gap-2 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
+            <Sparkles className="w-4 h-4 text-emerald-600 shrink-0 dark:text-emerald-400" />
             <span>{statusBanner}</span>
           </div>
           <button
             type="button"
             onClick={() => setStatusBanner('')}
-            className="text-emerald-700 hover:text-emerald-950 p-1"
+            className="text-emerald-700 hover:text-emerald-950 p-1 dark:text-emerald-300"
             aria-label="Fechar aviso"
           >
             <X className="w-3.5 h-3.5" />
@@ -923,19 +923,19 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
       {tab === 'atendimento' && (
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
           {/* 1. Fila Omnichannel Estreita (à esquerda da conversa) */}
-          <div className="md:col-span-3 rounded-xl border border-slate-200 bg-white overflow-hidden">
-            <div className="px-3 py-2.5 border-b border-slate-200 text-xs font-bold text-slate-800 flex items-center justify-between gap-1">
+          <div className="md:col-span-3 rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
+            <div className="px-3 py-2.5 border-b border-slate-200 text-xs font-bold text-slate-800 flex items-center justify-between gap-1 dark:border-slate-700 dark:text-slate-100">
               <span className="truncate">Fila Omnichannel ({filteredLeads.length})</span>
-              <span className="font-mono text-[10px] text-slate-500 shrink-0">Ivi</span>
+              <span className="font-mono text-[10px] text-slate-500 shrink-0 dark:text-slate-400">Ivi</span>
             </div>
-            <div className="divide-y divide-slate-100 max-h-[600px] overflow-y-auto overflow-x-auto scroll-rulers">
+            <div className="divide-y divide-slate-100 max-h-[600px] overflow-y-auto overflow-x-auto scroll-rulers dark:divide-slate-800">
               {filteredLeads.length === 0 ? (
-                <div className="p-4 text-center text-xs text-slate-500 space-y-2">
+                <div className="p-4 text-center text-xs text-slate-500 space-y-2 dark:text-slate-400">
                   <p>Nenhum contato neste filtro.</p>
                   <button
                     type="button"
                     onClick={() => setNewLeadModalOpen(true)}
-                    className="font-semibold text-emerald-700 hover:underline"
+                    className="font-semibold text-emerald-700 hover:underline dark:text-emerald-300"
                   >
                     + Novo Contato
                   </button>
@@ -951,31 +951,31 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                       type="button"
                       onClick={() => setSelectedLeadId(lead.id)}
                       className={`w-full text-left px-3 py-2.5 transition-colors ${
-                        isSelected ? 'bg-blue-50/90' : 'hover:bg-slate-50'
+                        isSelected ? 'bg-blue-50/90 dark:bg-blue-950/50' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                       }`}
                     >
                       <div className="flex items-center justify-between gap-1.5">
-                        <span className="text-xs font-semibold text-slate-900 truncate">
+                        <span className="text-xs font-semibold text-slate-900 truncate dark:text-slate-100">
                           {unnamed ? 'Contato WhatsApp (Sem nome)' : lead.name}
                         </span>
                         {lead.hasPhoneCall && (
-                          <Phone className="w-3 h-3 text-blue-600 shrink-0" aria-label="Ligação registrada" />
+                          <Phone className="w-3 h-3 text-blue-600 shrink-0 dark:text-blue-400" aria-label="Ligação registrada" />
                         )}
                       </div>
-                      <div className="mt-0.5 text-[11px] font-mono text-slate-500 truncate">
+                      <div className="mt-0.5 text-[11px] font-mono text-slate-500 truncate dark:text-slate-400">
                         {lead.phone}
                       </div>
                       <div className="mt-1 flex items-center justify-between gap-1 text-[10px]">
                         <span
                           className={
                             lead.stage === 'escalado_humano'
-                              ? 'text-amber-700 font-semibold truncate'
-                              : 'text-emerald-700 font-medium truncate'
+                              ? 'text-amber-700 font-semibold truncate dark:text-amber-300'
+                              : 'text-emerald-700 font-medium truncate dark:text-emerald-300'
                           }
                         >
                           {lead.stage.replace(/_/g, ' ')}
                         </span>
-                        <span className="font-mono text-slate-400 shrink-0">{lead.channel}</span>
+                        <span className="font-mono text-slate-400 shrink-0 dark:text-slate-400">{lead.channel}</span>
                       </div>
                     </button>
                   );
@@ -987,20 +987,20 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
           {/* 2. Conteúdo da Conversa + Transcrição de Áudio + Ligação UaZapi (Centro) */}
           <div className="md:col-span-6">
             {activeLead ? (
-              <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 dark:border-slate-700 dark:bg-slate-900">
                 {/* Conversation Header */}
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 border-b border-slate-100 pb-3">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 border-b border-slate-100 pb-3 dark:border-slate-800">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-display text-base font-bold text-slate-900 truncate">
+                      <h3 className="font-display text-base font-bold text-slate-900 truncate dark:text-slate-100">
                         {activeLeadMissingName ? 'Contato WhatsApp (Sem nome)' : activeLead.name}
                       </h3>
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700">
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 dark:text-blue-300">
                         <Bot className="w-3.5 h-3.5" />
                         {activeLead.iviProviderUsed || 'gemini'}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-500 mt-0.5">
+                    <p className="text-xs text-slate-500 mt-0.5 dark:text-slate-400">
                       {activeLead.phone} · {activeLead.channel} · Unidade{' '}
                       {units.find((u) => u.id === activeLead.unitId)?.name || 'Matriz'}
                     </p>
@@ -1014,7 +1014,7 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                           type="button"
                           disabled={busy}
                           onClick={() => handleInitiateCall('uazapi')}
-                          className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-800 hover:bg-blue-100 whitespace-nowrap disabled:opacity-50"
+                          className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-800 hover:bg-blue-100 whitespace-nowrap disabled:opacity-50 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300 dark:hover:bg-blue-900/60"
                           title="Iniciar ligação direta via API UaZapi"
                         >
                           <PhoneCall className="w-3.5 h-3.5" />
@@ -1024,10 +1024,10 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                           type="button"
                           disabled={busy}
                           onClick={() => handleInitiateCall('gotalk')}
-                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap disabled:opacity-50"
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                           title="Iniciar/registrar ligação GoTalk para gravação e transcrição"
                         >
-                          <Phone className="w-3.5 h-3.5 text-emerald-700" />
+                          <Phone className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-300" />
                           Ligação (GoTalk)
                         </button>
                       </>
@@ -1050,7 +1050,7 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                         setContactPhoneDraft(ensurePlus55Prefix(activeLead.phone));
                         setBasicContactModalOpen(true);
                       }}
-                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap"
+                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                     >
                       <UserPen className="w-3.5 h-3.5" />
                       Contato
@@ -1069,7 +1069,7 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                       <button
                         type="button"
                         onClick={handleOpenInFullAppointments}
-                        className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 whitespace-nowrap"
+                        className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 whitespace-nowrap dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
                         title="Abrir grade de Agendamentos com resumo preenchido nas Observações"
                       >
                         Grade
@@ -1081,17 +1081,17 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
 
                 {/* Ivi Baget: Human Attendance + Missing WhatsApp Client Name */}
                 {activeLeadMissingName && isHumanAttendance && (
-                  <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 flex items-start gap-3">
+                  <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 flex items-start gap-3 dark:border-amber-800/70 dark:bg-amber-950/50">
                     <img
                       src={iviAvatarImg}
                       alt="Ivi Assistente"
-                      className="w-10 h-10 rounded-full object-cover border border-amber-300 shrink-0"
+                      className="w-10 h-10 rounded-full object-cover border border-amber-300 shrink-0 dark:border-amber-800/70"
                     />
-                    <div className="flex-1 min-w-0 text-xs text-amber-950 space-y-1.5">
+                    <div className="flex-1 min-w-0 text-xs text-amber-950 space-y-1.5 dark:text-amber-300">
                       <p className="font-bold">
                         Lembrete da Ivi ao Operador: Nome do Cliente Não Identificado no WhatsApp
                       </p>
-                      <p className="leading-relaxed text-amber-900">
+                      <p className="leading-relaxed text-amber-900 dark:text-amber-300">
                         Este contato entrou pelo WhatsApp sem nome visível. Como o atendimento está com você (operador humano), solicite o nome completo ao cliente durante a conversa e atualize o cadastro básico.
                       </p>
                       <button
@@ -1112,12 +1112,12 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
 
                 {/* Ivi Notice when Ivi handles initial attendance without name */}
                 {activeLeadMissingName && isIviInitialAttendance && (
-                  <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-2.5 flex items-center justify-between gap-2 text-xs text-blue-950">
+                  <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-2.5 flex items-center justify-between gap-2 text-xs text-blue-950 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300">
                     <div className="flex items-center gap-2 min-w-0">
                       <img
                         src={iviAvatarImg}
                         alt="Ivi Assistente"
-                        className="w-7 h-7 rounded-full object-cover border border-blue-200 shrink-0"
+                        className="w-7 h-7 rounded-full object-cover border border-blue-200 shrink-0 dark:border-blue-800/70"
                       />
                       <span className="truncate">
                         Contato WhatsApp sem nome evidente em atendimento inicial pela Ivi.
@@ -1130,7 +1130,7 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                         setContactPhoneDraft(ensurePlus55Prefix(activeLead.phone));
                         setBasicContactModalOpen(true);
                       }}
-                      className="shrink-0 font-semibold text-blue-700 hover:underline"
+                      className="shrink-0 font-semibold text-blue-700 hover:underline dark:text-blue-300"
                     >
                       Abrir Modal Básico
                     </button>
@@ -1142,8 +1142,8 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                   <div
                     className={`rounded-xl border px-3 py-2 text-xs flex flex-wrap items-center justify-between gap-2 ${
                       callFeedback.ok
-                        ? 'border-blue-200 bg-blue-50 text-blue-950'
-                        : 'border-amber-200 bg-amber-50 text-amber-950'
+                        ? 'border-blue-200 bg-blue-50 text-blue-950 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300'
+                        : 'border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-800/70 dark:bg-amber-950/50 dark:text-amber-300'
                     }`}
                   >
                     <div className="flex items-center gap-2">
@@ -1160,9 +1160,9 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                 )}
 
                 {/* Conversation Timeline */}
-                <div className="space-y-2.5 max-h-[340px] overflow-y-auto overflow-x-auto scroll-rulers bg-slate-50/70 rounded-xl p-3 border border-slate-100">
+                <div className="space-y-2.5 max-h-[340px] overflow-y-auto overflow-x-auto scroll-rulers bg-slate-50/70 rounded-xl p-3 border border-slate-100 dark:bg-slate-800/60 dark:border-slate-800">
                   {(activeLead.aiTranscript || []).length === 0 ? (
-                    <p className="text-xs text-slate-500 text-center py-6">
+                    <p className="text-xs text-slate-500 text-center py-6 dark:text-slate-400">
                       Nenhuma mensagem registrada. Envie abaixo para atendimento via Ivi/Operador ou anexe um áudio para transcrição.
                     </p>
                   ) : (
@@ -1171,15 +1171,15 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                         key={idx}
                         className={`rounded-lg p-3 text-xs border ${
                           item.type === 'call'
-                            ? 'bg-amber-50/70 border-amber-200 text-slate-900'
+                            ? 'bg-amber-50/70 border-amber-200 text-slate-900 dark:bg-amber-950/50 dark:border-amber-800/70 dark:text-slate-100'
                             : item.sender === 'ivi'
-                            ? 'bg-blue-50/80 border-blue-100 text-slate-900 ml-4'
+                            ? 'bg-blue-50/80 border-blue-100 text-slate-900 ml-4 dark:bg-blue-950/50 dark:border-blue-800/70 dark:text-slate-100'
                             : item.sender === 'operador'
-                            ? 'bg-emerald-50/70 border-emerald-200 text-slate-900 ml-4'
-                            : 'bg-white border-slate-200 text-slate-800 mr-4'
+                            ? 'bg-emerald-50/70 border-emerald-200 text-slate-900 ml-4 dark:bg-emerald-950/50 dark:border-emerald-800/70 dark:text-slate-100'
+                            : 'bg-white border-slate-200 text-slate-800 mr-4 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100'
                         }`}
                       >
-                        <div className="flex items-center justify-between gap-2 text-[10px] text-slate-500 mb-1">
+                        <div className="flex items-center justify-between gap-2 text-[10px] text-slate-500 mb-1 dark:text-slate-400">
                           <span className="font-semibold">
                             {item.type === 'call'
                               ? `Ligação ${String(item.sourceProvider || 'uazapi').toUpperCase()} · ${item.authorName || 'Operador'}`
@@ -1196,8 +1196,8 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                           <SecureBucketAudio sha256={item.mediaSha256} fileName={item.mediaFileName} />
                         )}
                         {item.audioTranscript && (
-                          <div className="mt-2 rounded-md border border-blue-200 bg-white/90 p-2 text-[11px] text-slate-700">
-                            <span className="font-bold text-blue-800">Transcrição Ivi: </span>
+                          <div className="mt-2 rounded-md border border-blue-200 bg-white/90 p-2 text-[11px] text-slate-700 dark:border-blue-800/70 dark:bg-slate-900/95 dark:text-slate-200">
+                            <span className="font-bold text-blue-800 dark:text-blue-300">Transcrição Ivi: </span>
                             {item.audioTranscript}
                           </div>
                         )}
@@ -1207,9 +1207,9 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                 </div>
 
                 {/* Audio Recording & File Transcription Bar (Ivi) */}
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
-                  <div className="flex items-center gap-2 text-slate-700">
-                    <FileAudio className="w-4 h-4 text-blue-700 shrink-0" />
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-800/70">
+                  <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
+                    <FileAudio className="w-4 h-4 text-blue-700 shrink-0 dark:text-blue-300" />
                     <span className="font-medium">Transcrição & Gravação (BucketDaInvicta):</span>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
@@ -1220,7 +1220,7 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                       className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-semibold whitespace-nowrap ${
                         isRecordingAudio
                           ? 'bg-red-600 text-white hover:bg-red-700'
-                          : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
+                          : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
                       }`}
                     >
                       {isRecordingAudio ? (
@@ -1230,7 +1230,7 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                         </>
                       ) : (
                         <>
-                          <Mic className="w-3 h-3 text-blue-700" />
+                          <Mic className="w-3 h-3 text-blue-700 dark:text-blue-300" />
                           Gravar Áudio
                         </>
                       )}
@@ -1246,7 +1246,7 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                       type="button"
                       disabled={busy}
                       onClick={() => audioFileInputRef.current?.click()}
-                      className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[11px] font-semibold text-blue-800 hover:bg-blue-100 whitespace-nowrap"
+                      className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[11px] font-semibold text-blue-800 hover:bg-blue-100 whitespace-nowrap dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300 dark:hover:bg-blue-900/60"
                     >
                       <FileAudio className="w-3 h-3" />
                       Enviar Áudio p/ Ivi
@@ -1265,12 +1265,12 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
 
                 {/* Recent UaZapi / GoTalk Call History + Recording Capture */}
                 {activeLeadCallLogs.length > 0 && (
-                  <div className="rounded-lg border border-slate-200 bg-slate-50/70 px-3 py-2.5 text-[11px] text-slate-700 space-y-2">
+                  <div className="rounded-lg border border-slate-200 bg-slate-50/70 px-3 py-2.5 text-[11px] text-slate-700 space-y-2 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-semibold text-slate-900">
+                      <span className="font-semibold text-slate-900 dark:text-slate-100">
                         Ligações Registradas ({activeLeadCallLogs.length}) · UaZapi & GoTalk
                       </span>
-                      <span className="text-[10px] text-slate-500">
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400">
                         Gravações criptografadas no BucketDaInvicta
                       </span>
                     </div>
@@ -1278,13 +1278,13 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                       {activeLeadCallLogs.slice(0, 5).map((cl) => (
                         <div key={cl.id} className="pt-2 first:pt-0 space-y-1.5">
                           <div className="flex flex-wrap items-center justify-between gap-2">
-                            <span className="font-medium text-slate-800">
+                            <span className="font-medium text-slate-800 dark:text-slate-100">
                               {cl.provider.toUpperCase()} · {cl.direction === 'inbound' ? 'Recebida' : 'Realizada'} ·{' '}
                               {cl.initiatedByName} → {cl.toNumber} ({cl.status})
                               {cl.durationSeconds ? ` · ${cl.durationSeconds}s` : ''}
                             </span>
                             <div className="flex items-center gap-1.5 shrink-0">
-                              <span className="font-mono text-[10px] text-slate-500">
+                              <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400">
                                 {formatDateTimeBR(cl.createdAt)}
                               </span>
                               <button
@@ -1294,7 +1294,7 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                                 className={`inline-flex items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold ${
                                   recordingCallLogId === cl.id
                                     ? 'bg-red-600 text-white'
-                                    : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
+                                    : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
                                 }`}
                               >
                                 {recordingCallLogId === cl.id ? (
@@ -1304,7 +1304,7 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                                   </>
                                 ) : (
                                   <>
-                                    <Mic className="w-2.5 h-2.5 text-blue-700" />
+                                    <Mic className="w-2.5 h-2.5 text-blue-700 dark:text-blue-300" />
                                     Gravar
                                   </>
                                 )}
@@ -1316,7 +1316,7 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                                   setUploadTargetCallLogId(cl.id);
                                   callAudioUploadRef.current?.click();
                                 }}
-                                className="inline-flex items-center gap-1 rounded border border-blue-200 bg-blue-50 px-2 py-1 text-[10px] font-semibold text-blue-800 hover:bg-blue-100"
+                                className="inline-flex items-center gap-1 rounded border border-blue-200 bg-blue-50 px-2 py-1 text-[10px] font-semibold text-blue-800 hover:bg-blue-100 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300 dark:hover:bg-blue-900/60"
                               >
                                 <Upload className="w-2.5 h-2.5" />
                                 Anexar Áudio
@@ -1324,7 +1324,7 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                             </div>
                           </div>
                           {cl.errorDetail && !cl.recordingSha256 && (
-                            <p className="text-[10px] text-slate-500">{cl.errorDetail}</p>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400">{cl.errorDetail}</p>
                           )}
                           {cl.recordingSha256 && (
                             <SecureBucketAudio
@@ -1333,8 +1333,8 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                             />
                           )}
                           {cl.audioTranscript && (
-                            <div className="rounded border border-blue-200 bg-white px-2.5 py-1.5 text-[11px] text-slate-700">
-                              <span className="font-bold text-blue-800">Transcrição da Chamada (Ivi): </span>
+                            <div className="rounded border border-blue-200 bg-white px-2.5 py-1.5 text-[11px] text-slate-700 dark:border-blue-800/70 dark:bg-slate-900 dark:text-slate-200">
+                              <span className="font-bold text-blue-800 dark:text-blue-300">Transcrição da Chamada (Ivi): </span>
                               {cl.audioTranscript}
                             </div>
                           )}
@@ -1345,32 +1345,32 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                 )}
 
                 {/* Archived Conversations, Audios & Calls in BucketDaInvicta */}
-                <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-[11px] space-y-2">
+                <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-[11px] space-y-2 dark:border-slate-700 dark:bg-slate-900">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5 font-semibold text-slate-900">
-                      <Archive className="w-3.5 h-3.5 text-slate-700" />
+                    <div className="flex items-center gap-1.5 font-semibold text-slate-900 dark:text-slate-100">
+                      <Archive className="w-3.5 h-3.5 text-slate-700 dark:text-slate-200" />
                       <span>Registros Arquivados no BucketDaInvicta ({activeLeadArchives.length})</span>
                     </div>
                     <button
                       type="button"
                       disabled={busy}
                       onClick={handleArchiveConversationNow}
-                      className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-800 hover:bg-slate-100 whitespace-nowrap"
+                      className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-800 hover:bg-slate-100 whitespace-nowrap dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-100 dark:hover:bg-slate-800"
                     >
                       <Archive className="w-3 h-3" />
                       Arquivar Conversa Agora
                     </button>
                   </div>
                   {activeLeadArchives.length === 0 ? (
-                    <p className="text-[10px] text-slate-500">
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">
                       Nenhum snapshot salvo ainda para este contato. Qualquer mensagem, áudio, ligação ou clique em "Arquivar Conversa Agora" grava o dossiê completo em tabela + BucketDaInvicta.
                     </p>
                   ) : (
-                    <div className="max-h-36 overflow-y-auto overflow-x-auto scroll-rulers divide-y divide-slate-100">
+                    <div className="max-h-36 overflow-y-auto overflow-x-auto scroll-rulers divide-y divide-slate-100 dark:divide-slate-800">
                       {activeLeadArchives.slice(0, 8).map((arch) => (
                         <div key={arch.id} className="py-1.5 flex items-center justify-between gap-2">
                           <div className="min-w-0">
-                            <div className="font-medium text-slate-800 truncate">
+                            <div className="font-medium text-slate-800 truncate dark:text-slate-100">
                               {arch.archiveType === 'call_recording'
                                 ? 'Gravação de Ligação'
                                 : arch.archiveType === 'audio_message'
@@ -1379,11 +1379,11 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                                 ? 'Snapshot Conversa Completa'
                                 : 'Anexo de Atendimento'}{' '}
                               · {arch.provider.toUpperCase()} ·{' '}
-                              <span className="font-mono text-slate-500">
+                              <span className="font-mono text-slate-500 dark:text-slate-400">
                                 {arch.sha256Hash.slice(0, 10)}
                               </span>
                             </div>
-                            <div className="text-[10px] text-slate-500 truncate">
+                            <div className="text-[10px] text-slate-500 truncate dark:text-slate-400">
                               {formatDateTimeBR(arch.createdAt)} · {arch.createdByName}
                               {arch.transcriptText ? ` · "${arch.transcriptText.slice(0, 90)}"` : ''}
                             </div>
@@ -1393,7 +1393,7 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                               <button
                                 type="button"
                                 onClick={() => handleViewOrDownloadArchive(arch, 'preview')}
-                                className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-700 hover:underline"
+                                className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-700 hover:underline dark:text-blue-300"
                               >
                                 <Eye className="w-3 h-3" />
                                 Visualizar
@@ -1402,7 +1402,7 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                             <button
                               type="button"
                               onClick={() => handleViewOrDownloadArchive(arch, 'download')}
-                              className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-700 hover:underline"
+                              className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-700 hover:underline dark:text-slate-200"
                             >
                               <Download className="w-3 h-3" />
                               Baixar
@@ -1427,7 +1427,7 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
                     placeholder="Mensagem do cliente (para Ivi) ou resposta do operador..."
-                    className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-xs min-w-0"
+                    className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-xs min-w-0 dark:border-slate-700"
                   />
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button
@@ -1442,7 +1442,7 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                       type="button"
                       disabled={busy || !replyText.trim()}
                       onClick={() => handleSendMessage('human')}
-                      className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 whitespace-nowrap"
+                      className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 whitespace-nowrap dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
                     >
                       Operador
                     </button>
@@ -1450,13 +1450,13 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                 </form>
 
                 {onNavigate && (
-                  <div className="flex justify-end pt-1 border-t border-slate-100">
+                  <div className="flex justify-end pt-1 border-t border-slate-100 dark:border-slate-800">
                     <button
                       type="button"
                       onClick={() =>
                         onNavigate('admission', { tab: 'nova_admissao', triggerNew: true })
                       }
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-slate-900"
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
                     >
                       Abrir Ficha de Admissão
                       <ArrowUpRight className="w-3.5 h-3.5" />
@@ -1465,29 +1465,29 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                 )}
               </div>
             ) : (
-              <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-xs text-slate-500">
+              <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
                 Selecione um contato na Fila Omnichannel ao lado ou clique em "+ Novo Lead / Contato".
               </div>
             )}
           </div>
 
           {/* 3. Conteiner Estreito à Direita: Resumo da Conversa (Ivi + Usuário + Data/Hora + Observações Agendamentos) */}
-          <div className="md:col-span-3 rounded-xl border border-slate-200 bg-white overflow-hidden">
-            <div className="px-3 py-2.5 border-b border-slate-200 flex items-center justify-between gap-2 bg-slate-50">
+          <div className="md:col-span-3 rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
+            <div className="px-3 py-2.5 border-b border-slate-200 flex items-center justify-between gap-2 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/70">
               <div className="flex items-center gap-2 min-w-0">
                 <img
                   src={iviAvatarImg}
                   alt="Ivi"
-                  className="w-6 h-6 rounded-full object-cover border border-slate-200 shrink-0"
+                  className="w-6 h-6 rounded-full object-cover border border-slate-200 shrink-0 dark:border-slate-700"
                 />
-                <span className="text-xs font-bold text-slate-900 truncate">Resumo da Conversa</span>
+                <span className="text-xs font-bold text-slate-900 truncate dark:text-slate-100">Resumo da Conversa</span>
               </div>
               {activeLead && (
                 <button
                   type="button"
                   disabled={busy}
                   onClick={handleAutoSummarizeWithIvi}
-                  className="text-[11px] font-semibold text-blue-700 hover:underline shrink-0"
+                  className="text-[11px] font-semibold text-blue-700 hover:underline shrink-0 dark:text-blue-300"
                 >
                   Gerar Ivi
                 </button>
@@ -1498,31 +1498,31 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
               <div className="p-3 space-y-3 text-xs max-h-[600px] overflow-y-auto scroll-rulers">
                 {/* Ivi Baget when conversation is purely by phone */}
                 {purelyPhone && (
-                  <div className="rounded-xl border border-blue-200 bg-blue-50 p-2.5 flex items-start gap-2.5">
+                  <div className="rounded-xl border border-blue-200 bg-blue-50 p-2.5 flex items-start gap-2.5 dark:border-blue-800/70 dark:bg-blue-950/50">
                     <img
                       src={iviAvatarImg}
                       alt="Ivi Assistente"
-                      className="w-9 h-9 rounded-full object-cover border border-blue-300 shrink-0"
+                      className="w-9 h-9 rounded-full object-cover border border-blue-300 shrink-0 dark:border-blue-800/70"
                     />
-                    <div className="text-[11px] text-blue-950 space-y-1">
+                    <div className="text-[11px] text-blue-950 space-y-1 dark:text-blue-300">
                       <p className="font-bold">Solicitação da Ivi: Preencha o Resumo</p>
-                      <p className="leading-relaxed text-blue-900">
+                      <p className="leading-relaxed text-blue-900 dark:text-blue-300">
                         Este atendimento é puramente por telefone (sem texto/chat automático para leitura). Registre abaixo o resumo do que foi conversado para documentar no histórico e preencher o campo <strong>Observações</strong> nos Agendamentos.
                       </p>
                     </div>
                   </div>
                 )}
 
-                <div className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 space-y-1 text-[11px]">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 space-y-1 text-[11px] dark:border-slate-700 dark:bg-slate-800/70">
                   <div className="flex justify-between gap-2">
-                    <span className="text-slate-500">Usuário:</span>
-                    <span className="font-semibold text-slate-900 truncate">
+                    <span className="text-slate-500 dark:text-slate-400">Usuário:</span>
+                    <span className="font-semibold text-slate-900 truncate dark:text-slate-100">
                       {activeLead.summaryAuthor || currentUser?.name || 'Ivi IA'}
                     </span>
                   </div>
                   <div className="flex justify-between gap-2">
-                    <span className="text-slate-500">Data / Hora:</span>
-                    <span className="font-mono text-slate-700 shrink-0">
+                    <span className="text-slate-500 dark:text-slate-400">Data / Hora:</span>
+                    <span className="font-mono text-slate-700 shrink-0 dark:text-slate-200">
                       {activeLead.summaryUpdatedAt
                         ? formatDateTimeBR(activeLead.summaryUpdatedAt)
                         : 'Não salvo'}
@@ -1531,7 +1531,7 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1 text-[11px]">
+                  <label className="block font-semibold text-slate-700 mb-1 text-[11px] dark:text-slate-200">
                     Síntese do Atendimento (encaminhada para Observações)
                   </label>
                   <textarea
@@ -1539,7 +1539,7 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                     value={summaryDraft}
                     onChange={(e) => setSummaryDraft(e.target.value)}
                     placeholder="Resumo do que foi discutido (gerado automaticamente pela Ivi a partir do texto/áudio ou preenchido manualmente após ligação)..."
-                    className="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-xs leading-relaxed"
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-xs leading-relaxed dark:border-slate-700"
                   />
                 </div>
 
@@ -1547,18 +1547,18 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                   type="button"
                   disabled={busy}
                   onClick={handleSaveSummary}
-                  className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                  className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
                 >
                   <Save className="w-3.5 h-3.5" />
                   Salvar Resumo
                 </button>
 
-                <p className="text-[11px] text-slate-500 leading-relaxed border-t border-slate-100 pt-2">
+                <p className="text-[11px] text-slate-500 leading-relaxed border-t border-slate-100 pt-2 dark:text-slate-400 dark:border-slate-800">
                   Ao confirmar um agendamento neste lead, este resumo com usuário, data e hora é enviado para o campo <strong>Observações</strong> em <strong>Agendamentos</strong>.
                 </p>
               </div>
             ) : (
-              <div className="p-4 text-xs text-slate-500 text-center">
+              <div className="p-4 text-xs text-slate-500 text-center dark:text-slate-400">
                 Selecione um atendimento para visualizar ou editar o resumo da Ivi.
               </div>
             )}
@@ -1567,9 +1567,9 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
       )}
 
       {tab === 'agenda' && (
-        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="font-display text-base font-bold text-slate-900">
+        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
+          <div className="px-5 py-3.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 dark:border-slate-700">
+            <h2 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
               Quadro de Agendas · Fila por Unidade
             </h2>
             <div className="flex items-center gap-3">
@@ -1577,13 +1577,13 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                 <button
                   type="button"
                   onClick={() => onNavigate('appointments', { tab: 'agenda' })}
-                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                 >
-                  <Calendar className="w-3.5 h-3.5 text-emerald-700" />
+                  <Calendar className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-300" />
                   Abrir Grade Completa (Agendamentos)
                 </button>
               )}
-              <span className="text-xs text-slate-500 font-mono">
+              <span className="text-xs text-slate-500 font-mono dark:text-slate-400">
                 {filteredAppointments.length} horários
               </span>
             </div>
@@ -1591,7 +1591,7 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
           <div className="overflow-x-auto scroll-rulers">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-500">
+                <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-400">
                   <th className="py-2.5 px-4">Cliente</th>
                   <th className="py-2.5 px-4">Unidade</th>
                   <th className="py-2.5 px-4">Consultor</th>
@@ -1601,32 +1601,32 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                   <th className="py-2.5 px-4 text-right">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-xs">
+              <tbody className="divide-y divide-slate-100 text-xs dark:divide-slate-800">
                 {filteredAppointments.map((a) => {
                   const u = units.find((unit) => unit.id === a.unitId);
                   const c = consultants.find((cons) => cons.id === a.consultantId);
                   return (
-                    <tr key={a.id} className="hover:bg-slate-50/70">
-                      <td className="py-3 px-4 font-semibold text-slate-900">
+                    <tr key={a.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800">
+                      <td className="py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">
                         {a.clientName}
-                        <div className="text-[11px] font-normal text-slate-500">
+                        <div className="text-[11px] font-normal text-slate-500 dark:text-slate-400">
                           {a.clientPhone}
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-slate-700">{u?.name || 'Matriz'}</td>
-                      <td className="py-3 px-4 text-slate-700">{c?.name || 'Consultor'}</td>
-                      <td className="py-3 px-4 text-slate-700 capitalize">{a.modality}</td>
-                      <td className="py-3 px-4 font-mono text-slate-700">
+                      <td className="py-3 px-4 text-slate-700 dark:text-slate-200">{u?.name || 'Matriz'}</td>
+                      <td className="py-3 px-4 text-slate-700 dark:text-slate-200">{c?.name || 'Consultor'}</td>
+                      <td className="py-3 px-4 text-slate-700 capitalize dark:text-slate-200">{a.modality}</td>
+                      <td className="py-3 px-4 font-mono text-slate-700 dark:text-slate-200">
                         {formatDateTimeBR(a.scheduledFor)}
                       </td>
                       <td className="py-3 px-4">
                         <span
                           className={`font-semibold ${
                             a.status === 'cumprido'
-                              ? 'text-emerald-700'
+                              ? 'text-emerald-700 dark:text-emerald-300'
                               : a.status === 'faltoso'
-                              ? 'text-red-600'
-                              : 'text-blue-700'
+                              ? 'text-red-600 dark:text-red-400'
+                              : 'text-blue-700 dark:text-blue-300'
                           }`}
                         >
                           {a.status}
@@ -1636,14 +1636,14 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                         <button
                           type="button"
                           onClick={() => handleApptStatus(a.id, 'cumprido')}
-                          className="text-emerald-700 font-semibold hover:underline"
+                          className="text-emerald-700 font-semibold hover:underline dark:text-emerald-300"
                         >
                           Cumprido
                         </button>
                         <button
                           type="button"
                           onClick={() => handleApptStatus(a.id, 'faltoso')}
-                          className="text-red-600 font-semibold hover:underline"
+                          className="text-red-600 font-semibold hover:underline dark:text-red-400"
                         >
                           Faltoso
                         </button>
@@ -1656,12 +1656,12 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
           </div>
 
           {/* Schedule Blocks */}
-          <div className="border-t border-slate-200 p-5 bg-slate-50/50 space-y-4">
+          <div className="border-t border-slate-200 p-5 bg-slate-50/50 space-y-4 dark:border-slate-700 dark:bg-slate-800/60">
             <div>
-              <h3 className="font-display text-sm font-bold text-slate-900">
+              <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                 Bloqueios de Agenda por Consultor
               </h3>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 A fila Round-Robin pula automaticamente consultores com bloqueio ativo no horário.
               </p>
             </div>
@@ -1690,11 +1690,11 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
               className="grid grid-cols-1 sm:grid-cols-5 gap-2.5 text-xs items-end"
             >
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Consultor</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Consultor</label>
                 <select
                   value={blockConsultantId}
                   onChange={(e) => setBlockConsultantId(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                 >
                   {consultants.map((c) => (
                     <option key={c.id} value={String(c.id)}>
@@ -1704,47 +1704,47 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                 </select>
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Início</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Início</label>
                 <input
                   type="datetime-local"
                   required
                   value={blockStart}
                   onChange={(e) => setBlockStart(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Fim</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Fim</label>
                 <input
                   type="datetime-local"
                   required
                   value={blockEnd}
                   onChange={(e) => setBlockEnd(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Motivo</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Motivo</label>
                 <input
                   type="text"
                   required
                   value={blockReason}
                   onChange={(e) => setBlockReason(e.target.value)}
                   placeholder="Ex: Visita externa / Férias"
-                  className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 dark:border-slate-700 dark:bg-slate-900"
                 />
               </div>
               <button
                 type="submit"
                 disabled={busy}
-                className="rounded-lg bg-slate-900 px-3 py-2 font-semibold text-white hover:bg-slate-800"
+                className="rounded-lg bg-slate-900 px-3 py-2 font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
               >
                 Bloquear Horário
               </button>
             </form>
 
             {scheduleBlocks.length > 0 && (
-              <div className="divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white text-xs">
+              <div className="divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white text-xs dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-900">
                 {scheduleBlocks.map((b) => {
                   const cons = consultants.find((c) => c.id === b.consultantId);
                   return (
@@ -1753,12 +1753,12 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                       className="px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2"
                     >
                       <div>
-                        <span className="font-semibold text-slate-900">
+                        <span className="font-semibold text-slate-900 dark:text-slate-100">
                           {cons?.name || 'Consultor'}
                         </span>
-                        <span className="text-slate-500"> · {b.reason}</span>
+                        <span className="text-slate-500 dark:text-slate-400"> · {b.reason}</span>
                       </div>
-                      <span className="font-mono text-[11px] text-slate-600">
+                      <span className="font-mono text-[11px] text-slate-600 dark:text-slate-300">
                         {formatDateTimeBR(b.startAt)} → {formatDateTimeBR(b.endAt)}
                       </span>
                     </div>
@@ -1774,16 +1774,16 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
         <div className="space-y-5">
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
             {[
-              { label: 'Leads Captados', val: metrics.captados, tone: 'text-slate-900' },
-              { label: 'Recuperados', val: metrics.recuperados, tone: 'text-blue-700' },
-              { label: 'Agend. Cumpridos', val: metrics.cumpridos, tone: 'text-emerald-700' },
-              { label: 'Agend. Faltosos', val: metrics.faltosos, tone: 'text-red-600' },
-              { label: 'Negócios Fechados', val: metrics.fechados, tone: 'text-emerald-700' },
-              { label: 'Sob Análise', val: metrics.analise, tone: 'text-amber-700' },
-              { label: 'Não Fechadas', val: metrics.naoFechados, tone: 'text-slate-600' },
+              { label: 'Leads Captados', val: metrics.captados, tone: 'text-slate-900 dark:text-slate-100' },
+              { label: 'Recuperados', val: metrics.recuperados, tone: 'text-blue-700 dark:text-blue-300' },
+              { label: 'Agend. Cumpridos', val: metrics.cumpridos, tone: 'text-emerald-700 dark:text-emerald-300' },
+              { label: 'Agend. Faltosos', val: metrics.faltosos, tone: 'text-red-600 dark:text-red-400' },
+              { label: 'Negócios Fechados', val: metrics.fechados, tone: 'text-emerald-700 dark:text-emerald-300' },
+              { label: 'Sob Análise', val: metrics.analise, tone: 'text-amber-700 dark:text-amber-300' },
+              { label: 'Não Fechadas', val: metrics.naoFechados, tone: 'text-slate-600 dark:text-slate-300' },
             ].map((k) => (
-              <div key={k.label} className="rounded-xl border border-slate-200 bg-white p-3.5">
-                <div className="text-[11px] font-medium text-slate-500">{k.label}</div>
+              <div key={k.label} className="rounded-xl border border-slate-200 bg-white p-3.5 dark:border-slate-700 dark:bg-slate-900">
+                <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">{k.label}</div>
                 <div className={`mt-1.5 font-mono text-2xl font-bold tabular-nums ${k.tone}`}>
                   {k.val}
                 </div>
@@ -1792,21 +1792,21 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <div className="rounded-xl border border-slate-200 bg-white p-5">
-              <h3 className="font-display text-sm font-bold text-slate-900 pb-3 border-b border-slate-100">
+            <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+              <h3 className="font-display text-sm font-bold text-slate-900 pb-3 border-b border-slate-100 dark:text-slate-100 dark:border-slate-800">
                 Ranking de Consultores (Agendamentos & Cumprimento)
               </h3>
               <div className="mt-3 space-y-3">
                 {metrics.byConsultant.map((c, idx) => (
                   <div key={c.name} className="flex items-center justify-between gap-3 text-xs">
                     <div className="flex items-center gap-2.5">
-                      <span className="font-mono font-bold text-slate-400 w-5">0{idx + 1}</span>
-                      <UserCheck className="w-4 h-4 text-emerald-600" />
-                      <span className="font-semibold text-slate-900">{c.name}</span>
+                      <span className="font-mono font-bold text-slate-400 w-5 dark:text-slate-400">0{idx + 1}</span>
+                      <UserCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                      <span className="font-semibold text-slate-900 dark:text-slate-100">{c.name}</span>
                     </div>
-                    <div className="font-mono text-slate-700 tabular-nums">
+                    <div className="font-mono text-slate-700 tabular-nums dark:text-slate-200">
                       {c.total} agend. ·{' '}
-                      <span className="text-emerald-700 font-semibold">
+                      <span className="text-emerald-700 font-semibold dark:text-emerald-300">
                         {c.cumpridos} cumpridos
                       </span>
                     </div>
@@ -1815,8 +1815,8 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
               </div>
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-white p-5">
-              <h3 className="font-display text-sm font-bold text-slate-900 pb-3 border-b border-slate-100">
+            <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+              <h3 className="font-display text-sm font-bold text-slate-900 pb-3 border-b border-slate-100 dark:text-slate-100 dark:border-slate-800">
                 Distribuição por Canal de Captação
               </h3>
               <div className="mt-3 space-y-2.5 text-xs">
@@ -1835,8 +1835,8 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                   return (
                     <div key={ch} className="space-y-1">
                       <div className="flex justify-between">
-                        <span className="font-medium text-slate-700">{ch}</span>
-                        <span className="font-mono text-slate-600 tabular-nums">
+                        <span className="font-medium text-slate-700 dark:text-slate-200">{ch}</span>
+                        <span className="font-mono text-slate-600 tabular-nums dark:text-slate-300">
                           {total} ({pct}%)
                         </span>
                       </div>
@@ -1855,26 +1855,26 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
       )}
 
       {tab === 'kb' && (
-        <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-            <h2 className="font-display text-base font-bold text-slate-900">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3 dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+            <h2 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
               Base de Conhecimento Interna da Ivi
             </h2>
-            <span className="text-xs text-slate-500 font-mono">{kb.length} artigos aprendidos</span>
+            <span className="text-xs text-slate-500 font-mono dark:text-slate-400">{kb.length} artigos aprendidos</span>
           </div>
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
             {kb.map((item) => (
               <div key={item.id} className="py-3">
-                <div className="flex items-center justify-between text-xs text-slate-500">
-                  <span className="font-semibold text-blue-700">
+                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                  <span className="font-semibold text-blue-700 dark:text-blue-300">
                     {item.category} · {item.sourceChannel}
                   </span>
                   <span className="font-mono">{item.hitCount} usos</span>
                 </div>
-                <div className="mt-1 text-sm font-semibold text-slate-900">
+                <div className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
                   {item.questionPattern}
                 </div>
-                <p className="mt-1 text-xs text-slate-600 leading-relaxed">{item.answerTemplate}</p>
+                <p className="mt-1 text-xs text-slate-600 leading-relaxed dark:text-slate-300">{item.answerTemplate}</p>
               </div>
             ))}
           </div>
@@ -1883,25 +1883,25 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
 
       {/* Modal: Novo Lead / Contato */}
       {newLeadModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 dark:bg-slate-950/80">
           <form
             onSubmit={handleCreateLead}
-            className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-3.5 text-xs max-h-[90vh] overflow-y-auto scroll-rulers"
+            className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-3.5 text-xs max-h-[90vh] overflow-y-auto scroll-rulers dark:border-slate-700 dark:bg-slate-900"
           >
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-display text-base font-bold text-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+              <h3 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
                 Registrar Novo Contato & Atendimento
               </h3>
               <button
                 type="button"
                 onClick={() => setNewLeadModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 p-1"
+                className="text-slate-400 hover:text-slate-700 p-1 dark:text-slate-400 dark:hover:text-slate-200"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">
                 Nome do Cliente {isWhatsappChannel(newLeadChannel) ? '(opcional se não visível no WhatsApp)' : '*'}
               </label>
               <input
@@ -1910,27 +1910,27 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                 value={newLeadName}
                 onChange={(e) => setNewLeadName(e.target.value)}
                 placeholder="Ex: João Pedro Silva (ou deixe vazio se WhatsApp sem nome)"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700"
               />
             </div>
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">WhatsApp / Telefone (+55 automático)</label>
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">WhatsApp / Telefone (+55 automático)</label>
               <input
                 type="text"
                 required
                 value={newLeadPhone}
                 onChange={(e) => setNewLeadPhone(e.target.value)}
                 placeholder="+55 (81) 99999-1234"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700"
               />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Canal de Origem</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Canal de Origem</label>
                 <select
                   value={newLeadChannel}
                   onChange={(e) => setNewLeadChannel(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 >
                   <option value="whatsapp_uazapi">WhatsApp (UaZapi)</option>
                   <option value="whatsapp_gotalk">WhatsApp (GoTalk)</option>
@@ -1941,11 +1941,11 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                 </select>
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Atendimento Inicial</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Atendimento Inicial</label>
                 <select
                   value={newLeadMode}
                   onChange={(e) => setNewLeadMode(e.target.value as 'ivi' | 'human')}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 >
                   <option value="ivi">Ivi IA</option>
                   <option value="human">Operador Humano</option>
@@ -1953,20 +1953,20 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
               </div>
             </div>
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Mensagem / Contexto Inicial</label>
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Mensagem / Contexto Inicial</label>
               <textarea
                 rows={2}
                 value={newLeadMessage}
                 onChange={(e) => setNewLeadMessage(e.target.value)}
                 placeholder="Dúvida ou solicitação inicial do cliente..."
-                className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700"
               />
             </div>
             <div className="flex justify-end gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => setNewLeadModalOpen(false)}
-                className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700"
+                className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
               >
                 Cancelar
               </button>
@@ -1984,23 +1984,23 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
 
       {/* Modal de Contato Básico (Ivi): WhatsApp sem nome evidente */}
       {basicContactModalOpen && activeLead && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 dark:bg-slate-950/80">
           <form
             onSubmit={handleSaveBasicContact}
-            className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs"
+            className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs dark:border-slate-700 dark:bg-slate-900"
           >
-            <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3 dark:border-slate-800">
               <div className="flex items-center gap-3">
                 <img
                   src={iviAvatarImg}
                   alt="Ivi"
-                  className="w-11 h-11 rounded-full object-cover border border-blue-200 shrink-0"
+                  className="w-11 h-11 rounded-full object-cover border border-blue-200 shrink-0 dark:border-blue-800/70"
                 />
                 <div>
-                  <h3 className="font-display text-base font-bold text-slate-900">
+                  <h3 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
                     Contato Básico (Ivi IA)
                   </h3>
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
                     Nome não evidente no WhatsApp. Complete o contato com DDI +55.
                   </p>
                 </div>
@@ -2008,26 +2008,26 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
               <button
                 type="button"
                 onClick={() => setBasicContactModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 p-1"
+                className="text-slate-400 hover:text-slate-700 p-1 dark:text-slate-400 dark:hover:text-slate-200"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Nome do Cliente *</label>
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Nome do Cliente *</label>
               <input
                 type="text"
                 required
                 value={contactNameDraft}
                 onChange={(e) => setContactNameDraft(e.target.value)}
                 placeholder="Informe o nome completo obtido com o cliente..."
-                className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700"
               />
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">
                 Número do Telefone (com +55) *
               </label>
               <input
@@ -2038,7 +2038,7 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                   const val = e.target.value;
                   setContactPhoneDraft(val.startsWith('+55') ? val : `+55 ${val.replace(/^\+?55\s*/, '')}`);
                 }}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700"
               />
             </div>
 
@@ -2046,7 +2046,7 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
               <button
                 type="button"
                 onClick={() => setBasicContactModalOpen(false)}
-                className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700"
+                className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
               >
                 Fechar
               </button>
@@ -2065,35 +2065,35 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
 
       {/* Modal: Agendamento Rápido na Fila da Unidade (Observações recebe o Resumo) */}
       {scheduleModalOpen && activeLead && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 dark:bg-slate-950/80">
           <form
             onSubmit={handleSchedule}
-            className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-3.5 text-xs max-h-[90vh] overflow-y-auto scroll-rulers"
+            className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-3.5 text-xs max-h-[90vh] overflow-y-auto scroll-rulers dark:border-slate-700 dark:bg-slate-900"
           >
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
               <div>
-                <h3 className="font-display text-base font-bold text-slate-900">
+                <h3 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
                   Agendar Atendimento · {activeLead.name || 'Cliente WhatsApp'}
                 </h3>
-                <p className="text-[11px] text-slate-500">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
                   O resumo da conversa (usuário, data e hora) será salvo no campo Observações.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setScheduleModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 p-1"
+                className="text-slate-400 hover:text-slate-700 p-1 dark:text-slate-400 dark:hover:text-slate-200"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Modalidade</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Modalidade</label>
                 <select
                   value={schedModality}
                   onChange={(e) => setSchedModality(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 >
                   <option value="presencial">Presencial na Unidade</option>
                   <option value="telefone">Por Telefone</option>
@@ -2101,24 +2101,24 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                 </select>
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Data e Horário</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Data e Horário</label>
                 <input
                   type="datetime-local"
                   value={schedDate}
                   onChange={(e) => setSchedDate(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
             </div>
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">
                 Observações para o Agendamento (Resumo da Conversa)
               </label>
               <textarea
                 rows={5}
                 value={schedNotesDraft}
                 onChange={(e) => setSchedNotesDraft(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 leading-relaxed"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 leading-relaxed dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               />
             </div>
             <div className="flex flex-wrap justify-between items-center gap-2 pt-1">
@@ -2129,7 +2129,7 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                     setScheduleModalOpen(false);
                     handleOpenInFullAppointments();
                   }}
-                  className="text-blue-700 font-semibold hover:underline"
+                  className="text-blue-700 font-semibold hover:underline dark:text-blue-300"
                 >
                   Abrir na Grade Completa (Agendamentos) →
                 </button>
@@ -2138,7 +2138,7 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                 <button
                   type="button"
                   onClick={() => setScheduleModalOpen(false)}
-                  className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700"
+                  className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
                 >
                   Cancelar
                 </button>
@@ -2158,26 +2158,26 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
 
       {/* Modal: Visualizador de Snapshot do BucketDaInvicta */}
       {archiveViewer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
-          <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-3 text-xs max-h-[88vh] flex flex-col">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 dark:bg-slate-950/80">
+          <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-3 text-xs max-h-[88vh] flex flex-col dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
               <div className="min-w-0">
-                <h3 className="font-display text-sm font-bold text-slate-900 truncate">
+                <h3 className="font-display text-sm font-bold text-slate-900 truncate dark:text-slate-100">
                   Dossiê Arquivado · {archiveViewer.fileName}
                 </h3>
-                <p className="text-[10px] font-mono text-slate-500">
+                <p className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
                   BucketDaInvicta SHA-256: {archiveViewer.sha256}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setArchiveViewer(null)}
-                className="text-slate-400 hover:text-slate-700 p-1"
+                className="text-slate-400 hover:text-slate-700 p-1 dark:text-slate-400 dark:hover:text-slate-200"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <pre className="flex-1 overflow-auto scroll-rulers rounded-lg border border-slate-200 bg-slate-950 text-slate-100 p-3 font-mono text-[11px] leading-relaxed">
+            <pre className="flex-1 overflow-auto scroll-rulers rounded-lg border border-slate-200 bg-slate-950 text-slate-100 p-3 font-mono text-[11px] leading-relaxed dark:border-slate-700">
               {archiveViewer.content}
             </pre>
           </div>

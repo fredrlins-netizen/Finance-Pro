@@ -348,7 +348,7 @@ export const ConfigR2MigrationView: React.FC<ConfigR2MigrationViewProps> = ({ ws
 
   if (loading) {
     return (
-      <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-xs text-slate-500">
+      <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
         Carregando telemetria do bucket Cloudflare R2 e sessões de sincronização...
       </div>
     );
@@ -358,56 +358,56 @@ export const ConfigR2MigrationView: React.FC<ConfigR2MigrationViewProps> = ({ ws
     <div className="space-y-4 text-xs">
       {/* Top Architecture & Bucket Status Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 dark:text-slate-400">
             <span>Armazenamento Ativo R2 / S3</span>
-            <CloudUpload className="w-4 h-4 text-emerald-700" />
+            <CloudUpload className="w-4 h-4 text-emerald-700 dark:text-emerald-300" />
           </div>
-          <div className="mt-1.5 font-mono text-base font-bold text-slate-900">
+          <div className="mt-1.5 font-mono text-base font-bold text-slate-900 dark:text-slate-100">
             {bucketStats?.bucketName || 'bucketdainvicta'}
           </div>
-          <div className="mt-1 text-[11px] text-slate-500 font-mono">
+          <div className="mt-1 text-[11px] text-slate-500 font-mono dark:text-slate-400">
             {bucketStats?.activeBackend === 'CLOUDFLARE_R2'
               ? 'Cloudflare R2 S3 Presigned + Multipart'
               : 'Vault Local AES-256-GCM (Preview)'}
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 dark:text-slate-400">
             <span>Objetos &amp; Volume no Cofre</span>
-            <HardDrive className="w-4 h-4 text-slate-600" />
+            <HardDrive className="w-4 h-4 text-slate-600 dark:text-slate-300" />
           </div>
-          <div className="mt-1.5 font-mono text-base font-bold text-slate-900 tabular-nums">
+          <div className="mt-1.5 font-mono text-base font-bold text-slate-900 tabular-nums dark:text-slate-100">
             {bucketStats?.totalObjects || 0} arq. · {formatBytes(bucketStats?.totalLogicalBytes || 0)}
           </div>
-          <div className="mt-1 text-[11px] text-slate-500">
+          <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
             Criptografia {bucketStats?.encryptionAlgorithm || 'AES-256-GCM'} + SHA-256 CAS
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 dark:text-slate-400">
             <span>Dossiês com Selo HMAC</span>
-            <ShieldCheck className="w-4 h-4 text-emerald-700" />
+            <ShieldCheck className="w-4 h-4 text-emerald-700 dark:text-emerald-300" />
           </div>
-          <div className="mt-1.5 font-mono text-base font-bold text-slate-900 tabular-nums">
+          <div className="mt-1.5 font-mono text-base font-bold text-slate-900 tabular-nums dark:text-slate-100">
             {integrativeStats?.admissionsWithCode || 0} / {integrativeStats?.admissionsTotal || 0}
           </div>
-          <div className="mt-1 text-[11px] text-slate-500">
+          <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
             Formato INV-&#123;UNIDADE&#125;-DOSS-&#123;ID6&#125;-&#123;HMAC8&#125;
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 dark:text-slate-400">
             <span>Documentos com Selo HMAC</span>
-            <KeyRound className="w-4 h-4 text-blue-700" />
+            <KeyRound className="w-4 h-4 text-blue-700 dark:text-blue-300" />
           </div>
-          <div className="mt-1.5 font-mono text-base font-bold text-slate-900 tabular-nums">
+          <div className="mt-1.5 font-mono text-base font-bold text-slate-900 tabular-nums dark:text-slate-100">
             {integrativeStats?.documentsWithCode || 0} / {integrativeStats?.documentsTotal || 0}
           </div>
-          <div className="mt-1 text-[11px] text-slate-500">
+          <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
             Resolução segura via /api/vault/i/:codigo
           </div>
         </div>
@@ -417,39 +417,39 @@ export const ConfigR2MigrationView: React.FC<ConfigR2MigrationViewProps> = ({ ws
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         <form
           onSubmit={handleCreateBatch}
-          className="lg:col-span-7 rounded-xl border border-slate-200 bg-white p-4 space-y-3"
+          className="lg:col-span-7 rounded-xl border border-slate-200 bg-white p-4 space-y-3 dark:border-slate-700 dark:bg-slate-900"
         >
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 dark:border-slate-800">
             <div className="flex items-center gap-2">
-              <FolderSync className="w-4 h-4 text-slate-800" />
-              <h3 className="font-display text-sm font-bold text-slate-900">
+              <FolderSync className="w-4 h-4 text-slate-800 dark:text-slate-100" />
+              <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                 Nova Sessão de Carga / Atualização Incremental (Base 64 GB)
               </h3>
             </div>
-            <span className="font-mono text-[11px] text-slate-500">Node 18+ CLI</span>
+            <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400">Node 18+ CLI</span>
           </div>
 
-          <p className="text-slate-500 leading-relaxed">
-            O agente local varre as pastas por <strong className="text-slate-700">Código da Unidade</strong> no topo e <strong className="text-slate-700">Número do Contrato</strong> nas subpastas. Novos uploads da base de 64 GB comparam o hash SHA-256 e <strong className="text-slate-700">alteram/atualizam arquivos modificados ou movidos</strong> sem duplicar o que não mudou.
+          <p className="text-slate-500 leading-relaxed dark:text-slate-400">
+            O agente local varre as pastas por <strong className="text-slate-700 dark:text-slate-200">Código da Unidade</strong> no topo e <strong className="text-slate-700 dark:text-slate-200">Número do Contrato</strong> nas subpastas. Novos uploads da base de 64 GB comparam o hash SHA-256 e <strong className="text-slate-700 dark:text-slate-200">alteram/atualizam arquivos modificados ou movidos</strong> sem duplicar o que não mudou.
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
             <div className="sm:col-span-2">
-              <label className="block font-semibold text-slate-700 mb-1">Identificação da Sessão</label>
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Identificação da Sessão</label>
               <input
                 type="text"
                 required
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-slate-900"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-slate-900 dark:border-slate-700 dark:text-slate-100 dark:bg-slate-950"
               />
             </div>
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Modo de Sincronização</label>
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Modo de Sincronização</label>
               <select
                 value={newSyncMode}
                 onChange={(e) => setNewSyncMode(e.target.value as 'incremental' | 'mirror_review')}
-                className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-semibold text-slate-800"
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-semibold text-slate-800 dark:border-slate-700 dark:text-slate-100 dark:bg-slate-950"
               >
                 <option value="incremental">Incremental (Cria + Atualiza)</option>
                 <option value="mirror_review">Espelho com Revisão</option>
@@ -459,7 +459,7 @@ export const ConfigR2MigrationView: React.FC<ConfigR2MigrationViewProps> = ({ ws
 
           <div className="flex flex-col sm:flex-row sm:items-end gap-2.5">
             <div className="flex-1">
-              <label className="block font-semibold text-slate-700 mb-1">
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">
                 Caminho Raiz no Servidor Windows (Opcional)
               </label>
               <input
@@ -467,13 +467,13 @@ export const ConfigR2MigrationView: React.FC<ConfigR2MigrationViewProps> = ({ ws
                 value={newSourcePath}
                 onChange={(e) => setNewSourcePath(e.target.value)}
                 placeholder="D:\BaseDocumentosInvicta"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-slate-900"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-slate-900 dark:border-slate-700 dark:text-slate-100 dark:bg-slate-950"
               />
             </div>
             <button
               type="submit"
               disabled={busy}
-              className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 whitespace-nowrap"
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 whitespace-nowrap dark:bg-emerald-600 dark:hover:bg-emerald-500"
             >
               <Plus className="w-3.5 h-3.5" />
               Gerar Sessão &amp; Token CLI
@@ -482,15 +482,15 @@ export const ConfigR2MigrationView: React.FC<ConfigR2MigrationViewProps> = ({ ws
         </form>
 
         {/* Integrative HMAC Standardization & Resolver */}
-        <div className="lg:col-span-5 rounded-xl border border-slate-200 bg-white p-4 space-y-3">
-          <div className="flex items-center gap-2 border-b border-slate-100 pb-2.5">
-            <ShieldCheck className="w-4 h-4 text-emerald-700" />
-            <h3 className="font-display text-sm font-bold text-slate-900">
+        <div className="lg:col-span-5 rounded-xl border border-slate-200 bg-white p-4 space-y-3 dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex items-center gap-2 border-b border-slate-100 pb-2.5 dark:border-slate-800">
+            <ShieldCheck className="w-4 h-4 text-emerald-700 dark:text-emerald-300" />
+            <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
               Código Seguro Integrativo (HMAC-SHA256)
             </h3>
           </div>
 
-          <p className="text-slate-500 leading-relaxed">
+          <p className="text-slate-500 leading-relaxed dark:text-slate-400">
             Substitui chaves de pastas e URLs expostas por protocolo criptográfico único mantendo o número do contrato e protocolo legado indexados.
           </p>
 
@@ -498,7 +498,7 @@ export const ConfigR2MigrationView: React.FC<ConfigR2MigrationViewProps> = ({ ws
             <select
               value={sealUnitFilter}
               onChange={(e) => setSealUnitFilter(e.target.value)}
-              className="rounded-lg border border-slate-200 px-2.5 py-1.5 font-semibold text-slate-800"
+              className="rounded-lg border border-slate-200 px-2.5 py-1.5 font-semibold text-slate-800 dark:border-slate-700 dark:text-slate-100 dark:bg-slate-950"
             >
               <option value="all">Todas as Unidades</option>
               {targetUnits.map((u) => (
@@ -507,7 +507,7 @@ export const ConfigR2MigrationView: React.FC<ConfigR2MigrationViewProps> = ({ ws
                 </option>
               ))}
             </select>
-            <label className="inline-flex items-center gap-1.5 cursor-pointer text-slate-700">
+            <label className="inline-flex items-center gap-1.5 cursor-pointer text-slate-700 dark:text-slate-200">
               <input
                 type="checkbox"
                 checked={sealOverwrite}
@@ -526,8 +526,8 @@ export const ConfigR2MigrationView: React.FC<ConfigR2MigrationViewProps> = ({ ws
             </button>
           </div>
 
-          <form onSubmit={handleTestIntegrativeCode} className="pt-2 border-t border-slate-100 space-y-2">
-            <label className="block font-semibold text-slate-700">
+          <form onSubmit={handleTestIntegrativeCode} className="pt-2 border-t border-slate-100 space-y-2 dark:border-slate-800">
+            <label className="block font-semibold text-slate-700 dark:text-slate-200">
               Testar / Resolver Código Integrativo
             </label>
             <div className="flex gap-2">
@@ -536,24 +536,24 @@ export const ConfigR2MigrationView: React.FC<ConfigR2MigrationViewProps> = ({ ws
                 value={hmacQueryCode}
                 onChange={(e) => setHmacQueryCode(e.target.value)}
                 placeholder="Ex: INV-MTZ-DOSS-000001-A1B2C3D4"
-                className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 font-mono uppercase text-slate-900"
+                className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 font-mono uppercase text-slate-900 dark:border-slate-700 dark:text-slate-100 dark:bg-slate-950"
               />
               <button
                 type="submit"
-                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 font-semibold text-slate-800 hover:bg-slate-100 whitespace-nowrap"
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 font-semibold text-slate-800 hover:bg-slate-100 whitespace-nowrap dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-100 dark:hover:bg-slate-800"
               >
                 <Search className="w-3.5 h-3.5" />
                 Validar HMAC
               </button>
             </div>
             {hmacResolveError && (
-              <div className="rounded border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] text-red-700">
+              <div className="rounded border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] text-red-700 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
                 {hmacResolveError}
               </div>
             )}
             {hmacResolveResult && (
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-2.5 text-[11px] space-y-1">
-                <div className="flex items-center justify-between font-semibold text-emerald-900">
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-2.5 text-[11px] space-y-1 dark:border-emerald-800/70 dark:bg-emerald-950/50">
+                <div className="flex items-center justify-between font-semibold text-emerald-900 dark:text-emerald-300">
                   <span className="inline-flex items-center gap-1">
                     <CheckCircle2 className="w-3.5 h-3.5" />
                     Assinatura HMAC Autêntica ({String(hmacResolveResult.type)})
@@ -564,13 +564,13 @@ export const ConfigR2MigrationView: React.FC<ConfigR2MigrationViewProps> = ({ ws
                       onClick={() =>
                         handleDownloadByIntegrativeCode(String(hmacResolveResult.integrativeCode))
                       }
-                      className="underline font-semibold text-emerald-800"
+                      className="underline font-semibold text-emerald-800 dark:text-emerald-300"
                     >
                       Baixar Binário
                     </button>
                   )}
                 </div>
-                <pre className="font-mono text-[10px] text-slate-700 overflow-x-auto max-h-24">
+                <pre className="font-mono text-[10px] text-slate-700 overflow-x-auto max-h-24 dark:text-slate-200">
                   {JSON.stringify(hmacResolveResult, null, 2)}
                 </pre>
               </div>
@@ -581,15 +581,15 @@ export const ConfigR2MigrationView: React.FC<ConfigR2MigrationViewProps> = ({ ws
 
       {/* Selected Batch Windows Agent Runner & Live Telemetry */}
       {selectedBatch && (
-        <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4 dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-100 pb-3 dark:border-slate-800">
             <div className="flex flex-wrap items-center gap-2.5">
-              <Terminal className="w-4 h-4 text-slate-800" />
+              <Terminal className="w-4 h-4 text-slate-800 dark:text-slate-100" />
               <div>
-                <div className="font-display text-sm font-bold text-slate-900">
+                <div className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                   {selectedBatch.batchCode} · {selectedBatch.title}
                 </div>
-                <div className="text-[11px] text-slate-500 font-mono">
+                <div className="text-[11px] text-slate-500 font-mono dark:text-slate-400">
                   Status: {selectedBatch.status} · Modo: {selectedBatch.syncMode}
                   {selectedBatch.lastHeartbeatAt
                     ? ` · Último pulso: ${new Date(selectedBatch.lastHeartbeatAt).toLocaleString('pt-BR')}`
@@ -602,7 +602,7 @@ export const ConfigR2MigrationView: React.FC<ConfigR2MigrationViewProps> = ({ ws
               <button
                 type="button"
                 onClick={() => handleDownloadAgentFile(selectedBatch, 'mjs')}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 font-semibold text-white hover:bg-slate-800 whitespace-nowrap"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 font-semibold text-white hover:bg-slate-800 whitespace-nowrap dark:bg-emerald-600 dark:hover:bg-emerald-500"
               >
                 <Download className="w-3.5 h-3.5" />
                 Baixar Agente Windows (.mjs)
@@ -610,7 +610,7 @@ export const ConfigR2MigrationView: React.FC<ConfigR2MigrationViewProps> = ({ ws
               <button
                 type="button"
                 onClick={() => handleDownloadAgentFile(selectedBatch, 'bat')}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 <Download className="w-3.5 h-3.5" />
                 Launcher (.bat)
@@ -618,10 +618,10 @@ export const ConfigR2MigrationView: React.FC<ConfigR2MigrationViewProps> = ({ ws
               <button
                 type="button"
                 onClick={() => handleCopyCommand(selectedBatch)}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-100 whitespace-nowrap"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-100 whitespace-nowrap dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 {copiedKey === `cmd-${selectedBatch.id}` ? (
-                  <Check className="w-3.5 h-3.5 text-emerald-700" />
+                  <Check className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-300" />
                 ) : (
                   <Copy className="w-3.5 h-3.5" />
                 )}
@@ -633,7 +633,7 @@ export const ConfigR2MigrationView: React.FC<ConfigR2MigrationViewProps> = ({ ws
                   loadBatchesAndTargets();
                   loadItems();
                 }}
-                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 font-semibold text-slate-600 hover:bg-slate-50"
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
               </button>
@@ -641,64 +641,64 @@ export const ConfigR2MigrationView: React.FC<ConfigR2MigrationViewProps> = ({ ws
           </div>
 
           {/* CLI Instructions */}
-          <div className="rounded-lg border border-slate-200 bg-slate-900 text-slate-100 p-3 font-mono text-[11px] space-y-1">
-            <div className="text-slate-400">
+          <div className="rounded-lg border border-slate-200 bg-slate-900 text-slate-100 p-3 font-mono text-[11px] space-y-1 dark:border-slate-700 dark:bg-emerald-600">
+            <div className="text-slate-400 dark:text-slate-400">
               # Execute no servidor Windows onde está a pasta de 64 GB (retomada automática via checkpoint JSON):
             </div>
             <div className="text-emerald-300 select-all">
               node invicta-r2-sync-{selectedBatch.batchCode}.mjs --dir &quot;{selectedBatch.sourceRootPath || newSourcePath}&quot; --concurrency 6
             </div>
-            <div className="text-slate-400">
+            <div className="text-slate-400 dark:text-slate-400">
               # Opções: --dry-run (simular sem enviar bytes) · --force-rescan (revalidar árvore inteira para nova atualização)
             </div>
           </div>
 
           {/* Live Counters */}
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
-            <div className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2">
-              <div className="text-[10px] text-slate-500">Escaneados</div>
-              <div className="font-mono font-bold text-slate-900 tabular-nums">{selectedBatch.totalFilesScanned}</div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 dark:border-slate-700 dark:bg-slate-800/70">
+              <div className="text-[10px] text-slate-500 dark:text-slate-400">Escaneados</div>
+              <div className="font-mono font-bold text-slate-900 tabular-nums dark:text-slate-100">{selectedBatch.totalFilesScanned}</div>
             </div>
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 px-2.5 py-2">
-              <div className="text-[10px] text-emerald-700">Novos Criados</div>
-              <div className="font-mono font-bold text-emerald-800 tabular-nums">{selectedBatch.createdCount}</div>
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 px-2.5 py-2 dark:border-emerald-800/70 dark:bg-emerald-950/50">
+              <div className="text-[10px] text-emerald-700 dark:text-emerald-300">Novos Criados</div>
+              <div className="font-mono font-bold text-emerald-800 tabular-nums dark:text-emerald-300">{selectedBatch.createdCount}</div>
             </div>
-            <div className="rounded-lg border border-blue-200 bg-blue-50/60 px-2.5 py-2">
-              <div className="text-[10px] text-blue-700">Arq. Atualizados</div>
-              <div className="font-mono font-bold text-blue-800 tabular-nums">{selectedBatch.updatedContentCount}</div>
+            <div className="rounded-lg border border-blue-200 bg-blue-50/60 px-2.5 py-2 dark:border-blue-800/70 dark:bg-blue-950/50">
+              <div className="text-[10px] text-blue-700 dark:text-blue-300">Arq. Atualizados</div>
+              <div className="font-mono font-bold text-blue-800 tabular-nums dark:text-blue-300">{selectedBatch.updatedContentCount}</div>
             </div>
-            <div className="rounded-lg border border-blue-200 bg-blue-50/40 px-2.5 py-2">
-              <div className="text-[10px] text-blue-700">Pastas Movidas</div>
-              <div className="font-mono font-bold text-blue-800 tabular-nums">{selectedBatch.updatedPathCount}</div>
+            <div className="rounded-lg border border-blue-200 bg-blue-50/40 px-2.5 py-2 dark:border-blue-800/70 dark:bg-blue-950/50">
+              <div className="text-[10px] text-blue-700 dark:text-blue-300">Pastas Movidas</div>
+              <div className="font-mono font-bold text-blue-800 tabular-nums dark:text-blue-300">{selectedBatch.updatedPathCount}</div>
             </div>
-            <div className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2">
-              <div className="text-[10px] text-slate-500">Deduplicados 0B</div>
-              <div className="font-mono font-bold text-slate-800 tabular-nums">{selectedBatch.deduplicatedCount}</div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 dark:border-slate-700 dark:bg-slate-800/70">
+              <div className="text-[10px] text-slate-500 dark:text-slate-400">Deduplicados 0B</div>
+              <div className="font-mono font-bold text-slate-800 tabular-nums dark:text-slate-100">{selectedBatch.deduplicatedCount}</div>
             </div>
-            <div className="rounded-lg border border-amber-200 bg-amber-50/70 px-2.5 py-2">
-              <div className="text-[10px] text-amber-800">Pend. Vínculo</div>
-              <div className="font-mono font-bold text-amber-900 tabular-nums">{selectedBatch.unmatchedCount}</div>
+            <div className="rounded-lg border border-amber-200 bg-amber-50/70 px-2.5 py-2 dark:border-amber-800/70 dark:bg-amber-950/50">
+              <div className="text-[10px] text-amber-800 dark:text-amber-300">Pend. Vínculo</div>
+              <div className="font-mono font-bold text-amber-900 tabular-nums dark:text-amber-300">{selectedBatch.unmatchedCount}</div>
             </div>
-            <div className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2">
-              <div className="text-[10px] text-slate-500">Bloq. Scripts</div>
-              <div className="font-mono font-bold text-slate-700 tabular-nums">{selectedBatch.blockedCount}</div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 dark:border-slate-700 dark:bg-slate-800/70">
+              <div className="text-[10px] text-slate-500 dark:text-slate-400">Bloq. Scripts</div>
+              <div className="font-mono font-bold text-slate-700 tabular-nums dark:text-slate-200">{selectedBatch.blockedCount}</div>
             </div>
-            <div className="rounded-lg border border-red-200 bg-red-50/60 px-2.5 py-2">
-              <div className="text-[10px] text-red-700">Falhas</div>
-              <div className="font-mono font-bold text-red-800 tabular-nums">{selectedBatch.failedCount}</div>
+            <div className="rounded-lg border border-red-200 bg-red-50/60 px-2.5 py-2 dark:border-red-800/70 dark:bg-red-950/50">
+              <div className="text-[10px] text-red-700 dark:text-red-300">Falhas</div>
+              <div className="font-mono font-bold text-red-800 tabular-nums dark:text-red-300">{selectedBatch.failedCount}</div>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono text-slate-600">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono text-slate-600 dark:text-slate-300">
             <span>
               Volume varrido: <strong>{formatBytes(selectedBatch.totalBytesScanned)}</strong> · Enviado ao R2:{' '}
               <strong>{formatBytes(selectedBatch.uploadedBytes)}</strong> · Economizado por deduplicação SHA-256:{' '}
-              <strong className="text-emerald-700">{formatBytes(selectedBatch.savedBytesByDedup)}</strong>
+              <strong className="text-emerald-700 dark:text-emerald-300">{formatBytes(selectedBatch.savedBytesByDedup)}</strong>
             </span>
           </div>
 
           {/* Filter tabs for Batch Items */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
             <div className="flex flex-wrap gap-1.5">
               {(
                 [
@@ -716,8 +716,8 @@ export const ConfigR2MigrationView: React.FC<ConfigR2MigrationViewProps> = ({ ws
                   onClick={() => setItemFilter(f.id)}
                   className={`rounded-md border px-2.5 py-1 text-[11px] font-semibold ${
                     itemFilter === f.id
-                      ? 'border-slate-900 bg-slate-900 text-white'
-                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      ? 'border-slate-900 bg-slate-900 text-white dark:border-emerald-500 dark:bg-emerald-600'
+                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
                   }`}
                 >
                   {f.label}
@@ -728,7 +728,7 @@ export const ConfigR2MigrationView: React.FC<ConfigR2MigrationViewProps> = ({ ws
               <select
                 value={String(selectedBatchId || '')}
                 onChange={(e) => setSelectedBatchId(Number(e.target.value))}
-                className="rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-800"
+                className="rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-800 dark:border-slate-700 dark:text-slate-100 dark:bg-slate-950"
               >
                 {batches.map((b) => (
                   <option key={b.id} value={String(b.id)}>
@@ -740,9 +740,9 @@ export const ConfigR2MigrationView: React.FC<ConfigR2MigrationViewProps> = ({ ws
           </div>
 
           {/* Batch Items Table */}
-          <div className="overflow-x-auto max-h-80 overflow-y-auto rounded-lg border border-slate-200 scroll-rulers">
+          <div className="overflow-x-auto max-h-80 overflow-y-auto rounded-lg border border-slate-200 scroll-rulers dark:border-slate-700">
             <table className="w-full min-w-[840px] text-left text-xs">
-              <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600">
+              <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600 dark:bg-slate-800/70 dark:border-slate-700 dark:text-slate-300">
                 <tr>
                   <th className="px-3 py-2">Pasta Unidade / Contrato</th>
                   <th className="px-3 py-2">Arquivo / Subpasta</th>
@@ -752,17 +752,17 @@ export const ConfigR2MigrationView: React.FC<ConfigR2MigrationViewProps> = ({ ws
                   <th className="px-3 py-2 text-right">Resolução</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {itemsLoading && (
                   <tr>
-                    <td colSpan={6} className="px-3 py-6 text-center text-slate-500">
+                    <td colSpan={6} className="px-3 py-6 text-center text-slate-500 dark:text-slate-400">
                       Carregando itens da sessão...
                     </td>
                   </tr>
                 )}
                 {!itemsLoading && items.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-3 py-6 text-center text-slate-500">
+                    <td colSpan={6} className="px-3 py-6 text-center text-slate-500 dark:text-slate-400">
                       Nenhum arquivo registrado nesta visão ainda. Execute o agente CLI no servidor Windows para iniciar a sincronização.
                     </td>
                   </tr>
@@ -770,14 +770,14 @@ export const ConfigR2MigrationView: React.FC<ConfigR2MigrationViewProps> = ({ ws
                 {!itemsLoading &&
                   items.map((it) => (
                     <React.Fragment key={it.id}>
-                      <tr className="hover:bg-slate-50/70">
+                      <tr className="hover:bg-slate-50/70 dark:hover:bg-slate-800">
                         <td className="px-3 py-2 font-mono text-[11px]">
-                          <div className="font-semibold text-slate-900">{it.unitFolderName || '—'}</div>
-                          <div className="text-slate-500">{it.contractFolderName || it.extractedContractNumber || '—'}</div>
+                          <div className="font-semibold text-slate-900 dark:text-slate-100">{it.unitFolderName || '—'}</div>
+                          <div className="text-slate-500 dark:text-slate-400">{it.contractFolderName || it.extractedContractNumber || '—'}</div>
                         </td>
                         <td className="px-3 py-2">
-                          <div className="font-semibold text-slate-900">{it.fileName}</div>
-                          <div className="font-mono text-[11px] text-slate-500 truncate max-w-xs">
+                          <div className="font-semibold text-slate-900 dark:text-slate-100">{it.fileName}</div>
+                          <div className="font-mono text-[11px] text-slate-500 truncate max-w-xs dark:text-slate-400">
                             {it.relativeSubpath}
                           </div>
                         </td>
@@ -785,27 +785,27 @@ export const ConfigR2MigrationView: React.FC<ConfigR2MigrationViewProps> = ({ ws
                           <span
                             className={
                               it.status === 'unmatched'
-                                ? 'text-amber-700'
+                                ? 'text-amber-700 dark:text-amber-300'
                                 : it.status === 'failed' || it.status === 'blocked'
-                                ? 'text-red-700'
+                                ? 'text-red-700 dark:text-red-300'
                                 : it.action === 'update_content' || it.action === 'update_path'
-                                ? 'text-blue-700'
-                                : 'text-emerald-700'
+                                ? 'text-blue-700 dark:text-blue-300'
+                                : 'text-emerald-700 dark:text-emerald-300'
                             }
                           >
                             {it.action}
                           </span>
                         </td>
-                        <td className="px-3 py-2 font-mono text-slate-600 tabular-nums whitespace-nowrap">
+                        <td className="px-3 py-2 font-mono text-slate-600 tabular-nums whitespace-nowrap dark:text-slate-300">
                           {formatBytes(it.sizeBytes)}
                         </td>
                         <td className="px-3 py-2">
                           {it.integrativeCode ? (
-                            <span className="font-mono text-[11px] font-semibold text-emerald-800">
+                            <span className="font-mono text-[11px] font-semibold text-emerald-800 dark:text-emerald-300">
                               {it.integrativeCode}
                             </span>
                           ) : (
-                            <span className="text-[11px] text-slate-600">{it.errorMessage || it.status}</span>
+                            <span className="text-[11px] text-slate-600 dark:text-slate-300">{it.errorMessage || it.status}</span>
                           )}
                         </td>
                         <td className="px-3 py-2 text-right whitespace-nowrap">
@@ -817,7 +817,7 @@ export const ConfigR2MigrationView: React.FC<ConfigR2MigrationViewProps> = ({ ws
                                 setResolveUnitId(it.unitId ? String(it.unitId) : '');
                                 setResolveAdmissionId('');
                               }}
-                              className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 font-semibold text-amber-900 hover:bg-amber-100"
+                              className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 font-semibold text-amber-900 hover:bg-amber-100 dark:border-amber-800/70 dark:bg-amber-950/50 dark:text-amber-300 dark:hover:bg-amber-900/60"
                             >
                               <Link2 className="w-3 h-3" />
                               Vincular Pasta
@@ -826,16 +826,16 @@ export const ConfigR2MigrationView: React.FC<ConfigR2MigrationViewProps> = ({ ws
                         </td>
                       </tr>
                       {resolvingItemId === it.id && (
-                        <tr className="bg-amber-50/40">
+                        <tr className="bg-amber-50/40 dark:bg-amber-950/50">
                           <td colSpan={6} className="px-4 py-3">
                             <div className="flex flex-wrap items-center gap-2.5">
-                              <span className="font-semibold text-slate-800">
+                              <span className="font-semibold text-slate-800 dark:text-slate-100">
                                 Vincular pasta toda (<span className="font-mono">{it.contractFolderName || it.unitFolderName}</span>):
                               </span>
                               <select
                                 value={resolveUnitId}
                                 onChange={(e) => setResolveUnitId(e.target.value)}
-                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-slate-800"
+                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                               >
                                 <option value="">Selecionar Unidade...</option>
                                 {targetUnits.map((u) => (
@@ -847,7 +847,7 @@ export const ConfigR2MigrationView: React.FC<ConfigR2MigrationViewProps> = ({ ws
                               <select
                                 value={resolveAdmissionId}
                                 onChange={(e) => setResolveAdmissionId(e.target.value)}
-                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-slate-800 max-w-md"
+                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-slate-800 max-w-md dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                               >
                                 <option value="">Selecionar Contrato / Admissão...</option>
                                 {targetAdmissions
@@ -862,7 +862,7 @@ export const ConfigR2MigrationView: React.FC<ConfigR2MigrationViewProps> = ({ ws
                                 type="button"
                                 disabled={busy || (!resolveUnitId && !resolveAdmissionId)}
                                 onClick={() => handleResolveUnmatched(it)}
-                                className="rounded-lg bg-slate-900 px-3 py-1.5 font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                                className="rounded-lg bg-slate-900 px-3 py-1.5 font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
                               >
                                 Aplicar à Pasta
                               </button>
@@ -880,13 +880,13 @@ export const ConfigR2MigrationView: React.FC<ConfigR2MigrationViewProps> = ({ ws
 
       {/* Batch History Table */}
       {batches.length > 0 && (
-        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-200 bg-slate-50 font-display text-xs font-bold text-slate-800">
+        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
+          <div className="px-4 py-3 border-b border-slate-200 bg-slate-50 font-display text-xs font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-100">
             Histórico de Lotes &amp; Re-Sincronizações Incrementais
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] text-left text-xs">
-              <thead className="border-b border-slate-200 bg-slate-50/70 text-[11px] font-semibold text-slate-600">
+              <thead className="border-b border-slate-200 bg-slate-50/70 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
                 <tr>
                   <th className="px-4 py-2">Código</th>
                   <th className="px-4 py-2">Sessão</th>
@@ -897,28 +897,28 @@ export const ConfigR2MigrationView: React.FC<ConfigR2MigrationViewProps> = ({ ws
                   <th className="px-4 py-2 text-right">Pendências</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {batches.map((b) => (
                   <tr
                     key={b.id}
                     onClick={() => setSelectedBatchId(b.id)}
-                    className={`cursor-pointer hover:bg-slate-50 ${
-                      selectedBatchId === b.id ? 'bg-slate-50' : ''
+                    className={`cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 ${
+                      selectedBatchId === b.id ? 'bg-slate-50 dark:bg-slate-800/70' : ''
                     }`}
                   >
-                    <td className="px-4 py-2 font-mono font-bold text-slate-900">{b.batchCode}</td>
-                    <td className="px-4 py-2 font-medium text-slate-800">{b.title}</td>
-                    <td className="px-4 py-2 font-mono text-[11px] text-slate-600">{b.status}</td>
+                    <td className="px-4 py-2 font-mono font-bold text-slate-900 dark:text-slate-100">{b.batchCode}</td>
+                    <td className="px-4 py-2 font-medium text-slate-800 dark:text-slate-100">{b.title}</td>
+                    <td className="px-4 py-2 font-mono text-[11px] text-slate-600 dark:text-slate-300">{b.status}</td>
                     <td className="px-4 py-2 text-right font-mono tabular-nums">
                       {b.totalFilesScanned} ({formatBytes(b.totalBytesScanned)})
                     </td>
-                    <td className="px-4 py-2 text-right font-mono tabular-nums text-emerald-700">
+                    <td className="px-4 py-2 text-right font-mono tabular-nums text-emerald-700 dark:text-emerald-300">
                       +{b.createdCount} / ~{b.updatedContentCount + b.updatedPathCount}
                     </td>
-                    <td className="px-4 py-2 text-right font-mono tabular-nums text-slate-700">
+                    <td className="px-4 py-2 text-right font-mono tabular-nums text-slate-700 dark:text-slate-200">
                       {formatBytes(b.savedBytesByDedup)}
                     </td>
-                    <td className="px-4 py-2 text-right font-mono tabular-nums text-amber-700">
+                    <td className="px-4 py-2 text-right font-mono tabular-nums text-amber-700 dark:text-amber-300">
                       {b.unmatchedCount + b.failedCount}
                     </td>
                   </tr>

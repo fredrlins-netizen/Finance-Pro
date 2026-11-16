@@ -36,6 +36,7 @@ import {
   formatDateTimeBR,
   getAuthToken,
 } from '../../lib/api.ts';
+import { DossierDocumentPreviewModal } from '../DossierDocumentViewer.tsx';
 import {
   Admission,
   AuditLogEntry,
@@ -167,13 +168,13 @@ async function downloadAuthenticatedDocument(doc: DocumentObject) {
 }
 
 // -----------------------------------------------------------------------------
-// VISUALIZADOR AUTENTICADO DE ARQUIVOS DO BUCKET DA INVICTA (Blob URL sem 401)
+// VISUALIZADOR AUTENTICADO DE ARQUIVOS DO BUCKET DA INVICTA (Tela Livre + Tema)
 // -----------------------------------------------------------------------------
 export const AuthenticatedBucketViewer: React.FC<{
   doc: DocumentObject;
   heightClass?: string;
   onClose?: () => void;
-}> = ({ doc, heightClass = 'h-72', onClose }) => {
+}> = ({ doc, onClose }) => {
   const [blobUrl, setBlobUrl] = useState<string>('');
   const [mime, setMime] = useState<string>(doc.mimeType || '');
   const [loading, setLoading] = useState(true);
@@ -217,58 +218,18 @@ export const AuthenticatedBucketViewer: React.FC<{
     };
   }, [doc.id, doc.storageUri, doc.mimeType]);
 
-  const isImage = mime.toLowerCase().startsWith('image/') || /\.(png|jpe?g|webp|gif)$/i.test(doc.fileName);
-
   return (
-    <div className="rounded-lg border border-slate-300 bg-slate-50 p-3 space-y-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="min-w-0">
-          <span className="font-semibold text-slate-900 truncate block">{doc.fileName}</span>
-          <span className="text-[11px] font-mono text-slate-500">
-            {doc.folderPath || 'bucketdainvicta'} · {formatBytes(doc.sizeBytes)}
-          </span>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => void downloadAuthenticatedDocument(doc)}
-            className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
-          >
-            <Download className="w-3 h-3" />
-            Baixar
-          </button>
-          {onClose && (
-            <button
-              type="button"
-              onClick={onClose}
-              className="text-xs font-semibold text-slate-500 hover:text-slate-900 px-1.5"
-            >
-              Recolher
-            </button>
-          )}
-        </div>
-      </div>
-
-      {loading ? (
-        <div className={`w-full ${heightClass} flex items-center justify-center rounded border border-slate-200 bg-white text-xs text-slate-500`}>
-          Carregando preview autenticado do Bucket da Invicta...
-        </div>
-      ) : errorMsg ? (
-        <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-          {errorMsg}
-        </div>
-      ) : isImage ? (
-        <div className={`w-full ${heightClass} flex items-center justify-center rounded border border-slate-200 bg-white overflow-auto p-2`}>
-          <img src={blobUrl} alt={doc.fileName} className="max-h-full max-w-full object-contain rounded" />
-        </div>
-      ) : (
-        <iframe
-          title={doc.fileName}
-          src={blobUrl}
-          className={`w-full ${heightClass} rounded border border-slate-200 bg-white`}
-        />
-      )}
-    </div>
+    <DossierDocumentPreviewModal
+      open={true}
+      title={doc.fileName}
+      subtitle={`${doc.folderPath || 'bucketdainvicta'} · ${formatBytes(doc.sizeBytes)}`}
+      mimeType={mime}
+      blobUrl={blobUrl}
+      loading={loading}
+      errorMsg={errorMsg}
+      onDownload={() => void downloadAuthenticatedDocument(doc)}
+      onClose={() => onClose?.()}
+    />
   );
 };
 
@@ -378,21 +339,21 @@ export const BatchAssignModal: React.FC<{
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
-      <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white shadow-2xl p-5 space-y-4">
-        <div className="border-b border-slate-100 pb-3">
-          <h3 className="font-display text-base font-bold text-slate-900 flex items-center gap-2">
-            <UserCheck className="w-4 h-4 text-emerald-600" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 dark:bg-slate-950/80">
+      <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white shadow-2xl p-5 space-y-4 dark:border-slate-700 dark:bg-slate-900">
+        <div className="border-b border-slate-100 pb-3 dark:border-slate-800">
+          <h3 className="font-display text-base font-bold text-slate-900 flex items-center gap-2 dark:text-slate-100">
+            <UserCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             {isTransferMode ? 'Atribuir / Transferir Operador' : 'Atribuir Operador'}
           </h3>
-          <p className="mt-1 text-xs text-slate-600">
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
             <strong className="tabular-nums">{selectedTitles.length}</strong> título(s) selecionado(s) passarão para{' '}
             <strong>Cobrar</strong> com auditoria completa de movimentação.
           </p>
         </div>
 
         {isTransferMode && (
-          <div className="rounded-lg border border-blue-200 bg-blue-50/70 px-3 py-2.5 text-xs text-blue-950 space-y-1">
+          <div className="rounded-lg border border-blue-200 bg-blue-50/70 px-3 py-2.5 text-xs text-blue-950 space-y-1 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300">
             <div className="font-semibold">
               Transferência de Carteira ({assignmentBreakdown.alreadyAssignedCount} título(s) já atribuído(s)
               {assignmentBreakdown.unassignedCount > 0
@@ -400,7 +361,7 @@ export const BatchAssignModal: React.FC<{
                 : ''}
               )
             </div>
-            <div className="text-[11px] text-blue-800">
+            <div className="text-[11px] text-blue-800 dark:text-blue-300">
               Operador(es) anterior(es):{' '}
               <strong>{assignmentBreakdown.previousNames.join(', ') || '—'}</strong>
             </div>
@@ -408,20 +369,20 @@ export const BatchAssignModal: React.FC<{
         )}
 
         {errorMsg && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-800">
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-800 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
             {errorMsg}
           </div>
         )}
 
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
+            <label className="block text-xs font-semibold text-slate-700 mb-1 dark:text-slate-200">
               Operador de Destino
             </label>
             <select
               value={collaboratorId}
               onChange={(e) => setCollaboratorId(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-blue-600 focus:outline-none"
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-blue-600 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
             >
               <option value="">Selecione...</option>
               {collaborators.map((c) => (
@@ -433,7 +394,7 @@ export const BatchAssignModal: React.FC<{
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
+            <label className="block text-xs font-semibold text-slate-700 mb-1 dark:text-slate-200">
               Motivo / Observação da {isTransferMode ? 'Transferência' : 'Atribuição'} (gravado no log)
             </label>
             <input
@@ -445,13 +406,13 @@ export const BatchAssignModal: React.FC<{
                   ? 'Ex.: Redistribuição de carteira, férias, cobertura de SLA...'
                   : 'Opcional — registrado no histórico de movimentações'
               }
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-900 focus:border-blue-600 focus:outline-none"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-900 focus:border-blue-600 focus:outline-none dark:border-slate-700 dark:text-slate-100"
             />
           </div>
         </div>
 
-        <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-          <span className="text-[11px] text-slate-400 font-mono">Ctrl+Enter para confirmar</span>
+        <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
+          <span className="text-[11px] text-slate-400 font-mono dark:text-slate-400">Ctrl+Enter para confirmar</span>
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -460,7 +421,7 @@ export const BatchAssignModal: React.FC<{
                 setCollaboratorId('');
                 onClose();
               }}
-              className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               Cancelar
             </button>
@@ -468,7 +429,7 @@ export const BatchAssignModal: React.FC<{
               type="button"
               disabled={busy}
               onClick={() => void handleConfirm()}
-              className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+              className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
             >
               {busy
                 ? 'Processando...'
@@ -660,14 +621,14 @@ export const EditTitleModal: React.FC<{
   const balCents = Number(status === 'PAGO' ? 0 : title.currentBalanceCents ?? title.amountCents ?? 0);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
-      <div className="w-full max-w-3xl rounded-xl border border-slate-200 bg-white shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
-        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between gap-2">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 dark:bg-slate-950/80">
+      <div className="w-full max-w-3xl rounded-xl border border-slate-200 bg-white shadow-2xl overflow-hidden flex flex-col max-h-[92vh] dark:border-slate-700 dark:bg-slate-900">
+        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between gap-2 dark:border-slate-700">
           <div className="min-w-0">
-            <h3 className="font-display text-base font-bold text-slate-900">
+            <h3 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
               Lançamento & Comprovante · Bucket da Invicta
             </h3>
-            <p className="text-xs text-slate-500 truncate">
+            <p className="text-xs text-slate-500 truncate dark:text-slate-400">
               {client?.fullName || title.clientName || 'Cliente'} · Doc.{' '}
               <span className="font-mono">{title.documentNumber || title.titleCode}</span>
             </p>
@@ -676,7 +637,7 @@ export const EditTitleModal: React.FC<{
             type="button"
             onClick={onClose}
             aria-label="Fechar edição"
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800"
           >
             <X className="w-4 h-4" />
           </button>
@@ -684,28 +645,28 @@ export const EditTitleModal: React.FC<{
 
         <div className="p-5 overflow-y-auto space-y-4">
           {errorMsg && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-800">
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-800 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
               {errorMsg}
             </div>
           )}
 
           {/* 3 Informações somente leitura */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/70">
             <div>
-              <div className="text-[11px] font-medium text-slate-500">Valor Original</div>
-              <div className="font-mono text-sm font-bold text-blue-700 tabular-nums">
+              <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Valor Original</div>
+              <div className="font-mono text-sm font-bold text-blue-700 tabular-nums dark:text-blue-300">
                 {formatBRL(origCents)}
               </div>
             </div>
             <div>
-              <div className="text-[11px] font-medium text-slate-500">Saldo Atual</div>
-              <div className="font-mono text-sm font-bold text-slate-900 tabular-nums">
+              <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Saldo Atual</div>
+              <div className="font-mono text-sm font-bold text-slate-900 tabular-nums dark:text-slate-100">
                 {formatBRL(balCents)}
               </div>
             </div>
             <div>
-              <div className="text-[11px] font-medium text-slate-500">Emissão</div>
-              <div className="font-mono text-sm font-semibold text-slate-700 tabular-nums">
+              <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Emissão</div>
+              <div className="font-mono text-sm font-semibold text-slate-700 tabular-nums dark:text-slate-200">
                 {formatDueDateLocalBR(title.issueDate)}
               </div>
             </div>
@@ -713,42 +674,42 @@ export const EditTitleModal: React.FC<{
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Nº Documento</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1 dark:text-slate-200">Nº Documento</label>
               <input
                 type="text"
                 value={documentNumber}
                 onChange={(e) => setDocumentNumber(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono text-slate-900"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono text-slate-900 dark:border-slate-700 dark:text-slate-100 dark:bg-slate-950"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Vencimento *</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1 dark:text-slate-200">Vencimento *</label>
               <input
                 type="date"
                 required
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono text-slate-900"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono text-slate-900 dark:border-slate-700 dark:text-slate-100 dark:bg-slate-950"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
+              <label className="block text-xs font-semibold text-slate-700 mb-1 dark:text-slate-200">
                 Previsão de Recebimento
               </label>
               <input
                 type="date"
                 value={forecastDate}
                 onChange={(e) => setForecastDate(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono text-slate-900"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono text-slate-900 dark:border-slate-700 dark:text-slate-100 dark:bg-slate-950"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Status</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1 dark:text-slate-200">Status</label>
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 font-semibold"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 font-semibold dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               >
                 <option value="ABERTO">Em Aberto</option>
                 <option value="PARCIAL">Recebimento Parcial</option>
@@ -758,13 +719,13 @@ export const EditTitleModal: React.FC<{
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
+              <label className="block text-xs font-semibold text-slate-700 mb-1 dark:text-slate-200">
                 Situação de Cobrança
               </label>
               <select
                 value={collectionStatus}
                 onChange={(e) => setCollectionStatus(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               >
                 <option value="EM_DIA">Em Dia</option>
                 <option value="COBRAR">Cobrar</option>
@@ -772,11 +733,11 @@ export const EditTitleModal: React.FC<{
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Responsável</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1 dark:text-slate-200">Responsável</label>
               <select
                 value={assignedCollaboratorId}
                 onChange={(e) => setAssignedCollaboratorId(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               >
                 <option value="">Sem atribuição</option>
                 {collaborators.map((c) => (
@@ -788,81 +749,81 @@ export const EditTitleModal: React.FC<{
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Juros (R$)</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1 dark:text-slate-200">Juros (R$)</label>
               <input
                 type="number"
                 min="0"
                 step="0.01"
                 value={interestReais}
                 onChange={(e) => setInterestReais(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono text-slate-900 tabular-nums"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono text-slate-900 tabular-nums dark:border-slate-700 dark:text-slate-100 dark:bg-slate-950"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Multa (R$)</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1 dark:text-slate-200">Multa (R$)</label>
               <input
                 type="number"
                 min="0"
                 step="0.01"
                 value={fineReais}
                 onChange={(e) => setFineReais(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono text-slate-900 tabular-nums"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono text-slate-900 tabular-nums dark:border-slate-700 dark:text-slate-100 dark:bg-slate-950"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Desconto (R$)</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1 dark:text-slate-200">Desconto (R$)</label>
               <input
                 type="number"
                 min="0"
                 step="0.01"
                 value={discountReais}
                 onChange={(e) => setDiscountReais(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono text-slate-900 tabular-nums"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono text-slate-900 tabular-nums dark:border-slate-700 dark:text-slate-100 dark:bg-slate-950"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
+            <label className="block text-xs font-semibold text-slate-700 mb-1 dark:text-slate-200">
               Histórico / Descrição
             </label>
             <textarea
               rows={2}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-900"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-900 dark:border-slate-700 dark:text-slate-100 dark:bg-slate-950"
             />
           </div>
 
           {/* Seção Comprovante de Pagamento no Bucket da Invicta */}
-          <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5 space-y-3">
+          <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5 space-y-3 dark:border-slate-700 dark:bg-slate-800/60">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <Paperclip className="w-4 h-4 text-emerald-700" />
-                <span className="font-display text-xs font-bold text-slate-900">
+                <Paperclip className="w-4 h-4 text-emerald-700 dark:text-emerald-300" />
+                <span className="font-display text-xs font-bold text-slate-900 dark:text-slate-100">
                   Comprovante de Pagamento (Bucket da Invicta)
                 </span>
               </div>
               {linkedReceiptDoc ? (
-                <span className="font-mono text-[11px] font-bold text-emerald-800">
+                <span className="font-mono text-[11px] font-bold text-emerald-800 dark:text-emerald-300">
                   Vinculado: #{linkedReceiptDoc.id}
                 </span>
               ) : (
-                <span className="font-mono text-[11px] text-slate-500">Sem comprovante vinculado</span>
+                <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400">Sem comprovante vinculado</span>
               )}
             </div>
 
             {receiptFeedback && (
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-900">
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-900 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300">
                 {receiptFeedback}
               </div>
             )}
 
             {linkedReceiptDoc && (
-              <div className="rounded-lg border border-emerald-200 bg-white px-3 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="rounded-lg border border-emerald-200 bg-white px-3 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs dark:border-emerald-800/70 dark:bg-slate-900">
                 <div className="min-w-0">
-                  <div className="font-semibold text-slate-900 truncate">{linkedReceiptDoc.fileName}</div>
-                  <div className="text-[11px] font-mono text-slate-500 truncate">
+                  <div className="font-semibold text-slate-900 truncate dark:text-slate-100">{linkedReceiptDoc.fileName}</div>
+                  <div className="text-[11px] font-mono text-slate-500 truncate dark:text-slate-400">
                     {linkedReceiptDoc.folderPath} · {formatBytes(linkedReceiptDoc.sizeBytes)} ·{' '}
                     {formatDateTimeBR(linkedReceiptDoc.createdAt)} · por {linkedReceiptDoc.uploadedBy || 'Equipe'}
                   </div>
@@ -873,7 +834,7 @@ export const EditTitleModal: React.FC<{
                     onClick={() =>
                       setPreviewDoc((prev) => (prev?.id === linkedReceiptDoc.id ? null : linkedReceiptDoc))
                     }
-                    className="inline-flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-800 hover:bg-slate-100"
+                    className="inline-flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-800 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-100 dark:hover:bg-slate-800"
                   >
                     <Eye className="w-3.5 h-3.5" />
                     {previewDoc?.id === linkedReceiptDoc.id ? 'Ocultar' : 'Visualizar Comprovante'}
@@ -881,7 +842,7 @@ export const EditTitleModal: React.FC<{
                   <button
                     type="button"
                     onClick={() => void downloadAuthenticatedDocument(linkedReceiptDoc)}
-                    className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+                    className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                   >
                     <Download className="w-3.5 h-3.5" />
                     Baixar
@@ -892,22 +853,22 @@ export const EditTitleModal: React.FC<{
 
             {clientReceiptDocs.length > 0 && (
               <div className="space-y-1">
-                <div className="text-[11px] font-semibold text-slate-600">
+                <div className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
                   Outros comprovantes deste cliente no Bucket ({clientReceiptDocs.length}):
                 </div>
-                <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg bg-white">
+                <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg bg-white dark:divide-slate-800 dark:border-slate-700 dark:bg-slate-900">
                   {clientReceiptDocs.slice(0, 4).map((doc) => (
                     <div
                       key={doc.id}
                       className="px-3 py-2 flex items-center justify-between gap-2 text-[11px]"
                     >
-                      <span className="truncate font-medium text-slate-800">
+                      <span className="truncate font-medium text-slate-800 dark:text-slate-100">
                         {doc.fileName} · {formatDateBR(doc.createdAt)}
                       </span>
                       <button
                         type="button"
                         onClick={() => setPreviewDoc(doc)}
-                        className="font-semibold text-blue-700 hover:underline shrink-0"
+                        className="font-semibold text-blue-700 hover:underline shrink-0 dark:text-blue-300"
                       >
                         Visualizar
                       </button>
@@ -931,7 +892,7 @@ export const EditTitleModal: React.FC<{
                 type="file"
                 accept="image/*,.pdf"
                 onChange={(e) => setReceiptFile(e.target.files?.[0] || null)}
-                className="flex-1 text-xs text-slate-600 file:mr-3 file:rounded-lg file:border file:border-slate-200 file:bg-white file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-slate-700 hover:file:bg-slate-100"
+                className="flex-1 text-xs text-slate-600 file:mr-3 file:rounded-lg file:border file:border-slate-200 file:bg-white file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-slate-700 hover:file:bg-slate-100 dark:text-slate-300 dark:file:bg-slate-800 dark:file:border-slate-700 dark:file:text-slate-100"
               />
               <button
                 type="button"
@@ -945,20 +906,20 @@ export const EditTitleModal: React.FC<{
             </div>
 
             {relatedSettlements.length > 0 && (
-              <div className="pt-2 border-t border-slate-200 space-y-1">
-                <div className="text-[11px] font-semibold text-slate-600">
+              <div className="pt-2 border-t border-slate-200 space-y-1 dark:border-slate-700">
+                <div className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
                   Baixas Registradas ({relatedSettlements.length}):
                 </div>
                 {relatedSettlements.map((st) => (
                   <div
                     key={st.id}
-                    className="flex items-center justify-between text-[11px] bg-white border border-slate-200 rounded px-2.5 py-1.5"
+                    className="flex items-center justify-between text-[11px] bg-white border border-slate-200 rounded px-2.5 py-1.5 dark:bg-slate-900 dark:border-slate-700"
                   >
-                    <span className="text-slate-700">
+                    <span className="text-slate-700 dark:text-slate-200">
                       {formatDueDateLocalBR(st.settlementDate)} · {st.paymentMethod || st.origin} ·{' '}
                       {st.history || 'Baixa financeira'}
                     </span>
-                    <span className="font-mono font-bold text-emerald-800 tabular-nums">
+                    <span className="font-mono font-bold text-emerald-800 tabular-nums dark:text-emerald-300">
                       {formatBRL(st.amountCents)}
                     </span>
                   </div>
@@ -968,14 +929,14 @@ export const EditTitleModal: React.FC<{
           </div>
         </div>
 
-        <div className="px-5 py-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-between gap-2">
-          <span className="text-[11px] text-slate-400 font-mono">Ctrl+Enter para salvar alterações</span>
+        <div className="px-5 py-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-between gap-2 dark:border-slate-700 dark:bg-slate-800/70">
+          <span className="text-[11px] text-slate-400 font-mono dark:text-slate-400">Ctrl+Enter para salvar alterações</span>
           <div className="flex items-center gap-2">
             <button
               type="button"
               disabled={saving}
               onClick={onClose}
-              className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               Cancelar
             </button>
@@ -983,7 +944,7 @@ export const EditTitleModal: React.FC<{
               type="button"
               disabled={saving}
               onClick={() => void handleSave()}
-              className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+              className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
             >
               {saving ? 'Salvando...' : 'Salvar Alterações'}
             </button>
@@ -1020,31 +981,31 @@ export const ConfirmDeleteModal: React.FC<{
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 dark:bg-slate-950/80"
       onClick={() => {
         if (!busy) onCancel();
       }}
     >
       <div
-        className="w-full max-w-md rounded-xl border border-slate-200 bg-white shadow-2xl p-5 space-y-4"
+        className="w-full max-w-md rounded-xl border border-slate-200 bg-white shadow-2xl p-5 space-y-4 dark:border-slate-700 dark:bg-slate-900"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start gap-3">
-          <div className="p-2 rounded-lg bg-red-50 border border-red-200 text-red-700 shrink-0">
+          <div className="p-2 rounded-lg bg-red-50 border border-red-200 text-red-700 shrink-0 dark:bg-red-950/50 dark:border-red-800/70 dark:text-red-300">
             <Trash2 className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="font-display text-base font-bold text-slate-900">{title}</h3>
-            <p className="mt-1 text-xs text-slate-600 leading-relaxed">{message}</p>
+            <h3 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">{title}</h3>
+            <p className="mt-1 text-xs text-slate-600 leading-relaxed dark:text-slate-300">{message}</p>
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+        <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
           <button
             type="button"
             disabled={busy}
             onClick={onCancel}
-            className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             Cancelar
           </button>
@@ -1142,34 +1103,34 @@ export const AuditHistoryModal: React.FC<{
 
   const actionColor = (action: string) => {
     const a = String(action || '').toUpperCase();
-    if (a.includes('DELETE') || a.includes('CANCEL')) return 'text-red-700';
+    if (a.includes('DELETE') || a.includes('CANCEL')) return 'text-red-700 dark:text-red-300';
     if (a.includes('TRANSFER')) return 'text-indigo-700';
-    if (a.includes('CREATE') || a.includes('BAIXA') || a.includes('RECEIPT')) return 'text-emerald-700';
-    if (a.includes('ASSIGN') || a.includes('UPDATE')) return 'text-blue-700';
-    return 'text-slate-700';
+    if (a.includes('CREATE') || a.includes('BAIXA') || a.includes('RECEIPT')) return 'text-emerald-700 dark:text-emerald-300';
+    if (a.includes('ASSIGN') || a.includes('UPDATE')) return 'text-blue-700 dark:text-blue-300';
+    return 'text-slate-700 dark:text-slate-200';
   };
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 dark:bg-slate-950/80"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-4xl rounded-xl border border-slate-200 bg-white shadow-2xl overflow-hidden flex flex-col max-h-[88vh]"
+        className="w-full max-w-4xl rounded-xl border border-slate-200 bg-white shadow-2xl overflow-hidden flex flex-col max-h-[88vh] dark:border-slate-700 dark:bg-slate-900"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between gap-2">
+        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between gap-2 dark:border-slate-700">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <History className="w-4 h-4 text-slate-700 shrink-0" />
-              <h3 className="font-display text-base font-bold text-slate-900">
+              <History className="w-4 h-4 text-slate-700 shrink-0 dark:text-slate-200" />
+              <h3 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
                 Histórico de Movimentações
               </h3>
-              <span className="text-[11px] font-mono text-slate-500 border border-slate-200 rounded px-1.5 py-0.5">
+              <span className="text-[11px] font-mono text-slate-500 border border-slate-200 rounded px-1.5 py-0.5 dark:text-slate-400 dark:border-slate-700">
                 Somente Leitura
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5 truncate">
+            <p className="text-xs text-slate-500 mt-0.5 truncate dark:text-slate-400">
               {clientName} · Documento{' '}
               <span className="font-mono">{title.documentNumber || title.titleCode}</span>
             </p>
@@ -1178,7 +1139,7 @@ export const AuditHistoryModal: React.FC<{
             type="button"
             onClick={onClose}
             aria-label="Fechar histórico"
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800"
           >
             <X className="w-4 h-4" />
           </button>
@@ -1186,22 +1147,22 @@ export const AuditHistoryModal: React.FC<{
 
         <div className="p-4 flex-1 overflow-y-auto">
           {loading ? (
-            <div className="py-12 text-center text-xs text-slate-500">
+            <div className="py-12 text-center text-xs text-slate-500 dark:text-slate-400">
               Carregando movimentações...
             </div>
           ) : errorMsg ? (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-800">
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-800 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
               {errorMsg}
             </div>
           ) : flatRows.length === 0 ? (
-            <div className="py-12 text-center text-xs text-slate-500">
+            <div className="py-12 text-center text-xs text-slate-500 dark:text-slate-400">
               Nenhuma movimentação registrada para este item.
             </div>
           ) : (
-            <div className="overflow-x-auto border border-slate-200 rounded-lg">
+            <div className="overflow-x-auto border border-slate-200 rounded-lg dark:border-slate-700">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600">
+                  <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600 dark:bg-slate-800/70 dark:border-slate-700 dark:text-slate-300">
                     <th className="py-2 px-3">Data/Hora</th>
                     <th className="py-2 px-3">Usuário</th>
                     <th className="py-2 px-3">Ação</th>
@@ -1211,20 +1172,20 @@ export const AuditHistoryModal: React.FC<{
                     <th className="py-2 px-3">Para</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {pagedRows.map((row) => (
-                    <tr key={row.id} className="hover:bg-slate-50/70">
-                      <td className="py-2 px-3 font-mono text-[11px] text-slate-600 whitespace-nowrap tabular-nums">
+                    <tr key={row.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800">
+                      <td className="py-2 px-3 font-mono text-[11px] text-slate-600 whitespace-nowrap tabular-nums dark:text-slate-300">
                         {formatDateTimeBR(row.createdAt)}
                       </td>
-                      <td className="py-2 px-3 font-medium text-slate-800">{row.userName}</td>
+                      <td className="py-2 px-3 font-medium text-slate-800 dark:text-slate-100">{row.userName}</td>
                       <td className={`py-2 px-3 font-mono text-[11px] font-bold ${actionColor(row.action)}`}>
                         {row.action}
                       </td>
-                      <td className="py-2 px-3 text-slate-700">{row.field}</td>
-                      <td className="py-2 px-3 text-slate-500">{row.from}</td>
-                      <td className="py-2 px-2 text-center text-slate-400">→</td>
-                      <td className="py-2 px-3 font-medium text-slate-900">{row.to}</td>
+                      <td className="py-2 px-3 text-slate-700 dark:text-slate-200">{row.field}</td>
+                      <td className="py-2 px-3 text-slate-500 dark:text-slate-400">{row.from}</td>
+                      <td className="py-2 px-2 text-center text-slate-400 dark:text-slate-400">→</td>
+                      <td className="py-2 px-3 font-medium text-slate-900 dark:text-slate-100">{row.to}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1233,7 +1194,7 @@ export const AuditHistoryModal: React.FC<{
           )}
         </div>
 
-        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs text-slate-600">
+        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
           <span className="font-mono tabular-nums">{flatRows.length} alteração(ões)</span>
           <div className="flex items-center gap-2">
             {totalPages > 1 && (
@@ -1242,7 +1203,7 @@ export const AuditHistoryModal: React.FC<{
                   type="button"
                   disabled={page <= 1}
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  className="rounded border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold disabled:opacity-50"
+                  className="rounded border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900"
                 >
                   Anterior
                 </button>
@@ -1253,7 +1214,7 @@ export const AuditHistoryModal: React.FC<{
                   type="button"
                   disabled={page >= totalPages}
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  className="rounded border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold disabled:opacity-50"
+                  className="rounded border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900"
                 >
                   Próxima
                 </button>
@@ -1262,7 +1223,7 @@ export const AuditHistoryModal: React.FC<{
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+              className="rounded-lg border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               Fechar
             </button>
@@ -1440,11 +1401,11 @@ export const UazapiCallPanel: React.FC<{
   };
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 space-y-2.5">
+    <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 space-y-2.5 dark:border-slate-700 dark:bg-slate-800/60">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <PhoneCall className="w-4 h-4 text-emerald-700 shrink-0" />
-          <span className="font-display text-xs font-bold text-slate-900">
+          <PhoneCall className="w-4 h-4 text-emerald-700 shrink-0 dark:text-emerald-300" />
+          <span className="font-display text-xs font-bold text-slate-900 dark:text-slate-100">
             Ligação via Uazapi (WhatsApp Voz/Vídeo)
           </span>
         </div>
@@ -1452,7 +1413,7 @@ export const UazapiCallPanel: React.FC<{
           <button
             type="button"
             onClick={() => setHistoryExpanded((v) => !v)}
-            className="text-[11px] font-semibold text-slate-600 hover:text-slate-900 underline"
+            className="text-[11px] font-semibold text-slate-600 hover:text-slate-900 underline dark:text-slate-300 dark:hover:text-white"
           >
             {historyExpanded ? 'Ocultar histórico' : `Histórico (${calls.length})`}
           </button>
@@ -1460,7 +1421,7 @@ export const UazapiCallPanel: React.FC<{
             type="button"
             onClick={() => void loadCallData()}
             title="Atualizar chamadas Uazapi"
-            className="p-1 rounded border border-slate-200 bg-white text-slate-600 hover:bg-slate-100"
+            className="p-1 rounded border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
           >
             <RefreshCw className={`w-3 h-3 ${loadingCalls ? 'animate-spin' : ''}`} />
           </button>
@@ -1468,15 +1429,15 @@ export const UazapiCallPanel: React.FC<{
       </div>
 
       {activeCall && activeCall.status === 'initiated' ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 dark:border-emerald-800/70 dark:bg-emerald-950/50">
           <div className="flex items-center gap-2 min-w-0">
             <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-600 animate-pulse shrink-0" />
             <div className="min-w-0">
-              <div className="text-xs font-bold text-emerald-950 truncate">
+              <div className="text-xs font-bold text-emerald-950 truncate dark:text-emerald-300">
                 Chamada {activeCall.callType === 'video' ? 'de Vídeo' : 'de Voz'} ativa ·{' '}
                 <span className="font-mono">{activeCall.toNumber}</span>
               </div>
-              <div className="text-[10px] font-mono text-emerald-800">
+              <div className="text-[10px] font-mono text-emerald-800 dark:text-emerald-300">
                 Duração: {formatCallDurationClock(elapsedSeconds)} · Operador:{' '}
                 {activeCall.initiatedByName || 'Coordenação'}
               </div>
@@ -1500,7 +1461,7 @@ export const UazapiCallPanel: React.FC<{
               value={phoneInput}
               onChange={(e) => setPhoneInput(e.target.value)}
               placeholder="DDD + Telefone (ex: 5511999999999)"
-              className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-mono text-slate-900"
+              className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-mono text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
             />
           </div>
           <div className="sm:col-span-4">
@@ -1508,7 +1469,7 @@ export const UazapiCallPanel: React.FC<{
               value={selectedInstanceId}
               onChange={(e) => setSelectedInstanceId(e.target.value)}
               aria-label="Instância Uazapi para ligação"
-              className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800"
+              className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
             >
               {instances.length === 0 ? (
                 <option value="">
@@ -1537,10 +1498,10 @@ export const UazapiCallPanel: React.FC<{
               type="button"
               disabled={dialing || !phoneInput.trim()}
               onClick={() => void handleStartCall(true)}
-              className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-100 disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-100 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
               title="Iniciar chamada de vídeo via Uazapi"
             >
-              <Video className="w-3.5 h-3.5 text-blue-700 shrink-0" />
+              <Video className="w-3.5 h-3.5 text-blue-700 shrink-0 dark:text-blue-300" />
               Vídeo
             </button>
           </div>
@@ -1551,8 +1512,8 @@ export const UazapiCallPanel: React.FC<{
         <div
           className={`rounded-lg px-2.5 py-1.5 text-[11px] font-medium border ${
             callFeedback.type === 'ok'
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-              : 'border-red-200 bg-red-50 text-red-800'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300'
+              : 'border-red-200 bg-red-50 text-red-800 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300'
           }`}
         >
           {callFeedback.text}
@@ -1560,30 +1521,30 @@ export const UazapiCallPanel: React.FC<{
       )}
 
       {historyExpanded && (
-        <div className="border-t border-slate-200 pt-2 space-y-1.5">
+        <div className="border-t border-slate-200 pt-2 space-y-1.5 dark:border-slate-700">
           {calls.length === 0 ? (
-            <div className="text-[11px] text-slate-500 py-1">
+            <div className="text-[11px] text-slate-500 py-1 dark:text-slate-400">
               Nenhuma ligação Uazapi registrada para este cliente ainda.
             </div>
           ) : (
-            <div className="max-h-40 overflow-y-auto divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
+            <div className="max-h-40 overflow-y-auto divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-900">
               {calls.map((c) => (
                 <div key={c.id} className="px-2.5 py-1.5 flex items-center justify-between gap-2 text-[11px]">
                   <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 font-semibold text-slate-900">
+                    <div className="flex items-center gap-1.5 font-semibold text-slate-900 dark:text-slate-100">
                       {c.callType === 'video' ? (
-                        <Video className="w-3 h-3 text-blue-700 shrink-0" />
+                        <Video className="w-3 h-3 text-blue-700 shrink-0 dark:text-blue-300" />
                       ) : (
-                        <Phone className="w-3 h-3 text-emerald-700 shrink-0" />
+                        <Phone className="w-3 h-3 text-emerald-700 shrink-0 dark:text-emerald-300" />
                       )}
                       <span className="font-mono">{c.toNumber}</span>
                       <span
                         className={`font-mono text-[10px] uppercase px-1.5 py-0.5 rounded ${
                           c.status === 'failed'
-                            ? 'bg-red-50 text-red-700 border border-red-200'
+                            ? 'bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/50 dark:text-red-300 dark:border-red-800/70'
                             : c.status === 'ended'
-                            ? 'bg-slate-100 text-slate-700'
-                            : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                            ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200'
+                            : 'bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800/70'
                         }`}
                       >
                         {c.status === 'initiated'
@@ -1596,10 +1557,10 @@ export const UazapiCallPanel: React.FC<{
                       </span>
                     </div>
                     {c.errorDetail && (
-                      <div className="text-[10px] text-red-700 truncate">{c.errorDetail}</div>
+                      <div className="text-[10px] text-red-700 truncate dark:text-red-300">{c.errorDetail}</div>
                     )}
                   </div>
-                  <div className="text-right shrink-0 font-mono text-[10px] text-slate-500">
+                  <div className="text-right shrink-0 font-mono text-[10px] text-slate-500 dark:text-slate-400">
                     <div>
                       {Number(c.durationSeconds || 0) > 0
                         ? formatCallDurationClock(Number(c.durationSeconds || 0))
@@ -1862,25 +1823,25 @@ export const AdmissionDetailModal: React.FC<{
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-4xl rounded-xl border border-slate-200 bg-white shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
+        className="w-full max-w-4xl rounded-xl border border-slate-200 bg-white shadow-2xl overflow-hidden flex flex-col max-h-[92vh] dark:border-slate-700 dark:bg-slate-900"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-5 py-3.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+        <div className="px-5 py-3.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 dark:border-slate-700">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <FileText className="w-4 h-4 text-slate-700 shrink-0" />
-              <h3 className="font-display text-base font-bold text-slate-900 truncate">
+              <FileText className="w-4 h-4 text-slate-700 shrink-0 dark:text-slate-200" />
+              <h3 className="font-display text-base font-bold text-slate-900 truncate dark:text-slate-100">
                 Ficha do Cliente · {admission.protocolCode}
               </h3>
-              <span className="font-mono text-[11px] font-bold uppercase text-slate-700 border border-slate-200 rounded px-1.5 py-0.5">
+              <span className="font-mono text-[11px] font-bold uppercase text-slate-700 border border-slate-200 rounded px-1.5 py-0.5 dark:text-slate-200 dark:border-slate-700">
                 {admission.status}
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5 truncate">
+            <p className="text-xs text-slate-500 mt-0.5 truncate dark:text-slate-400">
               {clientResp?.fullName || `Cliente #${admission.clientId}`} · Contrato{' '}
               <span className="font-mono">{admission.contractNumber || '—'}</span>
             </p>
@@ -1894,7 +1855,7 @@ export const AdmissionDetailModal: React.FC<{
                   if (next) onSelectAdmission(next);
                 }}
                 aria-label="Selecionar contrato do cliente"
-                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-mono text-slate-800"
+                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-mono text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               >
                 {clientAdmissions.map((a) => (
                   <option key={a.id} value={String(a.id)}>
@@ -1907,7 +1868,7 @@ export const AdmissionDetailModal: React.FC<{
               type="button"
               onClick={onClose}
               aria-label="Fechar ficha"
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800"
             >
               <X className="w-4 h-4" />
             </button>
@@ -1915,7 +1876,7 @@ export const AdmissionDetailModal: React.FC<{
         </div>
 
         {/* 5 Tabs */}
-        <div className="px-5 pt-2 border-b border-slate-200 bg-slate-50 flex flex-wrap gap-1">
+        <div className="px-5 pt-2 border-b border-slate-200 bg-slate-50 flex flex-wrap gap-1 dark:border-slate-700 dark:bg-slate-800/70">
           {[
             { id: 'identificacao', label: 'Identificação' },
             { id: 'financeiro', label: `Negociado & Financeiro (${admTitles.length})` },
@@ -1929,8 +1890,8 @@ export const AdmissionDetailModal: React.FC<{
               onClick={() => setTab(t.id as typeof tab)}
               className={`px-3.5 py-2 text-xs font-semibold border-b-2 transition-colors ${
                 tab === t.id
-                  ? 'border-slate-900 text-slate-900 bg-white rounded-t-lg'
-                  : 'border-transparent text-slate-500 hover:text-slate-800'
+                  ? 'border-slate-900 text-slate-900 bg-white rounded-t-lg dark:border-emerald-500 dark:text-slate-100 dark:bg-slate-900'
+                  : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'
               }`}
             >
               {t.label}
@@ -1942,66 +1903,66 @@ export const AdmissionDetailModal: React.FC<{
           {tab === 'identificacao' && (
             <>
               <div>
-                <h4 className="font-display text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                <h4 className="font-display text-xs font-bold uppercase tracking-wider text-slate-500 mb-2 dark:text-slate-400">
                   Identificação do Processo
                 </h4>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 rounded-lg border border-slate-200 p-3.5 bg-slate-50/40">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 rounded-lg border border-slate-200 p-3.5 bg-slate-50/40 dark:border-slate-700">
                   <div>
-                    <div className="text-[11px] text-slate-500">Cliente (Responsável)</div>
-                    <div className="font-semibold text-slate-900">
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">Cliente (Responsável)</div>
+                    <div className="font-semibold text-slate-900 dark:text-slate-100">
                       {clientResp?.fullName || `#${admission.clientId}`}
                     </div>
                   </div>
                   <div>
-                    <div className="text-[11px] text-slate-500">Contrato</div>
-                    <div className="font-mono font-semibold text-slate-900">
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">Contrato</div>
+                    <div className="font-mono font-semibold text-slate-900 dark:text-slate-100">
                       {admission.contractNumber || '—'}
                     </div>
                   </div>
                   <div>
-                    <div className="text-[11px] text-slate-500">Data Admissão</div>
-                    <div className="font-mono text-slate-800">
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">Data Admissão</div>
+                    <div className="font-mono text-slate-800 dark:text-slate-100">
                       {formatDateBR(admission.createdAt)}
                     </div>
                   </div>
                   <div>
-                    <div className="text-[11px] text-slate-500">Status</div>
-                    <div className="font-mono font-bold text-slate-800 uppercase">
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">Status</div>
+                    <div className="font-mono font-bold text-slate-800 uppercase dark:text-slate-100">
                       {admission.status}
                     </div>
                   </div>
                   <div>
-                    <div className="text-[11px] text-slate-500">Série</div>
-                    <div className="font-mono text-slate-800">
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">Série</div>
+                    <div className="font-mono text-slate-800 dark:text-slate-100">
                       {seriesObj?.sigla || admission.series || '—'}
                     </div>
                   </div>
                   <div>
-                    <div className="text-[11px] text-slate-500">Colaborador</div>
-                    <div className="text-slate-800">
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">Colaborador</div>
+                    <div className="text-slate-800 dark:text-slate-100">
                       {collabObj?.name || admission.consultantName || '—'}
                     </div>
                   </div>
                   <div>
-                    <div className="text-[11px] text-slate-500">Indicação</div>
-                    <div className="text-slate-800">
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">Indicação</div>
+                    <div className="text-slate-800 dark:text-slate-100">
                       {admission.indicationSource || admission.indicationOther || '—'}
                     </div>
                   </div>
                   <div>
-                    <div className="text-[11px] text-slate-500">Origem</div>
-                    <div className="text-slate-800">{admission.origin || '—'}</div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">Origem</div>
+                    <div className="text-slate-800 dark:text-slate-100">{admission.origin || '—'}</div>
                   </div>
                   {unitObj && (
                     <div className="col-span-2">
-                      <div className="text-[11px] text-slate-500">Unidade</div>
-                      <div className="text-slate-800 font-medium">
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">Unidade</div>
+                      <div className="text-slate-800 font-medium dark:text-slate-100">
                         {unitObj.code} · {unitObj.name}
                       </div>
                     </div>
                   )}
                   {admission.notes && (
-                    <div className="col-span-2 sm:col-span-4 bg-white rounded border border-slate-200 p-2.5 text-slate-700">
+                    <div className="col-span-2 sm:col-span-4 bg-white rounded border border-slate-200 p-2.5 text-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200">
                       <strong>Observações do Contrato:</strong> {admission.notes}
                     </div>
                   )}
@@ -2010,52 +1971,52 @@ export const AdmissionDetailModal: React.FC<{
 
               {clientResp && (
                 <div>
-                  <h4 className="font-display text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                  <h4 className="font-display text-xs font-bold uppercase tracking-wider text-slate-500 mb-2 dark:text-slate-400">
                     Dados do Responsável
                   </h4>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 rounded-lg border border-slate-200 p-3.5">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 rounded-lg border border-slate-200 p-3.5 dark:border-slate-700">
                     <div>
-                      <div className="text-[11px] text-slate-500">CPF / CNPJ</div>
-                      <div className="font-mono font-semibold text-slate-900">
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">CPF / CNPJ</div>
+                      <div className="font-mono font-semibold text-slate-900 dark:text-slate-100">
                         {clientResp.cpfCnpj || '—'}
                       </div>
                     </div>
                     <div>
-                      <div className="text-[11px] text-slate-500">RG</div>
-                      <div className="font-mono text-slate-800">{clientResp.rg || '—'}</div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">RG</div>
+                      <div className="font-mono text-slate-800 dark:text-slate-100">{clientResp.rg || '—'}</div>
                     </div>
                     <div>
-                      <div className="text-[11px] text-slate-500">Data Nasc.</div>
-                      <div className="font-mono text-slate-800">{clientResp.birthDate || '—'}</div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">Data Nasc.</div>
+                      <div className="font-mono text-slate-800 dark:text-slate-100">{clientResp.birthDate || '—'}</div>
                     </div>
                     <div>
-                      <div className="text-[11px] text-slate-500">Estado Civil / Profissão</div>
-                      <div className="text-slate-800">
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">Estado Civil / Profissão</div>
+                      <div className="text-slate-800 dark:text-slate-100">
                         {[clientResp.maritalStatus, clientResp.profession].filter(Boolean).join(' · ') || '—'}
                       </div>
                     </div>
                     <div>
-                      <div className="text-[11px] text-slate-500">Telefone / WhatsApp</div>
-                      <div className="font-mono text-slate-800">
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">Telefone / WhatsApp</div>
+                      <div className="font-mono text-slate-800 dark:text-slate-100">
                         {clientResp.whatsapp || clientResp.phone || '—'}
                       </div>
                     </div>
                     <div>
-                      <div className="text-[11px] text-slate-500">Telefone 2</div>
-                      <div className="font-mono text-slate-800">
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">Telefone 2</div>
+                      <div className="font-mono text-slate-800 dark:text-slate-100">
                         {clientResp.secondaryPhone || '—'}
                       </div>
                     </div>
                     <div className="col-span-2">
-                      <div className="text-[11px] text-slate-500">E-mail</div>
-                      <div className={clientResp.email ? 'text-slate-800' : 'text-red-600 font-medium'}>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">E-mail</div>
+                      <div className={clientResp.email ? 'text-slate-800 dark:text-slate-100' : 'text-red-600 font-medium dark:text-red-400'}>
                         {clientResp.email || 'Não informado'}
                       </div>
                     </div>
                     {(clientResp.address || clientResp.city) && (
                       <div className="col-span-2 sm:col-span-4">
-                        <div className="text-[11px] text-slate-500">Endereço Completo</div>
-                        <div className="text-slate-800">
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">Endereço Completo</div>
+                        <div className="text-slate-800 dark:text-slate-100">
                           {[
                             clientResp.address,
                             clientResp.addressNumber,
@@ -2071,7 +2032,7 @@ export const AdmissionDetailModal: React.FC<{
                       </div>
                     )}
                     {clientResp.notes && (
-                      <div className="col-span-2 sm:col-span-4 bg-slate-50 rounded p-2 text-slate-700">
+                      <div className="col-span-2 sm:col-span-4 bg-slate-50 rounded p-2 text-slate-700 dark:bg-slate-800/70 dark:text-slate-200">
                         <strong>Anotações:</strong> {clientResp.notes}
                       </div>
                     )}
@@ -2081,25 +2042,25 @@ export const AdmissionDetailModal: React.FC<{
 
               {clientTitular && clientTitular.id !== clientResp?.id && (
                 <div>
-                  <h4 className="font-display text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                  <h4 className="font-display text-xs font-bold uppercase tracking-wider text-slate-500 mb-2 dark:text-slate-400">
                     Dados do Titular
                   </h4>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 rounded-lg border border-slate-200 p-3.5">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 rounded-lg border border-slate-200 p-3.5 dark:border-slate-700">
                     <div>
-                      <div className="text-[11px] text-slate-500">Nome</div>
-                      <div className="font-semibold text-slate-900">{clientTitular.fullName}</div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">Nome</div>
+                      <div className="font-semibold text-slate-900 dark:text-slate-100">{clientTitular.fullName}</div>
                     </div>
                     <div>
-                      <div className="text-[11px] text-slate-500">CPF/CNPJ</div>
-                      <div className="font-mono text-slate-800">{clientTitular.cpfCnpj || '—'}</div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">CPF/CNPJ</div>
+                      <div className="font-mono text-slate-800 dark:text-slate-100">{clientTitular.cpfCnpj || '—'}</div>
                     </div>
                     <div>
-                      <div className="text-[11px] text-slate-500">Telefone</div>
-                      <div className="font-mono text-slate-800">{clientTitular.phone || '—'}</div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">Telefone</div>
+                      <div className="font-mono text-slate-800 dark:text-slate-100">{clientTitular.phone || '—'}</div>
                     </div>
                     <div>
-                      <div className="text-[11px] text-slate-500">E-mail</div>
-                      <div className="text-slate-800">{clientTitular.email || '—'}</div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">E-mail</div>
+                      <div className="text-slate-800 dark:text-slate-100">{clientTitular.email || '—'}</div>
                     </div>
                   </div>
                 </div>
@@ -2108,56 +2069,56 @@ export const AdmissionDetailModal: React.FC<{
               {(admission.vehicleBrand || admission.vehiclePlate || admission.vehicleInfo) && (
                 <div>
                   <div className="flex items-center gap-2 mb-2">
-                    <h4 className="font-display text-xs font-bold uppercase tracking-wider text-slate-500">
+                    <h4 className="font-display text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                       Dados do Veículo
                     </h4>
                     {admission.isElectricVehicle && (
-                      <span className="font-mono text-[10px] font-bold text-emerald-700 border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 rounded">
+                      <span className="font-mono text-[10px] font-bold text-emerald-700 border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 rounded dark:text-emerald-300 dark:border-emerald-800/70 dark:bg-emerald-950/50">
                         ELÉTRICO
                       </span>
                     )}
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 rounded-lg border border-slate-200 p-3.5">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 rounded-lg border border-slate-200 p-3.5 dark:border-slate-700">
                     {admission.vehicleBrand && (
                       <div>
-                        <div className="text-[11px] text-slate-500">Marca</div>
-                        <div className="text-slate-900 font-medium">{admission.vehicleBrand}</div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">Marca</div>
+                        <div className="text-slate-900 font-medium dark:text-slate-100">{admission.vehicleBrand}</div>
                       </div>
                     )}
                     {admission.vehicleModel && (
                       <div>
-                        <div className="text-[11px] text-slate-500">Modelo</div>
-                        <div className="text-slate-900 font-medium">{admission.vehicleModel}</div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">Modelo</div>
+                        <div className="text-slate-900 font-medium dark:text-slate-100">{admission.vehicleModel}</div>
                       </div>
                     )}
                     {admission.vehicleYear && (
                       <div>
-                        <div className="text-[11px] text-slate-500">Ano</div>
-                        <div className="font-mono text-slate-800">{admission.vehicleYear}</div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">Ano</div>
+                        <div className="font-mono text-slate-800 dark:text-slate-100">{admission.vehicleYear}</div>
                       </div>
                     )}
                     {admission.vehiclePlate && (
                       <div>
-                        <div className="text-[11px] text-slate-500">Placa</div>
-                        <div className="font-mono font-bold text-slate-900">{admission.vehiclePlate}</div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">Placa</div>
+                        <div className="font-mono font-bold text-slate-900 dark:text-slate-100">{admission.vehiclePlate}</div>
                       </div>
                     )}
                     {admission.vehicleColor && (
                       <div>
-                        <div className="text-[11px] text-slate-500">Cor</div>
-                        <div className="text-slate-800">{admission.vehicleColor}</div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">Cor</div>
+                        <div className="text-slate-800 dark:text-slate-100">{admission.vehicleColor}</div>
                       </div>
                     )}
                     {admission.vehicleChassis && (
                       <div>
-                        <div className="text-[11px] text-slate-500">Chassi</div>
-                        <div className="font-mono text-slate-800">{admission.vehicleChassis}</div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">Chassi</div>
+                        <div className="font-mono text-slate-800 dark:text-slate-100">{admission.vehicleChassis}</div>
                       </div>
                     )}
                     {admission.vehicleRenavam && (
                       <div>
-                        <div className="text-[11px] text-slate-500">Renavam</div>
-                        <div className="font-mono text-slate-800">{admission.vehicleRenavam}</div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">Renavam</div>
+                        <div className="font-mono text-slate-800 dark:text-slate-100">{admission.vehicleRenavam}</div>
                       </div>
                     )}
                   </div>
@@ -2169,27 +2130,27 @@ export const AdmissionDetailModal: React.FC<{
           {tab === 'financeiro' && (
             <>
               {/* CONFERÊNCIA FIDEDIGNA DO NEGOCIADO (Contrato × Títulos × Baixas) */}
-              <div className="rounded-xl border border-slate-300 bg-white p-4 space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+              <div className="rounded-xl border border-slate-300 bg-white p-4 space-y-3 dark:border-slate-600 dark:bg-slate-900">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5 dark:border-slate-800">
                   <div>
-                    <h4 className="font-display text-xs font-bold uppercase tracking-wider text-slate-900">
+                    <h4 className="font-display text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-slate-100">
                       Conferência Fidedigna do Negociado (Contrato × Contas a Receber)
                     </h4>
-                    <p className="text-[11px] text-slate-500">
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
                       Valores exatos contratados na admissão comparados aos títulos emitidos e baixas registradas.
                     </p>
                   </div>
                   {admTitles.length === 0 ? (
-                    <span className="font-mono text-[11px] font-bold text-amber-800">
+                    <span className="font-mono text-[11px] font-bold text-amber-800 dark:text-amber-300">
                       Sem títulos vinculados ao contrato
                     </span>
                   ) : contractAligned ? (
-                    <span className="inline-flex items-center gap-1 font-mono text-[11px] font-bold text-emerald-800">
+                    <span className="inline-flex items-center gap-1 font-mono text-[11px] font-bold text-emerald-800 dark:text-emerald-300">
                       <CheckCircle2 className="w-3.5 h-3.5" />
                       CONFERE COM O CONTRATADO
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 font-mono text-[11px] font-bold text-blue-700">
+                    <span className="inline-flex items-center gap-1 font-mono text-[11px] font-bold text-blue-700 dark:text-blue-300">
                       <AlertTriangle className="w-3.5 h-3.5" />
                       DIFERENÇA DE {formatBRL(Math.abs(diffContractedIssued))}
                       {admAddendums.length > 0 ? ' (Aditivo)' : ''}
@@ -2197,68 +2158,68 @@ export const AdmissionDetailModal: React.FC<{
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 rounded-lg bg-slate-50 border border-slate-200 p-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 rounded-lg bg-slate-50 border border-slate-200 p-3 dark:bg-slate-800/70 dark:border-slate-700">
                   <div>
-                    <div className="text-[11px] text-slate-500">Honorários / Serviço</div>
-                    <div className="font-mono font-bold text-slate-900 tabular-nums">
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">Honorários / Serviço</div>
+                    <div className="font-mono font-bold text-slate-900 tabular-nums dark:text-slate-100">
                       {formatBRL(admission.serviceFeeCents)}
                     </div>
                   </div>
                   <div>
-                    <div className="text-[11px] text-slate-500">Gestão / Admin.</div>
-                    <div className="font-mono font-semibold text-slate-800 tabular-nums">
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">Gestão / Admin.</div>
+                    <div className="font-mono font-semibold text-slate-800 tabular-nums dark:text-slate-100">
                       {formatBRL(admission.serviceMgmtCents || 0)}
                     </div>
                   </div>
                   <div>
-                    <div className="text-[11px] text-slate-500">Taxa Inicial / Entrada</div>
-                    <div className="font-mono font-semibold text-slate-800 tabular-nums">
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">Taxa Inicial / Entrada</div>
+                    <div className="font-mono font-semibold text-slate-800 tabular-nums dark:text-slate-100">
                       {formatBRL(admission.serviceInitialCents || admission.initialInstallmentCents || 0)}
                     </div>
                   </div>
                   <div>
-                    <div className="text-[11px] text-slate-500">Descontos / Acréscimos</div>
-                    <div className="font-mono text-slate-800 tabular-nums">
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">Descontos / Acréscimos</div>
+                    <div className="font-mono text-slate-800 tabular-nums dark:text-slate-100">
                       -{formatBRL(admission.serviceDiscountCents || 0)} / +{formatBRL(admission.serviceAdditionCents || 0)}
                     </div>
                   </div>
                   <div>
-                    <div className="text-[11px] text-slate-500">Total Negociado Contrato</div>
-                    <div className="font-mono font-bold text-blue-700 tabular-nums">
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">Total Negociado Contrato</div>
+                    <div className="font-mono font-bold text-blue-700 tabular-nums dark:text-blue-300">
                       {formatBRL(totalContractedCents)} ({admission.installmentsCount || 1}x)
                     </div>
                   </div>
                   <div>
-                    <div className="text-[11px] text-slate-500">Total Emitido (Títulos)</div>
-                    <div className="font-mono font-bold text-slate-900 tabular-nums">
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">Total Emitido (Títulos)</div>
+                    <div className="font-mono font-bold text-slate-900 tabular-nums dark:text-slate-100">
                       {formatBRL(totalIssuedCents)} ({admTitles.length} tít.)
                     </div>
                   </div>
                   <div>
-                    <div className="text-[11px] text-slate-500">Recebido / Baixado</div>
-                    <div className="font-mono font-bold text-emerald-800 tabular-nums">
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">Recebido / Baixado</div>
+                    <div className="font-mono font-bold text-emerald-800 tabular-nums dark:text-emerald-300">
                       {formatBRL(totalSettledCents)}
                     </div>
                   </div>
                   <div>
-                    <div className="text-[11px] text-slate-500">Saldo em Aberto</div>
-                    <div className="font-mono font-bold text-red-700 tabular-nums">
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">Saldo em Aberto</div>
+                    <div className="font-mono font-bold text-red-700 tabular-nums dark:text-red-300">
                       {formatBRL(totalOpenCents)}
                     </div>
                   </div>
                 </div>
 
                 {admAddendums.length > 0 && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900 dark:border-amber-800/70 dark:bg-amber-950/50 dark:text-amber-300">
                     <strong>Aditivo(s) Contratual(is):</strong> {admAddendums.length} documento(s) de aditivo anexado(s) na pasta do cliente (
                     {admAddendums.map((d) => d.fileName).join(', ')}).
                   </div>
                 )}
 
                 {admTitles.length > 0 && (
-                  <div className="border border-slate-200 rounded-lg overflow-hidden">
+                  <div className="border border-slate-200 rounded-lg overflow-hidden dark:border-slate-700">
                     <table className="w-full text-left border-collapse text-xs">
-                      <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600">
+                      <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600 dark:bg-slate-800/70 dark:border-slate-700 dark:text-slate-300">
                         <tr>
                           <th className="py-2 px-3">Parcela / Doc</th>
                           <th className="py-2 px-3">Vencimento</th>
@@ -2267,15 +2228,15 @@ export const AdmissionDetailModal: React.FC<{
                           <th className="py-2 px-3">Status</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100">
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                         {admTitles.map((t) => {
                           const stU = String(t.status || 'ABERTO').toUpperCase();
                           return (
                             <tr key={t.id}>
-                              <td className="py-1.5 px-3 font-mono font-semibold text-slate-800">
+                              <td className="py-1.5 px-3 font-mono font-semibold text-slate-800 dark:text-slate-100">
                                 {t.documentNumber || t.titleCode} ({t.installmentNumber}/{t.totalInstallments})
                               </td>
-                              <td className="py-1.5 px-3 font-mono text-slate-600 tabular-nums">
+                              <td className="py-1.5 px-3 font-mono text-slate-600 tabular-nums dark:text-slate-300">
                                 {formatDueDateLocalBR(t.dueDate)}
                               </td>
                               <td className="py-1.5 px-3 text-right font-mono tabular-nums">
@@ -2287,10 +2248,10 @@ export const AdmissionDetailModal: React.FC<{
                               <td
                                 className={`py-1.5 px-3 font-mono font-bold ${
                                   stU === 'PAGO'
-                                    ? 'text-emerald-800'
+                                    ? 'text-emerald-800 dark:text-emerald-300'
                                     : stU === 'PARCIAL'
-                                    ? 'text-blue-700'
-                                    : 'text-slate-700'
+                                    ? 'text-blue-700 dark:text-blue-300'
+                                    : 'text-slate-700 dark:text-slate-200'
                                 }`}
                               >
                                 {translateTitleStatus(t.status)}
@@ -2306,18 +2267,18 @@ export const AdmissionDetailModal: React.FC<{
 
               {admNegotiations.length > 0 && (
                 <div>
-                  <h4 className="font-display text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                  <h4 className="font-display text-xs font-bold uppercase tracking-wider text-slate-500 mb-2 dark:text-slate-400">
                     Mesa de Negociação Bancária Vinculada ({admNegotiations.length})
                   </h4>
                   <div className="space-y-2">
                     {admNegotiations.map((neg) => (
-                      <div key={neg.id} className="rounded-lg border border-slate-200 p-3 space-y-1.5">
+                      <div key={neg.id} className="rounded-lg border border-slate-200 p-3 space-y-1.5 dark:border-slate-700">
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="font-semibold text-slate-900">
+                          <span className="font-semibold text-slate-900 dark:text-slate-100">
                             {neg.bankName} · Status:{' '}
-                            <span className="font-mono uppercase text-blue-700">{neg.status}</span>
+                            <span className="font-mono uppercase text-blue-700 dark:text-blue-300">{neg.status}</span>
                           </span>
-                          <span className="font-mono text-[11px] text-emerald-800 font-bold tabular-nums">
+                          <span className="font-mono text-[11px] text-emerald-800 font-bold tabular-nums dark:text-emerald-300">
                             Redução atual {neg.currentReductionPct}% (Meta {neg.targetReductionPct}%) · Economia est.{' '}
                             {formatBRL(neg.estimatedSavingsCents)}
                           </span>
@@ -2328,75 +2289,75 @@ export const AdmissionDetailModal: React.FC<{
                 </div>
               )}
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 rounded-lg border border-slate-200 p-3.5 bg-slate-50/50">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 rounded-lg border border-slate-200 p-3.5 bg-slate-50/50 dark:border-slate-700 dark:bg-slate-800/60">
                 <div>
-                  <div className="text-[11px] text-slate-500">Banco</div>
-                  <div className="font-semibold text-slate-900">
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Banco</div>
+                  <div className="font-semibold text-slate-900 dark:text-slate-100">
                     {bankObj?.name || admission.bankName || '—'}
                   </div>
                 </div>
                 <div>
-                  <div className="text-[11px] text-slate-500">Modalidade</div>
-                  <div className="text-slate-800">
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Modalidade</div>
+                  <div className="text-slate-800 dark:text-slate-100">
                     {modalityObj?.description || admission.modality || admission.debtType || '—'}
                   </div>
                 </div>
                 <div>
-                  <div className="text-[11px] text-slate-500">Valor Financiado</div>
-                  <div className="font-mono font-bold text-blue-700 tabular-nums">
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Valor Financiado</div>
+                  <div className="font-mono font-bold text-blue-700 tabular-nums dark:text-blue-300">
                     {formatBRL(admission.financedAmountCents || admission.debtAmountCents)}
                   </div>
                 </div>
                 <div>
-                  <div className="text-[11px] text-slate-500">Valor Parcela Atual</div>
-                  <div className="font-mono font-bold text-slate-900 tabular-nums">
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Valor Parcela Atual</div>
+                  <div className="font-mono font-bold text-slate-900 tabular-nums dark:text-slate-100">
                     {formatBRL(admission.currentInstallmentCents)}
                   </div>
                 </div>
                 <div>
-                  <div className="text-[11px] text-slate-500">Total Parcelas</div>
-                  <div className="font-mono text-slate-800">{admission.debtTotalInstallments ?? 0}</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Total Parcelas</div>
+                  <div className="font-mono text-slate-800 dark:text-slate-100">{admission.debtTotalInstallments ?? 0}</div>
                 </div>
                 <div>
-                  <div className="text-[11px] text-slate-500">Pagas / Em Atraso</div>
-                  <div className="font-mono text-slate-800">
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Pagas / Em Atraso</div>
+                  <div className="font-mono text-slate-800 dark:text-slate-100">
                     {admission.debtPaidInstallments ?? 0} / {admission.debtOverdueInstallments ?? 0}
                   </div>
                 </div>
                 <div>
-                  <div className="text-[11px] text-slate-500">Dia Vencimento</div>
-                  <div className="font-mono text-slate-800">Dia {admission.debtDueDay ?? '—'}</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Dia Vencimento</div>
+                  <div className="font-mono text-slate-800 dark:text-slate-100">Dia {admission.debtDueDay ?? '—'}</div>
                 </div>
                 <div>
-                  <div className="text-[11px] text-slate-500">Tipo Pagamento</div>
-                  <div className="text-slate-800 uppercase">{admission.paymentType || '—'}</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Tipo Pagamento</div>
+                  <div className="text-slate-800 uppercase dark:text-slate-100">{admission.paymentType || '—'}</div>
                 </div>
               </div>
 
               {bankObj?.services && bankObj.services.length > 0 && (
                 <div>
-                  <h4 className="font-display text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                  <h4 className="font-display text-xs font-bold uppercase tracking-wider text-slate-500 mb-2 dark:text-slate-400">
                     Serviços / Percentuais de Negociação ({bankObj.name})
                   </h4>
-                  <div className="border border-slate-200 rounded-lg overflow-hidden">
+                  <div className="border border-slate-200 rounded-lg overflow-hidden dark:border-slate-700">
                     <table className="w-full text-left border-collapse text-xs">
-                      <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600">
+                      <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600 dark:bg-slate-800/70 dark:border-slate-700 dark:text-slate-300">
                         <tr>
                           <th className="py-2 px-3">Serviço</th>
                           <th className="py-2 px-3">% Negociação</th>
                           <th className="py-2 px-3 text-right">Sobre Valor Financiado</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100">
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                         {bankObj.services.map((srv, i) => {
                           const pct = parseFloat(srv.negotiationPercent || '0') || 0;
                           const base = admission.financedAmountCents || admission.debtAmountCents || 0;
                           const estCents = Math.round((base * pct) / 100);
                           return (
                             <tr key={srv.id ?? i}>
-                              <td className="py-2 px-3 font-medium text-slate-800">{srv.name}</td>
-                              <td className="py-2 px-3 font-mono text-slate-600 tabular-nums">{pct}%</td>
-                              <td className="py-2 px-3 text-right font-mono font-semibold text-slate-900 tabular-nums">
+                              <td className="py-2 px-3 font-medium text-slate-800 dark:text-slate-100">{srv.name}</td>
+                              <td className="py-2 px-3 font-mono text-slate-600 tabular-nums dark:text-slate-300">{pct}%</td>
+                              <td className="py-2 px-3 text-right font-mono font-semibold text-slate-900 tabular-nums dark:text-slate-100">
                                 {estCents > 0 ? formatBRL(estCents) : '—'}
                               </td>
                             </tr>
@@ -2410,12 +2371,12 @@ export const AdmissionDetailModal: React.FC<{
 
               {(scenarioCols.length > 0 || admScenarios.length > 0) && (
                 <div>
-                  <h4 className="font-display text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                  <h4 className="font-display text-xs font-bold uppercase tracking-wider text-slate-500 mb-2 dark:text-slate-400">
                     Cenários de Recálculo
                   </h4>
-                  <div className="border border-slate-200 rounded-lg overflow-hidden">
+                  <div className="border border-slate-200 rounded-lg overflow-hidden dark:border-slate-700">
                     <table className="w-full text-left border-collapse text-xs">
-                      <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600">
+                      <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600 dark:bg-slate-800/70 dark:border-slate-700 dark:text-slate-300">
                         <tr>
                           <th className="py-2 px-3">Cenário</th>
                           <th className="py-2 px-3 text-right">Dívida Orig.</th>
@@ -2424,17 +2385,17 @@ export const AdmissionDetailModal: React.FC<{
                           <th className="py-2 px-3 text-right">Parcelas</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100">
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                         {scenarioCols.map((sc) => (
                           <tr key={sc.id}>
-                            <td className="py-2 px-3 font-medium text-slate-800">{sc.name}</td>
+                            <td className="py-2 px-3 font-medium text-slate-800 dark:text-slate-100">{sc.name}</td>
                             <td className="py-2 px-3 text-right font-mono tabular-nums">
                               {formatBRL(sc.originalDebtCents)}
                             </td>
                             <td className="py-2 px-3 text-right font-mono tabular-nums">
                               {formatBRL(sc.recalcDebtCents)}
                             </td>
-                            <td className="py-2 px-3 text-right font-mono font-bold text-emerald-700 tabular-nums">
+                            <td className="py-2 px-3 text-right font-mono font-bold text-emerald-700 tabular-nums dark:text-emerald-300">
                               {formatBRL(sc.savingsCents)}
                             </td>
                             <td className="py-2 px-3 text-right font-mono tabular-nums">
@@ -2445,7 +2406,7 @@ export const AdmissionDetailModal: React.FC<{
                         {scenarioCols.length === 0 &&
                           admScenarios.map((sc) => (
                             <tr key={sc.id}>
-                              <td className="py-2 px-3 font-medium text-slate-800">
+                              <td className="py-2 px-3 font-medium text-slate-800 dark:text-slate-100">
                                 Taxa {sc.bacenAvgRateMonthlyPct}% a.m.
                               </td>
                               <td className="py-2 px-3 text-right font-mono tabular-nums">
@@ -2454,7 +2415,7 @@ export const AdmissionDetailModal: React.FC<{
                               <td className="py-2 px-3 text-right font-mono tabular-nums">
                                 {formatBRL(sc.fairInstallmentCents * sc.installmentsTotal)}
                               </td>
-                              <td className="py-2 px-3 text-right font-mono font-bold text-emerald-700 tabular-nums">
+                              <td className="py-2 px-3 text-right font-mono font-bold text-emerald-700 tabular-nums dark:text-emerald-300">
                                 {formatBRL(sc.projectedSavingsCents)}
                               </td>
                               <td className="py-2 px-3 text-right font-mono tabular-nums">
@@ -2478,27 +2439,27 @@ export const AdmissionDetailModal: React.FC<{
                   value={docSearch}
                   onChange={(e) => setDocSearch(e.target.value)}
                   placeholder="Filtrar documentos da ficha..."
-                  className="w-full max-w-sm rounded-lg border border-slate-200 px-3 py-1.5 text-xs"
+                  className="w-full max-w-sm rounded-lg border border-slate-200 px-3 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
-                <span className="text-[11px] text-slate-500 font-mono">
+                <span className="text-[11px] text-slate-500 font-mono dark:text-slate-400">
                   {admDocs.length} registro(s) · Somente leitura
                 </span>
               </div>
 
               {admDocs.length === 0 ? (
-                <div className="py-10 text-center text-xs text-slate-500 border border-dashed border-slate-200 rounded-lg">
+                <div className="py-10 text-center text-xs text-slate-500 border border-dashed border-slate-200 rounded-lg dark:text-slate-400 dark:border-slate-700">
                   Nenhum documento anexado nesta ficha.
                 </div>
               ) : (
-                <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg">
+                <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg dark:divide-slate-800 dark:border-slate-700">
                   {admDocs.map((doc) => (
                     <div
                       key={doc.id}
-                      className="px-3.5 py-2.5 flex items-center justify-between gap-3 hover:bg-slate-50"
+                      className="px-3.5 py-2.5 flex items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-800"
                     >
                       <div className="min-w-0">
-                        <div className="font-medium text-slate-900 truncate">{doc.fileName}</div>
-                        <div className="text-[11px] text-slate-500 font-mono">
+                        <div className="font-medium text-slate-900 truncate dark:text-slate-100">{doc.fileName}</div>
+                        <div className="text-[11px] text-slate-500 font-mono dark:text-slate-400">
                           Categoria: {doc.docCategory} · {formatBytes(doc.sizeBytes)} ·{' '}
                           {formatDateBR(doc.createdAt)}
                         </div>
@@ -2507,7 +2468,7 @@ export const AdmissionDetailModal: React.FC<{
                         <button
                           type="button"
                           onClick={() => setPreviewDoc((prev) => (prev?.id === doc.id ? null : doc))}
-                          className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
+                          className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                         >
                           <Eye className="w-3.5 h-3.5" />
                           Ver
@@ -2515,7 +2476,7 @@ export const AdmissionDetailModal: React.FC<{
                         <button
                           type="button"
                           onClick={() => void downloadAuthenticatedDocument(doc)}
-                          className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
+                          className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                         >
                           <Download className="w-3.5 h-3.5" />
                           Baixar
@@ -2545,21 +2506,21 @@ export const AdmissionDetailModal: React.FC<{
               />
 
               {!admActiveThread ? (
-                <div className="py-10 text-center text-slate-500 border border-dashed border-slate-200 rounded-lg px-4">
+                <div className="py-10 text-center text-slate-500 border border-dashed border-slate-200 rounded-lg px-4 dark:text-slate-400 dark:border-slate-700">
                   Nenhuma conversa GoTalk ou Uazapi registrada para o telefone deste cliente ainda. Você pode iniciar uma ligação via Uazapi acima.
                 </div>
               ) : (
                 <>
-                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5 dark:border-slate-700 dark:bg-slate-800/70">
                     <div className="min-w-0">
-                      <div className="font-semibold text-slate-900 truncate">
+                      <div className="font-semibold text-slate-900 truncate dark:text-slate-100">
                         {admActiveThread.contactName || clientResp?.fullName || `#${admission.clientId}`}{' '}
-                        <span className="font-mono text-slate-500">
+                        <span className="font-mono text-slate-500 dark:text-slate-400">
                           ({admActiveThread.contactPhone})
                         </span>
                       </div>
-                      <div className="text-[11px] font-mono text-slate-500">
-                        Provedor: <strong className="text-slate-800">{admActiveThread.provider.toUpperCase()}</strong>
+                      <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                        Provedor: <strong className="text-slate-800 dark:text-slate-100">{admActiveThread.provider.toUpperCase()}</strong>
                         {admActiveThread.operatorName ? ` · Operador ${admActiveThread.operatorName}` : ''}
                         {admActiveThread.uazapiInstanceId ? ` · Instância ${admActiveThread.uazapiInstanceId}` : ''}
                       </div>
@@ -2569,7 +2530,7 @@ export const AdmissionDetailModal: React.FC<{
                       <select
                         value={String(admActiveThread.id)}
                         onChange={(e) => setSelectedThreadId(Number(e.target.value))}
-                        className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-mono text-slate-800"
+                        className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-mono text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                       >
                         {admClientThreads.map((th) => (
                           <option key={th.id} value={String(th.id)}>
@@ -2581,9 +2542,9 @@ export const AdmissionDetailModal: React.FC<{
                     )}
                   </div>
 
-                  <div className="border border-slate-200 rounded-lg p-3 h-72 overflow-y-auto space-y-2.5 bg-slate-50/50">
+                  <div className="border border-slate-200 rounded-lg p-3 h-72 overflow-y-auto space-y-2.5 bg-slate-50/50 dark:border-slate-700 dark:bg-slate-800/60">
                     {admActiveThreadMessages.length === 0 ? (
-                      <div className="text-center text-slate-400 py-10">
+                      <div className="text-center text-slate-400 py-10 dark:text-slate-400">
                         Sem mensagens registradas nesta conversa.
                       </div>
                     ) : (
@@ -2592,8 +2553,8 @@ export const AdmissionDetailModal: React.FC<{
                           key={m.id}
                           className={`rounded-lg px-3 py-2 max-w-[85%] ${
                             m.direction === 'outbound'
-                              ? 'ml-auto bg-slate-900 text-white'
-                              : 'bg-white border border-slate-200 text-slate-800'
+                              ? 'ml-auto bg-slate-900 text-white dark:bg-emerald-600'
+                              : 'bg-white border border-slate-200 text-slate-800 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100'
                           }`}
                         >
                           <div className="text-[10px] opacity-75 font-mono mb-0.5 flex items-center justify-between gap-2">
@@ -2608,7 +2569,7 @@ export const AdmissionDetailModal: React.FC<{
                               className={`mt-1.5 rounded px-2 py-1 text-[11px] ${
                                 m.direction === 'outbound'
                                   ? 'bg-slate-800 text-slate-200'
-                                  : 'bg-blue-50 text-blue-900 border border-blue-100'
+                                  : 'bg-blue-50 text-blue-900 border border-blue-100 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800/70'
                               }`}
                             >
                               <strong>Transcrição Ivi:</strong> {m.iviAudioTranscript}
@@ -2625,7 +2586,7 @@ export const AdmissionDetailModal: React.FC<{
                   </div>
 
                   {msgFeedback && (
-                    <div className="text-xs font-medium text-emerald-700">{msgFeedback}</div>
+                    <div className="text-xs font-medium text-emerald-700 dark:text-emerald-300">{msgFeedback}</div>
                   )}
 
                   <div className="flex flex-col sm:flex-row gap-2">
@@ -2634,7 +2595,7 @@ export const AdmissionDetailModal: React.FC<{
                       value={replyText}
                       onChange={(e) => setReplyText(e.target.value)}
                       placeholder="Enviar mensagem para o cliente..."
-                      className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-xs"
+                      className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-xs dark:border-slate-700"
                     />
                     <button
                       type="button"
@@ -2648,11 +2609,11 @@ export const AdmissionDetailModal: React.FC<{
                   </div>
 
                   {gotalkHsmTemplates.length > 0 && (
-                    <div className="flex flex-col sm:flex-row items-center gap-2 pt-2 border-t border-slate-100">
+                    <div className="flex flex-col sm:flex-row items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                       <select
                         value={selectedHsmId}
                         onChange={(e) => setSelectedHsmId(e.target.value)}
-                        className="flex-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs"
+                        className="flex-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                       >
                         <option value="">Selecionar Template HSM (Ativo)...</option>
                         {gotalkHsmTemplates.map((t) => (
@@ -2665,7 +2626,7 @@ export const AdmissionDetailModal: React.FC<{
                         type="button"
                         disabled={sendingMsg || !selectedHsmId}
                         onClick={() => void handleAdmSendHsm()}
-                        className="rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+                        className="rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
                       >
                         Disparar HSM
                       </button>
@@ -2679,37 +2640,37 @@ export const AdmissionDetailModal: React.FC<{
           {tab === 'auditoria' && (
             <div className="space-y-4">
               {legalLoading ? (
-                <div className="py-8 text-center text-slate-500">
+                <div className="py-8 text-center text-slate-500 dark:text-slate-400">
                   Carregando histórico jurídico e auditoria...
                 </div>
               ) : legalError ? (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-800">
+                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-800 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
                   {legalError}
                 </div>
               ) : (
                 <>
                   <div>
-                    <h4 className="font-display text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                    <h4 className="font-display text-xs font-bold uppercase tracking-wider text-slate-500 mb-2 dark:text-slate-400">
                       Consulta Jurídica Registrada (Histórico Escavador)
                     </h4>
                     {!legalData?.legalScan?.found ? (
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-slate-600">
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-slate-600 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
                         Nenhuma ocorrência jurídica histórica vinculada a esta ficha.
                       </div>
                     ) : (
                       <div className="space-y-2">
                         {legalData.legalScan.allProcesses.map((p) => (
-                          <div key={p.id} className="rounded-lg border border-slate-200 p-3 space-y-1">
+                          <div key={p.id} className="rounded-lg border border-slate-200 p-3 space-y-1 dark:border-slate-700">
                             <div className="flex flex-wrap items-center justify-between gap-2">
-                              <span className="font-mono font-bold text-slate-900">
+                              <span className="font-mono font-bold text-slate-900 dark:text-slate-100">
                                 {p.numeroProcesso}
                               </span>
-                              <span className="font-mono text-[11px] uppercase font-bold text-slate-700">
+                              <span className="font-mono text-[11px] uppercase font-bold text-slate-700 dark:text-slate-200">
                                 {p.tribunal} · {p.status}
                               </span>
                             </div>
                             {p.ultimaMovimentacao && (
-                              <p className="text-slate-600">{p.ultimaMovimentacao}</p>
+                              <p className="text-slate-600 dark:text-slate-300">{p.ultimaMovimentacao}</p>
                             )}
                           </div>
                         ))}
@@ -2718,26 +2679,26 @@ export const AdmissionDetailModal: React.FC<{
                   </div>
 
                   <div>
-                    <h4 className="font-display text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                    <h4 className="font-display text-xs font-bold uppercase tracking-wider text-slate-500 mb-2 dark:text-slate-400">
                       Rounds de Auditoria ({(legalData?.critiques || []).length})
                     </h4>
                     {(legalData?.critiques || []).length === 0 ? (
-                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-slate-500">
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-slate-500 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-400">
                         Nenhum round de auditoria registrado.
                       </div>
                     ) : (
                       <div className="space-y-2">
                         {(legalData?.critiques || []).map((c) => (
-                          <div key={c.id} className="rounded-lg border border-slate-200 p-3 space-y-1">
-                            <div className="flex items-center justify-between text-[11px] text-slate-500">
-                              <span className="font-bold text-slate-800">
+                          <div key={c.id} className="rounded-lg border border-slate-200 p-3 space-y-1 dark:border-slate-700">
+                            <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                              <span className="font-bold text-slate-800 dark:text-slate-100">
                                 Round #{c.round} · {c.author}
                               </span>
                               <span className="font-mono">{formatDateTimeBR(c.createdAt)}</span>
                             </div>
-                            <p className="text-slate-800">{c.reason}</p>
+                            <p className="text-slate-800 dark:text-slate-100">{c.reason}</p>
                             {c.commercialResponse && (
-                              <p className="text-emerald-800 bg-emerald-50 rounded p-2">
+                              <p className="text-emerald-800 bg-emerald-50 rounded p-2 dark:text-emerald-300 dark:bg-emerald-950/50">
                                 <strong>Resposta Comercial ({c.respondedBy}):</strong>{' '}
                                 {c.commercialResponse}
                               </p>
@@ -2753,7 +2714,7 @@ export const AdmissionDetailModal: React.FC<{
           )}
         </div>
 
-        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs text-slate-500">
+        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-400">
           <span className="inline-flex items-center gap-1.5">
             <Lock className="w-3.5 h-3.5" />
             Somente visualização · Dados fidedignos ao negociado
@@ -2761,7 +2722,7 @@ export const AdmissionDetailModal: React.FC<{
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+            className="rounded-lg border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             Fechar
           </button>
@@ -3079,22 +3040,22 @@ export const ClientDetailModal: React.FC<{
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 dark:bg-slate-950/80"
       onClick={onClose}
     >
       <div
         className={`w-full ${
           tab === 'whatsapp' ? 'max-w-6xl' : 'max-w-4xl'
-        } rounded-xl border border-slate-200 bg-white shadow-2xl overflow-hidden flex flex-col max-h-[92vh] transition-all`}
+        } rounded-xl border border-slate-200 bg-white shadow-2xl overflow-hidden flex flex-col max-h-[92vh] transition-all dark:border-slate-700 dark:bg-slate-900`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between gap-2">
+        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between gap-2 dark:border-slate-700">
           <div className="min-w-0">
-            <h3 className="font-display text-base font-bold text-slate-900 truncate flex items-center gap-2">
-              <User className="w-4 h-4 text-slate-700 shrink-0" />
+            <h3 className="font-display text-base font-bold text-slate-900 truncate flex items-center gap-2 dark:text-slate-100">
+              <User className="w-4 h-4 text-slate-700 shrink-0 dark:text-slate-200" />
               {client.fullName}
             </h3>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               Dados do Cliente · Ficha fidedigna ao negociado · WhatsApp & GoTalk/Uazapi
             </p>
           </div>
@@ -3103,7 +3064,7 @@ export const ClientDetailModal: React.FC<{
               <button
                 type="button"
                 onClick={() => onOpenAdmission(primaryAdmission)}
-                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
               >
                 <FileText className="w-3.5 h-3.5" />
                 Ficha do Cliente
@@ -3114,7 +3075,7 @@ export const ClientDetailModal: React.FC<{
               type="button"
               onClick={onClose}
               aria-label="Fechar cliente"
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800"
             >
               <X className="w-4 h-4" />
             </button>
@@ -3122,14 +3083,14 @@ export const ClientDetailModal: React.FC<{
         </div>
 
         {/* Abas */}
-        <div className="px-5 pt-2 border-b border-slate-200 bg-slate-50 flex gap-1">
+        <div className="px-5 pt-2 border-b border-slate-200 bg-slate-50 flex gap-1 dark:border-slate-700 dark:bg-slate-800/70">
           <button
             type="button"
             onClick={() => setTab('dados')}
             className={`px-3.5 py-2 text-xs font-semibold border-b-2 transition-colors ${
               tab === 'dados'
-                ? 'border-slate-900 text-slate-900 bg-white rounded-t-lg'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
+                ? 'border-slate-900 text-slate-900 bg-white rounded-t-lg dark:border-emerald-500 dark:text-slate-100 dark:bg-slate-900'
+                : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'
             }`}
           >
             Dados ({clientPortfolioTitles.length})
@@ -3139,8 +3100,8 @@ export const ClientDetailModal: React.FC<{
             onClick={() => setTab('whatsapp')}
             className={`px-3.5 py-2 text-xs font-semibold border-b-2 transition-colors ${
               tab === 'whatsapp'
-                ? 'border-slate-900 text-slate-900 bg-white rounded-t-lg'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
+                ? 'border-slate-900 text-slate-900 bg-white rounded-t-lg dark:border-emerald-500 dark:text-slate-100 dark:bg-slate-900'
+                : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'
             }`}
           >
             WhatsApp ({clientThreads.length})
@@ -3151,8 +3112,8 @@ export const ClientDetailModal: React.FC<{
               onClick={() => setTab('atendimentos')}
               className={`px-3.5 py-2 text-xs font-semibold border-b-2 transition-colors ${
                 tab === 'atendimentos'
-                  ? 'border-slate-900 text-slate-900 bg-white rounded-t-lg'
-                  : 'border-transparent text-slate-500 hover:text-slate-800'
+                  ? 'border-slate-900 text-slate-900 bg-white rounded-t-lg dark:border-emerald-500 dark:text-slate-100 dark:bg-slate-900'
+                  : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'
               }`}
             >
               Atendimentos ({filteredAttendances.length})
@@ -3164,10 +3125,10 @@ export const ClientDetailModal: React.FC<{
           {tab === 'dados' && (
             <>
               {isBlocked && (
-                <div className="rounded-lg border border-red-200 bg-red-50 p-3.5 space-y-1.5">
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3.5 space-y-1.5 dark:border-red-800/70 dark:bg-red-950/50">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 font-bold text-red-900">
-                      <ShieldAlert className="w-4 h-4 text-red-700 shrink-0" />
+                    <div className="flex items-center gap-2 font-bold text-red-900 dark:text-red-300">
+                      <ShieldAlert className="w-4 h-4 text-red-700 shrink-0 dark:text-red-300" />
                       <span>
                         Cliente {client.status.toUpperCase()} · {client.fullName}
                       </span>
@@ -3175,13 +3136,13 @@ export const ClientDetailModal: React.FC<{
                     <button
                       type="button"
                       onClick={() => setShowBlockReason((p) => !p)}
-                      className="text-xs font-semibold text-red-800 underline"
+                      className="text-xs font-semibold text-red-800 underline dark:text-red-300"
                     >
                       {showBlockReason ? 'Ocultar motivo' : 'Ver motivo'}
                     </button>
                   </div>
                   {showBlockReason && (
-                    <div className="text-red-800 bg-white/80 rounded p-2 border border-red-100">
+                    <div className="text-red-800 bg-white/80 rounded p-2 border border-red-100 dark:text-red-300 dark:bg-slate-900/95 dark:border-red-800/70">
                       <strong>Causa registrada:</strong>{' '}
                       {client.suspensionReason || client.cancelledReason || 'Sem motivo registrado.'}
                     </div>
@@ -3190,28 +3151,28 @@ export const ClientDetailModal: React.FC<{
               )}
 
               {/* Dados Cadastrais */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-lg border border-slate-200 p-4 bg-slate-50/40">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-lg border border-slate-200 p-4 bg-slate-50/40 dark:border-slate-700">
                 <div>
-                  <div className="text-[11px] text-slate-500">Nome / Razão Social</div>
-                  <div className="font-semibold text-slate-900">{client.fullName || '—'}</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Nome / Razão Social</div>
+                  <div className="font-semibold text-slate-900 dark:text-slate-100">{client.fullName || '—'}</div>
                 </div>
                 <div>
-                  <div className="text-[11px] text-slate-500">CPF / CNPJ</div>
-                  <div className="font-mono font-semibold text-slate-900">{client.cpfCnpj || '—'}</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">CPF / CNPJ</div>
+                  <div className="font-mono font-semibold text-slate-900 dark:text-slate-100">{client.cpfCnpj || '—'}</div>
                 </div>
                 <div>
-                  <div className="text-[11px] text-slate-500">Telefone / WhatsApp</div>
-                  <div className="font-mono text-slate-800">
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Telefone / WhatsApp</div>
+                  <div className="font-mono text-slate-800 dark:text-slate-100">
                     {client.whatsapp || client.phone || '—'}
                   </div>
                 </div>
                 <div>
-                  <div className="text-[11px] text-slate-500">E-mail</div>
-                  <div className="text-slate-800">{client.email || '—'}</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">E-mail</div>
+                  <div className="text-slate-800 dark:text-slate-100">{client.email || '—'}</div>
                 </div>
                 <div className="sm:col-span-2">
-                  <div className="text-[11px] text-slate-500">Endereço</div>
-                  <div className="text-slate-800">
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Endereço</div>
+                  <div className="text-slate-800 dark:text-slate-100">
                     {[client.address, client.city, client.state].filter(Boolean).join(' · ') || '—'}
                   </div>
                 </div>
@@ -3220,11 +3181,11 @@ export const ClientDetailModal: React.FC<{
               {/* Títulos do Cliente */}
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <h4 className="font-display text-xs font-bold uppercase tracking-wider text-slate-600">
+                  <h4 className="font-display text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
                     Títulos do Cliente ({clientPortfolioTitles.length})
                   </h4>
                   {loadingDetail && (
-                    <span className="text-[11px] text-slate-400 font-mono">
+                    <span className="text-[11px] text-slate-400 font-mono dark:text-slate-400">
                       carregando fichas... / carregando aditivos...
                     </span>
                   )}
@@ -3235,23 +3196,23 @@ export const ClientDetailModal: React.FC<{
                   .map((grp) => (
                     <div
                       key={grp.admissionId}
-                      className="rounded-lg border border-slate-200 overflow-hidden"
+                      className="rounded-lg border border-slate-200 overflow-hidden dark:border-slate-700"
                     >
-                      <div className="px-3.5 py-2 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
-                        <span className="font-semibold text-slate-900">
+                      <div className="px-3.5 py-2 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 dark:bg-slate-800/70 dark:border-slate-700">
+                        <span className="font-semibold text-slate-900 dark:text-slate-100">
                           Ficha:{' '}
                           <span className="font-mono">
                             {grp.contractNumber || grp.protocolCode || 'Sem contrato'}
                           </span>
                         </span>
                         {grp.hasAddendum && (
-                          <span className="text-[11px] font-semibold text-red-700">
+                          <span className="text-[11px] font-semibold text-red-700 dark:text-red-300">
                             Possui Aditivo Contratual ({grp.addendumsCount} · último{' '}
                             {formatDateBR(grp.latestAddendumDate)})
                           </span>
                         )}
                       </div>
-                      <div className="divide-y divide-slate-100">
+                      <div className="divide-y divide-slate-100 dark:divide-slate-800">
                         {grp.parcelas.map((p) => {
                           const stU = String(p.status || 'ABERTO').toUpperCase();
                           return (
@@ -3260,10 +3221,10 @@ export const ClientDetailModal: React.FC<{
                               className="px-3.5 py-2 flex items-center justify-between gap-3"
                             >
                               <div className="min-w-0">
-                                <span className="font-mono font-semibold text-slate-900">
+                                <span className="font-mono font-semibold text-slate-900 dark:text-slate-100">
                                   {p.documentNumber || p.titleCode}
                                 </span>{' '}
-                                <span className="text-slate-500">
+                                <span className="text-slate-500 dark:text-slate-400">
                                   · {p.description || 'Parcela'} · Venc. {formatDueDateLocalBR(p.dueDate)}
                                 </span>
                               </div>
@@ -3271,15 +3232,15 @@ export const ClientDetailModal: React.FC<{
                                 <span
                                   className={
                                     stU === 'PAGO'
-                                      ? 'font-bold text-emerald-800'
+                                      ? 'font-bold text-emerald-800 dark:text-emerald-300'
                                       : stU === 'PARCIAL'
-                                      ? 'font-bold text-blue-700'
-                                      : 'text-slate-600'
+                                      ? 'font-bold text-blue-700 dark:text-blue-300'
+                                      : 'text-slate-600 dark:text-slate-300'
                                   }
                                 >
                                   {translateTitleStatus(p.status)}
                                 </span>
-                                <span className="font-bold text-slate-900">
+                                <span className="font-bold text-slate-900 dark:text-slate-100">
                                   {formatBRL(stU === 'PAGO' ? 0 : p.currentBalanceCents ?? p.amountCents)}
                                 </span>
                               </div>
@@ -3291,11 +3252,11 @@ export const ClientDetailModal: React.FC<{
                   ))}
 
                 {standaloneTitles.length > 0 && (
-                  <div className="rounded-lg border border-slate-200 overflow-hidden">
-                    <div className="px-3.5 py-2 bg-slate-50 border-b border-slate-200 font-semibold text-slate-700">
+                  <div className="rounded-lg border border-slate-200 overflow-hidden dark:border-slate-700">
+                    <div className="px-3.5 py-2 bg-slate-50 border-b border-slate-200 font-semibold text-slate-700 dark:bg-slate-800/70 dark:border-slate-700 dark:text-slate-200">
                       Títulos Avulsos / Sem Ficha Vinculada
                     </div>
-                    <div className="divide-y divide-slate-100">
+                    <div className="divide-y divide-slate-100 dark:divide-slate-800">
                       {standaloneTitles.map((p) => {
                         const stU = String(p.status || 'ABERTO').toUpperCase();
                         return (
@@ -3304,10 +3265,10 @@ export const ClientDetailModal: React.FC<{
                             className="px-3.5 py-2 flex items-center justify-between gap-3"
                           >
                             <div className="min-w-0">
-                              <span className="font-mono font-semibold text-slate-900">
+                              <span className="font-mono font-semibold text-slate-900 dark:text-slate-100">
                                 {p.documentNumber || p.titleCode}
                               </span>{' '}
-                              <span className="text-slate-500">
+                              <span className="text-slate-500 dark:text-slate-400">
                                 · {p.description} · Venc. {formatDueDateLocalBR(p.dueDate)}
                               </span>
                             </div>
@@ -3315,15 +3276,15 @@ export const ClientDetailModal: React.FC<{
                               <span
                                 className={
                                   stU === 'PAGO'
-                                    ? 'font-bold text-emerald-800'
+                                    ? 'font-bold text-emerald-800 dark:text-emerald-300'
                                     : stU === 'PARCIAL'
-                                    ? 'font-bold text-blue-700'
-                                    : 'text-slate-600'
+                                    ? 'font-bold text-blue-700 dark:text-blue-300'
+                                    : 'text-slate-600 dark:text-slate-300'
                                 }
                               >
                                 {translateTitleStatus(p.status)}
                               </span>
-                              <span className="font-bold text-slate-900">
+                              <span className="font-bold text-slate-900 dark:text-slate-100">
                                 {formatBRL(stU === 'PAGO' ? 0 : p.currentBalanceCents ?? p.amountCents)}
                               </span>
                             </div>
@@ -3337,11 +3298,11 @@ export const ClientDetailModal: React.FC<{
 
               {/* Admissões / Contratos */}
               <div className="space-y-2.5">
-                <h4 className="font-display text-xs font-bold uppercase tracking-wider text-slate-600">
+                <h4 className="font-display text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
                   Admissões / Contratos ({clientAdmissions.length})
                 </h4>
                 {clientAdmissions.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-slate-200 p-4 text-center text-slate-500">
+                  <div className="rounded-lg border border-dashed border-slate-200 p-4 text-center text-slate-500 dark:border-slate-700 dark:text-slate-400">
                     Nenhuma ficha de admissão vinculada a este cliente.
                   </div>
                 ) : (
@@ -3354,18 +3315,18 @@ export const ClientDetailModal: React.FC<{
                       const statusColor = ['APROVADA', 'FINALIZADA', 'CONCLUIDO', 'AUDITADA'].includes(
                         admStatusUpper
                       )
-                        ? 'text-emerald-700'
+                        ? 'text-emerald-700 dark:text-emerald-300'
                         : admStatusUpper === 'REPROVADA'
-                        ? 'text-red-700'
+                        ? 'text-red-700 dark:text-red-300'
                         : 'text-amber-700';
                       return (
                         <div
                           key={adm.id}
-                          className="rounded-lg border border-slate-200 p-3.5 space-y-2 bg-white"
+                          className="rounded-lg border border-slate-200 p-3.5 space-y-2 bg-white dark:border-slate-700 dark:bg-slate-900"
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div>
-                              <div className="font-semibold text-slate-900">
+                              <div className="font-semibold text-slate-900 dark:text-slate-100">
                                 Contrato{' '}
                                 <span className="font-mono">{adm.contractNumber || adm.protocolCode}</span>
                               </div>
@@ -3376,36 +3337,36 @@ export const ClientDetailModal: React.FC<{
                             <button
                               type="button"
                               onClick={() => onOpenAdmission(adm)}
-                              className="inline-flex items-center gap-1 rounded border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-800 hover:bg-slate-50"
+                              className="inline-flex items-center gap-1 rounded border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-800 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
                             >
                               <Eye className="w-3 h-3" />
                               Ver Ficha
                             </button>
                           </div>
                           {admDetail?.hasAddendum && (
-                            <div className="text-[11px] font-semibold text-red-700">
+                            <div className="text-[11px] font-semibold text-red-700 dark:text-red-300">
                               Aditivo Contratual ({admDetail.addendumsCount}) ·{' '}
                               {formatDateBR(admDetail.latestAddendumDate)}
                             </div>
                           )}
-                          <div className="grid grid-cols-3 gap-2 text-[11px] text-slate-600 pt-1 border-t border-slate-100">
+                          <div className="grid grid-cols-3 gap-2 text-[11px] text-slate-600 pt-1 border-t border-slate-100 dark:text-slate-300 dark:border-slate-800">
                             <div>
-                              <span className="block text-slate-400">Parcelas</span>
-                              <span className="font-mono font-semibold text-slate-800">
+                              <span className="block text-slate-400 dark:text-slate-400">Parcelas</span>
+                              <span className="font-mono font-semibold text-slate-800 dark:text-slate-100">
                                 {adm.debtPaidInstallments ?? 0}/{adm.debtTotalInstallments ?? 0}
                               </span>
                             </div>
                             <div>
-                              <span className="block text-slate-400">Negociado</span>
-                              <span className="font-mono font-semibold text-slate-800 tabular-nums">
+                              <span className="block text-slate-400 dark:text-slate-400">Negociado</span>
+                              <span className="font-mono font-semibold text-slate-800 tabular-nums dark:text-slate-100">
                                 {formatBRL(
                                   adm.serviceFeeCents || adm.financedAmountCents || adm.debtAmountCents
                                 )}
                               </span>
                             </div>
                             <div>
-                              <span className="block text-slate-400">Venc.</span>
-                              <span className="font-mono font-semibold text-slate-800">
+                              <span className="block text-slate-400 dark:text-slate-400">Venc.</span>
+                              <span className="font-mono font-semibold text-slate-800 dark:text-slate-100">
                                 Dia {adm.debtDueDay ?? '—'}
                               </span>
                             </div>
@@ -3424,69 +3385,69 @@ export const ClientDetailModal: React.FC<{
             <div className="space-y-4">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
                 {/* CONTAINER ESTREITO ESQUERDO: Dados do Cliente + Botão Visualizar Anexos */}
-                <div className="lg:col-span-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 space-y-3">
-                  <div className="border-b border-slate-200 pb-2">
-                    <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500">
+                <div className="lg:col-span-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 space-y-3 dark:border-slate-700 dark:bg-slate-800/60">
+                  <div className="border-b border-slate-200 pb-2 dark:border-slate-700">
+                    <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400">
                       Cliente em Atendimento
                     </div>
-                    <div className="font-display text-sm font-bold text-slate-900 mt-0.5">
+                    <div className="font-display text-sm font-bold text-slate-900 mt-0.5 dark:text-slate-100">
                       {client.fullName}
                     </div>
-                    <div className="font-mono text-[11px] text-slate-600 mt-0.5">
+                    <div className="font-mono text-[11px] text-slate-600 mt-0.5 dark:text-slate-300">
                       {client.cpfCnpj || 'CPF/CNPJ não informado'}
                     </div>
                   </div>
 
                   <div className="space-y-2 text-[11px]">
                     <div>
-                      <span className="text-slate-500 block">Telefone / WhatsApp</span>
-                      <span className="font-mono font-semibold text-slate-900">
+                      <span className="text-slate-500 block dark:text-slate-400">Telefone / WhatsApp</span>
+                      <span className="font-mono font-semibold text-slate-900 dark:text-slate-100">
                         {client.whatsapp || client.phone || '—'}
                       </span>
                     </div>
                     <div>
-                      <span className="text-slate-500 block">E-mail</span>
-                      <span className="text-slate-800 break-all">{client.email || '—'}</span>
+                      <span className="text-slate-500 block dark:text-slate-400">E-mail</span>
+                      <span className="text-slate-800 break-all dark:text-slate-100">{client.email || '—'}</span>
                     </div>
                     <div>
-                      <span className="text-slate-500 block">Cidade / UF</span>
-                      <span className="text-slate-800">
+                      <span className="text-slate-500 block dark:text-slate-400">Cidade / UF</span>
+                      <span className="text-slate-800 dark:text-slate-100">
                         {[client.city, client.state].filter(Boolean).join(' · ') || '—'}
                       </span>
                     </div>
                     <div>
-                      <span className="text-slate-500 block">Status Cadastro</span>
+                      <span className="text-slate-500 block dark:text-slate-400">Status Cadastro</span>
                       <span
                         className={`font-mono font-bold uppercase ${
-                          isBlocked ? 'text-red-700' : 'text-emerald-800'
+                          isBlocked ? 'text-red-700 dark:text-red-300' : 'text-emerald-800 dark:text-emerald-300'
                         }`}
                       >
                         {client.status}
                       </span>
                     </div>
                     <div>
-                      <span className="text-slate-500 block">Saldo Aberto na Cobrança</span>
-                      <span className="font-mono font-bold text-slate-900 tabular-nums">
+                      <span className="text-slate-500 block dark:text-slate-400">Saldo Aberto na Cobrança</span>
+                      <span className="font-mono font-bold text-slate-900 tabular-nums dark:text-slate-100">
                         {formatBRL(clientOpenCents)}
                       </span>
                     </div>
                     {primaryAdmission && (
                       <div>
-                        <span className="text-slate-500 block">Contrato Principal</span>
-                        <span className="font-mono font-semibold text-slate-800">
+                        <span className="text-slate-500 block dark:text-slate-400">Contrato Principal</span>
+                        <span className="font-mono font-semibold text-slate-800 dark:text-slate-100">
                           {primaryAdmission.contractNumber || primaryAdmission.protocolCode}
                         </span>
                       </div>
                     )}
                   </div>
 
-                  <div className="pt-2 border-t border-slate-200 space-y-2">
+                  <div className="pt-2 border-t border-slate-200 space-y-2 dark:border-slate-700">
                     <button
                       type="button"
                       onClick={() => setAttachmentsOpen((prev) => !prev)}
-                      className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-100"
+                      className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
                     >
-                      <FolderOpen className="w-3.5 h-3.5 text-blue-700 shrink-0" />
+                      <FolderOpen className="w-3.5 h-3.5 text-blue-700 shrink-0 dark:text-blue-300" />
                       Visualizar Anexos ({clientBucketDocs.length})
                     </button>
 
@@ -3494,7 +3455,7 @@ export const ClientDetailModal: React.FC<{
                       <button
                         type="button"
                         onClick={() => onOpenAdmission(primaryAdmission)}
-                        className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
+                        className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                       >
                         <FileText className="w-3 h-3" />
                         Abrir Ficha do Cliente
@@ -3503,22 +3464,22 @@ export const ClientDetailModal: React.FC<{
                   </div>
 
                   {attachmentsOpen && (
-                    <div className="pt-2 border-t border-slate-200 space-y-2">
-                      <div className="text-[11px] font-bold text-slate-700">
+                    <div className="pt-2 border-t border-slate-200 space-y-2 dark:border-slate-700">
+                      <div className="text-[11px] font-bold text-slate-700 dark:text-slate-200">
                         Arquivos no Bucket da Invicta ({clientBucketDocs.length})
                       </div>
                       {clientBucketDocs.length === 0 ? (
-                        <div className="text-[11px] text-slate-500 py-2">
+                        <div className="text-[11px] text-slate-500 py-2 dark:text-slate-400">
                           Nenhum anexo encontrado para este cliente.
                         </div>
                       ) : (
-                        <div className="max-h-56 overflow-y-auto divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
+                        <div className="max-h-56 overflow-y-auto divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-900">
                           {clientBucketDocs.map((doc) => (
                             <div key={doc.id} className="p-2 space-y-1">
-                              <div className="text-[11px] font-semibold text-slate-900 truncate">
+                              <div className="text-[11px] font-semibold text-slate-900 truncate dark:text-slate-100">
                                 {doc.fileName}
                               </div>
-                              <div className="flex items-center justify-between text-[10px] font-mono text-slate-500">
+                              <div className="flex items-center justify-between text-[10px] font-mono text-slate-500 dark:text-slate-400">
                                 <span>{doc.docCategory}</span>
                                 <div className="flex items-center gap-2">
                                   <button
@@ -3526,14 +3487,14 @@ export const ClientDetailModal: React.FC<{
                                     onClick={() =>
                                       setPreviewBucketDoc((p) => (p?.id === doc.id ? null : doc))
                                     }
-                                    className="text-blue-700 font-bold hover:underline"
+                                    className="text-blue-700 font-bold hover:underline dark:text-blue-300"
                                   >
                                     Ver
                                   </button>
                                   <button
                                     type="button"
                                     onClick={() => void downloadAuthenticatedDocument(doc)}
-                                    className="text-slate-700 hover:underline"
+                                    className="text-slate-700 hover:underline dark:text-slate-200"
                                   >
                                     Baixar
                                   </button>
@@ -3548,7 +3509,7 @@ export const ClientDetailModal: React.FC<{
                 </div>
 
                 {/* CONTAINER CENTRAL MAIOR: Ligações Uazapi + Conversas ocorridas via GoTalk e/ou Uazapi */}
-                <div className="lg:col-span-6 rounded-xl border border-slate-200 bg-white p-3.5 space-y-3">
+                <div className="lg:col-span-6 rounded-xl border border-slate-200 bg-white p-3.5 space-y-3 dark:border-slate-700 dark:bg-slate-900">
                   {previewBucketDoc && (
                     <AuthenticatedBucketViewer
                       doc={previewBucketDoc}
@@ -3564,21 +3525,21 @@ export const ClientDetailModal: React.FC<{
                   />
 
                   {!activeThread ? (
-                    <div className="py-12 text-center text-slate-500 border border-dashed border-slate-200 rounded-lg px-4">
+                    <div className="py-12 text-center text-slate-500 border border-dashed border-slate-200 rounded-lg px-4 dark:text-slate-400 dark:border-slate-700">
                       Nenhuma conversa GoTalk ou Uazapi registrada para o telefone deste cliente ainda. Você pode iniciar uma ligação via Uazapi acima.
                     </div>
                   ) : (
                     <>
-                      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5 dark:border-slate-700 dark:bg-slate-800/70">
                         <div className="min-w-0">
-                          <div className="font-semibold text-slate-900 truncate">
+                          <div className="font-semibold text-slate-900 truncate dark:text-slate-100">
                             {activeThread.contactName || client.fullName}{' '}
-                            <span className="font-mono text-slate-500">
+                            <span className="font-mono text-slate-500 dark:text-slate-400">
                               ({activeThread.contactPhone})
                             </span>
                           </div>
-                          <div className="text-[11px] font-mono text-slate-500">
-                            Provedor ativo: <strong className="text-slate-800">{activeThread.provider.toUpperCase()}</strong>
+                          <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                            Provedor ativo: <strong className="text-slate-800 dark:text-slate-100">{activeThread.provider.toUpperCase()}</strong>
                             {activeThread.uazapiInstanceId ? ` · Instância ${activeThread.uazapiInstanceId}` : ''}
                             {activeThread.gotalkAttendanceId ? ` · Atend. ${activeThread.gotalkAttendanceId}` : ''}
                           </div>
@@ -3588,7 +3549,7 @@ export const ClientDetailModal: React.FC<{
                           <select
                             value={String(activeThread.id)}
                             onChange={(e) => setSelectedThreadId(Number(e.target.value))}
-                            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-mono text-slate-800"
+                            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-mono text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                           >
                             {clientThreads.map((th) => (
                               <option key={th.id} value={String(th.id)}>
@@ -3600,9 +3561,9 @@ export const ClientDetailModal: React.FC<{
                         )}
                       </div>
 
-                      <div className="border border-slate-200 rounded-lg p-3 h-80 overflow-y-auto space-y-2.5 bg-slate-50/50">
+                      <div className="border border-slate-200 rounded-lg p-3 h-80 overflow-y-auto space-y-2.5 bg-slate-50/50 dark:border-slate-700 dark:bg-slate-800/60">
                         {activeThreadMessages.length === 0 ? (
-                          <div className="text-center text-slate-400 py-10">
+                          <div className="text-center text-slate-400 py-10 dark:text-slate-400">
                             Sem mensagens registradas nesta conversa.
                           </div>
                         ) : (
@@ -3611,8 +3572,8 @@ export const ClientDetailModal: React.FC<{
                               key={m.id}
                               className={`rounded-lg px-3 py-2 max-w-[85%] ${
                                 m.direction === 'outbound'
-                                  ? 'ml-auto bg-slate-900 text-white'
-                                  : 'bg-white border border-slate-200 text-slate-800'
+                                  ? 'ml-auto bg-slate-900 text-white dark:bg-emerald-600'
+                                  : 'bg-white border border-slate-200 text-slate-800 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100'
                               }`}
                             >
                               <div className="text-[10px] opacity-75 font-mono mb-0.5 flex items-center justify-between gap-2">
@@ -3627,7 +3588,7 @@ export const ClientDetailModal: React.FC<{
                                   className={`mt-1.5 rounded px-2 py-1 text-[11px] ${
                                     m.direction === 'outbound'
                                       ? 'bg-slate-800 text-slate-200'
-                                      : 'bg-blue-50 text-blue-900 border border-blue-100'
+                                      : 'bg-blue-50 text-blue-900 border border-blue-100 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800/70'
                                   }`}
                                 >
                                   <strong>Transcrição Ivi:</strong> {m.iviAudioTranscript}
@@ -3644,7 +3605,7 @@ export const ClientDetailModal: React.FC<{
                       </div>
 
                       {msgFeedback && (
-                        <div className="text-xs font-medium text-emerald-700">{msgFeedback}</div>
+                        <div className="text-xs font-medium text-emerald-700 dark:text-emerald-300">{msgFeedback}</div>
                       )}
 
                       <div className="flex flex-col sm:flex-row gap-2">
@@ -3653,7 +3614,7 @@ export const ClientDetailModal: React.FC<{
                           value={replyText}
                           onChange={(e) => setReplyText(e.target.value)}
                           placeholder="Enviar mensagem para o cliente..."
-                          className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-xs"
+                          className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-xs dark:border-slate-700"
                         />
                         <button
                           type="button"
@@ -3667,11 +3628,11 @@ export const ClientDetailModal: React.FC<{
                       </div>
 
                       {gotalkHsmTemplates.length > 0 && (
-                        <div className="flex flex-col sm:flex-row items-center gap-2 pt-2 border-t border-slate-100">
+                        <div className="flex flex-col sm:flex-row items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                           <select
                             value={selectedHsmId}
                             onChange={(e) => setSelectedHsmId(e.target.value)}
-                            className="flex-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs"
+                            className="flex-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                           >
                             <option value="">Selecionar Template HSM (Ativo)...</option>
                             {gotalkHsmTemplates.map((t) => (
@@ -3684,7 +3645,7 @@ export const ClientDetailModal: React.FC<{
                             type="button"
                             disabled={sendingMsg || !selectedHsmId}
                             onClick={() => void handleSendHsm()}
-                            className="rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+                            className="rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
                           >
                             Disparar HSM
                           </button>
@@ -3697,43 +3658,43 @@ export const ClientDetailModal: React.FC<{
                 {/* CONTAINER ESTREITO DIREITO: Dados do Operador + Resumo da Ivi */}
                 <div className="lg:col-span-3 space-y-3">
                   {/* Card do Operador Responsável */}
-                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 space-y-2">
-                    <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 space-y-2 dark:border-slate-700 dark:bg-slate-800/60">
+                    <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400">
                       Operador do Atendimento
                     </div>
                     {matchedOperatorInfo ? (
                       <div className="space-y-1.5 text-[11px]">
-                        <div className="font-display text-xs font-bold text-slate-900">
+                        <div className="font-display text-xs font-bold text-slate-900 dark:text-slate-100">
                           {matchedOperatorInfo.name}
                         </div>
-                        <div className="text-slate-600">{matchedOperatorInfo.role}</div>
-                        <div className="text-slate-600">
-                          Depto: <strong className="text-slate-800">{matchedOperatorInfo.department}</strong>
+                        <div className="text-slate-600 dark:text-slate-300">{matchedOperatorInfo.role}</div>
+                        <div className="text-slate-600 dark:text-slate-300">
+                          Depto: <strong className="text-slate-800 dark:text-slate-100">{matchedOperatorInfo.department}</strong>
                         </div>
                         {matchedOperatorInfo.phone && (
-                          <div className="font-mono text-slate-700">{matchedOperatorInfo.phone}</div>
+                          <div className="font-mono text-slate-700 dark:text-slate-200">{matchedOperatorInfo.phone}</div>
                         )}
                         {matchedOperatorInfo.email && (
-                          <div className="text-slate-600 break-all">{matchedOperatorInfo.email}</div>
+                          <div className="text-slate-600 break-all dark:text-slate-300">{matchedOperatorInfo.email}</div>
                         )}
                         {matchedOperatorInfo.points !== null && (
-                          <div className="pt-1 border-t border-slate-200 font-mono font-bold text-blue-700">
+                          <div className="pt-1 border-t border-slate-200 font-mono font-bold text-blue-700 dark:border-slate-700 dark:text-blue-300">
                             {matchedOperatorInfo.points.toLocaleString('pt-BR')} pts no Ranking
                           </div>
                         )}
                       </div>
                     ) : (
-                      <div className="text-[11px] text-slate-500">
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">
                         Atendimento sem operador atribuído nesta conversa.
                       </div>
                     )}
                   </div>
 
                   {/* Card Resumo da Ivi */}
-                  <div className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-2.5">
-                    <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
-                      <div className="flex items-center gap-1.5 font-display text-xs font-bold text-slate-900">
-                        <Bot className="w-4 h-4 text-blue-700 shrink-0" />
+                  <div className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-2.5 dark:border-slate-700 dark:bg-slate-900">
+                    <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2 dark:border-slate-800">
+                      <div className="flex items-center gap-1.5 font-display text-xs font-bold text-slate-900 dark:text-slate-100">
+                        <Bot className="w-4 h-4 text-blue-700 shrink-0 dark:text-blue-300" />
                         Resumo da Ivi
                       </div>
                       <button
@@ -3741,44 +3702,44 @@ export const ClientDetailModal: React.FC<{
                         disabled={iviSummaryLoading}
                         onClick={() => void fetchIviWhatsappSummary(true)}
                         title="Atualizar resumo da Ivi"
-                        className="p-1 rounded border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                        className="p-1 rounded border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                       >
                         <RefreshCw className={`w-3 h-3 ${iviSummaryLoading ? 'animate-spin' : ''}`} />
                       </button>
                     </div>
 
                     {iviSummaryLoading && !currentIviSummary ? (
-                      <div className="py-4 text-[11px] text-slate-500">
+                      <div className="py-4 text-[11px] text-slate-500 dark:text-slate-400">
                         Ivi analisando as conversas GoTalk/Uazapi...
                       </div>
                     ) : iviSummaryError ? (
-                      <div className="text-[11px] text-red-700 bg-red-50 border border-red-200 rounded p-2">
+                      <div className="text-[11px] text-red-700 bg-red-50 border border-red-200 rounded p-2 dark:text-red-300 dark:bg-red-950/50 dark:border-red-800/70">
                         {iviSummaryError}
                       </div>
                     ) : currentIviSummary ? (
                       <div className="space-y-2.5 text-[11px]">
-                        <div className="flex items-center justify-between text-[10px] font-mono text-slate-500">
-                          <span>Sentimento: <strong className="text-slate-800">{currentIviSummary.sentiment}</strong></span>
+                        <div className="flex items-center justify-between text-[10px] font-mono text-slate-500 dark:text-slate-400">
+                          <span>Sentimento: <strong className="text-slate-800 dark:text-slate-100">{currentIviSummary.sentiment}</strong></span>
                           <span>{formatDateTimeBR(currentIviSummary.analyzedAt)}</span>
                         </div>
-                        <p className="text-slate-800 leading-relaxed">{currentIviSummary.summary}</p>
+                        <p className="text-slate-800 leading-relaxed dark:text-slate-100">{currentIviSummary.summary}</p>
                         {currentIviSummary.commitments.length > 0 && (
                           <div className="space-y-1">
-                            <div className="font-bold text-slate-700">Compromissos / Sinais:</div>
-                            <ul className="list-disc pl-4 space-y-0.5 text-slate-600">
+                            <div className="font-bold text-slate-700 dark:text-slate-200">Compromissos / Sinais:</div>
+                            <ul className="list-disc pl-4 space-y-0.5 text-slate-600 dark:text-slate-300">
                               {currentIviSummary.commitments.map((c, idx) => (
                                 <li key={idx}>{c}</li>
                               ))}
                             </ul>
                           </div>
                         )}
-                        <div className="rounded-lg border border-blue-100 bg-blue-50/70 p-2 text-blue-950">
+                        <div className="rounded-lg border border-blue-100 bg-blue-50/70 p-2 text-blue-950 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300">
                           <span className="font-bold block text-[10px] uppercase">Próxima Ação Sugerida</span>
                           {currentIviSummary.recommendedNextStep}
                         </div>
                       </div>
                     ) : (
-                      <div className="text-[11px] text-slate-500">
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">
                         Clique em atualizar para a Ivi resumir esta conversa.
                       </div>
                     )}
@@ -3797,8 +3758,8 @@ export const ClientDetailModal: React.FC<{
                     onClick={() => setAttendanceFilterScope('client')}
                     className={`rounded-lg px-3 py-1.5 text-xs font-semibold border ${
                       attendanceFilterScope === 'client'
-                        ? 'bg-slate-900 text-white border-slate-900'
-                        : 'bg-white text-slate-700 border-slate-200'
+                        ? 'bg-slate-900 text-white border-slate-900 dark:bg-emerald-600 dark:border-emerald-500'
+                        : 'bg-white text-slate-700 border-slate-200 dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700'
                     }`}
                   >
                     Cliente
@@ -3808,8 +3769,8 @@ export const ClientDetailModal: React.FC<{
                     onClick={() => setAttendanceFilterScope('all')}
                     className={`rounded-lg px-3 py-1.5 text-xs font-semibold border ${
                       attendanceFilterScope === 'all'
-                        ? 'bg-slate-900 text-white border-slate-900'
-                        : 'bg-white text-slate-700 border-slate-200'
+                        ? 'bg-slate-900 text-white border-slate-900 dark:bg-emerald-600 dark:border-emerald-500'
+                        : 'bg-white text-slate-700 border-slate-200 dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700'
                     }`}
                   >
                     Todos
@@ -3818,7 +3779,7 @@ export const ClientDetailModal: React.FC<{
                 <select
                   value={attendanceCollabFilter}
                   onChange={(e) => setAttendanceCollabFilter(e.target.value)}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs"
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                 >
                   <option value="">Todos os atendentes</option>
                   {collaborators.map((c) => (
@@ -3830,29 +3791,29 @@ export const ClientDetailModal: React.FC<{
               </div>
 
               {filteredAttendances.length === 0 ? (
-                <div className="py-10 text-center text-slate-500 border border-dashed border-slate-200 rounded-lg">
+                <div className="py-10 text-center text-slate-500 border border-dashed border-slate-200 rounded-lg dark:text-slate-400 dark:border-slate-700">
                   Nenhum atendimento encontrado para o filtro selecionado.
                 </div>
               ) : (
-                <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg">
+                <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg dark:divide-slate-800 dark:border-slate-700">
                   {filteredAttendances.map((th) => (
                     <div
                       key={th.id}
                       className="px-3.5 py-2.5 flex items-center justify-between gap-3"
                     >
                       <div className="min-w-0">
-                        <div className="font-semibold text-slate-900">
+                        <div className="font-semibold text-slate-900 dark:text-slate-100">
                           {th.contactName || th.contactPhone || 'Contato desconhecido'} ·{' '}
-                          <span className="font-mono text-[11px] text-slate-500">
+                          <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400">
                             {th.provider.toUpperCase()}
                           </span>
                         </div>
-                        <div className="text-[11px] text-slate-500 truncate">
+                        <div className="text-[11px] text-slate-500 truncate dark:text-slate-400">
                           Operador: {th.operatorName || 'Sem operador'} ·{' '}
                           {th.lastMessagePreview || 'Sem mensagens'}
                         </div>
                       </div>
-                      <span className="font-mono text-[11px] text-slate-500 shrink-0">
+                      <span className="font-mono text-[11px] text-slate-500 shrink-0 dark:text-slate-400">
                         {formatDateTimeBR(th.updatedAt)}
                       </span>
                     </div>
@@ -3863,11 +3824,11 @@ export const ClientDetailModal: React.FC<{
           )}
         </div>
 
-        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex justify-end">
+        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex justify-end dark:border-slate-700 dark:bg-slate-800/70">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+            className="rounded-lg border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             Fechar
           </button>
@@ -3925,14 +3886,14 @@ export const OperatorShadowModal: React.FC<{
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-6xl rounded-xl border border-slate-200 bg-white shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
+        className="w-full max-w-6xl rounded-xl border border-slate-200 bg-white shadow-2xl overflow-hidden flex flex-col max-h-[92vh] dark:border-slate-700 dark:bg-slate-900"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-5 py-3.5 border-b border-slate-200 bg-slate-900 text-white flex flex-wrap items-center justify-between gap-3">
+        <div className="px-5 py-3.5 border-b border-slate-200 bg-slate-900 text-white flex flex-wrap items-center justify-between gap-3 dark:border-slate-700 dark:bg-emerald-600">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <Monitor className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -3950,7 +3911,7 @@ export const OperatorShadowModal: React.FC<{
             <select
               value={String(collaboratorId)}
               onChange={(e) => onChangeCollaborator(Number(e.target.value))}
-              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-white"
+              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-white dark:text-slate-100"
             >
               {collaborators.map((c) => (
                 <option key={c.id} value={String(c.id)}>
@@ -3979,55 +3940,55 @@ export const OperatorShadowModal: React.FC<{
 
         <div className="p-5 flex-1 overflow-y-auto space-y-4 text-xs">
           {errorMsg && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-800">
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-800 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
               {errorMsg}
             </div>
           )}
 
           {loading && !mirror ? (
-            <div className="py-16 text-center text-slate-500">
+            <div className="py-16 text-center text-slate-500 dark:text-slate-400">
               Carregando visão em tempo real do operador...
             </div>
           ) : mirror ? (
             <>
               {/* Indicadores do Operador */}
               <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <div className="text-[11px] text-slate-500">Operador</div>
-                  <div className="font-bold text-slate-900 truncate">{mirror.collaborator.name}</div>
-                  <div className="text-[11px] font-mono text-blue-700">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/70">
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Operador</div>
+                  <div className="font-bold text-slate-900 truncate dark:text-slate-100">{mirror.collaborator.name}</div>
+                  <div className="text-[11px] font-mono text-blue-700 dark:text-blue-300">
                     {mirror.linkedUser
                       ? `#${mirror.linkedUser.rankPosition} · ${mirror.linkedUser.points} pts`
                       : 'Sem usuário'}
                   </div>
                 </div>
-                <div className="rounded-lg border border-slate-200 p-3">
-                  <div className="text-[11px] text-slate-500">Na Fila (Aberto)</div>
-                  <div className="font-mono text-base font-bold text-slate-900 tabular-nums">
+                <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Na Fila (Aberto)</div>
+                  <div className="font-mono text-base font-bold text-slate-900 tabular-nums dark:text-slate-100">
                     {mirror.metrics.totalAssignedCount}
                   </div>
                 </div>
-                <div className="rounded-lg border border-slate-200 p-3">
-                  <div className="text-[11px] text-slate-500">Vencidos</div>
-                  <div className="font-mono text-base font-bold text-red-700 tabular-nums">
+                <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Vencidos</div>
+                  <div className="font-mono text-base font-bold text-red-700 tabular-nums dark:text-red-300">
                     {mirror.metrics.overdueCount}
                   </div>
                 </div>
-                <div className="rounded-lg border border-slate-200 p-3">
-                  <div className="text-[11px] text-slate-500">Saldo em Carteira</div>
-                  <div className="font-mono text-sm font-bold text-slate-900 tabular-nums">
+                <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Saldo em Carteira</div>
+                  <div className="font-mono text-sm font-bold text-slate-900 tabular-nums dark:text-slate-100">
                     {formatBRL(mirror.metrics.openBalanceCents)}
                   </div>
                 </div>
-                <div className="rounded-lg border border-slate-200 p-3">
-                  <div className="text-[11px] text-slate-500">Recuperado</div>
-                  <div className="font-mono text-sm font-bold text-emerald-800 tabular-nums">
+                <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Recuperado</div>
+                  <div className="font-mono text-sm font-bold text-emerald-800 tabular-nums dark:text-emerald-300">
                     {formatBRL(mirror.metrics.recoveredCents)} ({mirror.metrics.paidCount})
                   </div>
                 </div>
-                <div className="rounded-lg border border-slate-200 p-3">
-                  <div className="text-[11px] text-slate-500">Anotações / Canc.</div>
-                  <div className="font-mono text-sm font-bold text-slate-900 tabular-nums">
+                <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Anotações / Canc.</div>
+                  <div className="font-mono text-sm font-bold text-slate-900 tabular-nums dark:text-slate-100">
                     {mirror.metrics.notesCount} / {mirror.metrics.cancelRequestsCount}
                   </div>
                 </div>
@@ -4036,16 +3997,16 @@ export const OperatorShadowModal: React.FC<{
               {/* Visão Espelhada 2-Colunas */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
                 {/* Coluna Esquerda: Fila Priorizada do Operador */}
-                <div className="lg:col-span-5 rounded-xl border border-slate-200 overflow-hidden bg-white">
-                  <div className="px-3.5 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-                    <span className="font-display font-bold text-slate-800">
+                <div className="lg:col-span-5 rounded-xl border border-slate-200 overflow-hidden bg-white dark:border-slate-700 dark:bg-slate-900">
+                  <div className="px-3.5 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between dark:bg-slate-800/70 dark:border-slate-700">
+                    <span className="font-display font-bold text-slate-800 dark:text-slate-100">
                       Fila Priorizada do Operador ({mirror.queue.length})
                     </span>
-                    <span className="font-mono text-[10px] text-slate-500">Atraso + Saldo</span>
+                    <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400">Atraso + Saldo</span>
                   </div>
-                  <div className="max-h-[420px] overflow-y-auto divide-y divide-slate-100">
+                  <div className="max-h-[420px] overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
                     {mirror.queue.length === 0 ? (
-                      <div className="py-12 text-center text-slate-500">
+                      <div className="py-12 text-center text-slate-500 dark:text-slate-400">
                         Nenhum título atribuído a este operador.
                       </div>
                     ) : (
@@ -4058,7 +4019,7 @@ export const OperatorShadowModal: React.FC<{
                             type="button"
                             onClick={() => setSelectedTitleId(item.titleId)}
                             className={`w-full text-left px-3.5 py-2.5 transition-colors space-y-1 ${
-                              isSel ? 'bg-slate-900 text-white' : 'hover:bg-slate-50 text-slate-900'
+                              isSel ? 'bg-slate-900 text-white dark:bg-emerald-600' : 'hover:bg-slate-50 text-slate-900 dark:hover:bg-slate-800 dark:text-slate-100'
                             }`}
                           >
                             <div className="flex items-center justify-between gap-2">
@@ -4068,10 +4029,10 @@ export const OperatorShadowModal: React.FC<{
                                   isSel
                                     ? 'text-emerald-300'
                                     : stUpper === 'PAGO'
-                                    ? 'text-emerald-800'
+                                    ? 'text-emerald-800 dark:text-emerald-300'
                                     : stUpper === 'PARCIAL'
-                                    ? 'text-blue-700'
-                                    : 'text-slate-900'
+                                    ? 'text-blue-700 dark:text-blue-300'
+                                    : 'text-slate-900 dark:text-slate-100'
                                 }`}
                               >
                                 {formatBRL(
@@ -4081,7 +4042,7 @@ export const OperatorShadowModal: React.FC<{
                             </div>
                             <div
                               className={`flex items-center justify-between text-[11px] font-mono ${
-                                isSel ? 'text-slate-300' : 'text-slate-500'
+                                isSel ? 'text-slate-300' : 'text-slate-500 dark:text-slate-400'
                               }`}
                             >
                               <span>
@@ -4103,19 +4064,19 @@ export const OperatorShadowModal: React.FC<{
                 </div>
 
                 {/* Coluna Direita: Tela de Atendimento Atual do Operador */}
-                <div className="lg:col-span-7 rounded-xl border border-slate-200 bg-white p-4 space-y-4">
+                <div className="lg:col-span-7 rounded-xl border border-slate-200 bg-white p-4 space-y-4 dark:border-slate-700 dark:bg-slate-900">
                   {!activeItem ? (
-                    <div className="py-16 text-center text-slate-500">
+                    <div className="py-16 text-center text-slate-500 dark:text-slate-400">
                       Selecione um título na fila ao lado para inspecionar o andamento.
                     </div>
                   ) : (
                     <>
-                      <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-100 pb-3">
+                      <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-100 pb-3 dark:border-slate-800">
                         <div>
-                          <h4 className="font-display text-sm font-bold text-slate-900">
+                          <h4 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                             {activeItem.clientName}
                           </h4>
-                          <div className="font-mono text-[11px] text-slate-500">
+                          <div className="font-mono text-[11px] text-slate-500 dark:text-slate-400">
                             {activeItem.clientCpfCnpj || '—'} · UF {activeItem.stateCode} · Doc.{' '}
                             {activeItem.documentNumber}
                           </div>
@@ -4124,7 +4085,7 @@ export const OperatorShadowModal: React.FC<{
                           <button
                             type="button"
                             onClick={() => onInspectClient(activeItem.clientId)}
-                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-800 hover:bg-slate-50"
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-800 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
                           >
                             <Eye className="w-3.5 h-3.5" />
                             Abrir Dados do Cliente
@@ -4132,34 +4093,34 @@ export const OperatorShadowModal: React.FC<{
                         )}
                       </div>
 
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/70">
                         <div>
-                          <div className="text-[11px] text-slate-500">Vencimento</div>
-                          <div className="font-mono font-semibold text-slate-900">
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400">Vencimento</div>
+                          <div className="font-mono font-semibold text-slate-900 dark:text-slate-100">
                             {formatDueDateLocalBR(activeItem.dueDate)}
                           </div>
                         </div>
                         <div>
-                          <div className="text-[11px] text-slate-500">Valor Original</div>
-                          <div className="font-mono font-semibold text-blue-700 tabular-nums">
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400">Valor Original</div>
+                          <div className="font-mono font-semibold text-blue-700 tabular-nums dark:text-blue-300">
                             {formatBRL(activeItem.amountCents)}
                           </div>
                         </div>
                         <div>
-                          <div className="text-[11px] text-slate-500">Saldo Atual</div>
-                          <div className="font-mono font-bold text-slate-900 tabular-nums">
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400">Saldo Atual</div>
+                          <div className="font-mono font-bold text-slate-900 tabular-nums dark:text-slate-100">
                             {formatBRL(activeItem.currentBalanceCents)}
                           </div>
                         </div>
                         <div>
-                          <div className="text-[11px] text-slate-500">Status Título</div>
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400">Status Título</div>
                           <div
                             className={`font-mono font-bold ${
                               String(activeItem.status).toUpperCase() === 'PAGO'
-                                ? 'text-emerald-800'
+                                ? 'text-emerald-800 dark:text-emerald-300'
                                 : String(activeItem.status).toUpperCase() === 'PARCIAL'
-                                ? 'text-blue-700'
-                                : 'text-slate-800'
+                                ? 'text-blue-700 dark:text-blue-300'
+                                : 'text-slate-800 dark:text-slate-100'
                             }`}
                           >
                             {translateTitleStatus(activeItem.status)}
@@ -4168,23 +4129,23 @@ export const OperatorShadowModal: React.FC<{
                       </div>
 
                       {activeItem.conversationSummary && (
-                        <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 space-y-1">
-                          <div className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
-                            <Sparkles className="w-3.5 h-3.5 text-blue-700" />
+                        <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 space-y-1 dark:border-slate-700 dark:bg-slate-800/60">
+                          <div className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5 dark:text-slate-200">
+                            <Sparkles className="w-3.5 h-3.5 text-blue-700 dark:text-blue-300" />
                             Resumo Registrado no Caso
                           </div>
-                          <p className="text-slate-700 whitespace-pre-wrap">
+                          <p className="text-slate-700 whitespace-pre-wrap dark:text-slate-200">
                             {activeItem.conversationSummary}
                           </p>
                         </div>
                       )}
 
                       <div className="space-y-2">
-                        <div className="font-display text-xs font-bold text-slate-800">
+                        <div className="font-display text-xs font-bold text-slate-800 dark:text-slate-100">
                           Anotações & Tratativas do Operador ({activeNotes.length})
                         </div>
                         {activeNotes.length === 0 ? (
-                          <div className="rounded-lg border border-dashed border-slate-200 py-6 text-center text-slate-500">
+                          <div className="rounded-lg border border-dashed border-slate-200 py-6 text-center text-slate-500 dark:border-slate-700 dark:text-slate-400">
                             O operador ainda não registrou notas para este cliente/título.
                           </div>
                         ) : (
@@ -4192,19 +4153,19 @@ export const OperatorShadowModal: React.FC<{
                             {activeNotes.map((n) => (
                               <div
                                 key={n.id}
-                                className="rounded-lg border border-slate-200 p-3 space-y-1 bg-white"
+                                className="rounded-lg border border-slate-200 p-3 space-y-1 bg-white dark:border-slate-700 dark:bg-slate-900"
                               >
                                 <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
-                                  <span className="font-bold text-slate-900">
+                                  <span className="font-bold text-slate-900 dark:text-slate-100">
                                     {n.channel.toUpperCase()} · {n.negotiationStatus}
                                   </span>
-                                  <span className="font-mono text-slate-500">
+                                  <span className="font-mono text-slate-500 dark:text-slate-400">
                                     {n.contactDate} {n.contactTime} · {n.collaboratorName}
                                   </span>
                                 </div>
-                                {n.note && <p className="text-slate-700">{n.note}</p>}
+                                {n.note && <p className="text-slate-700 dark:text-slate-200">{n.note}</p>}
                                 {n.cancelRequest && (
-                                  <div className="rounded border border-amber-200 bg-amber-50 p-2 text-amber-900 text-[11px]">
+                                  <div className="rounded border border-amber-200 bg-amber-50 p-2 text-amber-900 text-[11px] dark:border-amber-800/70 dark:bg-amber-950/50 dark:text-amber-300">
                                     <strong>Solicitação de Cancelamento:</strong>{' '}
                                     {n.cancelRequest.notes || 'Registrada pelo operador'}
                                   </div>
@@ -4222,14 +4183,14 @@ export const OperatorShadowModal: React.FC<{
           ) : null}
         </div>
 
-        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs text-slate-500">
+        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-400">
           <span>
             Espelhamento passivo de leitura · Nenhuma alteração pode ser enviada desta visualização
           </span>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+            className="rounded-lg border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             Fechar
           </button>

@@ -238,12 +238,12 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({ onNavigate, acti
   return (
     <div className="space-y-6">
       {/* Executive Header */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-slate-200 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-slate-200 pb-4 dark:border-slate-700">
         <div>
-          <p className="text-xs font-medium text-slate-500">
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
             Central do Dia · {activeUnit ? `${activeUnit.name} (${activeUnit.state})` : 'Rede Completa (7 Unidades)'}
           </p>
-          <h1 className="mt-1 font-display text-2xl font-bold tracking-tight text-slate-900">
+          <h1 className="mt-1 font-display text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
             O Que Fazer Agora
           </h1>
         </div>
@@ -259,9 +259,9 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({ onNavigate, acti
           <button
             type="button"
             onClick={() => onNavigate('prospection')}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap min-h-[38px]"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap min-h-[38px] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
           >
-            <PhoneCall className="w-3.5 h-3.5 text-blue-700" />
+            <PhoneCall className="w-3.5 h-3.5 text-blue-700 dark:text-blue-300" />
             Atender Próximo Lead
           </button>
         </div>
@@ -275,7 +275,7 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({ onNavigate, acti
             mod: 'prospection' as ModuleId,
             value: String(data.leads.length),
             sub: `${data.appointments.length} agendamentos`,
-            accent: 'text-slate-900',
+            accent: 'text-slate-900 dark:text-slate-100',
             icon: PhoneCall,
           },
           {
@@ -283,7 +283,7 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({ onNavigate, acti
             mod: 'admission' as ModuleId,
             value: String(data.clientsCount),
             sub: `${data.documentsCount} arqs · ${formatBytes(data.totalVaultBytes)}`,
-            accent: 'text-slate-900',
+            accent: 'text-slate-900 dark:text-slate-100',
             icon: FileStack,
           },
           {
@@ -291,7 +291,7 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({ onNavigate, acti
             mod: 'audit' as ModuleId,
             value: String(pendingAudits),
             sub: pendingAudits > 0 ? 'Aguardando conferência' : 'Fila zerada',
-            accent: pendingAudits > 0 ? 'text-amber-700' : 'text-emerald-700',
+            accent: pendingAudits > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-emerald-700 dark:text-emerald-300',
             icon: ClipboardCheck,
           },
           {
@@ -299,7 +299,7 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({ onNavigate, acti
             mod: unreadLegal > 0 ? ('legal' as ModuleId) : ('negotiations' as ModuleId),
             value: String(unreadLegal),
             sub: `${data.negotiations.length} negociações ativas`,
-            accent: unreadLegal > 0 ? 'text-red-600' : 'text-slate-900',
+            accent: unreadLegal > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-slate-100',
             icon: Scale,
           },
           {
@@ -307,7 +307,7 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({ onNavigate, acti
             mod: 'finance' as ModuleId,
             value: formatBRL(paidTotal),
             sub: overdueTotal > 0 ? `Atraso: ${formatBRL(overdueTotal)}` : 'Carteira em dia',
-            accent: 'text-emerald-700',
+            accent: 'text-emerald-700 dark:text-emerald-300',
             icon: Banknote,
           },
         ].map((stage) => {
@@ -317,16 +317,16 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({ onNavigate, acti
               key={stage.step}
               type="button"
               onClick={() => onNavigate(stage.mod)}
-              className="text-left rounded-xl border border-slate-200 bg-white p-4 hover:border-slate-300 hover:bg-slate-50/50 transition-colors"
+              className="text-left rounded-xl border border-slate-200 bg-white p-4 hover:border-slate-300 hover:bg-slate-50/50 transition-colors dark:border-slate-700 dark:bg-slate-900"
             >
-              <div className="flex items-center justify-between gap-2 text-xs font-semibold text-slate-500">
+              <div className="flex items-center justify-between gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
                 <span>{stage.step}</span>
-                <Icon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <Icon className="w-3.5 h-3.5 text-slate-400 shrink-0 dark:text-slate-400" />
               </div>
               <div className={`mt-2 font-mono text-xl font-bold tabular-nums ${stage.accent}`}>
                 {stage.value}
               </div>
-              <div className="mt-1 text-[11px] text-slate-500 truncate">{stage.sub}</div>
+              <div className="mt-1 text-[11px] text-slate-500 truncate dark:text-slate-400">{stage.sub}</div>
             </button>
           );
         })}
@@ -335,57 +335,57 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({ onNavigate, acti
       {/* Main Action Inbox + Team Messaging */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         {/* Left: Prioritized Action Queue */}
-        <div className="lg:col-span-7 rounded-xl border border-slate-200 bg-white overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
+        <div className="lg:col-span-7 rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
+          <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between dark:border-slate-800">
             <div>
-              <h2 className="font-display text-base font-bold text-slate-900">
+              <h2 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
                 Pendências Prioritárias
               </h2>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
                 Clique em qualquer item para ir direto à tela e ao registro correspondente
               </p>
             </div>
-            <span className="font-mono text-xs font-bold text-slate-600 tabular-nums">
+            <span className="font-mono text-xs font-bold text-slate-600 tabular-nums dark:text-slate-300">
               {priorityTasks.length} ação(ões)
             </span>
           </div>
 
           {priorityTasks.length === 0 ? (
             <div className="p-8 text-center space-y-2">
-              <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" />
-              <div className="text-sm font-semibold text-slate-900">Nenhuma pendência crítica agora</div>
-              <p className="text-xs text-slate-500">
+              <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto dark:text-emerald-400" />
+              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">Nenhuma pendência crítica agora</div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Auditoria, movimentações do Escavador e fila de leads estão em dia nesta unidade.
               </p>
             </div>
           ) : (
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-slate-100 dark:divide-slate-800">
               {priorityTasks.map((task) => (
                 <div
                   key={task.id}
-                  className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/70 transition-colors"
+                  className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/70 transition-colors dark:hover:bg-slate-800"
                 >
                   <div className="min-w-0 space-y-1">
                     <div className="flex items-center gap-2 text-[11px] font-semibold">
                       {task.priority === 'alta' && (
-                        <AlertTriangle className="w-3.5 h-3.5 text-red-600 shrink-0" />
+                        <AlertTriangle className="w-3.5 h-3.5 text-red-600 shrink-0 dark:text-red-400" />
                       )}
                       <span
                         className={
-                          task.priority === 'alta' ? 'text-red-600' : 'text-blue-700'
+                          task.priority === 'alta' ? 'text-red-600 dark:text-red-400' : 'text-blue-700 dark:text-blue-300'
                         }
                       >
                         {task.sector}
                       </span>
                     </div>
-                    <div className="text-sm font-bold text-slate-900 truncate">{task.title}</div>
-                    <p className="text-xs text-slate-500">{task.subtitle}</p>
+                    <div className="text-sm font-bold text-slate-900 truncate dark:text-slate-100">{task.title}</div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{task.subtitle}</p>
                   </div>
 
                   <button
                     type="button"
                     onClick={() => onNavigate(task.targetMod, task.intent)}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 whitespace-nowrap shrink-0 min-h-[38px]"
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 whitespace-nowrap shrink-0 min-h-[38px] dark:bg-emerald-600 dark:hover:bg-emerald-500"
                   >
                     {task.cta}
                     <ArrowRight className="w-3.5 h-3.5" />
@@ -396,15 +396,15 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({ onNavigate, acti
           )}
 
           {/* Quick Operational Links Footer */}
-          <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
-            <span className="text-slate-500">
-              Acesso rápido: <strong className="text-slate-700">Ctrl+K</strong> busca qualquer cliente ou processo
+          <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs dark:bg-slate-800/70 dark:border-slate-800">
+            <span className="text-slate-500 dark:text-slate-400">
+              Acesso rápido: <strong className="text-slate-700 dark:text-slate-200">Ctrl+K</strong> busca qualquer cliente ou processo
             </span>
             <div className="flex flex-wrap gap-3">
               <button
                 type="button"
                 onClick={() => onNavigate('negotiations')}
-                className="font-semibold text-blue-700 hover:underline inline-flex items-center gap-1"
+                className="font-semibold text-blue-700 hover:underline inline-flex items-center gap-1 dark:text-blue-300"
               >
                 <TrendingDown className="w-3.5 h-3.5" />
                 Negociações ({data.negotiations.length})
@@ -412,14 +412,14 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({ onNavigate, acti
               <button
                 type="button"
                 onClick={() => onNavigate('collection')}
-                className="font-semibold text-blue-700 hover:underline"
+                className="font-semibold text-blue-700 hover:underline dark:text-blue-300"
               >
                 Cobrança ({activeCollection})
               </button>
               <button
                 type="button"
                 onClick={() => onNavigate('config')}
-                className="font-semibold text-slate-600 hover:underline"
+                className="font-semibold text-slate-600 hover:underline dark:text-slate-300"
               >
                 Configurações & SQL
               </button>
@@ -428,37 +428,37 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({ onNavigate, acti
         </div>
 
         {/* Right: Internal Team Messaging */}
-        <div className="lg:col-span-5 rounded-xl border border-slate-200 bg-white p-5 flex flex-col justify-between">
+        <div className="lg:col-span-5 rounded-xl border border-slate-200 bg-white p-5 flex flex-col justify-between dark:border-slate-700 dark:bg-slate-900">
           <div>
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h2 className="font-display text-base font-bold text-slate-900">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <h2 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
                 Mensageria Entre Setores
               </h2>
-              <span className="text-[11px] text-emerald-700 font-semibold">Tempo Real</span>
+              <span className="text-[11px] text-emerald-700 font-semibold dark:text-emerald-300">Tempo Real</span>
             </div>
 
             <div className="mt-3 space-y-2.5 max-h-64 overflow-y-auto pr-1">
               {data.internalMessages.map((m) => (
-                <div key={m.id} className="rounded-lg border border-slate-100 bg-slate-50/70 p-3">
-                  <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500">
-                    <span className="font-semibold text-slate-800">
-                      {m.senderName} · <span className="text-blue-700">{m.targetSector}</span>
+                <div key={m.id} className="rounded-lg border border-slate-100 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-800/60">
+                  <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                    <span className="font-semibold text-slate-800 dark:text-slate-100">
+                      {m.senderName} · <span className="text-blue-700 dark:text-blue-300">{m.targetSector}</span>
                     </span>
                     <span className="font-mono">{formatDateTimeBR(m.createdAt)}</span>
                   </div>
-                  <div className="mt-1 text-xs font-semibold text-slate-900">{m.subject}</div>
-                  <p className="mt-0.5 text-xs text-slate-600">{m.body}</p>
+                  <div className="mt-1 text-xs font-semibold text-slate-900 dark:text-slate-100">{m.subject}</div>
+                  <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-300">{m.body}</p>
                 </div>
               ))}
             </div>
           </div>
 
-          <form onSubmit={handleSendMessage} className="mt-4 pt-3 border-t border-slate-100 space-y-2">
+          <form onSubmit={handleSendMessage} className="mt-4 pt-3 border-t border-slate-100 space-y-2 dark:border-slate-800">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <select
                 value={msgSector}
                 onChange={(e) => setMsgSector(e.target.value)}
-                className="rounded-lg border border-slate-200 px-2.5 py-2 text-xs text-slate-800"
+                className="rounded-lg border border-slate-200 px-2.5 py-2 text-xs text-slate-800 dark:border-slate-700 dark:text-slate-100 dark:bg-slate-950"
               >
                 <option value="comercial">Comercial</option>
                 <option value="admissao">Admissão</option>
@@ -473,7 +473,7 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({ onNavigate, acti
                 value={msgSubject}
                 onChange={(e) => setMsgSubject(e.target.value)}
                 placeholder="Assunto rápido..."
-                className="sm:col-span-2 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-900"
+                className="sm:col-span-2 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-900 dark:border-slate-700 dark:text-slate-100 dark:bg-slate-950"
               />
             </div>
             <div className="flex gap-2">
@@ -482,12 +482,12 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({ onNavigate, acti
                 value={msgBody}
                 onChange={(e) => setMsgBody(e.target.value)}
                 placeholder="Enviar aviso para outro setor..."
-                className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-900"
+                className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-900 dark:border-slate-700 dark:text-slate-100 dark:bg-slate-950"
               />
               <button
                 type="submit"
                 disabled={sending}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 whitespace-nowrap"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 whitespace-nowrap dark:bg-emerald-600 dark:hover:bg-emerald-500"
               >
                 <Send className="w-3.5 h-3.5" />
                 Enviar

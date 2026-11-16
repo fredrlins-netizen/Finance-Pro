@@ -29,16 +29,16 @@ interface CompanyLegalDeadlinesPanelProps {
 }
 
 const DEADLINE_STATUS_META: Record<string, { label: string; cls: string }> = {
-  PENDENTE: { label: 'Pendente', cls: 'bg-amber-50 text-amber-800 border-amber-200' },
-  CUMPRIDO: { label: 'Cumprido', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  VENCIDO: { label: 'Vencido', cls: 'bg-red-50 text-red-700 border-red-200' },
+  PENDENTE: { label: 'Pendente', cls: 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/60 dark:text-amber-200 dark:border-amber-800/70' },
+  CUMPRIDO: { label: 'Cumprido', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800/70' },
+  VENCIDO: { label: 'Vencido', cls: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/60 dark:text-red-300 dark:border-red-800/70' },
 };
 
 const HEARING_STATUS_META: Record<string, { label: string; cls: string }> = {
-  AGENDADA: { label: 'Agendada', cls: 'bg-blue-50 text-blue-700 border-blue-200' },
-  REALIZADA: { label: 'Realizada', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  ADIADA: { label: 'Adiada', cls: 'bg-amber-50 text-amber-800 border-amber-200' },
-  CANCELADA: { label: 'Cancelada', cls: 'bg-red-50 text-red-700 border-red-200' },
+  AGENDADA: { label: 'Agendada', cls: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800/70' },
+  REALIZADA: { label: 'Realizada', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800/70' },
+  ADIADA: { label: 'Adiada', cls: 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/60 dark:text-amber-200 dark:border-amber-800/70' },
+  CANCELADA: { label: 'Cancelada', cls: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/60 dark:text-red-300 dark:border-red-800/70' },
 };
 
 const PAGE_SIZE = 10;
@@ -384,8 +384,8 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
             onClick={() => setActiveTab('DEADLINES')}
             className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-xs font-semibold ${
               activeTab === 'DEADLINES'
-                ? 'border-slate-900 bg-slate-900 text-white'
-                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                ? 'border-slate-900 bg-slate-900 text-white dark:border-emerald-500 dark:bg-emerald-600'
+                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
             }`}
           >
             <CalendarClock className="w-3.5 h-3.5" />
@@ -396,8 +396,8 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
             onClick={() => setActiveTab('HEARINGS')}
             className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-xs font-semibold ${
               activeTab === 'HEARINGS'
-                ? 'border-slate-900 bg-slate-900 text-white'
-                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                ? 'border-slate-900 bg-slate-900 text-white dark:border-emerald-500 dark:bg-emerald-600'
+                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
             }`}
           >
             <Gavel className="w-3.5 h-3.5" />
@@ -410,7 +410,7 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
             <button
               type="button"
               onClick={openNewDeadline}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
             >
               <Plus className="w-4 h-4 text-emerald-400" /> Novo Prazo
             </button>
@@ -418,7 +418,7 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
             <button
               type="button"
               onClick={openNewHearing}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
             >
               <Plus className="w-4 h-4 text-emerald-400" /> Nova Audiência
             </button>
@@ -427,8 +427,8 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
       </div>
 
       {confirmDelete && (
-        <div className="rounded-xl border border-red-300 bg-red-50 p-3 flex flex-wrap items-center justify-between gap-2 text-xs">
-          <span className="font-semibold text-red-800">{confirmDelete.label}</span>
+        <div className="rounded-xl border border-red-300 bg-red-50 p-3 flex flex-wrap items-center justify-between gap-2 text-xs dark:border-red-800/70 dark:bg-red-950/50">
+          <span className="font-semibold text-red-800 dark:text-red-300">{confirmDelete.label}</span>
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -441,7 +441,7 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
             <button
               type="button"
               onClick={() => setConfirmDelete(null)}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-1 font-semibold text-slate-700"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1 font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
             >
               Cancelar
             </button>
@@ -452,16 +452,16 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
       {/* TAB: PRAZOS */}
       {activeTab === 'DEADLINES' && (
         <div className="space-y-3">
-          <div className="rounded-xl border border-slate-200 bg-white p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-xs">
+          <div className="rounded-xl border border-slate-200 bg-white p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-xs dark:border-slate-700 dark:bg-slate-900">
             <div>
-              <label className="block text-[11px] font-semibold text-slate-500 mb-1">Status</label>
+              <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">Status</label>
               <select
                 value={dlFilterStatus}
                 onChange={(e) => {
                   setDlFilterStatus(e.target.value);
                   setDlPage(1);
                 }}
-                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5"
+                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               >
                 <option value="">Todos</option>
                 <option value="PENDENTE">Pendente</option>
@@ -470,14 +470,14 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
               </select>
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-slate-500 mb-1">Tipo</label>
+              <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">Tipo</label>
               <select
                 value={dlFilterType}
                 onChange={(e) => {
                   setDlFilterType(e.target.value);
                   setDlPage(1);
                 }}
-                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5"
+                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               >
                 <option value="">Todos</option>
                 {DEADLINE_TYPES.map((t) => (
@@ -488,7 +488,7 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
               </select>
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-slate-500 mb-1">De</label>
+              <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">De</label>
               <input
                 type="date"
                 value={dlFilterFrom}
@@ -496,11 +496,11 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
                   setDlFilterFrom(e.target.value);
                   setDlPage(1);
                 }}
-                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 dark:border-slate-700"
               />
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-slate-500 mb-1">Até</label>
+              <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">Até</label>
               <input
                 type="date"
                 value={dlFilterTo}
@@ -508,16 +508,16 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
                   setDlFilterTo(e.target.value);
                   setDlPage(1);
                 }}
-                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               />
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] font-semibold text-slate-600">
+                  <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
                     <th className="px-3 py-2.5">Processo</th>
                     <th className="px-3 py-2.5">Descrição</th>
                     <th className="px-3 py-2.5">Tipo</th>
@@ -527,10 +527,10 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
                     <th className="px-3 py-2.5 text-right">Ações</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {dlPaged.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
+                      <td colSpan={7} className="px-4 py-8 text-center text-slate-400 dark:text-slate-400">
                         Nenhum prazo encontrado
                       </td>
                     </tr>
@@ -546,20 +546,20 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
                         : '—';
 
                       return (
-                        <tr key={`${process.id}-${deadline.id}`} className="hover:bg-slate-50/70">
-                          <td className="px-3 py-2.5 font-mono text-[11px] font-semibold text-slate-900 whitespace-nowrap">
+                        <tr key={`${process.id}-${deadline.id}`} className="hover:bg-slate-50/70 dark:hover:bg-slate-800">
+                          <td className="px-3 py-2.5 font-mono text-[11px] font-semibold text-slate-900 whitespace-nowrap dark:text-slate-100">
                             {process.processNumber}
                           </td>
-                          <td className="px-3 py-2.5 text-slate-800 max-w-[240px]">
+                          <td className="px-3 py-2.5 text-slate-800 max-w-[240px] dark:text-slate-100">
                             <div className="font-medium truncate" title={deadline.description}>
                               {deadline.description}
                             </div>
                           </td>
-                          <td className="px-3 py-2.5 whitespace-nowrap text-slate-600">{deadline.type}</td>
-                          <td className="px-3 py-2.5 whitespace-nowrap tabular-nums text-slate-700">
+                          <td className="px-3 py-2.5 whitespace-nowrap text-slate-600 dark:text-slate-300">{deadline.type}</td>
+                          <td className="px-3 py-2.5 whitespace-nowrap tabular-nums text-slate-700 dark:text-slate-200">
                             {formatDateBR(deadline.dueDate)}
                           </td>
-                          <td className="px-3 py-2.5 text-slate-600">{respName}</td>
+                          <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300">{respName}</td>
                           <td className="px-3 py-2.5 whitespace-nowrap">
                             <span className={`rounded border px-1.5 py-0.5 text-[10px] font-semibold ${stMeta.cls}`}>
                               {stMeta.label}
@@ -572,7 +572,7 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
                                 disabled={busy}
                                 onClick={() => void handleMarkDeadlineCompleted(process, deadline.id)}
                                 title="Marcar como Cumprido"
-                                className="inline-flex items-center gap-1 rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 hover:bg-emerald-100"
+                                className="inline-flex items-center gap-1 rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
                               >
                                 <Check className="w-3 h-3" /> Cumprido
                               </button>
@@ -581,7 +581,7 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
                               type="button"
                               onClick={() => openEditDeadline(process, deadline)}
                               title="Editar"
-                              className="p-1.5 rounded border border-slate-200 text-slate-700 hover:bg-slate-100"
+                              className="p-1.5 rounded border border-slate-200 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                             >
                               <Edit3 className="w-3 h-3" />
                             </button>
@@ -596,7 +596,7 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
                                 })
                               }
                               title="Excluir"
-                              className="p-1.5 rounded border border-red-200 text-red-700 hover:bg-red-50"
+                              className="p-1.5 rounded border border-red-200 text-red-700 hover:bg-red-50 dark:border-red-800/70 dark:text-red-300 dark:hover:bg-red-950/60"
                             >
                               <Trash2 className="w-3 h-3" />
                             </button>
@@ -610,8 +610,8 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
             </div>
 
             {filteredDeadlines.length > PAGE_SIZE && (
-              <div className="px-4 py-2.5 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs">
-                <span className="text-slate-500">
+              <div className="px-4 py-2.5 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs dark:border-slate-700 dark:bg-slate-800/70">
+                <span className="text-slate-500 dark:text-slate-400">
                   Página {dlPage} de {dlTotalPages}
                 </span>
                 <div className="flex gap-1.5">
@@ -619,7 +619,7 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
                     type="button"
                     disabled={dlPage <= 1}
                     onClick={() => setDlPage((p) => Math.max(1, p - 1))}
-                    className="rounded border border-slate-200 bg-white px-2.5 py-1 disabled:opacity-40"
+                    className="rounded border border-slate-200 bg-white px-2.5 py-1 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900"
                   >
                     Anterior
                   </button>
@@ -627,7 +627,7 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
                     type="button"
                     disabled={dlPage >= dlTotalPages}
                     onClick={() => setDlPage((p) => Math.min(dlTotalPages, p + 1))}
-                    className="rounded border border-slate-200 bg-white px-2.5 py-1 disabled:opacity-40"
+                    className="rounded border border-slate-200 bg-white px-2.5 py-1 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900"
                   >
                     Próxima
                   </button>
@@ -641,16 +641,16 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
       {/* TAB: AUDIÊNCIAS */}
       {activeTab === 'HEARINGS' && (
         <div className="space-y-3">
-          <div className="rounded-xl border border-slate-200 bg-white p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-xs">
+          <div className="rounded-xl border border-slate-200 bg-white p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-xs dark:border-slate-700 dark:bg-slate-900">
             <div>
-              <label className="block text-[11px] font-semibold text-slate-500 mb-1">Status</label>
+              <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">Status</label>
               <select
                 value={hrFilterStatus}
                 onChange={(e) => {
                   setHrFilterStatus(e.target.value);
                   setHrPage(1);
                 }}
-                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5"
+                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               >
                 <option value="">Todos</option>
                 <option value="AGENDADA">Agendada</option>
@@ -660,14 +660,14 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
               </select>
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-slate-500 mb-1">Tipo</label>
+              <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">Tipo</label>
               <select
                 value={hrFilterType}
                 onChange={(e) => {
                   setHrFilterType(e.target.value);
                   setHrPage(1);
                 }}
-                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5"
+                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               >
                 <option value="">Todos</option>
                 {HEARING_TYPES.map((t) => (
@@ -678,7 +678,7 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
               </select>
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-slate-500 mb-1">De</label>
+              <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">De</label>
               <input
                 type="date"
                 value={hrFilterFrom}
@@ -686,11 +686,11 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
                   setHrFilterFrom(e.target.value);
                   setHrPage(1);
                 }}
-                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 dark:border-slate-700"
               />
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-slate-500 mb-1">Até</label>
+              <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">Até</label>
               <input
                 type="date"
                 value={hrFilterTo}
@@ -698,16 +698,16 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
                   setHrFilterTo(e.target.value);
                   setHrPage(1);
                 }}
-                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               />
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] font-semibold text-slate-600">
+                  <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
                     <th className="px-3 py-2.5">Processo</th>
                     <th className="px-3 py-2.5">Data/Hora</th>
                     <th className="px-3 py-2.5">Tipo</th>
@@ -716,10 +716,10 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
                     <th className="px-3 py-2.5 text-right">Ações</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {hrPaged.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
+                      <td colSpan={6} className="px-4 py-8 text-center text-slate-400 dark:text-slate-400">
                         Nenhuma audiência encontrada
                       </td>
                     </tr>
@@ -728,15 +728,15 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
                       const stMeta =
                         HEARING_STATUS_META[hearing.status] || HEARING_STATUS_META.AGENDADA;
                       return (
-                        <tr key={`${process.id}-${hearing.id}`} className="hover:bg-slate-50/70">
-                          <td className="px-3 py-2.5 font-mono text-[11px] font-semibold text-slate-900 whitespace-nowrap">
+                        <tr key={`${process.id}-${hearing.id}`} className="hover:bg-slate-50/70 dark:hover:bg-slate-800">
+                          <td className="px-3 py-2.5 font-mono text-[11px] font-semibold text-slate-900 whitespace-nowrap dark:text-slate-100">
                             {process.processNumber}
                           </td>
-                          <td className="px-3 py-2.5 whitespace-nowrap tabular-nums text-slate-800">
+                          <td className="px-3 py-2.5 whitespace-nowrap tabular-nums text-slate-800 dark:text-slate-100">
                             {formatDateBR(hearing.date)} às {hearing.time}
                           </td>
-                          <td className="px-3 py-2.5 text-slate-700">{hearing.type}</td>
-                          <td className="px-3 py-2.5 text-slate-600 max-w-[200px] truncate">
+                          <td className="px-3 py-2.5 text-slate-700 dark:text-slate-200">{hearing.type}</td>
+                          <td className="px-3 py-2.5 text-slate-600 max-w-[200px] truncate dark:text-slate-300">
                             {hearing.location || '—'}
                           </td>
                           <td className="px-3 py-2.5 whitespace-nowrap">
@@ -752,7 +752,7 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
                                   disabled={busy}
                                   onClick={() => void handleQuickHearingStatus(process, hearing.id, 'REALIZADA')}
                                   title="Marcar como Realizada"
-                                  className="inline-flex items-center gap-1 rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 hover:bg-emerald-100"
+                                  className="inline-flex items-center gap-1 rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
                                 >
                                   <Check className="w-3 h-3" /> Realizada
                                 </button>
@@ -761,7 +761,7 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
                                   disabled={busy}
                                   onClick={() => void handleQuickHearingStatus(process, hearing.id, 'ADIADA')}
                                   title="Marcar como Adiada"
-                                  className="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-800 hover:bg-amber-100"
+                                  className="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-800 hover:bg-amber-100 dark:border-amber-800/70 dark:bg-amber-950/50 dark:text-amber-300 dark:hover:bg-amber-900/60"
                                 >
                                   <Clock className="w-3 h-3" /> Adiada
                                 </button>
@@ -771,7 +771,7 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
                               type="button"
                               onClick={() => openEditHearing(process, hearing)}
                               title="Editar"
-                              className="p-1.5 rounded border border-slate-200 text-slate-700 hover:bg-slate-100"
+                              className="p-1.5 rounded border border-slate-200 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                             >
                               <Edit3 className="w-3 h-3" />
                             </button>
@@ -786,7 +786,7 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
                                 })
                               }
                               title="Excluir"
-                              className="p-1.5 rounded border border-red-200 text-red-700 hover:bg-red-50"
+                              className="p-1.5 rounded border border-red-200 text-red-700 hover:bg-red-50 dark:border-red-800/70 dark:text-red-300 dark:hover:bg-red-950/60"
                             >
                               <Trash2 className="w-3 h-3" />
                             </button>
@@ -800,8 +800,8 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
             </div>
 
             {filteredHearings.length > PAGE_SIZE && (
-              <div className="px-4 py-2.5 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs">
-                <span className="text-slate-500">
+              <div className="px-4 py-2.5 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs dark:border-slate-700 dark:bg-slate-800/70">
+                <span className="text-slate-500 dark:text-slate-400">
                   Página {hrPage} de {hrTotalPages}
                 </span>
                 <div className="flex gap-1.5">
@@ -809,7 +809,7 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
                     type="button"
                     disabled={hrPage <= 1}
                     onClick={() => setHrPage((p) => Math.max(1, p - 1))}
-                    className="rounded border border-slate-200 bg-white px-2.5 py-1 disabled:opacity-40"
+                    className="rounded border border-slate-200 bg-white px-2.5 py-1 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900"
                   >
                     Anterior
                   </button>
@@ -817,7 +817,7 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
                     type="button"
                     disabled={hrPage >= hrTotalPages}
                     onClick={() => setHrPage((p) => Math.min(hrTotalPages, p + 1))}
-                    className="rounded border border-slate-200 bg-white px-2.5 py-1 disabled:opacity-40"
+                    className="rounded border border-slate-200 bg-white px-2.5 py-1 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900"
                   >
                     Próxima
                   </button>
@@ -830,27 +830,27 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
 
       {/* Modal Novo / Editar Prazo */}
       {showDeadlineModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4" role="dialog" aria-modal="true">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80" role="dialog" aria-modal="true">
           <form
             onSubmit={handleSaveDeadlineModal}
-            className="w-full max-w-lg max-h-[90vh] rounded-2xl border border-slate-200 bg-white shadow-2xl flex flex-col overflow-hidden"
+            className="w-full max-w-lg max-h-[90vh] rounded-2xl border border-slate-200 bg-white shadow-2xl flex flex-col overflow-hidden dark:border-slate-700 dark:bg-slate-900"
           >
-            <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-              <h4 className="text-sm font-bold text-slate-900">
+            <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between bg-slate-50 dark:border-slate-700 dark:bg-slate-800/70">
+              <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">
                 {editingDeadline ? 'Editar Prazo' : 'Novo Prazo'}
               </h4>
-              <button type="button" onClick={() => setShowDeadlineModal(false)} className="p-1 text-slate-400 hover:text-slate-700">
+              <button type="button" onClick={() => setShowDeadlineModal(false)} className="p-1 text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
                 <X className="w-4 h-4" />
               </button>
             </div>
             <div className="p-5 overflow-y-auto space-y-3 text-xs">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Processo *</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Processo *</label>
                 <select
                   disabled={Boolean(editingDeadline)}
                   value={dlFormProcessId}
                   onChange={(e) => setDlFormProcessId(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 disabled:bg-slate-100"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 disabled:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                 >
                   <option value="">Selecione...</option>
                   {processes.map((p) => (
@@ -861,32 +861,32 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
                 </select>
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Descrição *</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Descrição *</label>
                 <input
                   type="text"
                   required
                   value={dlFormDesc}
                   onChange={(e) => setDlFormDesc(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Data Limite *</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Data Limite *</label>
                   <input
                     type="date"
                     required
                     value={dlFormDueDate}
                     onChange={(e) => setDlFormDueDate(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Tipo</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Tipo</label>
                   <select
                     value={dlFormType}
                     onChange={(e) => setDlFormType(e.target.value as CompanyProcessDeadline['type'])}
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                   >
                     {DEADLINE_TYPES.map((t) => (
                       <option key={t} value={t}>
@@ -896,11 +896,11 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
                   </select>
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Status</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Status</label>
                   <select
                     value={dlFormStatus}
                     onChange={(e) => setDlFormStatus(e.target.value as CompanyProcessDeadline['status'])}
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                   >
                     <option value="PENDENTE">Pendente</option>
                     <option value="CUMPRIDO">Cumprido</option>
@@ -909,11 +909,11 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
                 </div>
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Responsável</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Responsável</label>
                 <select
                   value={dlFormRespId}
                   onChange={(e) => setDlFormRespId(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                 >
                   <option value="">Nenhum</option>
                   {collaborators.map((c) => (
@@ -924,27 +924,27 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
                 </select>
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Observações</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Observações</label>
                 <textarea
                   rows={3}
                   value={dlFormNotes}
                   onChange={(e) => setDlFormNotes(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
             </div>
-            <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex justify-end gap-2 text-xs">
+            <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex justify-end gap-2 text-xs dark:border-slate-700 dark:bg-slate-800/70">
               <button
                 type="button"
                 onClick={() => setShowDeadlineModal(false)}
-                className="rounded-lg border border-slate-300 bg-white px-4 py-1.5 font-semibold text-slate-700"
+                className="rounded-lg border border-slate-300 bg-white px-4 py-1.5 font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={busy || !dlFormProcessId || !dlFormDesc || !dlFormDueDate}
-                className="rounded-lg bg-slate-900 px-4 py-1.5 font-semibold text-white hover:bg-slate-800 disabled:opacity-40"
+                className="rounded-lg bg-slate-900 px-4 py-1.5 font-semibold text-white hover:bg-slate-800 disabled:opacity-40 dark:bg-emerald-600 dark:hover:bg-emerald-500"
               >
                 {busy ? 'Salvando...' : 'Salvar'}
               </button>
@@ -955,27 +955,27 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
 
       {/* Modal Nova / Editar Audiência */}
       {showHearingModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4" role="dialog" aria-modal="true">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80" role="dialog" aria-modal="true">
           <form
             onSubmit={handleSaveHearingModal}
-            className="w-full max-w-lg max-h-[90vh] rounded-2xl border border-slate-200 bg-white shadow-2xl flex flex-col overflow-hidden"
+            className="w-full max-w-lg max-h-[90vh] rounded-2xl border border-slate-200 bg-white shadow-2xl flex flex-col overflow-hidden dark:border-slate-700 dark:bg-slate-900"
           >
-            <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-              <h4 className="text-sm font-bold text-slate-900">
+            <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between bg-slate-50 dark:border-slate-700 dark:bg-slate-800/70">
+              <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">
                 {editingHearing ? 'Editar Audiência' : 'Nova Audiência'}
               </h4>
-              <button type="button" onClick={() => setShowHearingModal(false)} className="p-1 text-slate-400 hover:text-slate-700">
+              <button type="button" onClick={() => setShowHearingModal(false)} className="p-1 text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
                 <X className="w-4 h-4" />
               </button>
             </div>
             <div className="p-5 overflow-y-auto space-y-3 text-xs">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Processo *</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Processo *</label>
                 <select
                   disabled={Boolean(editingHearing)}
                   value={hrFormProcessId}
                   onChange={(e) => setHrFormProcessId(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 disabled:bg-slate-100"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 disabled:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                 >
                   <option value="">Selecione...</option>
                   {processes.map((p) => (
@@ -987,33 +987,33 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Data *</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Data *</label>
                   <input
                     type="date"
                     required
                     value={hrFormDate}
                     onChange={(e) => setHrFormDate(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Hora *</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Hora *</label>
                   <input
                     type="time"
                     required
                     value={hrFormTime}
                     onChange={(e) => setHrFormTime(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
                   />
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Tipo</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Tipo</label>
                   <select
                     value={hrFormType}
                     onChange={(e) => setHrFormType(e.target.value as CompanyProcessHearing['type'])}
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                   >
                     {HEARING_TYPES.map((t) => (
                       <option key={t} value={t}>
@@ -1023,11 +1023,11 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
                   </select>
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Status</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Status</label>
                   <select
                     value={hrFormStatus}
                     onChange={(e) => setHrFormStatus(e.target.value as CompanyProcessHearing['status'])}
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                   >
                     <option value="AGENDADA">Agendada</option>
                     <option value="REALIZADA">Realizada</option>
@@ -1037,37 +1037,37 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
                 </div>
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Local</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Local</label>
                 <input
                   type="text"
                   value={hrFormLocation}
                   onChange={(e) => setHrFormLocation(e.target.value)}
                   placeholder="Ex: Fórum Central, Sala 301"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 dark:border-slate-600"
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Observações</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Observações</label>
                 <textarea
                   rows={3}
                   value={hrFormNotes}
                   onChange={(e) => setHrFormNotes(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
             </div>
-            <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex justify-end gap-2 text-xs">
+            <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex justify-end gap-2 text-xs dark:border-slate-700 dark:bg-slate-800/70">
               <button
                 type="button"
                 onClick={() => setShowHearingModal(false)}
-                className="rounded-lg border border-slate-300 bg-white px-4 py-1.5 font-semibold text-slate-700"
+                className="rounded-lg border border-slate-300 bg-white px-4 py-1.5 font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={busy || !hrFormProcessId || !hrFormDate || !hrFormTime}
-                className="rounded-lg bg-slate-900 px-4 py-1.5 font-semibold text-white hover:bg-slate-800 disabled:opacity-40"
+                className="rounded-lg bg-slate-900 px-4 py-1.5 font-semibold text-white hover:bg-slate-800 disabled:opacity-40 dark:bg-emerald-600 dark:hover:bg-emerald-500"
               >
                 {busy ? 'Salvando...' : 'Salvar'}
               </button>

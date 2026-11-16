@@ -511,25 +511,25 @@ export const ConfigGotalkView: React.FC<{
     const hasChildren = Boolean(opt.children && opt.children.length > 0);
     const expanded = expandedNodes[opt.id] !== false;
     return (
-      <div key={opt.id} className={depth > 0 ? 'ml-5 border-l border-slate-200 pl-3 mt-2' : 'mt-2'}>
-        <div className="flex items-start justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50/70 px-3 py-2">
+      <div key={opt.id} className={depth > 0 ? 'ml-5 border-l border-slate-200 pl-3 mt-2 dark:border-slate-700' : 'mt-2'}>
+        <div className="flex items-start justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50/70 px-3 py-2 dark:border-slate-800 dark:bg-slate-800/60">
           <div className="space-y-0.5">
             <div className="flex items-center gap-2">
               {hasChildren && (
                 <button
                   type="button"
                   onClick={() => setExpandedNodes((p) => ({ ...p, [opt.id]: !expanded }))}
-                  className="text-slate-500 hover:text-slate-900"
+                  className="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
                 >
                   {expanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
                 </button>
               )}
-              <span className="font-mono font-bold text-slate-900">[{opt.key}]</span>
-              <span className="font-semibold text-slate-900">{opt.title}</span>
+              <span className="font-mono font-bold text-slate-900 dark:text-slate-100">[{opt.key}]</span>
+              <span className="font-semibold text-slate-900 dark:text-slate-100">{opt.title}</span>
             </div>
-            <p className="text-[11px] text-slate-600">{opt.description}</p>
+            <p className="text-[11px] text-slate-600 dark:text-slate-300">{opt.description}</p>
           </div>
-          <span className="font-mono text-[10px] text-slate-500 whitespace-nowrap shrink-0">{opt.action}</span>
+          <span className="font-mono text-[10px] text-slate-500 whitespace-nowrap shrink-0 dark:text-slate-400">{opt.action}</span>
         </div>
         {hasChildren && expanded && opt.children!.map((child) => renderTreeOption(child, depth + 1))}
       </div>
@@ -539,14 +539,14 @@ export const ConfigGotalkView: React.FC<{
   return (
     <div className="space-y-4 text-xs">
       {/* Header Status & Sync */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 dark:border-slate-700 dark:bg-slate-900">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <div>
-            <div className="font-display text-sm font-bold text-slate-900">
+            <div className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
               Mensagens, Canais, Menus URA &amp; Atendimentos GoTalk Oficial
             </div>
-            <div className="text-slate-500 mt-0.5">
-              Base: <span className="font-mono text-slate-700">{gotalkConfig?.baseUrl || 'https://app.gotalk.digital'}</span>
+            <div className="text-slate-500 mt-0.5 dark:text-slate-400">
+              Base: <span className="font-mono text-slate-700 dark:text-slate-200">{gotalkConfig?.baseUrl || 'https://app.gotalk.digital'}</span>
               {' · '}
               <span className="font-mono tabular-nums">{channels.length} canal(is)</span>
               {' · '}
@@ -610,9 +610,9 @@ export const ConfigGotalkView: React.FC<{
                     setTestingConn(false);
                   }
                 }}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
               >
-                <Play className="w-3.5 h-3.5 text-emerald-600" />
+                <Play className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                 Testar Webhook
               </button>
               <button
@@ -625,7 +625,7 @@ export const ConfigGotalkView: React.FC<{
                   navigator.clipboard?.writeText(url).catch(() => {});
                   onToast('URL do Webhook GoTalk copiada.');
                 }}
-                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0"
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 <Copy className="w-3.5 h-3.5" />
                 Copiar Webhook
@@ -635,7 +635,7 @@ export const ConfigGotalkView: React.FC<{
         </div>
 
         {/* Sub-tabs */}
-        <div className="flex flex-wrap gap-1 rounded-lg bg-slate-100 p-1 w-fit">
+        <div className="flex flex-wrap gap-1 rounded-lg bg-slate-100 p-1 w-fit dark:bg-slate-800">
           {(
             [
               { id: 'messages', label: 'Grade de Mensagens (50/pág)' },
@@ -649,7 +649,7 @@ export const ConfigGotalkView: React.FC<{
               type="button"
               onClick={() => setSubTab(t.id)}
               className={`rounded-md px-3 py-1.5 font-semibold transition-colors whitespace-nowrap shrink-0 ${
-                subTab === t.id ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                subTab === t.id ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-slate-100' : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
               }`}
             >
               {t.label}
@@ -661,14 +661,14 @@ export const ConfigGotalkView: React.FC<{
       {/* SUB-ABA 1: GRADE DE MENSAGENS */}
       {subTab === 'messages' && (
         <div className="space-y-3">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 dark:border-slate-700 dark:bg-slate-900">
             <div className="flex items-center justify-between">
               <button
                 type="button"
                 onClick={() => setFiltersOpen((o) => !o)}
-                className="inline-flex items-center gap-1.5 font-semibold text-slate-800"
+                className="inline-flex items-center gap-1.5 font-semibold text-slate-800 dark:text-slate-100"
               >
-                <Filter className="w-3.5 h-3.5 text-slate-500" />
+                <Filter className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                 <span>Filtros da Grade de Mensagens</span>
                 {filtersOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
               </button>
@@ -683,14 +683,14 @@ export const ConfigGotalkView: React.FC<{
                     setMsgDir('all');
                     setMsgPage(1);
                   }}
-                  className="text-slate-500 hover:text-slate-900 font-medium whitespace-nowrap"
+                  className="text-slate-500 hover:text-slate-900 font-medium whitespace-nowrap dark:text-slate-400 dark:hover:text-white"
                 >
                   Limpar filtros
                 </button>
                 <button
                   type="button"
                   onClick={() => loadMessages(msgPage)}
-                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap"
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                 >
                   <RefreshCw className={`w-3 h-3 ${msgLoading ? 'animate-spin' : ''}`} />
                   Atualizar
@@ -699,14 +699,14 @@ export const ConfigGotalkView: React.FC<{
             </div>
 
             {filtersOpen && (
-              <div className="grid grid-cols-1 sm:grid-cols-5 gap-2.5 pt-2 border-t border-slate-100">
+              <div className="grid grid-cols-1 sm:grid-cols-5 gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
                 <select
                   value={msgChannelId}
                   onChange={(e) => {
                     setMsgChannelId(e.target.value);
                     setMsgPage(1);
                   }}
-                  className="rounded-lg border border-slate-200 px-2.5 py-1.5"
+                  className="rounded-lg border border-slate-200 px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 >
                   <option value="">Todos os Canais</option>
                   {channels.map((c) => (
@@ -720,21 +720,21 @@ export const ConfigGotalkView: React.FC<{
                   value={msgOperator}
                   onChange={(e) => setMsgOperator(e.target.value)}
                   placeholder="Operador..."
-                  className="rounded-lg border border-slate-200 px-2.5 py-1.5"
+                  className="rounded-lg border border-slate-200 px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
                 <input
                   type="text"
                   value={msgContact}
                   onChange={(e) => setMsgContact(e.target.value)}
                   placeholder="Contato ou Cliente..."
-                  className="rounded-lg border border-slate-200 px-2.5 py-1.5"
+                  className="rounded-lg border border-slate-200 px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
                 <input
                   type="text"
                   value={msgPhone}
                   onChange={(e) => setMsgPhone(e.target.value)}
                   placeholder="Telefone..."
-                  className="rounded-lg border border-slate-200 px-2.5 py-1.5 font-mono"
+                  className="rounded-lg border border-slate-200 px-2.5 py-1.5 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
                 <div className="flex gap-1.5">
                   <select
@@ -743,7 +743,7 @@ export const ConfigGotalkView: React.FC<{
                       setMsgDir(e.target.value);
                       setMsgPage(1);
                     }}
-                    className="flex-1 rounded-lg border border-slate-200 px-2.5 py-1.5"
+                    className="flex-1 rounded-lg border border-slate-200 px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   >
                     <option value="all">Todas direções</option>
                     <option value="inbound">Recebidas</option>
@@ -755,7 +755,7 @@ export const ConfigGotalkView: React.FC<{
                       setMsgPage(1);
                       loadMessages(1);
                     }}
-                    className="rounded-lg bg-slate-900 px-3 py-1.5 font-semibold text-white whitespace-nowrap"
+                    className="rounded-lg bg-slate-900 px-3 py-1.5 font-semibold text-white whitespace-nowrap dark:bg-emerald-600"
                   >
                     Buscar
                   </button>
@@ -764,33 +764,33 @@ export const ConfigGotalkView: React.FC<{
             )}
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600">
+                <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
                   <tr>
                     <th className="px-4 py-2.5 whitespace-nowrap">
-                      <button type="button" onClick={() => toggleSort('createdAt')} className="hover:text-slate-900">
+                      <button type="button" onClick={() => toggleSort('createdAt')} className="hover:text-slate-900 dark:hover:text-white">
                         Data/Hora {msgSortBy === 'createdAt' ? (msgSortDir === 'asc' ? '↑' : '↓') : ''}
                       </button>
                     </th>
                     <th className="px-4 py-2.5 whitespace-nowrap">
-                      <button type="button" onClick={() => toggleSort('phone')} className="hover:text-slate-900">
+                      <button type="button" onClick={() => toggleSort('phone')} className="hover:text-slate-900 dark:hover:text-white">
                         Telefone (Histórico) {msgSortBy === 'phone' ? (msgSortDir === 'asc' ? '↑' : '↓') : ''}
                       </button>
                     </th>
                     <th className="px-4 py-2.5 whitespace-nowrap">
-                      <button type="button" onClick={() => toggleSort('contact')} className="hover:text-slate-900">
+                      <button type="button" onClick={() => toggleSort('contact')} className="hover:text-slate-900 dark:hover:text-white">
                         Contato / Cliente {msgSortBy === 'contact' ? (msgSortDir === 'asc' ? '↑' : '↓') : ''}
                       </button>
                     </th>
                     <th className="px-4 py-2.5 whitespace-nowrap">
-                      <button type="button" onClick={() => toggleSort('operator')} className="hover:text-slate-900">
+                      <button type="button" onClick={() => toggleSort('operator')} className="hover:text-slate-900 dark:hover:text-white">
                         Operador · Canal {msgSortBy === 'operator' ? (msgSortDir === 'asc' ? '↑' : '↓') : ''}
                       </button>
                     </th>
                     <th className="px-4 py-2.5 whitespace-nowrap">
-                      <button type="button" onClick={() => toggleSort('direction')} className="hover:text-slate-900">
+                      <button type="button" onClick={() => toggleSort('direction')} className="hover:text-slate-900 dark:hover:text-white">
                         Direção {msgSortBy === 'direction' ? (msgSortDir === 'asc' ? '↑' : '↓') : ''}
                       </button>
                     </th>
@@ -798,23 +798,23 @@ export const ConfigGotalkView: React.FC<{
                     <th className="px-4 py-2.5 text-right whitespace-nowrap">Detalhes</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {msgLoading ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
+                      <td colSpan={7} className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
                         Carregando mensagens GoTalk...
                       </td>
                     </tr>
                   ) : msgRows.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
+                      <td colSpan={7} className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
                         Nenhuma mensagem GoTalk localizada para os filtros atuais.
                       </td>
                     </tr>
                   ) : (
                     msgRows.map((m) => (
                       <tr key={m.id} className="hover:bg-slate-50/80">
-                        <td className="px-4 py-2.5 font-mono text-[11px] text-slate-600 tabular-nums whitespace-nowrap">
+                        <td className="px-4 py-2.5 font-mono text-[11px] text-slate-600 tabular-nums whitespace-nowrap dark:text-slate-300">
                           {formatDateTimeBR(m.createdAt)}
                         </td>
                         <td className="px-4 py-2.5 whitespace-nowrap">
@@ -824,7 +824,7 @@ export const ConfigGotalkView: React.FC<{
                               setPhoneHistPage(1);
                               setPhoneHistTarget(m.phone);
                             }}
-                            className="inline-flex items-center gap-1 font-mono font-semibold text-blue-700 hover:underline tabular-nums"
+                            className="inline-flex items-center gap-1 font-mono font-semibold text-blue-700 hover:underline tabular-nums dark:text-blue-300"
                             title="Abrir Histórico Consolidado deste Número"
                           >
                             <Phone className="w-3 h-3" />
@@ -832,32 +832,32 @@ export const ConfigGotalkView: React.FC<{
                           </button>
                         </td>
                         <td className="px-4 py-2.5">
-                          <div className="font-medium text-slate-900 truncate max-w-[170px]">{m.contactName}</div>
+                          <div className="font-medium text-slate-900 truncate max-w-[170px] dark:text-slate-100">{m.contactName}</div>
                           {m.clientName && (
-                            <div className="text-[11px] text-slate-500 truncate max-w-[170px]">{m.clientName}</div>
+                            <div className="text-[11px] text-slate-500 truncate max-w-[170px] dark:text-slate-400">{m.clientName}</div>
                           )}
                         </td>
                         <td className="px-4 py-2.5 whitespace-nowrap">
-                          <div className="text-slate-800">{m.operatorName || 'Fila Ivi'}</div>
-                          <div className="text-[11px] text-slate-500">{m.channelName}</div>
+                          <div className="text-slate-800 dark:text-slate-100">{m.operatorName || 'Fila Ivi'}</div>
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400">{m.channelName}</div>
                         </td>
                         <td className="px-4 py-2.5 whitespace-nowrap">
                           <span
                             className={`font-semibold text-[11px] ${
-                              m.direction === 'inbound' ? 'text-blue-700' : 'text-emerald-700'
+                              m.direction === 'inbound' ? 'text-blue-700 dark:text-blue-300' : 'text-emerald-700 dark:text-emerald-300'
                             }`}
                           >
                             {m.direction === 'inbound' ? 'Entrada' : 'Saída'}
                           </span>
                         </td>
                         <td className="px-4 py-2.5 max-w-sm">
-                          <div className="text-slate-800 truncate">{m.body}</div>
+                          <div className="text-slate-800 truncate dark:text-slate-100">{m.body}</div>
                         </td>
                         <td className="px-4 py-2.5 text-right whitespace-nowrap">
                           <button
                             type="button"
                             onClick={() => setDetailMsg(m)}
-                            className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
+                            className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                           >
                             <Eye className="w-3 h-3" />
                             Ver
@@ -870,7 +870,7 @@ export const ConfigGotalkView: React.FC<{
               </table>
             </div>
 
-            <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2.5 text-slate-600">
+            <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2.5 text-slate-600 dark:border-slate-800 dark:text-slate-300">
               <span className="font-mono tabular-nums">
                 Total: {msgTotal} · Página {msgPage} de {msgTotalPages}
               </span>
@@ -879,7 +879,7 @@ export const ConfigGotalkView: React.FC<{
                   type="button"
                   disabled={msgPage <= 1}
                   onClick={() => setMsgPage((p) => Math.max(1, p - 1))}
-                  className="rounded border border-slate-200 px-2.5 py-1 font-semibold disabled:opacity-40"
+                  className="rounded border border-slate-200 px-2.5 py-1 font-semibold disabled:opacity-40 dark:border-slate-700"
                 >
                   Anterior
                 </button>
@@ -887,7 +887,7 @@ export const ConfigGotalkView: React.FC<{
                   type="button"
                   disabled={msgPage >= msgTotalPages}
                   onClick={() => setMsgPage((p) => Math.min(msgTotalPages, p + 1))}
-                  className="rounded border border-slate-200 px-2.5 py-1 font-semibold disabled:opacity-40"
+                  className="rounded border border-slate-200 px-2.5 py-1 font-semibold disabled:opacity-40 dark:border-slate-700"
                 >
                   Próxima
                 </button>
@@ -900,8 +900,8 @@ export const ConfigGotalkView: React.FC<{
       {/* SUB-ABA 2: CANAIS CONFIGURADOS */}
       {subTab === 'channels' && (
         <div className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-4">
-            <div className="text-slate-600">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+            <div className="text-slate-600 dark:text-slate-300">
               Gerencie os números oficiais GoTalk vinculados às unidades regionais.
             </div>
             {isAdmin && (
@@ -910,7 +910,7 @@ export const ConfigGotalkView: React.FC<{
                   type="button"
                   disabled={discovering}
                   onClick={handleDiscoverSuggestions}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${discovering ? 'animate-spin' : ''}`} />
                   {channels.length === 0 ? 'Detectar canal primário' : 'Sincronizar todos'}
@@ -918,7 +918,7 @@ export const ConfigGotalkView: React.FC<{
                 <button
                   type="button"
                   onClick={openNewChannel}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-1.5 font-semibold text-white hover:bg-slate-800 whitespace-nowrap"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-1.5 font-semibold text-white hover:bg-slate-800 whitespace-nowrap dark:bg-emerald-600 dark:hover:bg-emerald-500"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   Novo Canal GoTalk
@@ -928,19 +928,19 @@ export const ConfigGotalkView: React.FC<{
           </div>
 
           {suggestions.length > 0 && (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 space-y-2">
-              <div className="font-semibold text-emerald-950">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 space-y-2 dark:border-emerald-800/70 dark:bg-emerald-950/50">
+              <div className="font-semibold text-emerald-950 dark:text-emerald-300">
                 Canais remotos sugeridos pela GoTalk ({suggestions.length})
               </div>
               <div className="space-y-1.5">
                 {suggestions.map((sug) => (
                   <div
                     key={sug.suggestionKey}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-white px-3 py-2"
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-white px-3 py-2 dark:border-emerald-800/70 dark:bg-slate-900"
                   >
                     <div>
-                      <span className="font-semibold text-slate-900">{sug.name}</span>
-                      <span className="font-mono text-slate-500 ml-2">{sug.phoneNumber || 'Sem número'}</span>
+                      <span className="font-semibold text-slate-900 dark:text-slate-100">{sug.name}</span>
+                      <span className="font-mono text-slate-500 ml-2 dark:text-slate-400">{sug.phoneNumber || 'Sem número'}</span>
                     </div>
                     <div className="flex gap-2">
                       <button
@@ -968,7 +968,7 @@ export const ConfigGotalkView: React.FC<{
                         onClick={() =>
                           setSuggestions((prev) => prev.filter((x) => x.suggestionKey !== sug.suggestionKey))
                         }
-                        className="rounded border border-slate-200 px-2.5 py-1 font-semibold text-slate-600 hover:bg-slate-50"
+                        className="rounded border border-slate-200 px-2.5 py-1 font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                       >
                         Dispensar
                       </button>
@@ -979,10 +979,10 @@ export const ConfigGotalkView: React.FC<{
             </div>
           )}
 
-          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600">
+                <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
                   <tr>
                     <th className="px-4 py-2.5">Nome &amp; Notas</th>
                     <th className="px-4 py-2.5 whitespace-nowrap">Telefone</th>
@@ -992,10 +992,10 @@ export const ConfigGotalkView: React.FC<{
                     <th className="px-4 py-2.5 text-right whitespace-nowrap">Ações</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {channels.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                      <td colSpan={6} className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
                         Nenhum canal GoTalk configurado.
                       </td>
                     </tr>
@@ -1005,16 +1005,16 @@ export const ConfigGotalkView: React.FC<{
                       return (
                         <tr key={ch.id} className="hover:bg-slate-50/80">
                           <td className="px-4 py-2.5">
-                            <div className="font-semibold text-slate-900">{ch.name}</div>
-                            {ch.notes && <div className="text-[11px] text-slate-500">{ch.notes}</div>}
+                            <div className="font-semibold text-slate-900 dark:text-slate-100">{ch.name}</div>
+                            {ch.notes && <div className="text-[11px] text-slate-500 dark:text-slate-400">{ch.notes}</div>}
                           </td>
-                          <td className="px-4 py-2.5 font-mono tabular-nums text-slate-800 whitespace-nowrap">
+                          <td className="px-4 py-2.5 font-mono tabular-nums text-slate-800 whitespace-nowrap dark:text-slate-100">
                             {ch.phoneNumber || '—'}
                           </td>
-                          <td className="px-4 py-2.5 whitespace-nowrap text-slate-700">
+                          <td className="px-4 py-2.5 whitespace-nowrap text-slate-700 dark:text-slate-200">
                             {u ? `${u.code} · ${u.name}` : 'Global / Todas'}
                           </td>
-                          <td className="px-4 py-2.5 whitespace-nowrap text-slate-700">
+                          <td className="px-4 py-2.5 whitespace-nowrap text-slate-700 dark:text-slate-200">
                             {ch.isPrimary ? 'Principal' : 'Secundário'}
                           </td>
                           <td className="px-4 py-2.5 whitespace-nowrap">
@@ -1028,7 +1028,7 @@ export const ConfigGotalkView: React.FC<{
                                   await onRefreshConfig();
                                 }}
                                 className={`font-semibold ${
-                                  ch.isActive ? 'text-emerald-700' : 'text-slate-400'
+                                  ch.isActive ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-400 dark:text-slate-400'
                                 } hover:underline`}
                               >
                                 {ch.isActive ? 'Ativo' : 'Inativo'}
@@ -1043,14 +1043,14 @@ export const ConfigGotalkView: React.FC<{
                                 <button
                                   type="button"
                                   onClick={() => openEditChannel(ch)}
-                                  className="rounded-md p-1.5 text-slate-600 hover:bg-slate-100"
+                                  className="rounded-md p-1.5 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
                                 >
                                   <Edit3 className="w-3.5 h-3.5" />
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => setDeleteChTarget(ch)}
-                                  className="rounded-md p-1.5 text-red-600 hover:bg-red-50"
+                                  className="rounded-md p-1.5 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/60"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
@@ -1070,20 +1070,20 @@ export const ConfigGotalkView: React.FC<{
 
       {/* SUB-ABA 3: MENUS DO CHATBOT */}
       {subTab === 'menus' && (
-        <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4 dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
             <div>
-              <div className="font-display text-sm font-bold text-slate-900">
+              <div className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                 Árvore de Menus URA do Chatbot (Somente Leitura)
               </div>
-              <p className="text-slate-500">
+              <p className="text-slate-500 dark:text-slate-400">
                 Estrutura de triagem automática sincronizada com o fluxo de recepção GoTalk.
               </p>
             </div>
             <button
               type="button"
               onClick={loadChatbotMenus}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${menusLoading ? 'animate-spin' : ''}`} />
               Recarregar menus
@@ -1093,17 +1093,17 @@ export const ConfigGotalkView: React.FC<{
           {chatbotMenus.map((menu) => {
             const open = expandedNodes[menu.id] !== false;
             return (
-              <div key={menu.id} className="rounded-xl border border-slate-200 p-4 space-y-2">
+              <div key={menu.id} className="rounded-xl border border-slate-200 p-4 space-y-2 dark:border-slate-700">
                 <button
                   type="button"
                   onClick={() => setExpandedNodes((p) => ({ ...p, [menu.id]: !open }))}
                   className="w-full flex items-center justify-between text-left"
                 >
                   <div>
-                    <div className="font-display text-sm font-bold text-slate-900">{menu.title}</div>
-                    <div className="text-slate-500">{menu.description}</div>
+                    <div className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">{menu.title}</div>
+                    <div className="text-slate-500 dark:text-slate-400">{menu.description}</div>
                   </div>
-                  {open ? <ChevronDown className="w-4 h-4 text-slate-500" /> : <ChevronRight className="w-4 h-4 text-slate-500" />}
+                  {open ? <ChevronDown className="w-4 h-4 text-slate-500 dark:text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-500 dark:text-slate-400" />}
                 </button>
                 {open && <div>{menu.options.map((opt) => renderTreeOption(opt, 0))}</div>}
               </div>
@@ -1116,10 +1116,10 @@ export const ConfigGotalkView: React.FC<{
       {subTab === 'attendances' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           {/* Left: 20/page Attendances List */}
-          <div className="lg:col-span-5 rounded-xl border border-slate-200 bg-white overflow-hidden flex flex-col">
-            <div className="p-3 border-b border-slate-100 space-y-2">
+          <div className="lg:col-span-5 rounded-xl border border-slate-200 bg-white overflow-hidden flex flex-col dark:border-slate-700 dark:bg-slate-900">
+            <div className="p-3 border-b border-slate-100 space-y-2 dark:border-slate-800">
               <div className="flex items-center justify-between gap-2">
-                <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
+                <div className="flex gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-800">
                   {(
                     [
                       { id: 'all', label: 'Todos' },
@@ -1135,7 +1135,7 @@ export const ConfigGotalkView: React.FC<{
                         setAttPage(1);
                       }}
                       className={`rounded px-2.5 py-1 font-semibold whitespace-nowrap ${
-                        attType === k.id ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'
+                        attType === k.id ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-slate-100' : 'text-slate-600 dark:text-slate-300'
                       }`}
                     >
                       {k.label}
@@ -1149,7 +1149,7 @@ export const ConfigGotalkView: React.FC<{
                     setAttUnitId(e.target.value);
                     setAttPage(1);
                   }}
-                  className="rounded-lg border border-slate-200 px-2 py-1 text-[11px]"
+                  className="rounded-lg border border-slate-200 px-2 py-1 text-[11px] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 >
                   <option value="">Todas Unidades</option>
                   {units.map((u) => (
@@ -1161,11 +1161,11 @@ export const ConfigGotalkView: React.FC<{
               </div>
             </div>
 
-            <div className="divide-y divide-slate-100 max-h-[480px] overflow-y-auto flex-1">
+            <div className="divide-y divide-slate-100 max-h-[480px] overflow-y-auto flex-1 dark:divide-slate-800">
               {attLoading ? (
-                <div className="p-6 text-center text-slate-500">Carregando atendimentos...</div>
+                <div className="p-6 text-center text-slate-500 dark:text-slate-400">Carregando atendimentos...</div>
               ) : attRows.length === 0 ? (
-                <div className="p-6 text-center text-slate-500">Nenhum atendimento GoTalk registrado.</div>
+                <div className="p-6 text-center text-slate-500 dark:text-slate-400">Nenhum atendimento GoTalk registrado.</div>
               ) : (
                 attRows.map((att) => {
                   const active = selectedAtt?.id === att.id;
@@ -1175,16 +1175,16 @@ export const ConfigGotalkView: React.FC<{
                       type="button"
                       onClick={() => setSelectedAtt(att)}
                       className={`w-full text-left px-4 py-3 transition-colors ${
-                        active ? 'bg-blue-50/70' : 'hover:bg-slate-50'
+                        active ? 'bg-blue-50/70 dark:bg-blue-950/50' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold text-slate-900 truncate">{att.linkedEntityLabel}</span>
-                        <span className="font-mono text-[10px] text-slate-500 tabular-nums shrink-0">
+                        <span className="font-semibold text-slate-900 truncate dark:text-slate-100">{att.linkedEntityLabel}</span>
+                        <span className="font-mono text-[10px] text-slate-500 tabular-nums shrink-0 dark:text-slate-400">
                           {att.messagesCount} msg
                         </span>
                       </div>
-                      <div className="mt-0.5 flex items-center justify-between text-[11px] text-slate-500">
+                      <div className="mt-0.5 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
                         <span className="font-mono tabular-nums">{att.contactPhone}</span>
                         <span>
                           {att.type === 'bank' ? 'Contato Bancário' : 'Cliente'} · {att.operatorName}
@@ -1196,7 +1196,7 @@ export const ConfigGotalkView: React.FC<{
               )}
             </div>
 
-            <div className="flex items-center justify-between border-t border-slate-100 px-3 py-2 text-[11px] text-slate-500">
+            <div className="flex items-center justify-between border-t border-slate-100 px-3 py-2 text-[11px] text-slate-500 dark:border-slate-800 dark:text-slate-400">
               <span className="font-mono tabular-nums">
                 {attTotal} atend. · Pág {attPage}/{attTotalPages}
               </span>
@@ -1205,7 +1205,7 @@ export const ConfigGotalkView: React.FC<{
                   type="button"
                   disabled={attPage <= 1}
                   onClick={() => setAttPage((p) => Math.max(1, p - 1))}
-                  className="rounded border border-slate-200 px-2 py-0.5 disabled:opacity-40"
+                  className="rounded border border-slate-200 px-2 py-0.5 disabled:opacity-40 dark:border-slate-700"
                 >
                   Ant
                 </button>
@@ -1213,7 +1213,7 @@ export const ConfigGotalkView: React.FC<{
                   type="button"
                   disabled={attPage >= attTotalPages}
                   onClick={() => setAttPage((p) => Math.min(attTotalPages, p + 1))}
-                  className="rounded border border-slate-200 px-2 py-0.5 disabled:opacity-40"
+                  className="rounded border border-slate-200 px-2 py-0.5 disabled:opacity-40 dark:border-slate-700"
                 >
                   Próx
                 </button>
@@ -1222,15 +1222,15 @@ export const ConfigGotalkView: React.FC<{
           </div>
 
           {/* Right: Conversation Viewer + Reply + HSM */}
-          <div className="lg:col-span-7 rounded-xl border border-slate-200 bg-white p-4 flex flex-col justify-between space-y-3">
+          <div className="lg:col-span-7 rounded-xl border border-slate-200 bg-white p-4 flex flex-col justify-between space-y-3 dark:border-slate-700 dark:bg-slate-900">
             {selectedAtt ? (
               <>
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 dark:border-slate-800">
                   <div>
-                    <div className="font-display text-sm font-bold text-slate-900">
+                    <div className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                       {selectedAtt.linkedEntityLabel}
                     </div>
-                    <div className="text-[11px] text-slate-500 font-mono tabular-nums">
+                    <div className="text-[11px] text-slate-500 font-mono tabular-nums dark:text-slate-400">
                       {selectedAtt.contactPhone} · {selectedAtt.department} · {selectedAtt.status}
                     </div>
                   </div>
@@ -1242,7 +1242,7 @@ export const ConfigGotalkView: React.FC<{
                       setHsmErr('');
                       setHsmModalOpen(true);
                     }}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 font-semibold text-emerald-800 hover:bg-emerald-100 whitespace-nowrap shrink-0"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 font-semibold text-emerald-800 hover:bg-emerald-100 whitespace-nowrap shrink-0 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
                   >
                     <MessageSquare className="w-3.5 h-3.5" />
                     Enviar Template HSM
@@ -1251,7 +1251,7 @@ export const ConfigGotalkView: React.FC<{
 
                 <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
                   {convTotal > 100 && (
-                    <div className="flex justify-between items-center text-[11px] text-slate-500 pb-2">
+                    <div className="flex justify-between items-center text-[11px] text-slate-500 pb-2 dark:text-slate-400">
                       <span>
                         Exibindo {convOffset + 1}–{Math.min(convTotal, convOffset + 100)} de {convTotal}
                       </span>
@@ -1281,8 +1281,8 @@ export const ConfigGotalkView: React.FC<{
                       key={m.id}
                       className={`rounded-xl p-3 max-w-[85%] ${
                         m.direction === 'outbound'
-                          ? 'ml-auto bg-slate-900 text-white'
-                          : 'bg-slate-100 text-slate-900'
+                          ? 'ml-auto bg-slate-900 text-white dark:bg-emerald-600'
+                          : 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100'
                       }`}
                     >
                       <div className="flex items-center justify-between gap-3 text-[10px] opacity-75 mb-1">
@@ -1294,7 +1294,7 @@ export const ConfigGotalkView: React.FC<{
                   ))}
                 </div>
 
-                <div className="border-t border-slate-100 pt-3 flex gap-2 items-end">
+                <div className="border-t border-slate-100 pt-3 flex gap-2 items-end dark:border-slate-800">
                   <textarea
                     rows={2}
                     value={replyText}
@@ -1306,7 +1306,7 @@ export const ConfigGotalkView: React.FC<{
                       }
                     }}
                     placeholder="Responder no atendimento... (Enter envia, Shift+Enter quebra linha)"
-                    className="flex-1 rounded-lg border border-slate-200 p-2.5 text-xs"
+                    className="flex-1 rounded-lg border border-slate-200 p-2.5 text-xs dark:border-slate-700"
                   />
                   <button
                     type="button"
@@ -1320,7 +1320,7 @@ export const ConfigGotalkView: React.FC<{
                 </div>
               </>
             ) : (
-              <div className="py-16 text-center text-slate-500">
+              <div className="py-16 text-center text-slate-500 dark:text-slate-400">
                 Selecione um atendimento na coluna esquerda para visualizar as mensagens.
               </div>
             )}
@@ -1331,75 +1331,75 @@ export const ConfigGotalkView: React.FC<{
       {/* MODAL: DETALHES DA MENSAGEM (Fecha no X, clique fora ou Escape) */}
       {detailMsg && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80"
           onClick={() => setDetailMsg(null)}
         >
           <div
-            className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs"
+            className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs dark:border-slate-700 dark:bg-slate-900"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-display text-sm font-bold text-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+              <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                 Detalhes da Mensagem #{detailMsg.id}
               </h3>
               <button
                 type="button"
                 onClick={() => setDetailMsg(null)}
-                className="rounded-lg p-1 text-slate-400 hover:text-slate-700"
+                className="rounded-lg p-1 text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <div className="grid grid-cols-2 gap-2.5 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/70">
               <div>
-                <div className="text-[10px] text-slate-500">Data/Hora</div>
-                <div className="font-mono font-semibold text-slate-900 tabular-nums">
+                <div className="text-[10px] text-slate-500 dark:text-slate-400">Data/Hora</div>
+                <div className="font-mono font-semibold text-slate-900 tabular-nums dark:text-slate-100">
                   {formatDateTimeBR(detailMsg.createdAt)}
                 </div>
               </div>
               <div>
-                <div className="text-[10px] text-slate-500">Telefone</div>
-                <div className="font-mono font-semibold text-slate-900 tabular-nums">{detailMsg.phone}</div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400">Telefone</div>
+                <div className="font-mono font-semibold text-slate-900 tabular-nums dark:text-slate-100">{detailMsg.phone}</div>
               </div>
               <div>
-                <div className="text-[10px] text-slate-500">Contato / Cliente</div>
-                <div className="font-semibold text-slate-900">{detailMsg.clientName || detailMsg.contactName}</div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400">Contato / Cliente</div>
+                <div className="font-semibold text-slate-900 dark:text-slate-100">{detailMsg.clientName || detailMsg.contactName}</div>
               </div>
               <div>
-                <div className="text-[10px] text-slate-500">Canal · Operador</div>
-                <div className="font-semibold text-slate-900">
+                <div className="text-[10px] text-slate-500 dark:text-slate-400">Canal · Operador</div>
+                <div className="font-semibold text-slate-900 dark:text-slate-100">
                   {detailMsg.channelName} · {detailMsg.operatorName || 'Ivi'}
                 </div>
               </div>
             </div>
 
             <div className="space-y-1">
-              <div className="font-semibold text-slate-700">Conteúdo Integral</div>
-              <div className="rounded-xl border border-slate-200 p-3 whitespace-pre-wrap text-slate-900 leading-relaxed">
+              <div className="font-semibold text-slate-700 dark:text-slate-200">Conteúdo Integral</div>
+              <div className="rounded-xl border border-slate-200 p-3 whitespace-pre-wrap text-slate-900 leading-relaxed dark:border-slate-700 dark:text-slate-100">
                 {detailMsg.body}
               </div>
             </div>
 
             {detailMsg.iviAudioTranscript && (
               <div className="space-y-1">
-                <div className="font-semibold text-blue-800">Transcrição Automática Ivi (Áudio)</div>
-                <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-3 text-slate-800">
+                <div className="font-semibold text-blue-800 dark:text-blue-300">Transcrição Automática Ivi (Áudio)</div>
+                <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-3 text-slate-800 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-slate-100">
                   {detailMsg.iviAudioTranscript}
                 </div>
               </div>
             )}
 
             {detailMsg.mediaUrl && (
-              <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/70">
                 <span className="flex items-center gap-2 truncate">
-                  <FileText className="w-4 h-4 text-slate-600 shrink-0" />
+                  <FileText className="w-4 h-4 text-slate-600 shrink-0 dark:text-slate-300" />
                   <span className="truncate">{detailMsg.attachmentName || 'Anexo de mídia'}</span>
                 </span>
                 <a
                   href={detailMsg.mediaUrl}
                   download={detailMsg.attachmentName || 'anexo'}
-                  className="font-semibold text-blue-700 hover:underline shrink-0"
+                  className="font-semibold text-blue-700 hover:underline shrink-0 dark:text-blue-300"
                 >
                   Baixar arquivo
                 </a>
@@ -1411,48 +1411,48 @@ export const ConfigGotalkView: React.FC<{
 
       {/* MODAL: HISTÓRICO CONSOLIDADO DO NÚMERO */}
       {phoneHistTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-          <div className="w-full max-w-3xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs max-h-[85vh] flex flex-col">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80">
+          <div className="w-full max-w-3xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs max-h-[85vh] flex flex-col dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
               <div>
-                <h3 className="font-display text-sm font-bold text-slate-900">
+                <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                   Histórico do Número · <span className="font-mono">{phoneHistTarget}</span>
                 </h3>
-                <p className="text-slate-500">
+                <p className="text-slate-500 dark:text-slate-400">
                   Contato: {phoneHistContact} · {phoneHistTotal} mensagem(ns) localizada(s)
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setPhoneHistTarget(null)}
-                className="rounded-lg p-1 text-slate-400 hover:text-slate-700"
+                className="rounded-lg p-1 text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
+            <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
               {phoneHistLoading ? (
-                <div className="py-8 text-center text-slate-500">Carregando histórico do telefone...</div>
+                <div className="py-8 text-center text-slate-500 dark:text-slate-400">Carregando histórico do telefone...</div>
               ) : phoneHistRows.length === 0 ? (
-                <div className="py-8 text-center text-slate-500">Nenhum registro para este telefone.</div>
+                <div className="py-8 text-center text-slate-500 dark:text-slate-400">Nenhum registro para este telefone.</div>
               ) : (
                 phoneHistRows.map((row) => (
                   <div key={row.id} className="py-2.5 space-y-1">
-                    <div className="flex items-center justify-between text-[11px] text-slate-500">
-                      <span className="font-semibold text-slate-800">
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                      <span className="font-semibold text-slate-800 dark:text-slate-100">
                         {row.direction === 'inbound' ? 'Cliente → Equipe' : `${row.operatorName || 'Operador'} → Cliente`}
                       </span>
                       <span className="font-mono tabular-nums">{formatDateTimeBR(row.createdAt)}</span>
                     </div>
-                    <div className="text-slate-800 whitespace-pre-wrap">{row.body}</div>
+                    <div className="text-slate-800 whitespace-pre-wrap dark:text-slate-100">{row.body}</div>
                   </div>
                 ))
               )}
             </div>
 
-            <div className="flex items-center justify-between border-t border-slate-100 pt-3">
-              <span className="font-mono text-slate-500 tabular-nums">
+            <div className="flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800">
+              <span className="font-mono text-slate-500 tabular-nums dark:text-slate-400">
                 Página {phoneHistPage} de {phoneHistPages}
               </span>
               <div className="flex gap-1.5">
@@ -1460,7 +1460,7 @@ export const ConfigGotalkView: React.FC<{
                   type="button"
                   disabled={phoneHistPage <= 1}
                   onClick={() => setPhoneHistPage((p) => Math.max(1, p - 1))}
-                  className="rounded border border-slate-200 px-2.5 py-1 font-semibold disabled:opacity-40"
+                  className="rounded border border-slate-200 px-2.5 py-1 font-semibold disabled:opacity-40 dark:border-slate-700"
                 >
                   Anterior
                 </button>
@@ -1468,7 +1468,7 @@ export const ConfigGotalkView: React.FC<{
                   type="button"
                   disabled={phoneHistPage >= phoneHistPages}
                   onClick={() => setPhoneHistPage((p) => Math.min(phoneHistPages, p + 1))}
-                  className="rounded border border-slate-200 px-2.5 py-1 font-semibold disabled:opacity-40"
+                  className="rounded border border-slate-200 px-2.5 py-1 font-semibold disabled:opacity-40 dark:border-slate-700"
                 >
                   Próxima
                 </button>
@@ -1480,56 +1480,56 @@ export const ConfigGotalkView: React.FC<{
 
       {/* MODAL: NOVO / EDITAR CANAL GOTALK */}
       {chModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80">
           <form
             onSubmit={handleSaveChannel}
-            className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs"
+            className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs dark:border-slate-700 dark:bg-slate-900"
           >
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-display text-sm font-bold text-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+              <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                 {editChId ? 'Editar Canal GoTalk' : 'Adicionar Canal GoTalk'}
               </h3>
               <button
                 type="button"
                 onClick={() => setChModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700"
+                className="text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {chErr && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700">{chErr}</div>
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">{chErr}</div>
             )}
 
             <div className="space-y-3">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Nome do Canal *</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Nome do Canal *</label>
                 <input
                   type="text"
                   required
                   value={chName}
                   onChange={(e) => setChName(e.target.value)}
                   placeholder="Ex: Central Oficial Matriz"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700"
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Telefone</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Telefone</label>
                 <input
                   type="text"
                   value={chPhone}
                   onChange={(e) => setChPhone(formatPhoneMask(e.target.value))}
                   placeholder="(81) 99988-7766"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono tabular-nums"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono tabular-nums dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Unidade Associada</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Unidade Associada</label>
                 <select
                   value={chUnitId}
                   onChange={(e) => setChUnitId(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 >
                   <option value="">Global (Todas as Unidades)</option>
                   {units.map((u) => (
@@ -1540,17 +1540,17 @@ export const ConfigGotalkView: React.FC<{
                 </select>
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Notas Operacionais</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Notas Operacionais</label>
                 <textarea
                   rows={2}
                   value={chNotes}
                   onChange={(e) => setChNotes(e.target.value)}
                   placeholder="Observações sobre fila, horário ou finalidade deste canal..."
-                  className="w-full rounded-lg border border-slate-200 p-2.5"
+                  className="w-full rounded-lg border border-slate-200 p-2.5 dark:border-slate-700"
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-800">
+                <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-800 dark:text-slate-100">
                   <input
                     type="checkbox"
                     checked={chPrimary}
@@ -1558,7 +1558,7 @@ export const ConfigGotalkView: React.FC<{
                   />
                   <span>Definir como Canal Principal (desmarca os demais)</span>
                 </label>
-                <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-800">
+                <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-800 dark:text-slate-100">
                   <input
                     type="checkbox"
                     checked={chActive}
@@ -1569,18 +1569,18 @@ export const ConfigGotalkView: React.FC<{
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
+            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
               <button
                 type="button"
                 onClick={() => setChModalOpen(false)}
-                className="rounded-lg border border-slate-200 px-3.5 py-2 font-semibold text-slate-700"
+                className="rounded-lg border border-slate-200 px-3.5 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={chSaving}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
               >
                 <Check className="w-3.5 h-3.5" />
                 {chSaving ? 'Salvando...' : 'Salvar Canal'}
@@ -1593,7 +1593,7 @@ export const ConfigGotalkView: React.FC<{
       {/* MODAL: ENVIAR TEMPLATE HSM COM VARIÁVEIS {{n}} E ATALHO CTRL/⌘+ENTER */}
       {hsmModalOpen && selectedAtt && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80"
           onKeyDown={(e) => {
             if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
               e.preventDefault();
@@ -1601,38 +1601,38 @@ export const ConfigGotalkView: React.FC<{
             }
           }}
         >
-          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                <h3 className="font-display text-sm font-bold text-slate-900">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                   Disparar Template HSM · {selectedAtt.linkedEntityLabel}
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setHsmModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700"
+                className="text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {templates.length === 0 ? (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900 dark:border-amber-800/70 dark:bg-amber-950/50 dark:text-amber-300">
                 Nenhum template HSM sincronizado ainda. Clique em &ldquo;Autenticar &amp; Sincronizar&rdquo; no topo da aba.
               </div>
             ) : (
               <>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Template Aprovado *</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Template Aprovado *</label>
                   <select
                     value={activeTemplate?.templateName || ''}
                     onChange={(e) => {
                       setSelectedTemplateName(e.target.value);
                       setHsmVars({});
                     }}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700"
                   >
                     {templates.map((t) => (
                       <option key={t.id} value={t.templateName}>
@@ -1644,13 +1644,13 @@ export const ConfigGotalkView: React.FC<{
 
                 {detectedVarKeys.length > 0 && (
                   <div className="space-y-2">
-                    <div className="font-semibold text-slate-700">
+                    <div className="font-semibold text-slate-700 dark:text-slate-200">
                       Preencha as Variáveis Obrigatórias ({detectedVarKeys.length})
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {detectedVarKeys.map((k) => (
                         <div key={k}>
-                          <label className="block font-mono text-[11px] text-slate-500 mb-0.5">
+                          <label className="block font-mono text-[11px] text-slate-500 mb-0.5 dark:text-slate-400">
                             Variável {`{{${k}}}`} *
                           </label>
                           <input
@@ -1658,7 +1658,7 @@ export const ConfigGotalkView: React.FC<{
                             value={hsmVars[k] || ''}
                             onChange={(e) => setHsmVars((prev) => ({ ...prev, [k]: e.target.value }))}
                             placeholder={`Valor para {{${k}}}`}
-                            className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                            className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 dark:border-slate-700"
                           />
                         </div>
                       ))}
@@ -1668,16 +1668,16 @@ export const ConfigGotalkView: React.FC<{
 
                 {activeTemplate && (
                   <div className="space-y-1">
-                    <div className="font-semibold text-slate-700">Pré-visualização da Mensagem</div>
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-1.5">
+                    <div className="font-semibold text-slate-700 dark:text-slate-200">Pré-visualização da Mensagem</div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-1.5 dark:border-slate-700 dark:bg-slate-800/70">
                       {activeTemplate.headerText && (
-                        <div className="font-bold text-slate-900">{activeTemplate.headerText}</div>
+                        <div className="font-bold text-slate-900 dark:text-slate-100">{activeTemplate.headerText}</div>
                       )}
-                      <div className="whitespace-pre-wrap text-slate-800 leading-relaxed">
+                      <div className="whitespace-pre-wrap text-slate-800 leading-relaxed dark:text-slate-100">
                         {renderedHsmPreview}
                       </div>
                       {activeTemplate.footerText && (
-                        <div className="text-[11px] text-slate-400">{activeTemplate.footerText}</div>
+                        <div className="text-[11px] text-slate-400 dark:text-slate-400">{activeTemplate.footerText}</div>
                       )}
                     </div>
                   </div>
@@ -1686,16 +1686,16 @@ export const ConfigGotalkView: React.FC<{
             )}
 
             {hsmErr && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700">{hsmErr}</div>
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">{hsmErr}</div>
             )}
 
-            <div className="flex items-center justify-between border-t border-slate-100 pt-3">
-              <span className="text-[11px] text-slate-400">Atalho: Ctrl/⌘ + Enter</span>
+            <div className="flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800">
+              <span className="text-[11px] text-slate-400 dark:text-slate-400">Atalho: Ctrl/⌘ + Enter</span>
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={() => setHsmModalOpen(false)}
-                  className="rounded-lg border border-slate-200 px-3.5 py-2 font-semibold text-slate-700"
+                  className="rounded-lg border border-slate-200 px-3.5 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
                 >
                   Cancelar
                 </button>

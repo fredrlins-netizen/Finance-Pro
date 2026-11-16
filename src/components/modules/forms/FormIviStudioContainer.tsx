@@ -133,24 +133,24 @@ export const FormIviStudioContainer: React.FC<FormIviStudioContainerProps> = ({
       {/* Left 5 cols: Prompt, Model Selection & Reference File Upload */}
       <form
         onSubmit={handleGenerate}
-        className="lg:col-span-5 rounded-xl border border-slate-200 bg-white p-5 space-y-4"
+        className="lg:col-span-5 rounded-xl border border-slate-200 bg-white p-5 space-y-4 dark:border-slate-700 dark:bg-slate-900"
       >
         <div className="flex items-start gap-3">
-          <div className="h-9 w-9 rounded-lg bg-slate-900 text-emerald-400 flex items-center justify-center shrink-0">
+          <div className="h-9 w-9 rounded-lg bg-slate-900 text-emerald-400 flex items-center justify-center shrink-0 dark:bg-slate-950 dark:border-slate-700">
             <Sparkles className="w-4 h-4" />
           </div>
           <div>
-            <h2 className="font-display text-sm font-bold text-slate-900">
+            <h2 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
               Arquiteta de Formulários Ivi IA
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-slate-500 mt-0.5 dark:text-slate-400">
               Descreva os campos necessários, selecione um modelo corporativo para adaptar ou envie um arquivo modelo (PDF, imagem, TXT ou CSV).
             </p>
           </div>
         </div>
 
         <div className="space-y-1.5">
-          <span className="block text-[11px] font-semibold text-slate-600">
+          <span className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300">
             Atalhos de Prompt FinancePro
           </span>
           <div className="flex flex-wrap gap-1.5">
@@ -163,7 +163,7 @@ export const FormIviStudioContainer: React.FC<FormIviStudioContainerProps> = ({
                   setCategory(qp.category);
                   setLinkedEntity(qp.linkedEntity);
                 }}
-                className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100 hover:border-slate-300"
+                className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 {qp.label}
               </button>
@@ -172,7 +172,7 @@ export const FormIviStudioContainer: React.FC<FormIviStudioContainerProps> = ({
         </div>
 
         <div>
-          <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+          <label className="block text-[11px] font-semibold text-slate-700 mb-1 dark:text-slate-200">
             Instruções / Prompt para a Ivi IA
           </label>
           <textarea
@@ -180,19 +180,19 @@ export const FormIviStudioContainer: React.FC<FormIviStudioContainerProps> = ({
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             placeholder="Ex: Crie um formulário para análise de contrato revisional com identificação do cliente, banco credor, valor das parcelas, juros cobrados e bloco de aprovação da auditoria..."
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-600 focus:outline-none"
+            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 focus:border-blue-600 focus:outline-none dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
           />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+            <label className="block text-[11px] font-semibold text-slate-700 mb-1 dark:text-slate-200">
               Categoria
             </label>
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-2.5 py-2 text-xs bg-white"
+              className="w-full rounded-lg border border-slate-300 px-2.5 py-2 text-xs bg-white dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
             >
               {Object.entries(FORM_CATEGORY_LABELS).map(([k, lbl]) => (
                 <option key={k} value={k}>
@@ -203,13 +203,13 @@ export const FormIviStudioContainer: React.FC<FormIviStudioContainerProps> = ({
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+            <label className="block text-[11px] font-semibold text-slate-700 mb-1 dark:text-slate-200">
               Entidade Vinculada
             </label>
             <select
               value={linkedEntity}
               onChange={(e) => setLinkedEntity(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-2.5 py-2 text-xs bg-white"
+              className="w-full rounded-lg border border-slate-300 px-2.5 py-2 text-xs bg-white dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
             >
               {Object.entries(LINKED_ENTITY_LABELS).map(([k, lbl]) => (
                 <option key={k} value={k}>
@@ -221,13 +221,13 @@ export const FormIviStudioContainer: React.FC<FormIviStudioContainerProps> = ({
         </div>
 
         <div>
-          <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+          <label className="block text-[11px] font-semibold text-slate-700 mb-1 dark:text-slate-200">
             Adaptar a partir de um Modelo Existente (Opcional)
           </label>
           <select
             value={baseTemplateId}
             onChange={(e) => setBaseTemplateId(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-2.5 py-2 text-xs bg-white"
+            className="w-full rounded-lg border border-slate-300 px-2.5 py-2 text-xs bg-white dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
           >
             <option value="">Criar estrutura nova do zero</option>
             {templates.map((t) => (
@@ -240,7 +240,7 @@ export const FormIviStudioContainer: React.FC<FormIviStudioContainerProps> = ({
 
         {/* Upload Model Document */}
         <div>
-          <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+          <label className="block text-[11px] font-semibold text-slate-700 mb-1 dark:text-slate-200">
             Anexar Arquivo Modelo de Referência (PDF, Imagem, TXT, CSV)
           </label>
           <input
@@ -249,6 +249,13 @@ export const FormIviStudioContainer: React.FC<FormIviStudioContainerProps> = ({
             accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.csv,.json,.md"
             onChange={(e) => {
               const f = e.target.files?.[0] || null;
+              if (f && f.size > 12 * 1024 * 1024) {
+                setErrorMsg('O arquivo selecionado ultrapassa o limite de 12 MB.');
+                setRefFile(null);
+                e.currentTarget.value = '';
+                return;
+              }
+              setErrorMsg('');
               setRefFile(f);
             }}
             className="hidden"
@@ -257,21 +264,21 @@ export const FormIviStudioContainer: React.FC<FormIviStudioContainerProps> = ({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="w-full flex items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-xs font-medium text-slate-600 hover:bg-slate-100"
+              className="w-full flex items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-xs font-medium text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-300 dark:hover:bg-slate-800"
             >
-              <FileUp className="w-4 h-4 text-slate-500" />
+              <FileUp className="w-4 h-4 text-slate-500 dark:text-slate-400" />
               Selecionar arquivo modelo para leitura pela Ivi IA
             </button>
           ) : (
-            <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
-              <span className="truncate font-medium text-slate-800">{refFile.name}</span>
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-800/70">
+              <span className="truncate font-medium text-slate-800 dark:text-slate-100">{refFile.name}</span>
               <button
                 type="button"
                 onClick={() => {
                   setRefFile(null);
                   if (fileInputRef.current) fileInputRef.current.value = '';
                 }}
-                className="text-slate-400 hover:text-slate-700"
+                className="text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -280,7 +287,7 @@ export const FormIviStudioContainer: React.FC<FormIviStudioContainerProps> = ({
         </div>
 
         {errorMsg && (
-          <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+          <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-800/70 dark:bg-rose-950/50 dark:text-rose-300">
             {errorMsg}
           </div>
         )}
@@ -288,7 +295,7 @@ export const FormIviStudioContainer: React.FC<FormIviStudioContainerProps> = ({
         <button
           type="submit"
           disabled={generating}
-          className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+          className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
         >
           {generating ? (
             <>
@@ -305,13 +312,13 @@ export const FormIviStudioContainer: React.FC<FormIviStudioContainerProps> = ({
       </form>
 
       {/* Right 7 cols: Live Preview of Ivi Output */}
-      <div className="lg:col-span-7 rounded-xl border border-slate-200 bg-white overflow-hidden">
-        <div className="border-b border-slate-200 px-5 py-3.5 flex flex-wrap items-center justify-between gap-2 bg-slate-50/70">
+      <div className="lg:col-span-7 rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
+        <div className="border-b border-slate-200 px-5 py-3.5 flex flex-wrap items-center justify-between gap-2 bg-slate-50/70 dark:border-slate-700 dark:bg-slate-800/60">
           <div>
-            <h3 className="font-display text-sm font-bold text-slate-900">
+            <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
               Pré-visualização da Estrutura Gerada
             </h3>
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
               Revise os blocos e campos sugeridos pela Ivi IA antes de salvar no construtor ou publicar.
             </p>
           </div>
@@ -321,7 +328,7 @@ export const FormIviStudioContainer: React.FC<FormIviStudioContainerProps> = ({
                 type="button"
                 disabled={saving}
                 onClick={() => void handlePersist(false)}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
               >
                 Ajustar no Construtor
               </button>
@@ -341,24 +348,24 @@ export const FormIviStudioContainer: React.FC<FormIviStudioContainerProps> = ({
         {!draft ? (
           <div className="p-12 text-center space-y-2">
             <Sparkles className="w-8 h-8 text-slate-300 mx-auto" />
-            <div className="text-sm font-semibold text-slate-700">
+            <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">
               Nenhum rascunho gerado ainda
             </div>
-            <p className="text-xs text-slate-500 max-w-md mx-auto">
+            <p className="text-xs text-slate-500 max-w-md mx-auto dark:text-slate-400">
               Preencha o prompt ao lado, escolha um modelo ou envie um documento de referência e clique em &ldquo;Gerar Estrutura de Formulário&rdquo;.
             </p>
           </div>
         ) : (
           <div className="p-5 space-y-4">
-            <div className="border-b border-slate-200 pb-3">
-              <div className="text-[11px] font-mono text-slate-500">
+            <div className="border-b border-slate-200 pb-3 dark:border-slate-700">
+              <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
                 {FORM_CATEGORY_LABELS[draft.category] || draft.category} ·{' '}
                 {LINKED_ENTITY_LABELS[draft.linkedEntity] || draft.linkedEntity} ·{' '}
                 {draft.fields.filter((f) => f.type !== 'section_header').length} campos
               </div>
-              <h4 className="font-display text-base font-bold text-slate-900 mt-1">{draft.title}</h4>
+              <h4 className="font-display text-base font-bold text-slate-900 mt-1 dark:text-slate-100">{draft.title}</h4>
               {draft.description && (
-                <p className="text-xs text-slate-600 mt-0.5">{draft.description}</p>
+                <p className="text-xs text-slate-600 mt-0.5 dark:text-slate-300">{draft.description}</p>
               )}
             </div>
 
@@ -368,7 +375,7 @@ export const FormIviStudioContainer: React.FC<FormIviStudioContainerProps> = ({
                   return (
                     <div
                       key={fld.id}
-                      className="sm:col-span-2 pt-2 border-b border-slate-200 pb-1 text-xs font-bold text-slate-800"
+                      className="sm:col-span-2 pt-2 border-b border-slate-200 pb-1 text-xs font-bold text-slate-800 dark:border-slate-700 dark:text-slate-100"
                     >
                       {fld.label}
                     </div>
@@ -379,22 +386,22 @@ export const FormIviStudioContainer: React.FC<FormIviStudioContainerProps> = ({
                 return (
                   <div
                     key={fld.id}
-                    className={`rounded-lg border border-slate-200 bg-slate-50/60 p-3 space-y-1 ${
+                    className={`rounded-lg border border-slate-200 bg-slate-50/60 p-3 space-y-1 dark:border-slate-700 dark:bg-slate-800/60 ${
                       fld.width === 'half' ? 'sm:col-span-1' : 'sm:col-span-2'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-semibold text-slate-900">
+                      <span className="text-xs font-semibold text-slate-900 dark:text-slate-100">
                         {fld.label}
-                        {fld.required && <span className="text-rose-600 ml-1">*</span>}
+                        {fld.required && <span className="text-rose-600 ml-1 dark:text-rose-400">*</span>}
                       </span>
-                      <span className="text-[10px] font-mono text-slate-500 shrink-0">
+                      <span className="text-[10px] font-mono text-slate-500 shrink-0 dark:text-slate-400">
                         {typeLabel}
                       </span>
                     </div>
-                    {fld.helpText && <p className="text-[11px] text-slate-500">{fld.helpText}</p>}
+                    {fld.helpText && <p className="text-[11px] text-slate-500 dark:text-slate-400">{fld.helpText}</p>}
                     {fld.options && fld.options.length > 0 && (
-                      <div className="text-[11px] text-slate-600 pt-0.5">
+                      <div className="text-[11px] text-slate-600 pt-0.5 dark:text-slate-300">
                         Opções: {fld.options.join(' · ')}
                       </div>
                     )}

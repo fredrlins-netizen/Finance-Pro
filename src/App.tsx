@@ -32,8 +32,11 @@ import {
   LogOut,
   Menu,
   MessageSquare,
+  Moon,
   Network,
   Package,
+  PanelLeftClose,
+  PanelLeftOpen,
   PhoneCall,
   Scale,
   Search,
@@ -41,6 +44,7 @@ import {
   ShieldCheck,
   Sparkles,
   Store,
+  Sun,
   TrendingDown,
   UserCog,
   Users,
@@ -50,6 +54,7 @@ import {
 import { auth } from './lib/firebase.ts';
 import { apiFetch, setActiveUnitHeader, setAuthToken } from './lib/api.ts';
 import { setCachedPortalBranding } from './lib/portalBrandingCache.ts';
+import { useTheme } from './lib/theme.tsx';
 import iviAvatarImg from './assets/images/ivi_avatar_1794682376813.jpg';
 import {
   AuthUser,
@@ -159,6 +164,7 @@ const NAV_GROUPS: Array<{ key: NavItem['group']; title: string }> = [
 ];
 
 export default function App() {
+  const { isDark, toggleTheme, sidebarCollapsed, hasOpenDossierDoc, toggleSidebar } = useTheme();
   const [tokenReady, setTokenReady] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
@@ -169,6 +175,9 @@ export default function App() {
   const [activeModule, setActiveModule] = useState<ModuleId>('overview');
   const [navIntent, setNavIntent] = useState<NavigationIntent | null>(null);
   const [navHistory, setNavHistory] = useState<Array<{ mod: ModuleId; intent: NavigationIntent | null }>>([]);
+  const activeModuleRef = React.useRef<ModuleId>('overview');
+  const navIntentRef = React.useRef<NavigationIntent | null>(null);
+  const navHistoryRef = React.useRef<Array<{ mod: ModuleId; intent: NavigationIntent | null }>>([]);
   const [cadastrosExpanded, setCadastrosExpanded] = useState(false);
   const [comercialExpanded, setComercialExpanded] = useState(false);
   const [adminFinanceExpanded, setAdminFinanceExpanded] = useState(false);
@@ -213,6 +222,12 @@ export default function App() {
   const [helpLoading, setHelpLoading] = useState(false);
   const [helpSearch, setHelpSearch] = useState('');
   const [selectedHelpId, setSelectedHelpId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (hasOpenDossierDoc) {
+      setMobileNavOpen(false);
+    }
+  }, [hasOpenDossierDoc]);
 
   useEffect(() => {
     fetch('/api/public/portal-branding')
@@ -403,82 +418,85 @@ export default function App() {
     };
   }, [tokenReady]);
 
+  const expandSidebarGroupsForModule = useCallback((mod: ModuleId) => {
+    if (mod.startsWith('cad_')) {
+      setCadastrosExpanded(true);
+    }
+    if (mod === 'prospection' || mod === 'admission') {
+      setComercialExpanded(true);
+    }
+    if (mod === 'finance' || mod.startsWith('finance_')) {
+      setAdminFinanceExpanded(true);
+    }
+    if (mod === 'finance_cadastros' || mod.startsWith('finance_cad_')) {
+      setFinanceCadastrosExpanded(true);
+    }
+    if (
+      mod === 'finance_conta_corrente' ||
+      mod === 'finance_movimento' ||
+      mod === 'finance_conciliacao'
+    ) {
+      setContaCorrenteExpanded(true);
+      setContaCorrenteCadastroExpanded(true);
+    }
+    if (mod === 'collection' || mod.startsWith('collection_')) {
+      setCollectionExpanded(true);
+    }
+    if (mod === 'acomp_juridico' || mod.startsWith('jur_')) {
+      setAcompJuridicoExpanded(true);
+    }
+  }, []);
+
   const navigateTo = useCallback(
     (mod: ModuleId, intent?: NavigationIntent) => {
-      setActiveModule((prevMod) => {
-        if (prevMod !== mod) {
-          setNavHistory((prev) => [...prev.slice(-24), { mod: prevMod, intent: null }]);
-        }
-        return mod;
-      });
-      setNavIntent(intent || null);
-      if (mod.startsWith('cad_')) {
-        setCadastrosExpanded(true);
+      const prevMod = activeModuleRef.current;
+      const prevIntent = navIntentRef.current;
+      const nextIntent = intent || null;
+      const intentChanged =
+        Boolean(nextIntent) && JSON.stringify(prevIntent) !== JSON.stringify(nextIntent);
+
+      if (prevMod !== mod || intentChanged) {
+        const nextHistory = [
+          ...navHistoryRef.current.slice(-29),
+          { mod: prevMod, intent: prevIntent },
+        ];
+        navHistoryRef.current = nextHistory;
+        setNavHistory(nextHistory);
       }
-      if (mod === 'finance' || mod.startsWith('finance_')) {
-        setAdminFinanceExpanded(true);
-      }
-      if (mod === 'finance_cadastros' || mod.startsWith('finance_cad_')) {
-        setFinanceCadastrosExpanded(true);
-      }
-      if (
-        mod === 'finance_conta_corrente' ||
-        mod === 'finance_movimento' ||
-        mod === 'finance_conciliacao'
-      ) {
-        setContaCorrenteExpanded(true);
-        setContaCorrenteCadastroExpanded(true);
-      }
-      if (mod === 'collection' || mod.startsWith('collection_')) {
-        setCollectionExpanded(true);
-      }
-      if (mod === 'acomp_juridico' || mod.startsWith('jur_')) {
-        setAcompJuridicoExpanded(true);
-      }
+
+      activeModuleRef.current = mod;
+      navIntentRef.current = nextIntent;
+      setActiveModule(mod);
+      setNavIntent(nextIntent);
+      expandSidebarGroupsForModule(mod);
       setMobileNavOpen(false);
     },
-    []
+    [expandSidebarGroupsForModule]
   );
 
   const handleGoBack = useCallback(() => {
-    setNavHistory((prev) => {
-      if (prev.length === 0) {
-        setActiveModule('overview');
-        setNavIntent(null);
-        return prev;
-      }
-      const nextStack = prev.slice(0, -1);
-      const target = prev[prev.length - 1];
-      setActiveModule(target.mod);
-      setNavIntent(target.intent);
-      if (target.mod.startsWith('cad_')) {
-        setCadastrosExpanded(true);
-      }
-      if (target.mod === 'finance' || target.mod.startsWith('finance_')) {
-        setAdminFinanceExpanded(true);
-      }
-      if (target.mod === 'finance_cadastros' || target.mod.startsWith('finance_cad_')) {
-        setFinanceCadastrosExpanded(true);
-      }
-      if (
-        target.mod === 'finance_conta_corrente' ||
-        target.mod === 'finance_movimento' ||
-        target.mod === 'finance_conciliacao'
-      ) {
-        setContaCorrenteExpanded(true);
-        setContaCorrenteCadastroExpanded(true);
-      }
-      if (target.mod === 'collection' || target.mod.startsWith('collection_')) {
-        setCollectionExpanded(true);
-      }
-      if (target.mod === 'acomp_juridico' || target.mod.startsWith('jur_')) {
-        setAcompJuridicoExpanded(true);
-      }
-      return nextStack;
-    });
-  }, []);
+    const curr = navHistoryRef.current;
+    if (curr.length === 0) {
+      activeModuleRef.current = 'overview';
+      navIntentRef.current = null;
+      setActiveModule('overview');
+      setNavIntent(null);
+      return;
+    }
+    const target = curr[curr.length - 1];
+    const nextStack = curr.slice(0, -1);
+    navHistoryRef.current = nextStack;
+    activeModuleRef.current = target.mod;
+    navIntentRef.current = target.intent;
+    setNavHistory(nextStack);
+    setActiveModule(target.mod);
+    setNavIntent(target.intent);
+    expandSidebarGroupsForModule(target.mod);
+    setMobileNavOpen(false);
+  }, [expandSidebarGroupsForModule]);
 
   const clearIntent = useCallback(() => {
+    navIntentRef.current = null;
     setNavIntent(null);
   }, []);
 
@@ -540,7 +558,7 @@ export default function App() {
 
   if (authChecking) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center text-sm font-medium text-slate-600">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center text-sm font-medium text-slate-600 dark:text-slate-300">
         Validando sessão corporativa FinancePro...
       </div>
     );
@@ -608,6 +626,8 @@ export default function App() {
     const prevMod = navHistory.length > 0 ? navHistory[navHistory.length - 1].mod : 'overview';
     const cad = CADASTROS_SUBMENUS.find((s) => s.id === prevMod);
     if (cad) return `Cadastros · ${cad.label}`;
+    const com = COMERCIAL_SUBMENUS.find((s) => s.id === prevMod);
+    if (com) return `Comercial · ${com.label}`;
     const fin = FINANCE_ALL_SUBMENUS.find((s) => s.id === prevMod);
     if (fin) return `Administração Financeira · ${fin.label}`;
     const col = COLLECTION_SUBMENUS.find((s) => s.id === prevMod);
@@ -616,17 +636,23 @@ export default function App() {
     if (jur) return `Acompanhamento Jurídico · ${jur.label}`;
     return NAV_ITEMS.find((i) => i.id === prevMod)?.label || 'Visão Executiva';
   })();
+  const hasDedicatedBackButton =
+    activeModule === 'appointments' ||
+    activeModule === 'config' ||
+    activeModule === 'forms' ||
+    activeModule === 'negotiations' ||
+    activeModule.startsWith('cad_');
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col">
       {/* Top Bar (56px) */}
-      <header className="sticky top-0 z-30 h-14 bg-white border-b border-slate-200 px-3 sm:px-5 flex items-center justify-between gap-2">
+      <header className={`sticky top-0 ${hasOpenDossierDoc ? 'z-[75]' : 'z-30'} h-14 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-3 sm:px-5 flex items-center justify-between gap-2`}>
         <div className="flex items-center gap-2.5 min-w-0">
           <button
             type="button"
             onClick={() => setMobileNavOpen(!mobileNavOpen)}
             aria-label="Menu de setores"
-            className="lg:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100 min-h-[44px] min-w-[44px] flex items-center justify-center"
+            className="lg:hidden p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 min-h-[44px] min-w-[44px] flex items-center justify-center"
           >
             <Menu className="w-5 h-5" />
           </button>
@@ -641,28 +667,28 @@ export default function App() {
                 src={portalBranding.logoDataUrl}
                 alt={portalBranding.companyName || 'FinancePro'}
                 referrerPolicy="no-referrer"
-                className="h-8 w-8 rounded-lg object-contain bg-slate-900 p-1 shrink-0"
+                className="h-8 w-8 rounded-lg object-contain bg-slate-900 dark:bg-slate-800 p-1 shrink-0"
               />
             ) : (
-              <div className="h-8 w-8 rounded-lg bg-slate-900 text-emerald-400 flex items-center justify-center shrink-0">
+              <div className="h-8 w-8 rounded-lg bg-slate-900 dark:bg-emerald-600 text-emerald-400 dark:text-white flex items-center justify-center shrink-0">
                 <ShieldCheck className="w-4 h-4" />
               </div>
             )}
             <div className="min-w-0">
-              <div className="flex items-center gap-1.5 text-sm font-bold tracking-tight text-slate-900 font-display truncate">
+              <div className="flex items-center gap-1.5 text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100 font-display truncate">
                 <span className="truncate max-w-[160px]">
                   {portalBranding?.companyName?.trim() || 'FinancePro'}
                 </span>
                 {activeNavMeta && activeModule !== 'overview' && (
                   <>
-                    <ChevronRight className="w-3.5 h-3.5 text-slate-400 hidden sm:inline shrink-0" />
-                    <span className="hidden sm:inline text-slate-600 font-semibold truncate">
+                    <ChevronRight className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 hidden sm:inline shrink-0" />
+                    <span className="hidden sm:inline text-slate-600 dark:text-slate-300 font-semibold truncate">
                       {activeNavMeta.label}
                     </span>
                   </>
                 )}
               </div>
-              <div className="hidden md:block text-[10px] text-slate-500 truncate">
+              <div className="hidden md:block text-[10px] text-slate-500 dark:text-slate-400 truncate">
                 {currentUser.name} · {currentUser.role.toUpperCase()} · {currentUser.points} pts
               </div>
             </div>
@@ -674,24 +700,24 @@ export default function App() {
           <button
             type="button"
             onClick={() => setSearchModalOpen(true)}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 min-h-[38px]"
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white min-h-[38px]"
           >
-            <Search className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+            <Search className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
             <span className="hidden md:inline">Buscar cliente / CPF / processo...</span>
             <span className="md:hidden">Buscar</span>
-            <kbd className="hidden lg:inline-block rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[10px] text-slate-400">
+            <kbd className="hidden lg:inline-block rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-1.5 py-0.5 font-mono text-[10px] text-slate-400 dark:text-slate-300">
               Ctrl+K
             </kbd>
           </button>
 
           {/* Active Unit Switcher */}
-          <div className="hidden sm:flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 min-h-[38px]">
-            <Building2 className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+          <div className="hidden sm:flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1 min-h-[38px]">
+            <Building2 className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
             <select
               value={activeUnitId}
               onChange={(e) => handleUnitSwitch(Number(e.target.value))}
               aria-label="Unidade ativa"
-              className="bg-transparent text-xs font-semibold text-slate-800 focus:outline-none"
+              className="bg-transparent dark:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none"
             >
               {selectableUnits.map((u) => (
                 <option key={u.id} value={u.id}>
@@ -705,22 +731,38 @@ export default function App() {
             type="button"
             onClick={openHelpCenter}
             title="Central de Ajuda Corporativa"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 whitespace-nowrap min-h-[38px]"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 whitespace-nowrap min-h-[38px]"
           >
-            <BookOpen className="w-3.5 h-3.5 text-slate-600" />
+            <BookOpen className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
             <span className="hidden xl:inline">Ajuda</span>
           </button>
 
           <button
             type="button"
             onClick={() => setIviOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-800 hover:bg-blue-100 whitespace-nowrap min-h-[38px]"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/60 px-2.5 py-1.5 text-xs font-semibold text-blue-800 dark:text-blue-200 hover:bg-blue-100 dark:hover:bg-blue-900/70 whitespace-nowrap min-h-[38px]"
           >
-            <img src={iviAvatarImg} alt="Ivi" className="w-5 h-5 rounded-full object-cover border border-blue-300 shrink-0" />
+            <img src={iviAvatarImg} alt="Ivi" className="w-5 h-5 rounded-full object-cover border border-blue-300 dark:border-blue-600 shrink-0" />
             <span className="hidden sm:inline">Ivi IA</span>
           </button>
 
           <PWAInstallButton />
+
+          {/* Dark / White Theme Toggle */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            title={isDark ? 'Alternar para Modo Claro (White)' : 'Alternar para Modo Escuro (Dark)'}
+            aria-label={isDark ? 'Alternar para Modo Claro' : 'Alternar para Modo Escuro'}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 whitespace-nowrap min-h-[38px] transition-colors"
+          >
+            {isDark ? (
+              <Sun className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            ) : (
+              <Moon className="w-3.5 h-3.5 text-slate-600 shrink-0 dark:text-slate-300" />
+            )}
+            <span className="hidden lg:inline">{isDark ? 'Claro' : 'Escuro'}</span>
+          </button>
 
           {/* WhatsApp Toggle (Desktop & Mobile) */}
           <button
@@ -734,8 +776,8 @@ export default function App() {
             }}
             className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap min-h-[38px] transition-colors ${
               desktopWaOpen
-                ? 'bg-slate-900 text-white hover:bg-slate-800'
-                : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-950 hover:bg-slate-800 dark:hover:bg-white'
+                : 'bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500'
             }`}
           >
             <MessageSquare className="w-3.5 h-3.5" />
@@ -750,7 +792,7 @@ export default function App() {
             onClick={handleLogout}
             title="Sair do sistema"
             aria-label="Sair do sistema"
-            className="p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 min-h-[38px] min-w-[38px] flex items-center justify-center"
+            className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 min-h-[38px] min-w-[38px] flex items-center justify-center"
           >
             <LogOut className="w-4 h-4" />
           </button>
@@ -759,26 +801,142 @@ export default function App() {
 
       {/* Live WebSocket Alert Banner */}
       {liveAlert && (
-        <div className="bg-slate-900 text-emerald-300 text-xs font-medium px-4 py-2 text-center border-b border-slate-800">
+        <div className="bg-slate-900 text-emerald-300 text-xs font-medium px-4 py-2 text-center border-b border-slate-800 dark:bg-emerald-600">
           {liveAlert}
         </div>
       )}
 
       {/* Main Responsive Workspace */}
       <div className="flex-1 flex min-h-0">
-        {/* Desktop Sidebar (10" and 21") */}
-        <aside className="hidden lg:flex lg:flex-col w-64 shrink-0 bg-white border-r border-slate-200 p-3 justify-between sticky top-14 h-[calc(100vh-56px)]">
-          <nav className="space-y-4 overflow-y-auto overflow-x-auto scroll-rulers pr-0.5">
-            {NAV_GROUPS.map((grp) => {
-              const items = visibleNavItems.filter((i) => i.group === grp.key);
-              const showFinanceBlock = grp.key === 'gestao' && canViewFinance;
-              if (items.length === 0 && !showFinanceBlock) return null;
-              const financePendingCount = navCounts.finance || 0;
-              return (
-                <div key={grp.key} className="space-y-1">
-                  <div className="px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    {grp.title}
-                  </div>
+        {/* Desktop Sidebar (10" and 21") — colapsa automaticamente para w-14 ao abrir documento do dossiê */}
+        <aside
+          className={`hidden lg:flex lg:flex-col shrink-0 bg-white border-r border-slate-200 justify-between sticky top-14 h-[calc(100vh-56px)] dark:bg-slate-900 dark:border-slate-700 transition-all duration-200 ${
+            sidebarCollapsed ? 'w-14 px-1.5 py-2.5 items-center' : 'w-64 p-3'
+          } ${hasOpenDossierDoc ? 'z-[75]' : 'z-20'}`}
+        >
+          {sidebarCollapsed ? (
+            <>
+              <div className="w-full flex flex-col items-center gap-1.5 overflow-y-auto scroll-rulers">
+                <button
+                  type="button"
+                  onClick={toggleSidebar}
+                  disabled={hasOpenDossierDoc}
+                  title={hasOpenDossierDoc ? 'Menu lateral colapsado durante leitura de documento' : 'Expandir menu lateral'}
+                  aria-label="Expandir menu lateral"
+                  className="w-10 h-9 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+                >
+                  <PanelLeftOpen className="w-4 h-4" />
+                </button>
+                <div className="w-7 border-t border-slate-200 dark:border-slate-800 my-0.5" />
+                {canViewFinance && (
+                  <button
+                    type="button"
+                    onClick={() => navigateTo('finance_receber')}
+                    title="Administração Financeira"
+                    className={`w-10 h-9 rounded-lg flex items-center justify-center transition-colors ${
+                      isFinanceActive
+                        ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                        : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <Banknote className="w-4 h-4" />
+                  </button>
+                )}
+                {visibleNavItems.map((item) => {
+                  const Icon = item.icon;
+                  const active =
+                    activeModule === item.id ||
+                    (item.id === 'collection' && isCollectionActive) ||
+                    (item.id === 'acomp_juridico' && isAcompJuridicoActive);
+                  return (
+                    <React.Fragment key={item.id}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (item.id === 'collection') navigateTo('collection_operacional');
+                          else if (item.id === 'acomp_juridico') navigateTo('jur_dashboard');
+                          else navigateTo(item.id);
+                        }}
+                        title={item.label}
+                        className={`w-10 h-9 rounded-lg flex items-center justify-center transition-colors ${
+                          active
+                            ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                            : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        <Icon className="w-4 h-4" />
+                      </button>
+                      {item.id === cadastrosAnchorId && visibleCadastrosSubmenus.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => navigateTo(visibleCadastrosSubmenus[0].id)}
+                          title="Cadastros Comuns"
+                          className={`w-10 h-9 rounded-lg flex items-center justify-center transition-colors ${
+                            activeModule.startsWith('cad_')
+                              ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                              : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          <FolderKanban className="w-4 h-4" />
+                        </button>
+                      )}
+                      {item.id === cadastrosAnchorId && (
+                        <button
+                          type="button"
+                          onClick={() => navigateTo('admission')}
+                          title="Comercial (Prospecção & Admissão)"
+                          className={`w-10 h-9 rounded-lg flex items-center justify-center transition-colors ${
+                            activeModule === 'prospection' || activeModule === 'admission'
+                              ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                              : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          <Store className="w-4 h-4" />
+                        </button>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+              <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  title="Sair"
+                  aria-label="Sair"
+                  className="w-10 h-9 rounded-lg flex items-center justify-center text-red-700 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/60"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center justify-between px-2 pb-2 mb-1 border-b border-slate-100 dark:border-slate-800">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  Navegação
+                </span>
+                <button
+                  type="button"
+                  onClick={toggleSidebar}
+                  title="Colapsar menu lateral"
+                  aria-label="Colapsar menu lateral"
+                  className="p-1 rounded-md text-slate-400 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800"
+                >
+                  <PanelLeftClose className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <nav className="flex-1 space-y-4 overflow-y-auto overflow-x-auto scroll-rulers pr-0.5">
+                {NAV_GROUPS.map((grp) => {
+                  const items = visibleNavItems.filter((i) => i.group === grp.key);
+                  const showFinanceBlock = grp.key === 'gestao' && canViewFinance;
+                  if (items.length === 0 && !showFinanceBlock) return null;
+                  const financePendingCount = navCounts.finance || 0;
+                  return (
+                    <div key={grp.key} className="space-y-1">
+                      <div className="px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400">
+                        {grp.title}
+                      </div>
 
                   {/* Administração Financeira (no grupo Receita) */}
                   {showFinanceBlock && (
@@ -789,20 +947,20 @@ export default function App() {
                         onClick={() => setAdminFinanceExpanded((prev) => !prev)}
                         className={`w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors text-left ${
                           isFinanceActive && !adminFinanceExpanded
-                            ? 'bg-slate-900 text-white'
+                            ? 'bg-slate-900 text-white dark:bg-emerald-600'
                             : isFinanceActive
-                            ? 'bg-slate-100 text-slate-900'
-                            : 'text-slate-700 hover:bg-slate-100'
+                            ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100'
+                            : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
                         }`}
                       >
                         <span className="flex items-center gap-2.5 min-w-0">
                           <Banknote
                             className={`w-4 h-4 shrink-0 ${
                               isFinanceActive && !adminFinanceExpanded
-                                ? 'text-emerald-400'
+                                ? 'text-emerald-400 dark:text-white'
                                 : isFinanceActive
-                                ? 'text-emerald-600'
-                                : 'text-slate-500'
+                                ? 'text-emerald-600 dark:text-emerald-400'
+                                : 'text-slate-500 dark:text-slate-400'
                             }`}
                           />
                           <span className="truncate">Administração Financeira</span>
@@ -811,22 +969,22 @@ export default function App() {
                           {!adminFinanceExpanded && financePendingCount > 0 && (
                             <span
                               className={`font-mono text-[11px] font-bold tabular-nums ${
-                                isFinanceActive ? 'text-emerald-300' : 'text-amber-700'
+                                isFinanceActive ? 'text-emerald-300 dark:text-white' : 'text-amber-700 dark:text-amber-300'
                               }`}
                             >
                               {financePendingCount}
                             </span>
                           )}
                           {adminFinanceExpanded ? (
-                            <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                            <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
                           ) : (
-                            <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                            <ChevronRight className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
                           )}
                         </span>
                       </button>
 
                       {adminFinanceExpanded && (
-                        <div className="ml-4 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5">
+                        <div className="ml-4 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5 dark:border-slate-700">
                           {/* Subopção 1: Cadastros e suas opções */}
                           <div className="space-y-0.5">
                             <button
@@ -835,29 +993,29 @@ export default function App() {
                               onClick={() => setFinanceCadastrosExpanded((prev) => !prev)}
                               className={`w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors text-left ${
                                 isFinanceCadActive && !financeCadastrosExpanded
-                                  ? 'bg-slate-900 text-white'
+                                  ? 'bg-slate-900 text-white dark:bg-emerald-600'
                                   : isFinanceCadActive
-                                  ? 'bg-slate-100 text-slate-900'
-                                  : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                                  ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100'
+                                  : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white'
                               }`}
                             >
                               <span className="flex items-center gap-2 min-w-0">
                                 <FolderKanban
                                   className={`w-3.5 h-3.5 shrink-0 ${
-                                    isFinanceCadActive ? 'text-emerald-600' : 'text-slate-500'
+                                    isFinanceCadActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'
                                   }`}
                                 />
                                 <span className="truncate">Cadastros</span>
                               </span>
                               {financeCadastrosExpanded ? (
-                                <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                                <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
                               ) : (
-                                <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                                <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
                               )}
                             </button>
 
                             {financeCadastrosExpanded && (
-                              <div className="ml-3 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5">
+                              <div className="ml-3 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5 dark:border-slate-700">
                                 {FINANCE_CADASTROS_SUBMENUS.map((sub) => {
                                   const SubIcon = sub.icon;
                                   const subActive = activeModule === sub.id;
@@ -868,13 +1026,13 @@ export default function App() {
                                       onClick={() => navigateTo(sub.id)}
                                       className={`w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-[11px] font-semibold transition-colors text-left ${
                                         subActive
-                                          ? 'bg-slate-900 text-white'
-                                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                                          ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
                                       }`}
                                     >
                                       <SubIcon
                                         className={`w-3 h-3 shrink-0 ${
-                                          subActive ? 'text-emerald-400' : 'text-slate-400'
+                                          subActive ? 'text-emerald-400 dark:text-white' : 'text-slate-400 dark:text-slate-400'
                                         }`}
                                       />
                                       <span className="truncate">{sub.label}</span>
@@ -893,74 +1051,74 @@ export default function App() {
                               onClick={() => setContaCorrenteExpanded((prev) => !prev)}
                               className={`w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors text-left ${
                                 isContaCorrenteActive && !contaCorrenteExpanded
-                                  ? 'bg-slate-900 text-white'
+                                  ? 'bg-slate-900 text-white dark:bg-emerald-600'
                                   : isContaCorrenteActive
-                                  ? 'bg-slate-100 text-slate-900'
-                                  : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                                  ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100'
+                                  : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white'
                               }`}
                             >
                               <span className="flex items-center gap-2 min-w-0">
                                 <Landmark
                                   className={`w-3.5 h-3.5 shrink-0 ${
                                     isContaCorrenteActive && !contaCorrenteExpanded
-                                      ? 'text-emerald-400'
+                                      ? 'text-emerald-400 dark:text-white'
                                       : isContaCorrenteActive
-                                      ? 'text-emerald-600'
-                                      : 'text-slate-500'
+                                      ? 'text-emerald-600 dark:text-emerald-400'
+                                      : 'text-slate-500 dark:text-slate-400'
                                   }`}
                                 />
                                 <span className="truncate">Conta Corrente</span>
                               </span>
                               {contaCorrenteExpanded ? (
-                                <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                                <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
                               ) : (
-                                <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                                <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
                               )}
                             </button>
 
                             {contaCorrenteExpanded && (
-                              <div className="ml-3 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5">
+                              <div className="ml-3 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5 dark:border-slate-700">
                                 <button
                                   type="button"
                                   aria-expanded={contaCorrenteCadastroExpanded}
                                   onClick={() => setContaCorrenteCadastroExpanded((prev) => !prev)}
                                   className={`w-full flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-[11px] font-semibold transition-colors text-left ${
                                     isContaCorrenteActive && !contaCorrenteCadastroExpanded
-                                      ? 'bg-slate-900 text-white'
+                                      ? 'bg-slate-900 text-white dark:bg-emerald-600'
                                       : isContaCorrenteActive
-                                      ? 'bg-slate-100 text-slate-900'
-                                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                                      ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100'
+                                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
                                   }`}
                                 >
                                   <span className="flex items-center gap-2 min-w-0">
                                     <FolderKanban
                                       className={`w-3 h-3 shrink-0 ${
-                                        isContaCorrenteActive ? 'text-emerald-600' : 'text-slate-400'
+                                        isContaCorrenteActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-400'
                                       }`}
                                     />
                                     <span className="truncate">Cadastro</span>
                                   </span>
                                   {contaCorrenteCadastroExpanded ? (
-                                    <ChevronDown className="w-3 h-3 shrink-0 text-slate-400" />
+                                    <ChevronDown className="w-3 h-3 shrink-0 text-slate-400 dark:text-slate-400" />
                                   ) : (
-                                    <ChevronRight className="w-3 h-3 shrink-0 text-slate-400" />
+                                    <ChevronRight className="w-3 h-3 shrink-0 text-slate-400 dark:text-slate-400" />
                                   )}
                                 </button>
 
                                 {contaCorrenteCadastroExpanded && (
-                                  <div className="ml-3 pl-2 border-l border-slate-200 space-y-0.5 py-0.5">
+                                  <div className="ml-3 pl-2 border-l border-slate-200 space-y-0.5 py-0.5 dark:border-slate-700">
                                     <button
                                       type="button"
                                       onClick={() => navigateTo('finance_conta_corrente')}
                                       className={`w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-[11px] font-semibold transition-colors text-left ${
                                         activeModule === 'finance_conta_corrente'
-                                          ? 'bg-slate-900 text-white'
-                                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                                          ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
                                       }`}
                                     >
                                       <Landmark
                                         className={`w-3 h-3 shrink-0 ${
-                                          activeModule === 'finance_conta_corrente' ? 'text-emerald-400' : 'text-slate-400'
+                                          activeModule === 'finance_conta_corrente' ? 'text-emerald-400 dark:text-white' : 'text-slate-400 dark:text-slate-400'
                                         }`}
                                       />
                                       <span className="truncate">Contas Correntes</span>
@@ -970,13 +1128,13 @@ export default function App() {
                                       onClick={() => navigateTo('finance_movimento')}
                                       className={`w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-[11px] font-semibold transition-colors text-left ${
                                         activeModule === 'finance_movimento'
-                                          ? 'bg-slate-900 text-white'
-                                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                                          ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
                                       }`}
                                     >
                                       <ArrowLeftRight
                                         className={`w-3 h-3 shrink-0 ${
-                                          activeModule === 'finance_movimento' ? 'text-emerald-400' : 'text-slate-400'
+                                          activeModule === 'finance_movimento' ? 'text-emerald-400 dark:text-white' : 'text-slate-400 dark:text-slate-400'
                                         }`}
                                       />
                                       <span className="truncate">Movimento</span>
@@ -986,13 +1144,13 @@ export default function App() {
                                       onClick={() => navigateTo('finance_conciliacao')}
                                       className={`w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-[11px] font-semibold transition-colors text-left ${
                                         activeModule === 'finance_conciliacao'
-                                          ? 'bg-slate-900 text-white'
-                                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                                          ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
                                       }`}
                                     >
                                       <Scale
                                         className={`w-3 h-3 shrink-0 ${
-                                          activeModule === 'finance_conciliacao' ? 'text-emerald-400' : 'text-slate-400'
+                                          activeModule === 'finance_conciliacao' ? 'text-emerald-400 dark:text-white' : 'text-slate-400 dark:text-slate-400'
                                         }`}
                                       />
                                       <span className="truncate">Conciliação Bancária</span>
@@ -1009,16 +1167,16 @@ export default function App() {
                             onClick={() => navigateTo('finance_receber')}
                             className={`w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors text-left ${
                               activeModule === 'finance_receber' || activeModule === 'finance' || activeModule === 'finance_operacao'
-                                ? 'bg-slate-900 text-white'
-                                : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                                ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                                : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white'
                             }`}
                           >
                             <span className="flex items-center gap-2 min-w-0">
                               <ArrowDownCircle
                                 className={`w-3.5 h-3.5 shrink-0 ${
                                   activeModule === 'finance_receber' || activeModule === 'finance' || activeModule === 'finance_operacao'
-                                    ? 'text-emerald-400'
-                                    : 'text-emerald-600'
+                                    ? 'text-emerald-400 dark:text-white'
+                                    : 'text-emerald-600 dark:text-emerald-400'
                                 }`}
                               />
                               <span className="truncate">Contas a Receber</span>
@@ -1027,8 +1185,8 @@ export default function App() {
                               <span
                                 className={`font-mono text-[10px] font-bold tabular-nums shrink-0 ${
                                   activeModule === 'finance_receber' || activeModule === 'finance' || activeModule === 'finance_operacao'
-                                    ? 'text-emerald-300'
-                                    : 'text-amber-700'
+                                    ? 'text-emerald-300 dark:text-white'
+                                    : 'text-amber-700 dark:text-amber-300'
                                 }`}
                               >
                                 {financePendingCount}
@@ -1042,13 +1200,13 @@ export default function App() {
                             onClick={() => navigateTo('finance_regua')}
                             className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors text-left ${
                               activeModule === 'finance_regua'
-                                ? 'bg-slate-900 text-white'
-                                : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                                ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                                : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white'
                             }`}
                           >
                             <BellRing
                               className={`w-3.5 h-3.5 shrink-0 ${
-                                activeModule === 'finance_regua' ? 'text-emerald-400' : 'text-blue-600'
+                                activeModule === 'finance_regua' ? 'text-emerald-400 dark:text-white' : 'text-blue-600 dark:text-blue-400'
                               }`}
                             />
                             <span className="truncate">Régua de Cobrança (Ivi)</span>
@@ -1060,13 +1218,13 @@ export default function App() {
                             onClick={() => navigateTo('finance_pagar')}
                             className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors text-left ${
                               activeModule === 'finance_pagar'
-                                ? 'bg-slate-900 text-white'
-                                : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                                ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                                : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white'
                             }`}
                           >
                             <ArrowUpCircle
                               className={`w-3.5 h-3.5 shrink-0 ${
-                                activeModule === 'finance_pagar' ? 'text-emerald-400' : 'text-rose-600'
+                                activeModule === 'finance_pagar' ? 'text-emerald-400 dark:text-white' : 'text-rose-600 dark:text-rose-400'
                               }`}
                             />
                             <span className="truncate">Contas a Pagar</span>
@@ -1091,20 +1249,20 @@ export default function App() {
                             onClick={() => setCollectionExpanded((prev) => !prev)}
                             className={`w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors text-left ${
                               isCollectionActive && !collectionExpanded
-                                ? 'bg-slate-900 text-white'
+                                ? 'bg-slate-900 text-white dark:bg-emerald-600'
                                 : isCollectionActive
-                                ? 'bg-slate-100 text-slate-900'
-                                : 'text-slate-700 hover:bg-slate-100'
+                                ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100'
+                                : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
                             }`}
                           >
                             <span className="flex items-center gap-2.5 min-w-0">
                               <Icon
                                 className={`w-4 h-4 shrink-0 ${
                                   isCollectionActive && !collectionExpanded
-                                    ? 'text-emerald-400'
+                                    ? 'text-emerald-400 dark:text-white'
                                     : isCollectionActive
-                                    ? 'text-emerald-600'
-                                    : 'text-slate-500'
+                                    ? 'text-emerald-600 dark:text-emerald-400'
+                                    : 'text-slate-500 dark:text-slate-400'
                                 }`}
                               />
                               <span className="truncate">{item.label}</span>
@@ -1113,22 +1271,22 @@ export default function App() {
                               {!collectionExpanded && pendingCount > 0 && (
                                 <span
                                   className={`font-mono text-[11px] font-bold tabular-nums ${
-                                    isCollectionActive ? 'text-emerald-300' : 'text-amber-700'
+                                    isCollectionActive ? 'text-emerald-300 dark:text-white' : 'text-amber-700 dark:text-amber-300'
                                   }`}
                                 >
                                   {pendingCount}
                                 </span>
                               )}
                               {collectionExpanded ? (
-                                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                                <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
                               ) : (
-                                <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                                <ChevronRight className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
                               )}
                             </span>
                           </button>
 
                           {collectionExpanded && (
-                            <div className="ml-4 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5">
+                            <div className="ml-4 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5 dark:border-slate-700">
                               {COLLECTION_SUBMENUS.map((sub) => {
                                 const SubIcon = sub.icon;
                                 const subActive =
@@ -1141,13 +1299,13 @@ export default function App() {
                                     onClick={() => navigateTo(sub.id)}
                                     className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors text-left ${
                                       subActive
-                                        ? 'bg-slate-900 text-white'
-                                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                                        ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
                                     }`}
                                   >
                                     <SubIcon
                                       className={`w-3.5 h-3.5 shrink-0 ${
-                                        subActive ? 'text-emerald-400' : 'text-slate-400'
+                                        subActive ? 'text-emerald-400 dark:text-white' : 'text-slate-400 dark:text-slate-400'
                                       }`}
                                     />
                                     <span className="truncate">{sub.label}</span>
@@ -1170,33 +1328,33 @@ export default function App() {
                             onClick={() => setAcompJuridicoExpanded((prev) => !prev)}
                             className={`w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors text-left ${
                               isAcompJuridicoActive && !acompJuridicoExpanded
-                                ? 'bg-slate-900 text-white'
+                                ? 'bg-slate-900 text-white dark:bg-emerald-600'
                                 : isAcompJuridicoActive
-                                ? 'bg-slate-100 text-slate-900'
-                                : 'text-slate-700 hover:bg-slate-100'
+                                ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100'
+                                : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
                             }`}
                           >
                             <span className="flex items-center gap-2.5 min-w-0">
                               <Icon
                                 className={`w-4 h-4 shrink-0 ${
                                   isAcompJuridicoActive && !acompJuridicoExpanded
-                                    ? 'text-emerald-400'
+                                    ? 'text-emerald-400 dark:text-white'
                                     : isAcompJuridicoActive
-                                    ? 'text-emerald-600'
-                                    : 'text-slate-500'
+                                    ? 'text-emerald-600 dark:text-emerald-400'
+                                    : 'text-slate-500 dark:text-slate-400'
                                 }`}
                               />
                               <span className="truncate">{item.label}</span>
                             </span>
                             {acompJuridicoExpanded ? (
-                              <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                              <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
                             ) : (
-                              <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                              <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
                             )}
                           </button>
 
                           {acompJuridicoExpanded && (
-                            <div className="ml-4 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5">
+                            <div className="ml-4 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5 dark:border-slate-700">
                               {visibleAcompJuridicoSubmenus.map((sub) => {
                                 const SubIcon = sub.icon;
                                 const subActive =
@@ -1209,13 +1367,13 @@ export default function App() {
                                     onClick={() => navigateTo(sub.id)}
                                     className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors text-left ${
                                       subActive
-                                        ? 'bg-slate-900 text-white'
-                                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                                        ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
                                     }`}
                                   >
                                     <SubIcon
                                       className={`w-3.5 h-3.5 shrink-0 ${
-                                        subActive ? 'text-emerald-400' : 'text-slate-400'
+                                        subActive ? 'text-emerald-400 dark:text-white' : 'text-slate-400 dark:text-slate-400'
                                       }`}
                                     />
                                     <span className="truncate">{sub.label}</span>
@@ -1235,18 +1393,18 @@ export default function App() {
                           onClick={() => navigateTo(item.id)}
                           className={`w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors text-left ${
                             active
-                              ? 'bg-slate-900 text-white'
-                              : 'text-slate-700 hover:bg-slate-100'
+                              ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                              : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
                           }`}
                         >
                           <span className="flex items-center gap-2.5 min-w-0">
-                            <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-emerald-400' : 'text-slate-500'}`} />
+                            <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-emerald-400 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`} />
                             <span className="truncate">{item.label}</span>
                           </span>
                           {pendingCount > 0 && (
                             <span
                               className={`font-mono text-[11px] font-bold tabular-nums shrink-0 ${
-                                active ? 'text-emerald-300' : 'text-amber-700'
+                                active ? 'text-emerald-300 dark:text-white' : 'text-amber-700 dark:text-amber-300'
                               }`}
                             >
                               {pendingCount}
@@ -1263,29 +1421,29 @@ export default function App() {
                               onClick={() => setCadastrosExpanded((prev) => !prev)}
                               className={`w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors text-left ${
                                 isCadActive && !cadastrosExpanded
-                                  ? 'bg-slate-900 text-white'
+                                  ? 'bg-slate-900 text-white dark:bg-emerald-600'
                                   : isCadActive
-                                  ? 'bg-slate-100 text-slate-900'
-                                  : 'text-slate-700 hover:bg-slate-100'
+                                  ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100'
+                                  : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
                               }`}
                             >
                               <span className="flex items-center gap-2.5 min-w-0">
                                 <FolderKanban
                                   className={`w-4 h-4 shrink-0 ${
-                                    isCadActive ? 'text-emerald-600' : 'text-slate-500'
+                                    isCadActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'
                                   }`}
                                 />
                                 <span className="truncate">Cadastros Comuns</span>
                               </span>
                               {cadastrosExpanded ? (
-                                <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                                <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
                               ) : (
-                                <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                                <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
                               )}
                             </button>
 
                             {cadastrosExpanded && (
-                              <div className="ml-4 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5">
+                              <div className="ml-4 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5 dark:border-slate-700">
                                 {visibleCadastrosSubmenus.map((sub) => {
                                   const SubIcon = sub.icon;
                                   const subActive = activeModule === sub.id;
@@ -1296,13 +1454,13 @@ export default function App() {
                                       onClick={() => navigateTo(sub.id)}
                                       className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors text-left ${
                                         subActive
-                                          ? 'bg-slate-900 text-white'
-                                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                                          ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
                                       }`}
                                     >
                                       <SubIcon
                                         className={`w-3.5 h-3.5 shrink-0 ${
-                                          subActive ? 'text-emerald-400' : 'text-slate-400'
+                                          subActive ? 'text-emerald-400 dark:text-white' : 'text-slate-400 dark:text-slate-400'
                                         }`}
                                       />
                                       <span className="truncate">{sub.label}</span>
@@ -1322,29 +1480,29 @@ export default function App() {
                               onClick={() => setComercialExpanded((prev) => !prev)}
                               className={`w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors text-left ${
                                 (activeModule === 'prospection' || activeModule === 'admission') && !comercialExpanded
-                                  ? 'bg-slate-900 text-white'
+                                  ? 'bg-slate-900 text-white dark:bg-emerald-600'
                                   : (activeModule === 'prospection' || activeModule === 'admission')
-                                  ? 'bg-slate-100 text-slate-900'
-                                  : 'text-slate-700 hover:bg-slate-100'
+                                  ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100'
+                                  : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
                               }`}
                             >
                               <span className="flex items-center gap-2.5 min-w-0">
                                 <Store
                                   className={`w-4 h-4 shrink-0 ${
-                                    (activeModule === 'prospection' || activeModule === 'admission') ? 'text-emerald-600' : 'text-slate-500'
+                                    (activeModule === 'prospection' || activeModule === 'admission') ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'
                                   }`}
                                 />
                                 <span className="truncate">Comercial</span>
                               </span>
                               {comercialExpanded ? (
-                                <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                                <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
                               ) : (
-                                <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                                <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
                               )}
                             </button>
 
                             {comercialExpanded && (
-                              <div className="ml-4 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5">
+                              <div className="ml-4 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5 dark:border-slate-700">
                                 {COMERCIAL_SUBMENUS.map((sub) => {
                                   const SubIcon = sub.icon;
                                   const subActive = activeModule === sub.id;
@@ -1355,13 +1513,13 @@ export default function App() {
                                       onClick={() => navigateTo(sub.id)}
                                       className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors text-left ${
                                         subActive
-                                          ? 'bg-slate-900 text-white'
-                                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                                          ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
                                       }`}
                                     >
                                       <SubIcon
                                         className={`w-3.5 h-3.5 shrink-0 ${
-                                          subActive ? 'text-emerald-400' : 'text-slate-400'
+                                          subActive ? 'text-emerald-400 dark:text-white' : 'text-slate-400 dark:text-slate-400'
                                         }`}
                                       />
                                       <span className="truncate">{sub.label}</span>
@@ -1380,36 +1538,38 @@ export default function App() {
             })}
           </nav>
 
-          <div className="space-y-2 pt-2 border-t border-slate-200">
+          <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-700">
             <button
               type="button"
               onClick={handleLogout}
-              className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 transition-colors text-left"
+              className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 transition-colors text-left dark:text-red-300 dark:hover:bg-red-950/60"
             >
-              <LogOut className="w-4 h-4 shrink-0 text-red-600" />
+              <LogOut className="w-4 h-4 shrink-0 text-red-600 dark:text-red-400" />
               <span className="truncate">Sair</span>
             </button>
-            <div className="pt-1 px-1 text-[11px] text-slate-500 space-y-1">
-              <div className="font-semibold text-slate-700">Fluxo do Cliente</div>
-              <div className="text-[10px] text-slate-500 leading-relaxed">
+            <div className="pt-1 px-1 text-[11px] text-slate-500 space-y-1 dark:text-slate-400">
+              <div className="font-semibold text-slate-700 dark:text-slate-200">Fluxo do Cliente</div>
+              <div className="text-[10px] text-slate-500 leading-relaxed dark:text-slate-400">
                 Prospecção → Admissão → Auditoria → Jurídico/Negociação → Financeiro
               </div>
             </div>
           </div>
+            </>
+          )}
         </aside>
 
         {/* Mobile / Tablet Navigation Drawer (<1024px) */}
         {mobileNavOpen && (
-          <div className="lg:hidden fixed inset-0 z-40 flex bg-slate-900/40 backdrop-blur-xs">
-            <div className="w-76 max-w-[85vw] bg-white h-full p-4 flex flex-col justify-between shadow-2xl overflow-y-auto overflow-x-auto scroll-rulers">
+          <div className="lg:hidden fixed inset-0 z-40 flex bg-slate-900/40 backdrop-blur-xs dark:bg-slate-950/80">
+            <div className="w-76 max-w-[85vw] bg-white h-full p-4 flex flex-col justify-between shadow-2xl overflow-y-auto overflow-x-auto scroll-rulers dark:bg-slate-900">
               <div>
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <span className="font-display text-sm font-bold text-slate-900">Setores FinancePro</span>
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                  <span className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">Setores FinancePro</span>
                   <button
                     type="button"
                     onClick={() => setMobileNavOpen(false)}
                     aria-label="Fechar menu"
-                    className="p-2 text-slate-500 min-h-[44px] min-w-[44px] flex items-center justify-center"
+                    className="p-2 text-slate-500 min-h-[44px] min-w-[44px] flex items-center justify-center dark:text-slate-400"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -1417,11 +1577,11 @@ export default function App() {
 
                 {/* Mobile Unit Selector */}
                 <div className="mt-3 sm:hidden">
-                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">Unidade Ativa</label>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">Unidade Ativa</label>
                   <select
                     value={activeUnitId}
                     onChange={(e) => handleUnitSwitch(Number(e.target.value))}
-                    className="w-full rounded-lg border border-slate-200 px-2.5 py-2.5 text-xs font-semibold min-h-[44px]"
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-2.5 text-xs font-semibold min-h-[44px] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   >
                     {selectableUnits.map((u) => (
                       <option key={u.id} value={u.id}>
@@ -1439,7 +1599,7 @@ export default function App() {
                     const financePendingCount = navCounts.finance || 0;
                     return (
                       <div key={grp.key} className="space-y-1">
-                        <div className="px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        <div className="px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400">
                           {grp.title}
                         </div>
 
@@ -1450,36 +1610,36 @@ export default function App() {
                               aria-expanded={adminFinanceExpanded}
                               onClick={() => setAdminFinanceExpanded((prev) => !prev)}
                               className={`w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold min-h-[44px] ${
-                                isFinanceActive ? 'bg-slate-100 text-slate-900' : 'text-slate-700 hover:bg-slate-100'
+                                isFinanceActive ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100' : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
                               }`}
                             >
                               <span className="flex items-center gap-2.5">
-                                <Banknote className="w-4 h-4 shrink-0 text-slate-500" />
+                                <Banknote className="w-4 h-4 shrink-0 text-slate-500 dark:text-slate-400" />
                                 <span>Administração Financeira</span>
                               </span>
                               <span className="flex items-center gap-1.5">
                                 {!adminFinanceExpanded && financePendingCount > 0 && (
-                                  <span className="font-mono text-[11px] font-bold text-amber-700">
+                                  <span className="font-mono text-[11px] font-bold text-amber-700 dark:text-amber-300">
                                     {financePendingCount}
                                   </span>
                                 )}
                                 {adminFinanceExpanded ? (
-                                  <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                                  <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
                                 ) : (
-                                  <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                                  <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
                                 )}
                               </span>
                             </button>
 
                             {adminFinanceExpanded && (
-                              <div className="ml-4 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5">
+                              <div className="ml-4 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5 dark:border-slate-700">
                                 <div className="space-y-0.5">
                                   <button
                                     type="button"
                                     aria-expanded={financeCadastrosExpanded}
                                     onClick={() => setFinanceCadastrosExpanded((prev) => !prev)}
                                     className={`w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold min-h-[40px] ${
-                                      isFinanceCadActive ? 'bg-slate-100 text-slate-900' : 'text-slate-700 hover:bg-slate-100'
+                                      isFinanceCadActive ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100' : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
                                     }`}
                                   >
                                     <span className="flex items-center gap-2">
@@ -1487,14 +1647,14 @@ export default function App() {
                                       <span>Cadastros</span>
                                     </span>
                                     {financeCadastrosExpanded ? (
-                                      <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                                      <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
                                     ) : (
-                                      <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                                      <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
                                     )}
                                   </button>
 
                                   {financeCadastrosExpanded && (
-                                    <div className="ml-3 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5">
+                                    <div className="ml-3 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5 dark:border-slate-700">
                                       {FINANCE_CADASTROS_SUBMENUS.map((sub) => {
                                         const SubIcon = sub.icon;
                                         const subActive = activeModule === sub.id;
@@ -1504,7 +1664,7 @@ export default function App() {
                                             type="button"
                                             onClick={() => navigateTo(sub.id)}
                                             className={`w-full flex items-center gap-2 rounded-lg px-2 py-2 text-xs font-semibold min-h-[38px] ${
-                                              subActive ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+                                              subActive ? 'bg-slate-900 text-white dark:bg-emerald-600' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
                                             }`}
                                           >
                                             <SubIcon className="w-3.5 h-3.5 shrink-0" />
@@ -1523,8 +1683,8 @@ export default function App() {
                                     onClick={() => setContaCorrenteExpanded((prev) => !prev)}
                                     className={`w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold min-h-[40px] ${
                                       isContaCorrenteActive
-                                        ? 'bg-slate-100 text-slate-900'
-                                        : 'text-slate-700 hover:bg-slate-100'
+                                        ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100'
+                                        : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
                                     }`}
                                   >
                                     <span className="flex items-center gap-2">
@@ -1532,22 +1692,22 @@ export default function App() {
                                       <span>Conta Corrente</span>
                                     </span>
                                     {contaCorrenteExpanded ? (
-                                      <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                                      <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
                                     ) : (
-                                      <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                                      <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
                                     )}
                                   </button>
 
                                   {contaCorrenteExpanded && (
-                                    <div className="ml-3 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5">
+                                    <div className="ml-3 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5 dark:border-slate-700">
                                       <button
                                         type="button"
                                         aria-expanded={contaCorrenteCadastroExpanded}
                                         onClick={() => setContaCorrenteCadastroExpanded((prev) => !prev)}
                                         className={`w-full flex items-center justify-between gap-2 rounded-lg px-2 py-2 text-xs font-semibold min-h-[38px] ${
                                           isContaCorrenteActive
-                                            ? 'bg-slate-100 text-slate-900'
-                                            : 'text-slate-600 hover:bg-slate-100'
+                                            ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100'
+                                            : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
                                         }`}
                                       >
                                         <span className="flex items-center gap-2">
@@ -1555,21 +1715,21 @@ export default function App() {
                                           <span>Cadastro</span>
                                         </span>
                                         {contaCorrenteCadastroExpanded ? (
-                                          <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                                          <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
                                         ) : (
-                                          <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                                          <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
                                         )}
                                       </button>
 
                                       {contaCorrenteCadastroExpanded && (
-                                        <div className="ml-3 pl-2 border-l border-slate-200 space-y-0.5 py-0.5">
+                                        <div className="ml-3 pl-2 border-l border-slate-200 space-y-0.5 py-0.5 dark:border-slate-700">
                                           <button
                                             type="button"
                                             onClick={() => navigateTo('finance_conta_corrente')}
                                             className={`w-full flex items-center gap-2 rounded-lg px-2 py-2 text-xs font-semibold min-h-[38px] ${
                                               activeModule === 'finance_conta_corrente'
-                                                ? 'bg-slate-900 text-white'
-                                                : 'text-slate-600 hover:bg-slate-100'
+                                                ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                                                : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
                                             }`}
                                           >
                                             <Landmark className="w-3.5 h-3.5 shrink-0" />
@@ -1580,8 +1740,8 @@ export default function App() {
                                             onClick={() => navigateTo('finance_movimento')}
                                             className={`w-full flex items-center gap-2 rounded-lg px-2 py-2 text-xs font-semibold min-h-[38px] ${
                                               activeModule === 'finance_movimento'
-                                                ? 'bg-slate-900 text-white'
-                                                : 'text-slate-600 hover:bg-slate-100'
+                                                ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                                                : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
                                             }`}
                                           >
                                             <ArrowLeftRight className="w-3.5 h-3.5 shrink-0" />
@@ -1592,8 +1752,8 @@ export default function App() {
                                             onClick={() => navigateTo('finance_conciliacao')}
                                             className={`w-full flex items-center gap-2 rounded-lg px-2 py-2 text-xs font-semibold min-h-[38px] ${
                                               activeModule === 'finance_conciliacao'
-                                                ? 'bg-slate-900 text-white'
-                                                : 'text-slate-600 hover:bg-slate-100'
+                                                ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                                                : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
                                             }`}
                                           >
                                             <Scale className="w-3.5 h-3.5 shrink-0" />
@@ -1610,8 +1770,8 @@ export default function App() {
                                   onClick={() => navigateTo('finance_receber')}
                                   className={`w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold min-h-[40px] ${
                                     activeModule === 'finance_receber' || activeModule === 'finance' || activeModule === 'finance_operacao'
-                                      ? 'bg-slate-900 text-white'
-                                      : 'text-slate-700 hover:bg-slate-100'
+                                      ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                                      : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
                                   }`}
                                 >
                                   <span className="flex items-center gap-2">
@@ -1621,8 +1781,8 @@ export default function App() {
                                   {financePendingCount > 0 && (
                                     <span className={`font-mono text-[11px] font-bold ${
                                       activeModule === 'finance_receber' || activeModule === 'finance' || activeModule === 'finance_operacao'
-                                        ? 'text-emerald-300'
-                                        : 'text-amber-700'
+                                        ? 'text-emerald-300 dark:text-white'
+                                        : 'text-amber-700 dark:text-amber-300'
                                     }`}>
                                       {financePendingCount}
                                     </span>
@@ -1634,8 +1794,8 @@ export default function App() {
                                   onClick={() => navigateTo('finance_regua')}
                                   className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold min-h-[40px] ${
                                     activeModule === 'finance_regua'
-                                      ? 'bg-slate-900 text-white'
-                                      : 'text-slate-700 hover:bg-slate-100'
+                                      ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                                      : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
                                   }`}
                                 >
                                   <BellRing className="w-3.5 h-3.5 shrink-0" />
@@ -1647,8 +1807,8 @@ export default function App() {
                                   onClick={() => navigateTo('finance_pagar')}
                                   className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold min-h-[40px] ${
                                     activeModule === 'finance_pagar'
-                                      ? 'bg-slate-900 text-white'
-                                      : 'text-slate-700 hover:bg-slate-100'
+                                      ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                                      : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
                                   }`}
                                 >
                                   <ArrowUpCircle className="w-3.5 h-3.5 shrink-0" />
@@ -1673,28 +1833,28 @@ export default function App() {
                                   aria-expanded={collectionExpanded}
                                   onClick={() => setCollectionExpanded((prev) => !prev)}
                                   className={`w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold min-h-[44px] ${
-                                    isCollectionActive ? 'bg-slate-100 text-slate-900' : 'text-slate-700 hover:bg-slate-100'
+                                    isCollectionActive ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100' : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
                                   }`}
                                 >
                                   <span className="flex items-center gap-2.5">
-                                    <Icon className="w-4 h-4 shrink-0 text-slate-500" />
+                                    <Icon className="w-4 h-4 shrink-0 text-slate-500 dark:text-slate-400" />
                                     <span>{item.label}</span>
                                   </span>
                                   <span className="flex items-center gap-1.5">
                                     {!collectionExpanded && pendingCount > 0 && (
-                                      <span className="font-mono text-[11px] font-bold text-amber-700">
+                                      <span className="font-mono text-[11px] font-bold text-amber-700 dark:text-amber-300">
                                         {pendingCount}
                                       </span>
                                     )}
                                     {collectionExpanded ? (
-                                      <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                                      <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
                                     ) : (
-                                      <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                                      <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
                                     )}
                                   </span>
                                 </button>
                                 {collectionExpanded && (
-                                  <div className="ml-4 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5">
+                                  <div className="ml-4 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5 dark:border-slate-700">
                                     {COLLECTION_SUBMENUS.map((sub) => {
                                       const SubIcon = sub.icon;
                                       const subActive =
@@ -1706,7 +1866,7 @@ export default function App() {
                                           type="button"
                                           onClick={() => navigateTo(sub.id)}
                                           className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold min-h-[40px] ${
-                                            subActive ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+                                            subActive ? 'bg-slate-900 text-white dark:bg-emerald-600' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
                                           }`}
                                         >
                                           <SubIcon className="w-3.5 h-3.5 shrink-0" />
@@ -1729,21 +1889,21 @@ export default function App() {
                                   aria-expanded={acompJuridicoExpanded}
                                   onClick={() => setAcompJuridicoExpanded((prev) => !prev)}
                                   className={`w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold min-h-[44px] ${
-                                    isAcompJuridicoActive ? 'bg-slate-100 text-slate-900' : 'text-slate-700 hover:bg-slate-100'
+                                    isAcompJuridicoActive ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100' : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
                                   }`}
                                 >
                                   <span className="flex items-center gap-2.5">
-                                    <Icon className="w-4 h-4 shrink-0 text-slate-500" />
+                                    <Icon className="w-4 h-4 shrink-0 text-slate-500 dark:text-slate-400" />
                                     <span>{item.label}</span>
                                   </span>
                                   {acompJuridicoExpanded ? (
-                                    <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                                    <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
                                   ) : (
-                                    <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                                    <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
                                   )}
                                 </button>
                                 {acompJuridicoExpanded && (
-                                  <div className="ml-4 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5">
+                                  <div className="ml-4 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5 dark:border-slate-700">
                                     {visibleAcompJuridicoSubmenus.map((sub) => {
                                       const SubIcon = sub.icon;
                                       const subActive =
@@ -1755,7 +1915,7 @@ export default function App() {
                                           type="button"
                                           onClick={() => navigateTo(sub.id)}
                                           className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold min-h-[40px] ${
-                                            subActive ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+                                            subActive ? 'bg-slate-900 text-white dark:bg-emerald-600' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
                                           }`}
                                         >
                                           <SubIcon className="w-3.5 h-3.5 shrink-0" />
@@ -1775,7 +1935,7 @@ export default function App() {
                                 type="button"
                                 onClick={() => navigateTo(item.id)}
                                 className={`w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold min-h-[44px] ${
-                                  active ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'
+                                  active ? 'bg-slate-900 text-white dark:bg-emerald-600' : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
                                 }`}
                               >
                                 <span className="flex items-center gap-2.5">
@@ -1783,7 +1943,7 @@ export default function App() {
                                   <span>{item.label}</span>
                                 </span>
                                 {pendingCount > 0 && (
-                                  <span className={`font-mono text-[11px] font-bold ${active ? 'text-emerald-300' : 'text-amber-700'}`}>
+                                  <span className={`font-mono text-[11px] font-bold ${active ? 'text-emerald-300 dark:text-white' : 'text-amber-700 dark:text-amber-300'}`}>
                                     {pendingCount}
                                   </span>
                                 )}
@@ -1796,21 +1956,21 @@ export default function App() {
                                     aria-expanded={cadastrosExpanded}
                                     onClick={() => setCadastrosExpanded((prev) => !prev)}
                                     className={`w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold min-h-[44px] ${
-                                      isCadActive ? 'bg-slate-100 text-slate-900' : 'text-slate-700 hover:bg-slate-100'
+                                      isCadActive ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100' : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
                                     }`}
                                   >
                                     <span className="flex items-center gap-2.5">
-                                      <FolderKanban className="w-4 h-4 shrink-0 text-slate-500" />
+                                      <FolderKanban className="w-4 h-4 shrink-0 text-slate-500 dark:text-slate-400" />
                                       <span>Cadastros Comuns</span>
                                     </span>
                                     {cadastrosExpanded ? (
-                                      <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                                      <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
                                     ) : (
-                                      <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                                      <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
                                     )}
                                   </button>
                                   {cadastrosExpanded && (
-                                    <div className="ml-4 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5">
+                                    <div className="ml-4 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5 dark:border-slate-700">
                                       {visibleCadastrosSubmenus.map((sub) => {
                                         const SubIcon = sub.icon;
                                         const subActive = activeModule === sub.id;
@@ -1820,7 +1980,7 @@ export default function App() {
                                             type="button"
                                             onClick={() => navigateTo(sub.id)}
                                             className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold min-h-[40px] ${
-                                              subActive ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+                                              subActive ? 'bg-slate-900 text-white dark:bg-emerald-600' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
                                             }`}
                                           >
                                             <SubIcon className="w-3.5 h-3.5 shrink-0" />
@@ -1841,22 +2001,22 @@ export default function App() {
                                     onClick={() => setComercialExpanded((prev) => !prev)}
                                     className={`w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold min-h-[44px] ${
                                       (activeModule === 'prospection' || activeModule === 'admission')
-                                        ? 'bg-slate-100 text-slate-900'
-                                        : 'text-slate-700 hover:bg-slate-100'
+                                        ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100'
+                                        : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
                                     }`}
                                   >
                                     <span className="flex items-center gap-2.5">
-                                      <Store className="w-4 h-4 shrink-0 text-slate-500" />
+                                      <Store className="w-4 h-4 shrink-0 text-slate-500 dark:text-slate-400" />
                                       <span>Comercial</span>
                                     </span>
                                     {comercialExpanded ? (
-                                      <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                                      <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
                                     ) : (
-                                      <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                                      <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
                                     )}
                                   </button>
                                   {comercialExpanded && (
-                                    <div className="ml-4 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5">
+                                    <div className="ml-4 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5 dark:border-slate-700">
                                       {COMERCIAL_SUBMENUS.map((sub) => {
                                         const SubIcon = sub.icon;
                                         const subActive = activeModule === sub.id;
@@ -1866,7 +2026,7 @@ export default function App() {
                                             type="button"
                                             onClick={() => navigateTo(sub.id)}
                                             className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold min-h-[40px] ${
-                                              subActive ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+                                              subActive ? 'bg-slate-900 text-white dark:bg-emerald-600' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
                                             }`}
                                           >
                                             <SubIcon className="w-3.5 h-3.5 shrink-0" />
@@ -1886,7 +2046,7 @@ export default function App() {
                   })}
                 </nav>
               </div>
-              <div className="text-[11px] text-slate-500 border-t border-slate-100 pt-3 mt-4">
+              <div className="text-[11px] text-slate-500 border-t border-slate-100 pt-3 mt-4 dark:text-slate-400 dark:border-slate-800">
                 {currentUser.email}
               </div>
             </div>
@@ -1897,22 +2057,19 @@ export default function App() {
         {/* Active Module Fluid Canvas */}
         <main className="flex-1 min-w-0 p-3 sm:p-5 pb-24 md:pb-8 overflow-y-auto overflow-x-auto scroll-rulers">
           <div className="max-w-7xl mx-auto space-y-3">
-            {activeModule !== 'overview' &&
-              activeModule !== 'appointments' &&
-              activeModule !== 'config' &&
-              !activeModule.startsWith('cad_') && (
-                <div className="flex items-center justify-between gap-2">
-                  <button
-                    type="button"
-                    onClick={handleGoBack}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 min-h-[38px]"
-                  >
-                    <ArrowLeft className="w-3.5 h-3.5" />
-                    <span>Voltar para a tela anterior</span>
-                    <span className="hidden sm:inline text-slate-400 font-normal">({previousModMeta})</span>
-                  </button>
-                </div>
-              )}
+            {(navHistory.length > 0 || activeModule !== 'overview') && !hasDedicatedBackButton && (
+              <div className="flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={handleGoBack}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 min-h-[38px] transition-colors"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Voltar para a tela anterior</span>
+                  <span className="hidden sm:inline text-slate-400 dark:text-slate-400 font-normal">({previousModMeta})</span>
+                </button>
+              </div>
+            )}
 
             {activeModule === 'overview' && (
               <OverviewModule onNavigate={navigateTo} activeUnitId={activeUnitId} />
@@ -1933,6 +2090,7 @@ export default function App() {
                 currentUser={currentUser}
                 onNavigate={navigateTo}
                 onGoBack={handleGoBack}
+                previousScreenLabel={previousModMeta}
                 onCatalogUpdated={() => setCadastrosVersion((v) => v + 1)}
               />
             )}
@@ -1955,6 +2113,7 @@ export default function App() {
                 onClearIntent={clearIntent}
                 onNavigate={navigateTo}
                 onGoBack={handleGoBack}
+                previousScreenLabel={previousModMeta}
               />
             )}
             {activeModule === 'admission' && (
@@ -1964,6 +2123,7 @@ export default function App() {
                 navIntent={navIntent}
                 onClearIntent={clearIntent}
                 onNavigate={navigateTo}
+                onGoBack={handleGoBack}
                 cadastrosRefreshKey={cadastrosVersion}
               />
             )}
@@ -1993,6 +2153,8 @@ export default function App() {
                 navIntent={navIntent}
                 onClearIntent={clearIntent}
                 onNavigate={navigateTo}
+                onGoBack={handleGoBack}
+                previousScreenLabel={previousModMeta}
               />
             )}
             {(activeModule === 'finance' || activeModule.startsWith('finance_')) && (
@@ -2033,6 +2195,8 @@ export default function App() {
                 navIntent={navIntent}
                 onClearIntent={clearIntent}
                 onNavigate={navigateTo}
+                onGoBack={handleGoBack}
+                previousScreenLabel={previousModMeta}
                 branding={portalBranding}
               />
             )}
@@ -2063,6 +2227,7 @@ export default function App() {
                   setCachedPortalBranding(nextBranding);
                 }}
                 onGoBack={handleGoBack}
+                previousScreenLabel={previousModMeta}
               />
             )}
           </div>
@@ -2083,7 +2248,7 @@ export default function App() {
       </div>
 
       {/* Bottom Tab Bar for 5" / 7" Touch Screens (<768px) */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 h-16 pb-safe bg-white/95 backdrop-blur-md border-t border-slate-200 grid grid-cols-5">
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 h-16 pb-safe bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 grid grid-cols-5">
         {visibleNavItems.slice(0, 4).map((item) => {
           const Icon = item.icon;
           const active = activeModule === item.id;
@@ -2093,7 +2258,7 @@ export default function App() {
               type="button"
               onClick={() => navigateTo(item.id)}
               className={`flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold min-h-[44px] ${
-                active ? 'text-emerald-700' : 'text-slate-500'
+                active ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'
               }`}
             >
               <Icon className="w-5 h-5" />
@@ -2104,7 +2269,7 @@ export default function App() {
         <button
           type="button"
           onClick={() => setMobileNavOpen(true)}
-          className="flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold text-slate-600 min-h-[44px]"
+          className="flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold text-slate-600 dark:text-slate-300 min-h-[44px]"
         >
           <Menu className="w-5 h-5" />
           <span>Setores</span>
@@ -2120,19 +2285,19 @@ export default function App() {
 
       {/* Mandatory Password Change Modal */}
       {currentUser.mustChangePassword && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 dark:bg-slate-950/80 p-4">
           <form
             onSubmit={handlePasswordChangeSubmit}
-            className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl space-y-4"
+            className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-2xl space-y-4"
           >
-            <h2 className="font-display text-lg font-bold text-slate-900">
+            <h2 className="font-display text-lg font-bold text-slate-900 dark:text-slate-100">
               Defina sua Nova Senha Pessoal
             </h2>
-            <p className="text-xs text-slate-600">
+            <p className="text-xs text-slate-600 dark:text-slate-300">
               Você acessou com uma senha temporária. Por política de segurança corporativa, cadastre uma nova senha definitiva (mínimo 6 caracteres) para continuar.
             </p>
             {passwordChangeErr && (
-              <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
+              <div className="rounded-lg bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 px-3 py-2 text-xs text-red-700 dark:text-red-300">
                 {passwordChangeErr}
               </div>
             )}
@@ -2143,12 +2308,12 @@ export default function App() {
               value={newPasswordInput}
               onChange={(e) => setNewPasswordInput(e.target.value)}
               placeholder="Nova senha corporativa"
-              className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"
+              className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 px-3 py-2.5 text-sm"
             />
             <button
               type="submit"
               disabled={passwordSaving}
-              className="w-full rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
+              className="w-full rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 dark:hover:bg-emerald-500"
             >
               {passwordSaving ? 'Salvando...' : 'Atualizar Senha e Acessar'}
             </button>
@@ -2158,23 +2323,23 @@ export default function App() {
 
       {/* Ivi Copilot Quick Modal */}
       {iviOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 dark:bg-slate-950/80 p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
               <div className="flex items-center gap-2.5">
-                <img src={iviAvatarImg} alt="Ivi" className="w-8 h-8 rounded-full object-cover border border-blue-300 shadow-sm shrink-0" />
+                <img src={iviAvatarImg} alt="Ivi" className="w-8 h-8 rounded-full object-cover border border-blue-300 dark:border-blue-600 shadow-sm shrink-0" />
                 <div>
-                  <h3 className="font-display text-base font-bold text-slate-900">
+                  <h3 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
                     Agente Ivi · Copiloto FinancePro
                   </h3>
-                  <p className="text-[11px] text-slate-500">Sua assistente virtual simpática e inteligente</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">Sua assistente virtual simpática e inteligente</p>
                 </div>
               </div>
-              <button type="button" onClick={() => setIviOpen(false)} className="text-slate-400 hover:text-slate-700 p-1">
+              <button type="button" onClick={() => setIviOpen(false)} className="text-slate-400 hover:text-slate-700 dark:hover:text-white p-1 dark:text-slate-400">
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               Orquestração automática: Claude Code → OpenAI → Gemini → DeepSeek. Contexto atual: <strong>{activeNavMeta?.label || activeModule}</strong>.
             </p>
             <form onSubmit={handleAskIvi} className="space-y-3">
@@ -2183,22 +2348,22 @@ export default function App() {
                 value={iviPrompt}
                 onChange={(e) => setIviPrompt(e.target.value)}
                 placeholder="Ex: Como estruturar a cobrança de busca e apreensão ou redigir resposta para cliente veicular?"
-                className="w-full rounded-lg border border-slate-200 p-3 text-xs text-slate-900"
+                className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 p-3 text-xs text-slate-900 dark:text-slate-100"
               />
               <button
                 type="submit"
                 disabled={iviBusy || !iviPrompt.trim()}
-                className="rounded-lg bg-blue-700 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-800 disabled:opacity-50"
+                className="rounded-lg bg-blue-700 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-500 disabled:opacity-50"
               >
                 {iviBusy ? 'Consultando cadeia Ivi...' : 'Enviar para Ivi'}
               </button>
             </form>
             {iviReply && (
-              <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3.5 text-xs space-y-1.5">
-                <div className="font-mono text-[10px] font-semibold text-blue-800">
+              <div className="rounded-xl border border-blue-100 dark:border-blue-800 bg-blue-50/70 dark:bg-blue-950/50 p-3.5 text-xs space-y-1.5">
+                <div className="font-mono text-[10px] font-semibold text-blue-800 dark:text-blue-300">
                   Provedor que respondeu: {iviProvider}
                 </div>
-                <p className="text-slate-800 whitespace-pre-wrap leading-relaxed">{iviReply}</p>
+                <p className="text-slate-800 dark:text-slate-100 whitespace-pre-wrap leading-relaxed">{iviReply}</p>
               </div>
             )}
           </div>
@@ -2208,17 +2373,17 @@ export default function App() {
       {/* Central de Ajuda Corporativa Modal */}
       {helpOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 dark:bg-slate-950/80 p-4"
           onClick={() => setHelpOpen(false)}
         >
           <div
-            className="w-full max-w-4xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+            className="w-full max-w-4xl rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between gap-3">
+            <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2 min-w-0">
-                <BookOpen className="w-4 h-4 text-emerald-600 shrink-0" />
-                <h3 className="font-display text-base font-bold text-slate-900 truncate">
+                <BookOpen className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <h3 className="font-display text-base font-bold text-slate-900 dark:text-slate-100 truncate">
                   Central de Ajuda & Procedimentos Operacionais
                 </h3>
               </div>
@@ -2230,7 +2395,7 @@ export default function App() {
                       setHelpOpen(false);
                       navigateTo('config');
                     }}
-                    className="text-xs font-semibold text-blue-700 hover:underline"
+                    className="text-xs font-semibold text-blue-700 dark:text-blue-400 hover:underline"
                   >
                     Editar em Configurações
                   </button>
@@ -2239,28 +2404,28 @@ export default function App() {
                   type="button"
                   onClick={() => setHelpOpen(false)}
                   aria-label="Fechar ajuda"
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 dark:text-slate-400"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
             </div>
 
-            <div className="p-4 border-b border-slate-100 bg-slate-50/60">
+            <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/60">
               <div className="relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5 dark:text-slate-400" />
                 <input
                   type="text"
                   value={helpSearch}
                   onChange={(e) => setHelpSearch(e.target.value)}
                   placeholder="Filtrar tópicos por módulo, título, resumo ou palavra-chave..."
-                  className="w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 py-2 text-xs text-slate-900 focus:border-blue-600 focus:outline-none"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 pl-9 pr-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:border-blue-600 focus:outline-none"
                 />
               </div>
             </div>
 
             {helpLoading ? (
-              <div className="p-8 text-center text-xs text-slate-500">
+              <div className="p-8 text-center text-xs text-slate-500 dark:text-slate-400">
                 Carregando tópicos da Central de Ajuda...
               </div>
             ) : (
@@ -2276,9 +2441,9 @@ export default function App() {
 
                 return (
                   <div className="grid grid-cols-1 md:grid-cols-12 flex-1 min-h-0 overflow-hidden">
-                    <div className="md:col-span-5 border-b md:border-b-0 md:border-r border-slate-200 overflow-y-auto divide-y divide-slate-100 max-h-60 md:max-h-none">
+                    <div className="md:col-span-5 border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-800 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 max-h-60 md:max-h-none">
                       {filteredTopics.length === 0 ? (
-                        <div className="p-6 text-center text-xs text-slate-500">
+                        <div className="p-6 text-center text-xs text-slate-500 dark:text-slate-400">
                           Nenhum procedimento encontrado para esta busca.
                         </div>
                       ) : (
@@ -2290,17 +2455,17 @@ export default function App() {
                               type="button"
                               onClick={() => setSelectedHelpId(topic.id)}
                               className={`w-full text-left px-4 py-3 transition-colors ${
-                                isSelected ? 'bg-blue-50/70' : 'hover:bg-slate-50'
+                                isSelected ? 'bg-blue-50/70 dark:bg-blue-950/50' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                               }`}
                             >
-                              <div className="font-mono text-[10px] font-semibold text-blue-700 truncate">
+                              <div className="font-mono text-[10px] font-semibold text-blue-700 dark:text-blue-400 truncate">
                                 {topic.menuPath}
                               </div>
-                              <div className="mt-0.5 text-xs font-bold text-slate-900">
+                              <div className="mt-0.5 text-xs font-bold text-slate-900 dark:text-slate-100">
                                 {topic.title}
                               </div>
                               {topic.summary && (
-                                <div className="mt-0.5 text-[11px] text-slate-500 line-clamp-2">
+                                <div className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2">
                                   {topic.summary}
                                 </div>
                               )}
@@ -2310,29 +2475,29 @@ export default function App() {
                       )}
                     </div>
 
-                    <div className="md:col-span-7 p-5 overflow-y-auto space-y-3 text-xs text-slate-700">
+                    <div className="md:col-span-7 p-5 overflow-y-auto space-y-3 text-xs text-slate-700 dark:text-slate-200">
                       {activeTopic ? (
                         <>
                           <div>
-                            <div className="font-mono text-[11px] font-semibold text-blue-700">
+                            <div className="font-mono text-[11px] font-semibold text-blue-700 dark:text-blue-400">
                               {activeTopic.menuPath}
                             </div>
-                            <h4 className="mt-1 font-display text-base font-bold text-slate-900">
+                            <h4 className="mt-1 font-display text-base font-bold text-slate-900 dark:text-slate-100">
                               {activeTopic.title}
                             </h4>
                             {activeTopic.summary && (
-                              <p className="mt-1 text-xs text-slate-500">{activeTopic.summary}</p>
+                              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{activeTopic.summary}</p>
                             )}
                           </div>
                           <div
-                            className="pt-3 border-t border-slate-100 space-y-2 leading-relaxed [&_h3]:font-display [&_h3]:text-sm [&_h3]:font-bold [&_h3]:text-slate-900 [&_ul]:list-disc [&_ul]:pl-5 [&_li]:mt-1 [&_strong]:text-slate-900"
+                            className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2 leading-relaxed [&_h3]:font-display [&_h3]:text-sm [&_h3]:font-bold [&_h3]:text-slate-900 dark:[&_h3]:text-slate-100 [&_ul]:list-disc [&_ul]:pl-5 [&_li]:mt-1 [&_strong]:text-slate-900 dark:[&_strong]:text-white"
                             dangerouslySetInnerHTML={{
                               __html: sanitizeHelpHtml(activeTopic.htmlContent),
                             }}
                           />
                         </>
                       ) : (
-                        <div className="text-center py-8 text-slate-400">
+                        <div className="text-center py-8 text-slate-400 dark:text-slate-500">
                           Selecione um tópico ao lado para visualizar as orientações.
                         </div>
                       )}

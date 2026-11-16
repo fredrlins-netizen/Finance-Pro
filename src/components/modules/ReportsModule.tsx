@@ -480,13 +480,13 @@ export const ReportsModule: React.FC<{
   return (
     <div className="space-y-4">
       {/* Header Bar */}
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
         <div className="flex items-center gap-3 min-w-0">
           <button
             type="button"
             onClick={() => setSidebarOpen((v) => !v)}
             title={sidebarOpen ? 'Recolher biblioteca' : 'Expandir biblioteca'}
-            className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50 shrink-0"
+            className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50 shrink-0 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
           >
             {sidebarOpen ? (
               <PanelLeftClose className="w-4 h-4" />
@@ -496,17 +496,17 @@ export const ReportsModule: React.FC<{
           </button>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <FileBarChart2 className="w-4 h-4 text-blue-600 shrink-0" />
-              <h1 className="font-display text-base font-bold text-slate-900 truncate">
+              <FileBarChart2 className="w-4 h-4 text-blue-600 shrink-0 dark:text-blue-400" />
+              <h1 className="font-display text-base font-bold text-slate-900 truncate dark:text-slate-100">
                 {draft.name || 'Novo Relatório'}
               </h1>
               {isDirty && (
-                <span className="text-[11px] font-semibold text-amber-600 shrink-0">
+                <span className="text-[11px] font-semibold text-amber-600 shrink-0 dark:text-amber-400">
                   · Alterações não salvas
                 </span>
               )}
             </div>
-            <p className="text-xs text-slate-500 truncate">
+            <p className="text-xs text-slate-500 truncate dark:text-slate-400">
               {draft.description || `${draft.category} · Formulários & Relatórios`}
             </p>
           </div>
@@ -518,8 +518,8 @@ export const ReportsModule: React.FC<{
             <div
               className={`inline-flex items-center justify-center rounded-xl border px-3.5 py-1.5 ${
                 darkBackdrop
-                  ? 'bg-slate-900 border-slate-800'
-                  : 'bg-white border-slate-200'
+                  ? 'bg-slate-900 border-slate-800 dark:bg-slate-950 dark:border-slate-700'
+                  : 'bg-white border-slate-200 dark:bg-slate-900 dark:border-slate-700'
               }`}
             >
               <img
@@ -531,8 +531,8 @@ export const ReportsModule: React.FC<{
               />
             </div>
           ) : (
-            <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700">
-              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+            <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-200">
+              <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               <span>{activeBranding?.companyName?.trim() || 'FinancePro'}</span>
             </div>
           )}
@@ -542,7 +542,7 @@ export const ReportsModule: React.FC<{
           <button
             type="button"
             onClick={() => setTrainingModalOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300 dark:hover:bg-blue-900/60"
           >
             <GraduationCap className="w-3.5 h-3.5" />
             Treinamento: Montar do Zero
@@ -550,14 +550,14 @@ export const ReportsModule: React.FC<{
 
           {isAdmin && (
             <>
-              <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+              <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-700 dark:bg-slate-800/70">
                 <button
                   type="button"
                   onClick={() => setViewMode('editor')}
                   className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold ${
                     viewMode === 'editor'
-                      ? 'bg-white text-slate-900 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
+                      ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-slate-100'
+                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
                   }`}
                 >
                   <Pencil className="w-3.5 h-3.5" />
@@ -568,8 +568,8 @@ export const ReportsModule: React.FC<{
                   onClick={() => setViewMode('preview')}
                   className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold ${
                     viewMode === 'preview'
-                      ? 'bg-white text-slate-900 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
+                      ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-slate-100'
+                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
                   }`}
                 >
                   <Eye className="w-3.5 h-3.5" />
@@ -580,7 +580,7 @@ export const ReportsModule: React.FC<{
               <button
                 type="button"
                 onClick={() => openSaveDialog(false)}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
               >
                 <Save className="w-3.5 h-3.5" />
                 Salvar
@@ -592,7 +592,7 @@ export const ReportsModule: React.FC<{
                     type="button"
                     onClick={() => openSaveDialog(true)}
                     title="Salvar como novo modelo"
-                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                   >
                     <CopyPlus className="w-3.5 h-3.5" />
                     Duplicar
@@ -601,7 +601,7 @@ export const ReportsModule: React.FC<{
                     type="button"
                     onClick={() => setDeleteTarget(draft)}
                     title="Excluir modelo"
-                    className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50"
+                    className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 dark:border-red-800/70 dark:bg-slate-900 dark:text-red-400 dark:hover:bg-red-950/60"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -616,9 +616,9 @@ export const ReportsModule: React.FC<{
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
         {/* Left Category Tree Sidebar */}
         {sidebarOpen && (
-          <aside className="lg:col-span-3 rounded-xl border border-slate-200 bg-white p-3 space-y-3">
+          <aside className="lg:col-span-3 rounded-xl border border-slate-200 bg-white p-3 space-y-3 dark:border-slate-700 dark:bg-slate-900">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wide text-slate-700">
+              <span className="text-xs font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">
                 Biblioteca ({templates.length})
               </span>
               <div className="flex items-center gap-1">
@@ -626,7 +626,7 @@ export const ReportsModule: React.FC<{
                   type="button"
                   onClick={() => void loadTemplates()}
                   title="Recarregar modelos"
-                  className="p-1 text-slate-400 hover:text-slate-700"
+                  className="p-1 text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
                 </button>
@@ -644,21 +644,21 @@ export const ReportsModule: React.FC<{
             </div>
 
             <div className="relative">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5 dark:text-slate-400" />
               <input
                 type="text"
                 value={sidebarSearch}
                 onChange={(e) => setSidebarSearch(e.target.value)}
                 placeholder="Buscar relatórios..."
-                className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-1.5 text-xs"
+                className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               />
             </div>
 
             <div className="max-h-[68vh] overflow-y-auto space-y-1 pr-0.5">
               {loading && templates.length === 0 ? (
-                <div className="py-6 text-center text-xs text-slate-400">Carregando modelos...</div>
+                <div className="py-6 text-center text-xs text-slate-400 dark:text-slate-400">Carregando modelos...</div>
               ) : groupedTemplates.length === 0 ? (
-                <div className="py-6 text-center text-xs text-slate-400">
+                <div className="py-6 text-center text-xs text-slate-400 dark:text-slate-400">
                   Nenhum relatório encontrado.
                 </div>
               ) : (
@@ -671,22 +671,22 @@ export const ReportsModule: React.FC<{
                         onClick={() =>
                           setExpandedCats((prev) => ({ ...prev, [cat]: !isOpen }))
                         }
-                        className="w-full flex items-center justify-between rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                        className="w-full flex items-center justify-between rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
                       >
                         <span className="flex items-center gap-1.5 truncate">
                           {isOpen ? (
-                            <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                            <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
                           ) : (
-                            <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                            <ChevronRight className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
                           )}
                           {isOpen ? (
-                            <FolderOpen className="w-3.5 h-3.5 text-blue-600" />
+                            <FolderOpen className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                           ) : (
-                            <Folder className="w-3.5 h-3.5 text-slate-400" />
+                            <Folder className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
                           )}
                           <span className="truncate">{cat}</span>
                         </span>
-                        <span className="text-[11px] font-normal text-slate-400 tabular-nums">
+                        <span className="text-[11px] font-normal text-slate-400 tabular-nums dark:text-slate-400">
                           {items.length}
                         </span>
                       </button>
@@ -694,7 +694,7 @@ export const ReportsModule: React.FC<{
                       {isOpen && (
                         <div className="pl-5 space-y-0.5">
                           {items.length === 0 ? (
-                            <div className="px-2 py-1 text-[11px] text-slate-400 italic">
+                            <div className="px-2 py-1 text-[11px] text-slate-400 italic dark:text-slate-400">
                               Vazio
                             </div>
                           ) : (
@@ -710,15 +710,15 @@ export const ReportsModule: React.FC<{
                                   onClick={() => handleSelectTemplate(tpl)}
                                   className={`w-full text-left flex items-center justify-between gap-1.5 rounded-lg px-2.5 py-1.5 text-xs transition-colors ${
                                     active
-                                      ? 'bg-slate-900 text-white font-semibold'
-                                      : 'text-slate-600 hover:bg-slate-100'
+                                      ? 'bg-slate-900 text-white font-semibold dark:bg-emerald-600'
+                                      : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
                                   }`}
                                 >
                                   <span className="truncate">{tpl.name}</span>
                                   {restricted && (
                                     <Lock
                                       className={`w-3 h-3 shrink-0 ${
-                                        active ? 'text-slate-300' : 'text-slate-400'
+                                        active ? 'text-slate-300' : 'text-slate-400 dark:text-slate-400'
                                       }`}
                                     />
                                   )}
@@ -740,7 +740,7 @@ export const ReportsModule: React.FC<{
         <div className={sidebarOpen ? 'lg:col-span-9 space-y-4' : 'lg:col-span-12 space-y-4'}>
           {viewMode === 'preview' || !isAdmin ? (
             !draft.sql_query?.trim() && !draft.id ? (
-              <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-xs text-slate-500">
+              <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
                 Selecione um relatório na biblioteca ao lado para visualizar e exportar os dados.
               </div>
             ) : (
@@ -756,7 +756,7 @@ export const ReportsModule: React.FC<{
           ) : (
             <div className="space-y-4">
               {/* 6 Editor Tabs */}
-              <div className="flex flex-wrap items-center gap-1 rounded-xl border border-slate-200 bg-white p-1.5">
+              <div className="flex flex-wrap items-center gap-1 rounded-xl border border-slate-200 bg-white p-1.5 dark:border-slate-700 dark:bg-slate-900">
                 {[
                   { id: 'datasource', label: 'Fonte de Dados', icon: Database },
                   { id: 'layout', label: 'Layout', icon: Layout },
@@ -778,8 +778,8 @@ export const ReportsModule: React.FC<{
                       onClick={() => setActiveTab(tab.id as EditorTabId)}
                       className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
                         active
-                          ? 'bg-slate-900 text-white'
-                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                          ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
                       }`}
                     >
                       <Icon className="w-3.5 h-3.5" />
@@ -856,7 +856,7 @@ export const ReportsModule: React.FC<{
       {/* Save / ACL Modal */}
       {saveModalOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 dark:bg-slate-950/80"
           onClick={() => !saving && setSaveModalOpen(false)}
           onKeyDown={(e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
@@ -867,18 +867,18 @@ export const ReportsModule: React.FC<{
           }}
         >
           <div
-            className="w-full max-w-2xl rounded-xl border border-slate-200 bg-white shadow-2xl overflow-hidden"
+            className="w-full max-w-2xl rounded-xl border border-slate-200 bg-white shadow-2xl overflow-hidden dark:border-slate-700 dark:bg-slate-900"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-3.5">
-              <h3 className="text-sm font-bold text-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-3.5 dark:border-slate-700 dark:bg-slate-800/70">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
                 {draft.id && !saveAsNew ? 'Salvar Modelo de Relatório' : 'Salvar Novo Relatório'}
               </h3>
               <button
                 type="button"
                 disabled={saving}
                 onClick={() => setSaveModalOpen(false)}
-                className="p-1 text-slate-400 hover:text-slate-700"
+                className="p-1 text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -887,7 +887,7 @@ export const ReportsModule: React.FC<{
             <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">
                     Nome do Relatório *
                   </label>
                   <input
@@ -896,17 +896,17 @@ export const ReportsModule: React.FC<{
                     value={draft.name}
                     onChange={(e) => patchDraft({ name: e.target.value })}
                     placeholder="Ex: Dossiês por Unidade"
-                    className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs dark:border-slate-700"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">
                     Categoria *
                   </label>
                   <select
                     value={draft.category}
                     onChange={(e) => patchDraft({ category: e.target.value })}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   >
                     {REPORT_CATEGORIES.map((c) => (
                       <option key={c} value={c}>
@@ -916,7 +916,7 @@ export const ReportsModule: React.FC<{
                   </select>
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">
                     Descrição
                   </label>
                   <input
@@ -924,35 +924,35 @@ export const ReportsModule: React.FC<{
                     value={draft.description}
                     onChange={(e) => patchDraft({ description: e.target.value })}
                     placeholder="Objetivo gerencial ou filtros recomendados..."
-                    className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs dark:border-slate-700"
                   />
                 </div>
               </div>
 
               {/* ACL Users & Groups */}
-              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 space-y-3">
+              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 space-y-3 dark:border-slate-700 dark:bg-slate-800/60">
                 <div>
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                    <Lock className="w-3.5 h-3.5 text-blue-600" />
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-100">
+                    <Lock className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                     Controle de Acesso (ACL)
                   </div>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
+                  <p className="text-[11px] text-slate-500 mt-0.5 dark:text-slate-400">
                     Se nenhum usuário e nenhum grupo forem marcados, todos os colaboradores com permissão no módulo poderão visualizar este relatório.
                   </p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
-                    <div className="text-[11px] font-semibold text-slate-700 mb-1">
+                    <div className="text-[11px] font-semibold text-slate-700 mb-1 dark:text-slate-200">
                       Grupos Autorizados ({draft.allowed_groups?.length || 0})
                     </div>
-                    <div className="max-h-36 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2 space-y-1">
+                    <div className="max-h-36 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2 space-y-1 dark:border-slate-700 dark:bg-slate-900">
                       {aclOptions.groups.map((grp) => {
                         const checked = (draft.allowed_groups || []).includes(grp.id);
                         return (
                           <label
                             key={grp.id}
-                            className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer hover:bg-slate-50 px-1.5 py-1 rounded"
+                            className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer hover:bg-slate-50 px-1.5 py-1 rounded dark:text-slate-200 dark:hover:bg-slate-800"
                           >
                             <input
                               type="checkbox"
@@ -964,7 +964,7 @@ export const ReportsModule: React.FC<{
                                   : [...curr, grp.id];
                                 patchDraft({ allowed_groups: next.length ? next : null });
                               }}
-                              className="rounded border-slate-300 text-blue-600"
+                              className="rounded border-slate-300 text-blue-600 dark:border-slate-600 dark:text-blue-400"
                             />
                             <span className="truncate">{grp.name}</span>
                           </label>
@@ -974,16 +974,16 @@ export const ReportsModule: React.FC<{
                   </div>
 
                   <div>
-                    <div className="text-[11px] font-semibold text-slate-700 mb-1">
+                    <div className="text-[11px] font-semibold text-slate-700 mb-1 dark:text-slate-200">
                       Usuários Específicos ({draft.allowed_users?.length || 0})
                     </div>
-                    <div className="max-h-36 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2 space-y-1">
+                    <div className="max-h-36 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2 space-y-1 dark:border-slate-700 dark:bg-slate-900">
                       {aclOptions.users.map((usr) => {
                         const checked = (draft.allowed_users || []).includes(usr.id);
                         return (
                           <label
                             key={usr.id}
-                            className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer hover:bg-slate-50 px-1.5 py-1 rounded"
+                            className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer hover:bg-slate-50 px-1.5 py-1 rounded dark:text-slate-200 dark:hover:bg-slate-800"
                           >
                             <input
                               type="checkbox"
@@ -995,10 +995,10 @@ export const ReportsModule: React.FC<{
                                   : [...curr, usr.id];
                                 patchDraft({ allowed_users: next.length ? next : null });
                               }}
-                              className="rounded border-slate-300 text-blue-600"
+                              className="rounded border-slate-300 text-blue-600 dark:border-slate-600 dark:text-blue-400"
                             />
                             <span className="truncate">
-                              {usr.name} <span className="text-slate-400">({usr.role})</span>
+                              {usr.name} <span className="text-slate-400 dark:text-slate-400">({usr.role})</span>
                             </span>
                           </label>
                         );
@@ -1009,18 +1009,18 @@ export const ReportsModule: React.FC<{
               </div>
 
               {saveError && (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
                   {saveError}
                 </div>
               )}
             </div>
 
-            <div className="flex items-center justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3">
+            <div className="flex items-center justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3 dark:border-slate-700 dark:bg-slate-800/70">
               <button
                 type="button"
                 disabled={saving}
                 onClick={() => setSaveModalOpen(false)}
-                className="rounded-lg border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                className="rounded-lg border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 Cancelar
               </button>
@@ -1028,7 +1028,7 @@ export const ReportsModule: React.FC<{
                 type="button"
                 disabled={saving}
                 onClick={() => void handleSaveSubmit()}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
               >
                 <Save className="w-3.5 h-3.5" />
                 {saving ? 'Salvando...' : 'Confirmar e Salvar'}
@@ -1041,31 +1041,31 @@ export const ReportsModule: React.FC<{
       {/* Dirty Draft Guard Modal (never window.confirm) */}
       {pendingAction && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 dark:bg-slate-950/80"
           onClick={() => setPendingAction(null)}
         >
           <div
-            className="w-full max-w-md rounded-xl border border-slate-200 bg-white shadow-2xl p-5 space-y-4"
+            className="w-full max-w-md rounded-xl border border-slate-200 bg-white shadow-2xl p-5 space-y-4 dark:border-slate-700 dark:bg-slate-900"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start gap-3">
-              <div className="p-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 shrink-0">
+              <div className="p-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 shrink-0 dark:bg-amber-950/50 dark:border-amber-800/70 dark:text-amber-300">
                 <AlertTriangle className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="font-display text-base font-bold text-slate-900">
+                <h3 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
                   Alterações não salvas
                 </h3>
-                <p className="mt-1 text-xs text-slate-600 leading-relaxed">
+                <p className="mt-1 text-xs text-slate-600 leading-relaxed dark:text-slate-300">
                   Você possui edições pendentes no relatório atual. Deseja descartar essas alterações e continuar?
                 </p>
               </div>
             </div>
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
               <button
                 type="button"
                 onClick={() => setPendingAction(null)}
-                className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 Continuar Editando
               </button>
@@ -1106,7 +1106,7 @@ export const ReportsModule: React.FC<{
 
       {/* Toast Notification */}
       {toastMsg && (
-        <div className="fixed bottom-5 right-5 z-50 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-semibold text-white shadow-lg">
+        <div className="fixed bottom-5 right-5 z-50 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-semibold text-white shadow-lg dark:bg-emerald-600">
           {toastMsg}
         </div>
       )}

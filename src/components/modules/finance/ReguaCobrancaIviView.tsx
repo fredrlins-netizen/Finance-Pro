@@ -35,21 +35,21 @@ const STAGE_META: Record<
     title: 'Lembrete Preventivo (-15 dias)',
     subtitle: 'Vencimentos acima de 5 dias à frente',
     hint: 'Mensagem amigável para antecipar 2ª via de boleto ou PIX.',
-    tone: 'text-blue-700',
+    tone: 'text-blue-700 dark:text-blue-300',
     activeBorder: 'border-blue-600 bg-blue-50/60',
   },
   '-5d': {
     title: 'Aviso de Vencimento (-5 dias)',
     subtitle: 'Vencem nos próximos 5 dias ou hoje',
     hint: 'Lembrete próximo ao vencimento para evitar esquecimento.',
-    tone: 'text-amber-700',
+    tone: 'text-amber-700 dark:text-amber-300',
     activeBorder: 'border-amber-600 bg-amber-50/60',
   },
   '+7d': {
     title: 'Cobrança em Atraso (+7d / Vencidos)',
     subtitle: 'Títulos já vencidos em aberto ou parcial',
     hint: 'Abordagem resolutiva para renegociação ou quitação imediata.',
-    tone: 'text-red-700',
+    tone: 'text-red-700 dark:text-red-300',
     activeBorder: 'border-red-600 bg-red-50/60',
   },
 };
@@ -227,13 +227,13 @@ export const ReguaCobrancaIviView: React.FC<ReguaCobrancaIviViewProps> = ({ onRe
   return (
     <div className="space-y-5">
       {/* Contextual Explanation for Lay User */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4 dark:border-slate-700 dark:bg-slate-900">
         <div className="space-y-1">
-          <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
-            <BellRing className="w-4 h-4 text-blue-700" />
+          <div className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-slate-100">
+            <BellRing className="w-4 h-4 text-blue-700 dark:text-blue-300" />
             Confirmação de Lotes da Régua Ivi
           </div>
-          <p className="text-xs text-slate-600 leading-relaxed max-w-3xl">
+          <p className="text-xs text-slate-600 leading-relaxed max-w-3xl dark:text-slate-300">
             Esta área é separada das movimentações diárias para evitar envios acidentais. Escolha o lote abaixo, revise os
             clientes selecionados (ou edite qualquer mensagem) e clique em <strong>Confirmar Lote para Ivi</strong>.
           </p>
@@ -243,15 +243,15 @@ export const ReguaCobrancaIviView: React.FC<ReguaCobrancaIviViewProps> = ({ onRe
             type="button"
             disabled={scanBusy}
             onClick={handleRunIvi07hScan}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap min-h-[40px]"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap min-h-[40px] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
           >
-            <ScanSearch className="w-3.5 h-3.5 text-emerald-600" />
+            <ScanSearch className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
             Varredura 07:00h (Folha de Rosto)
           </button>
           <button
             type="button"
             onClick={loadBatches}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap min-h-[40px]"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap min-h-[40px] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             Atualizar Lotes
@@ -260,7 +260,7 @@ export const ReguaCobrancaIviView: React.FC<ReguaCobrancaIviViewProps> = ({ onRe
       </div>
 
       {toast && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-medium text-emerald-900 flex items-center justify-between">
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-medium text-emerald-900 flex items-center justify-between dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300">
           <span>{toast}</span>
           <button type="button" onClick={() => setToast('')}>
             <X className="w-3.5 h-3.5" />
@@ -269,7 +269,7 @@ export const ReguaCobrancaIviView: React.FC<ReguaCobrancaIviViewProps> = ({ onRe
       )}
 
       {errorMsg && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-800 flex items-center justify-between">
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-800 flex items-center justify-between dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
           <span>{errorMsg}</span>
           <button type="button" onClick={() => setErrorMsg('')}>
             <X className="w-3.5 h-3.5" />
@@ -279,13 +279,13 @@ export const ReguaCobrancaIviView: React.FC<ReguaCobrancaIviViewProps> = ({ onRe
 
       {/* Varredura 07h / Folha de Rosto results */}
       {scanResults && scanResults.length > 0 && (
-        <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4 space-y-3">
+        <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4 space-y-3 dark:border-blue-800/70 dark:bg-blue-950/50">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs font-bold text-blue-950">
-              <FileSpreadsheet className="w-4 h-4 text-blue-700" />
+            <div className="flex items-center gap-2 text-xs font-bold text-blue-950 dark:text-blue-300">
+              <FileSpreadsheet className="w-4 h-4 text-blue-700 dark:text-blue-300" />
               Varredura 07:00h · {scanResults.length} contrato(s) com parcelas iniciais pagas prontos para Folha de Rosto
             </div>
-            <button type="button" onClick={() => setScanResults(null)} className="text-slate-500 hover:text-slate-800">
+            <button type="button" onClick={() => setScanResults(null)} className="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -293,13 +293,13 @@ export const ReguaCobrancaIviView: React.FC<ReguaCobrancaIviViewProps> = ({ onRe
             {scanResults.map((cand) => (
               <div
                 key={cand.admissionId}
-                className="rounded-lg border border-blue-200 bg-white p-3.5 flex items-center justify-between gap-3"
+                className="rounded-lg border border-blue-200 bg-white p-3.5 flex items-center justify-between gap-3 dark:border-blue-800/70 dark:bg-slate-900"
               >
                 <div>
-                  <div className="font-mono text-xs font-bold text-slate-900">
+                  <div className="font-mono text-xs font-bold text-slate-900 dark:text-slate-100">
                     {cand.protocolCode} · {cand.clientName}
                   </div>
-                  <div className="text-[11px] text-slate-600 mt-0.5">
+                  <div className="text-[11px] text-slate-600 mt-0.5 dark:text-slate-300">
                     {cand.bankName} · Gerar {cand.remainingInstallments} parcelas de{' '}
                     <span className="font-mono tabular-nums">{formatBRL(cand.installmentAmountCents)}</span>
                   </div>
@@ -333,36 +333,36 @@ export const ReguaCobrancaIviView: React.FC<ReguaCobrancaIviViewProps> = ({ onRe
               type="button"
               onClick={() => setActiveStage(stage)}
               className={`rounded-xl border p-4 text-left transition-colors ${
-                isActive ? meta.activeBorder : 'border-slate-200 bg-white hover:bg-slate-50'
+                isActive ? meta.activeBorder : 'border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800'
               }`}
             >
               <div className="flex items-center justify-between gap-2">
                 <span className={`text-xs font-bold ${meta.tone}`}>{meta.title}</span>
-                <span className="font-mono text-xs font-bold text-slate-700 tabular-nums">
+                <span className="font-mono text-xs font-bold text-slate-700 tabular-nums dark:text-slate-200">
                   {stat.pendingCount} pendente(s)
                 </span>
               </div>
-              <div className="mt-2 font-mono text-xl font-bold text-slate-900 tabular-nums">
+              <div className="mt-2 font-mono text-xl font-bold text-slate-900 tabular-nums dark:text-slate-100">
                 {formatBRL(stat.pendingCents)}
               </div>
-              <p className="mt-1 text-[11px] text-slate-500">{meta.subtitle}</p>
+              <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">{meta.subtitle}</p>
             </button>
           );
         })}
       </div>
 
       {/* Stage Batch Confirmation Grid */}
-      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
+        <div className="px-4 py-3 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3 dark:border-slate-800">
           <div>
-            <h2 className="font-display text-sm font-bold text-slate-900">
+            <h2 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
               {STAGE_META[activeStage].title}
             </h2>
-            <p className="text-[11px] text-slate-500">{STAGE_META[activeStage].hint}</p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">{STAGE_META[activeStage].hint}</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <label className="inline-flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer">
+            <label className="inline-flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer dark:text-slate-200">
               <input
                 type="checkbox"
                 checked={includeAlreadySent}
@@ -371,7 +371,7 @@ export const ReguaCobrancaIviView: React.FC<ReguaCobrancaIviViewProps> = ({ onRe
               <span>Exibir já notificados neste estágio</span>
             </label>
 
-            <label className="inline-flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer">
+            <label className="inline-flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer dark:text-slate-200">
               <input
                 type="checkbox"
                 checked={useAiPersonalization}
@@ -394,7 +394,7 @@ export const ReguaCobrancaIviView: React.FC<ReguaCobrancaIviViewProps> = ({ onRe
 
         <div className="overflow-x-auto scroll-rulers">
           <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 text-[11px] font-semibold text-slate-500 border-b border-slate-200">
+            <thead className="bg-slate-50 text-[11px] font-semibold text-slate-500 border-b border-slate-200 dark:bg-slate-800/70 dark:text-slate-400 dark:border-slate-700">
               <tr>
                 <th className="px-3 py-2.5 w-10">
                   <input
@@ -416,16 +416,16 @@ export const ReguaCobrancaIviView: React.FC<ReguaCobrancaIviViewProps> = ({ onRe
                 <th className="px-3 py-2.5 text-right">Mensagem</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-500">
+                  <td colSpan={8} className="py-8 text-center text-slate-500 dark:text-slate-400">
                     Carregando títulos elegíveis para a régua de cobrança...
                   </td>
                 </tr>
               ) : visibleCandidates.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-10 text-center text-slate-500">
+                  <td colSpan={8} className="py-10 text-center text-slate-500 dark:text-slate-400">
                     Nenhum título pendente de confirmação para o estágio {activeStage}.
                   </td>
                 </tr>
@@ -437,7 +437,7 @@ export const ReguaCobrancaIviView: React.FC<ReguaCobrancaIviViewProps> = ({ onRe
                   const isEditingThis = editingMsgId === c.titleId;
                   return (
                     <React.Fragment key={c.titleId}>
-                      <tr className={`hover:bg-slate-50/70 ${checked ? 'bg-blue-50/25' : ''}`}>
+                      <tr className={`hover:bg-slate-50/70 dark:hover:bg-slate-800 ${checked ? 'bg-blue-50/25' : ''}`}>
                         <td className="px-3 py-2.5">
                           <input
                             type="checkbox"
@@ -449,28 +449,28 @@ export const ReguaCobrancaIviView: React.FC<ReguaCobrancaIviViewProps> = ({ onRe
                           />
                         </td>
                         <td className="px-3 py-2.5">
-                          <div className="font-semibold text-slate-900">{c.clientName}</div>
-                          <div className="text-[11px] font-mono text-slate-500">
+                          <div className="font-semibold text-slate-900 dark:text-slate-100">{c.clientName}</div>
+                          <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
                             {c.clientWhatsapp || c.clientPhone || 'Sem telefone'}
                           </div>
                         </td>
                         <td className="px-3 py-2.5">
-                          <div className="font-mono font-semibold text-slate-900">{c.documentNumber}</div>
-                          <div className="text-[11px] text-slate-500">
+                          <div className="font-mono font-semibold text-slate-900 dark:text-slate-100">{c.documentNumber}</div>
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400">
                             Parcela {c.installmentNumber}/{c.totalInstallments}
                           </div>
                         </td>
-                        <td className="px-3 py-2.5 font-mono tabular-nums text-slate-700">
+                        <td className="px-3 py-2.5 font-mono tabular-nums text-slate-700 dark:text-slate-200">
                           {formatDateBR(c.dueDate)}
                         </td>
                         <td className="px-3 py-2.5 font-mono tabular-nums">
                           <span
                             className={`font-semibold ${
                               c.daysOffset < 0
-                                ? 'text-red-600'
+                                ? 'text-red-600 dark:text-red-400'
                                 : c.daysOffset <= 5
-                                ? 'text-amber-700'
-                                : 'text-blue-700'
+                                ? 'text-amber-700 dark:text-amber-300'
+                                : 'text-blue-700 dark:text-blue-300'
                             }`}
                           >
                             {c.daysOffset < 0
@@ -480,23 +480,23 @@ export const ReguaCobrancaIviView: React.FC<ReguaCobrancaIviViewProps> = ({ onRe
                               : `Em ${c.daysOffset}d`}
                           </span>
                         </td>
-                        <td className="px-3 py-2.5 text-right font-mono font-bold tabular-nums text-slate-900">
+                        <td className="px-3 py-2.5 text-right font-mono font-bold tabular-nums text-slate-900 dark:text-slate-100">
                           {formatBRL(c.balanceCents)}
                         </td>
                         <td className="px-3 py-2.5 text-[11px]">
                           {c.alreadySentStages.length > 0 ? (
-                            <span className={sentHere ? 'text-emerald-700 font-semibold' : 'text-slate-600'}>
+                            <span className={sentHere ? 'text-emerald-700 font-semibold dark:text-emerald-300' : 'text-slate-600 dark:text-slate-300'}>
                               {c.alreadySentStages.join(' · ')}
                             </span>
                           ) : (
-                            <span className="text-slate-400">Nunca cobrado</span>
+                            <span className="text-slate-400 dark:text-slate-400">Nunca cobrado</span>
                           )}
                         </td>
                         <td className="px-3 py-2.5 text-right">
                           <button
                             type="button"
                             onClick={() => setEditingMsgId(isEditingThis ? null : c.titleId)}
-                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 hover:underline whitespace-nowrap"
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 hover:underline whitespace-nowrap dark:text-blue-300"
                           >
                             <MessageSquare className="w-3.5 h-3.5" />
                             {isEditingThis ? 'Fechar Texto' : 'Revisar / Editar'}
@@ -504,9 +504,9 @@ export const ReguaCobrancaIviView: React.FC<ReguaCobrancaIviViewProps> = ({ onRe
                         </td>
                       </tr>
                       {isEditingThis && (
-                        <tr className="bg-slate-50/90">
+                        <tr className="bg-slate-50/90 dark:bg-slate-800/60">
                           <td colSpan={8} className="px-4 py-3">
-                            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                            <label className="block text-[11px] font-semibold text-slate-700 mb-1 dark:text-slate-200">
                               Prévia da mensagem para {c.clientName} (edite se desejar envio personalizado sem alterar o padrão dos demais):
                             </label>
                             <textarea
@@ -518,7 +518,7 @@ export const ReguaCobrancaIviView: React.FC<ReguaCobrancaIviViewProps> = ({ onRe
                                   [String(c.titleId)]: e.target.value,
                                 }))
                               }
-                              className="w-full rounded-lg border border-slate-200 bg-white p-2.5 text-xs text-slate-800"
+                              className="w-full rounded-lg border border-slate-200 bg-white p-2.5 text-xs text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                             />
                           </td>
                         </tr>
@@ -529,12 +529,12 @@ export const ReguaCobrancaIviView: React.FC<ReguaCobrancaIviViewProps> = ({ onRe
               )}
             </tbody>
             {selectedCandidates.length > 0 && (
-              <tfoot className="bg-slate-50 border-t border-slate-200 text-xs font-bold text-slate-900">
+              <tfoot className="bg-slate-50 border-t border-slate-200 text-xs font-bold text-slate-900 dark:bg-slate-800/70 dark:border-slate-700 dark:text-slate-100">
                 <tr>
                   <td colSpan={5} className="px-4 py-2.5 text-right">
                     Total selecionado no lote ({selectedCandidates.length} título(s)):
                   </td>
-                  <td className="px-3 py-2.5 text-right font-mono tabular-nums text-blue-800">
+                  <td className="px-3 py-2.5 text-right font-mono tabular-nums text-blue-800 dark:text-blue-300">
                     {formatBRL(selectedTotalCents)}
                   </td>
                   <td colSpan={2} />
@@ -547,26 +547,26 @@ export const ReguaCobrancaIviView: React.FC<ReguaCobrancaIviViewProps> = ({ onRe
 
       {/* Dispatched Confirmation Report */}
       {lastDispatchReport.length > 0 && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 space-y-2.5">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 space-y-2.5 dark:border-emerald-800/70 dark:bg-emerald-950/50">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs font-bold text-emerald-900">
-              <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+            <div className="flex items-center gap-2 text-xs font-bold text-emerald-900 dark:text-emerald-300">
+              <CheckCircle2 className="w-4 h-4 text-emerald-700 dark:text-emerald-300" />
               Último Lote Confirmado e Processado pela Ivi ({lastDispatchReport.length} envio(s))
             </div>
-            <button type="button" onClick={() => setLastDispatchReport([])} className="text-slate-500 hover:text-slate-800">
+            <button type="button" onClick={() => setLastDispatchReport([])} className="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white">
               <X className="w-4 h-4" />
             </button>
           </div>
-          <div className="divide-y divide-emerald-100 bg-white rounded-lg border border-emerald-200">
+          <div className="divide-y divide-emerald-100 bg-white rounded-lg border border-emerald-200 dark:bg-slate-900 dark:border-emerald-800/70">
             {lastDispatchReport.map((item) => (
               <div key={item.titleId} className="p-3 text-xs space-y-1">
-                <div className="flex items-center justify-between font-semibold text-slate-900">
+                <div className="flex items-center justify-between font-semibold text-slate-900 dark:text-slate-100">
                   <span>
                     {item.clientName} · <span className="font-mono">{item.titleCode}</span>
                   </span>
-                  <span className="font-mono text-[11px] text-slate-500">Motor: {item.provider}</span>
+                  <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400">Motor: {item.provider}</span>
                 </div>
-                <p className="text-slate-700 leading-relaxed">{item.message}</p>
+                <p className="text-slate-700 leading-relaxed dark:text-slate-200">{item.message}</p>
               </div>
             ))}
           </div>
@@ -575,39 +575,39 @@ export const ReguaCobrancaIviView: React.FC<ReguaCobrancaIviViewProps> = ({ onRe
 
       {/* Confirm Batch Modal */}
       {confirmModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
-          <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 dark:bg-slate-950/80">
+          <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
               <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-blue-700" />
-                <h3 className="font-display text-base font-bold text-slate-900">
+                <Sparkles className="w-4 h-4 text-blue-700 dark:text-blue-300" />
+                <h3 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
                   Confirmar Envio Automático pela Ivi
                 </h3>
               </div>
-              <button type="button" onClick={() => setConfirmModalOpen(false)} className="text-slate-400 hover:text-slate-700">
+              <button type="button" onClick={() => setConfirmModalOpen(false)} className="text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="space-y-2 text-xs text-slate-700">
+            <div className="space-y-2 text-xs text-slate-700 dark:text-slate-200">
               <p>
                 Você está prestes a autorizar a <strong>Ivi IA</strong> a disparar cobranças para{' '}
                 <strong>{selectedCandidates.length} título(s)</strong> no estágio{' '}
                 <strong className="font-mono">{activeStage}</strong>.
               </p>
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 flex items-center justify-between">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 flex items-center justify-between dark:border-slate-700 dark:bg-slate-800/70">
                 <span>Montante total do lote:</span>
-                <span className="font-mono text-sm font-bold text-slate-900 tabular-nums">
+                <span className="font-mono text-sm font-bold text-slate-900 tabular-nums dark:text-slate-100">
                   {formatBRL(selectedTotalCents)}
                 </span>
               </div>
-              <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
+              <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100 dark:border-slate-700 dark:divide-slate-800">
                 {selectedCandidates.map((c) => (
                   <div key={c.titleId} className="px-3 py-1.5 flex items-center justify-between text-[11px]">
-                    <span className="truncate font-medium text-slate-800">
+                    <span className="truncate font-medium text-slate-800 dark:text-slate-100">
                       {c.clientName} ({c.documentNumber})
                     </span>
-                    <span className="font-mono tabular-nums text-slate-700 shrink-0 ml-2">
+                    <span className="font-mono tabular-nums text-slate-700 shrink-0 ml-2 dark:text-slate-200">
                       {formatBRL(c.balanceCents)}
                     </span>
                   </div>
@@ -620,7 +620,7 @@ export const ReguaCobrancaIviView: React.FC<ReguaCobrancaIviViewProps> = ({ onRe
                 type="button"
                 disabled={dispatching}
                 onClick={() => setConfirmModalOpen(false)}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 Voltar e Revisar
               </button>
@@ -640,53 +640,53 @@ export const ReguaCobrancaIviView: React.FC<ReguaCobrancaIviViewProps> = ({ onRe
 
       {/* Cover Sheet Modal */}
       {coverSheetTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 dark:bg-slate-950/80">
+          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl space-y-4 dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
               <div>
-                <h3 className="font-display text-base font-bold text-slate-900">
+                <h3 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
                   Folha de Rosto · Emissão de Boletos Restantes
                 </h3>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   {coverSheetTarget.protocolCode} · {coverSheetTarget.clientName}
                 </p>
               </div>
-              <button type="button" onClick={() => setCoverSheetTarget(null)} className="text-slate-400 hover:text-slate-700">
+              <button type="button" onClick={() => setCoverSheetTarget(null)} className="text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
                 <X className="w-4 h-4" />
               </button>
             </div>
             <form onSubmit={handleApproveCoverSheet} className="space-y-3.5 text-xs">
-              <div className="rounded-lg bg-slate-50 border border-slate-100 p-3 space-y-1">
+              <div className="rounded-lg bg-slate-50 border border-slate-100 p-3 space-y-1 dark:bg-slate-800/70 dark:border-slate-800">
                 <div><strong>Credor:</strong> {coverSheetTarget.bankName}</div>
                 <div><strong>Parcelas iniciais:</strong> Liquidadas</div>
                 <div><strong>Parcelas a gerar:</strong> {coverSheetTarget.remainingInstallments} boletos Santander</div>
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">1º Vencimento das demais parcelas</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">1º Vencimento das demais parcelas</label>
                 <input
                   type="date"
                   required
                   value={firstDueDate}
                   onChange={(e) => setFirstDueDate(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Valor unitário (R$)</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Valor unitário (R$)</label>
                 <input
                   type="number"
                   step="0.01"
                   required
                   value={customAmountReais}
                   onChange={(e) => setCustomAmountReais(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700"
                 />
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setCoverSheetTarget(null)}
-                  className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700"
+                  className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
                 >
                   Cancelar
                 </button>

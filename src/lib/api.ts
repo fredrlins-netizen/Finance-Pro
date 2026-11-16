@@ -24,17 +24,35 @@ export async function apiFetch<T = unknown>(url: string, options: RequestInit = 
   }
 
   const res = await fetch(url, { ...options, headers });
+  const contentType = (res.headers.get('content-type') || '').toLowerCase();
+  const rawText = await res.text();
+
   if (!res.ok) {
     let errMsg = `Erro HTTP ${res.status}`;
-    try {
-      const data = (await res.json()) as { error?: string };
-      if (data?.error) errMsg = data.error;
-    } catch {
-      // ignore json parse error
+    if (contentType.includes('application/json') || rawText.trim().startsWith('{') || rawText.trim().startsWith('[')) {
+      try {
+        const data = JSON.parse(rawText) as { error?: string };
+        if (data?.error) errMsg = data.error;
+      } catch {
+        // ignore json parse error
+      }
+    } else if (rawText.trim().startsWith('<')) {
+      errMsg = `O servidor retornou HTML inesperado (HTTP ${res.status}). Tente novamente em alguns instantes.`;
     }
     throw new Error(errMsg);
   }
-  return (await res.json()) as T;
+
+  if (!rawText.trim()) {
+    return {} as T;
+  }
+  if (rawText.trim().startsWith('<')) {
+    throw new Error('A requisição não retornou JSON válido (resposta HTML recebida do proxy/servidor). Recarregue ou tente novamente.');
+  }
+  try {
+    return JSON.parse(rawText) as T;
+  } catch {
+    throw new Error('Resposta inválida do servidor (formato JSON esperado).');
+  }
 }
 
 export function formatBRL(cents: number | string | null | undefined): string {

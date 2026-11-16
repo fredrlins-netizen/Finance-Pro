@@ -343,7 +343,7 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
 
   if (loading) {
     return (
-      <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-xs text-slate-500">
+      <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
         Carregando catálogo relacional de planilhas e matriz de precedência (Camadas 0 → 4)...
       </div>
     );
@@ -351,12 +351,12 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
 
   if (loadError) {
     return (
-      <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-xs text-red-800 flex items-center justify-between gap-3">
+      <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-xs text-red-800 flex items-center justify-between gap-3 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
         <span>{loadError}</span>
         <button
           type="button"
           onClick={loadRegistry}
-          className="rounded-lg border border-red-300 bg-white px-3 py-1.5 font-semibold text-red-800 hover:bg-red-100"
+          className="rounded-lg border border-red-300 bg-white px-3 py-1.5 font-semibold text-red-800 hover:bg-red-100 dark:border-red-800/70 dark:bg-slate-900 dark:text-red-300 dark:hover:bg-red-900/60"
         >
           Tentar novamente
         </button>
@@ -376,16 +376,16 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
       />
 
       {/* Header & Global Controls */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-100 pb-3.5">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4 dark:border-slate-700 dark:bg-slate-900">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-100 pb-3.5 dark:border-slate-800">
           <div>
             <div className="flex items-center gap-2">
-              <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
-              <h2 className="font-display text-base font-bold text-slate-900">
+              <FileSpreadsheet className="w-4 h-4 text-emerald-700 dark:text-emerald-300" />
+              <h2 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
                 Hub Simétrico de Planilhas Excel (.xlsx) &amp; Importação por Precedência
               </h2>
             </div>
-            <p className="mt-0.5 text-slate-500">
+            <p className="mt-0.5 text-slate-500 dark:text-slate-400">
               Todos os layouts possuem exportação (modelo vazio ou dados reais) e botão direto de importação com ordenação automática de dependências (Camadas 0 → 4), geração de códigos ausentes e upsert em registros existentes.
             </p>
           </div>
@@ -395,7 +395,7 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
               type="button"
               onClick={() => triggerLayoutImportPicker(null)}
               disabled={importBusy}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 font-semibold text-white hover:bg-slate-800 whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 font-semibold text-white hover:bg-slate-800 whitespace-nowrap dark:bg-emerald-600 dark:hover:bg-emerald-500"
             >
               <Upload className="w-3.5 h-3.5" />
               Importar Qualquer Planilha (.xlsx)
@@ -403,7 +403,7 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
             <button
               type="button"
               onClick={loadRegistry}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               Atualizar
@@ -413,14 +413,14 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
 
         {/* Summary Strip & Filters */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1">
+          <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-800/70">
             <button
               type="button"
               onClick={() => setViewMode('packages')}
               className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-semibold transition-colors whitespace-nowrap ${
                 viewMode === 'packages'
-                  ? 'bg-white text-slate-900 shadow-xs border border-slate-200'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white text-slate-900 shadow-xs border border-slate-200 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700'
+                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
               }`}
             >
               <GitBranch className="w-3.5 h-3.5" />
@@ -431,8 +431,8 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
               onClick={() => setViewMode('entities')}
               className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-semibold transition-colors whitespace-nowrap ${
                 viewMode === 'entities'
-                  ? 'bg-white text-slate-900 shadow-xs border border-slate-200'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white text-slate-900 shadow-xs border border-slate-200 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700'
+                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
               }`}
             >
               <Table2 className="w-3.5 h-3.5" />
@@ -442,11 +442,11 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
 
           <div className="flex flex-wrap items-center gap-2.5">
             <div className="flex items-center gap-1.5">
-              <span className="text-slate-500 font-medium whitespace-nowrap">Escopo Exportação:</span>
+              <span className="text-slate-500 font-medium whitespace-nowrap dark:text-slate-400">Escopo Exportação:</span>
               <select
                 value={unitFilter}
                 onChange={(e) => setUnitFilter(e.target.value)}
-                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-800"
+                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               >
                 <option value="all">Todas as Unidades</option>
                 {units.map((u) => (
@@ -458,11 +458,11 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
             </div>
 
             <div className="flex items-center gap-1.5">
-              <span className="text-slate-500 font-medium whitespace-nowrap">Unidade Fallback (Importação):</span>
+              <span className="text-slate-500 font-medium whitespace-nowrap dark:text-slate-400">Unidade Fallback (Importação):</span>
               <select
                 value={unitFallbackId}
                 onChange={(e) => setUnitFallbackId(e.target.value)}
-                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-800"
+                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               >
                 <option value="">Automático da Planilha</option>
                 {units.map((u) => (
@@ -473,12 +473,12 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
               </select>
             </div>
 
-            <label className="inline-flex items-center gap-1.5 cursor-pointer text-slate-700 font-medium">
+            <label className="inline-flex items-center gap-1.5 cursor-pointer text-slate-700 font-medium dark:text-slate-200">
               <input
                 type="checkbox"
                 checked={assignIntegrative}
                 onChange={(e) => setAssignIntegrative(e.target.checked)}
-                className="rounded border-slate-300"
+                className="rounded border-slate-300 dark:border-slate-600"
               />
               <span>Selo HMAC Integrativo automático</span>
             </label>
@@ -487,9 +487,9 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
       </div>
 
       {/* Precedence Pipeline Strip */}
-      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 mb-2">
-          <Layers className="w-3.5 h-3.5 text-slate-500" />
+      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
+        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 mb-2 dark:text-slate-200">
+          <Layers className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
           <span>Ordem Topológica de Leitura &amp; Gravação na Importação</span>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
@@ -498,13 +498,13 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
             return (
               <div
                 key={t}
-                className="rounded-lg border border-slate-200 bg-slate-50/70 px-3 py-2 flex flex-col justify-between"
+                className="rounded-lg border border-slate-200 bg-slate-50/70 px-3 py-2 flex flex-col justify-between dark:border-slate-700 dark:bg-slate-800/60"
               >
-                <div className="font-mono text-[10px] font-bold text-slate-500 uppercase">Camada {t}</div>
-                <div className="font-semibold text-slate-900 mt-0.5 leading-snug">
+                <div className="font-mono text-[10px] font-bold text-slate-500 uppercase dark:text-slate-400">Camada {t}</div>
+                <div className="font-semibold text-slate-900 mt-0.5 leading-snug dark:text-slate-100">
                   {(tiers[t] || '').replace(/^Camada \d\s·\s/, '')}
                 </div>
-                <div className="mt-1 font-mono text-[11px] text-slate-500 tabular-nums">
+                <div className="mt-1 font-mono text-[11px] text-slate-500 tabular-nums dark:text-slate-400">
                   {countInTier} tabela(s)
                 </div>
               </div>
@@ -515,23 +515,23 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
 
       {/* Validation / Import Result Panel (Visible whenever Dry-Run or Commit runs or errors) */}
       {(importBusy || importError || activeResult) && (
-        <div className="rounded-xl border border-slate-300 bg-white p-4 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+        <div className="rounded-xl border border-slate-300 bg-white p-4 space-y-4 dark:border-slate-600 dark:bg-slate-900">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3 dark:border-slate-800">
             <div>
               <div className="flex items-center gap-2">
-                <ArrowDownUp className="w-4 h-4 text-emerald-700" />
-                <h3 className="font-display text-sm font-bold text-slate-900">
+                <ArrowDownUp className="w-4 h-4 text-emerald-700 dark:text-emerald-300" />
+                <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                   {commitResult
                     ? 'Importação Transacional Efetivada no PostgreSQL'
                     : 'Pré-Validação por Ordem de Precedência (Dry-Run)'}
                 </h3>
                 {selectedFile && (
-                  <span className="font-mono text-[11px] text-slate-500">· {selectedFile.name}</span>
+                  <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400">· {selectedFile.name}</span>
                 )}
               </div>
               {pendingLayoutTarget && (
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  Layout vinculado: <strong className="text-slate-700">{pendingLayoutTarget.label}</strong>
+                <p className="text-[11px] text-slate-500 mt-0.5 dark:text-slate-400">
+                  Layout vinculado: <strong className="text-slate-700 dark:text-slate-200">{pendingLayoutTarget.label}</strong>
                 </p>
               )}
             </div>
@@ -543,7 +543,7 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
                   onClick={() =>
                     downloadBase64Xlsx(commitResult.returnWorkbookBase64!, commitResult.returnFileName!)
                   }
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 font-semibold text-emerald-800 hover:bg-emerald-100 whitespace-nowrap"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 font-semibold text-emerald-800 hover:bg-emerald-100 whitespace-nowrap dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
                 >
                   <Download className="w-3.5 h-3.5" />
                   Baixar Planilha de Retorno (.xlsx)
@@ -568,7 +568,7 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
                   setImportError('');
                   setSelectedFile(null);
                 }}
-                className="rounded-lg border border-slate-200 px-2.5 py-1.5 font-semibold text-slate-600 hover:bg-slate-50"
+                className="rounded-lg border border-slate-200 px-2.5 py-1.5 font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
               >
                 Fechar
               </button>
@@ -576,13 +576,13 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
           </div>
 
           {importBusy && (
-            <div className="py-4 text-center font-medium text-slate-600">
+            <div className="py-4 text-center font-medium text-slate-600 dark:text-slate-300">
               Processando abas em ordem topológica, resolvendo chaves naturais e atribuindo códigos...
             </div>
           )}
 
           {importError && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-red-800 flex items-center gap-2">
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-red-800 flex items-center gap-2 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
               <AlertTriangle className="w-4 h-4 shrink-0" />
               <span>{importError}</span>
             </div>
@@ -592,40 +592,40 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
             <div className="space-y-3">
               {/* Totals Strip */}
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
-                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                  <div className="text-[11px] text-slate-500">Linhas Lidas</div>
-                  <div className="font-mono text-base font-bold text-slate-900 tabular-nums">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/70">
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Linhas Lidas</div>
+                  <div className="font-mono text-base font-bold text-slate-900 tabular-nums dark:text-slate-100">
                     {activeResult.totals.totalRows}
                   </div>
                 </div>
-                <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2">
-                  <div className="text-[11px] text-emerald-700">Novas Inserções</div>
-                  <div className="font-mono text-base font-bold text-emerald-800 tabular-nums">
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2 dark:border-emerald-800/70 dark:bg-emerald-950/50">
+                  <div className="text-[11px] text-emerald-700 dark:text-emerald-300">Novas Inserções</div>
+                  <div className="font-mono text-base font-bold text-emerald-800 tabular-nums dark:text-emerald-300">
                     {activeResult.totals.inserts}
                   </div>
                 </div>
-                <div className="rounded-lg border border-blue-200 bg-blue-50/60 px-3 py-2">
-                  <div className="text-[11px] text-blue-700">Atualizações (Upsert)</div>
-                  <div className="font-mono text-base font-bold text-blue-800 tabular-nums">
+                <div className="rounded-lg border border-blue-200 bg-blue-50/60 px-3 py-2 dark:border-blue-800/70 dark:bg-blue-950/50">
+                  <div className="text-[11px] text-blue-700 dark:text-blue-300">Atualizações (Upsert)</div>
+                  <div className="font-mono text-base font-bold text-blue-800 tabular-nums dark:text-blue-300">
                     {activeResult.totals.updates}
                   </div>
                 </div>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                  <div className="text-[11px] text-slate-500">Ignoradas</div>
-                  <div className="font-mono text-base font-bold text-slate-700 tabular-nums">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/70">
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Ignoradas</div>
+                  <div className="font-mono text-base font-bold text-slate-700 tabular-nums dark:text-slate-200">
                     {activeResult.totals.skips}
                   </div>
                 </div>
-                <div className="rounded-lg border border-red-200 bg-red-50/60 px-3 py-2">
-                  <div className="text-[11px] text-red-700">Erros / Pendências</div>
-                  <div className="font-mono text-base font-bold text-red-800 tabular-nums">
+                <div className="rounded-lg border border-red-200 bg-red-50/60 px-3 py-2 dark:border-red-800/70 dark:bg-red-950/50">
+                  <div className="text-[11px] text-red-700 dark:text-red-300">Erros / Pendências</div>
+                  <div className="font-mono text-base font-bold text-red-800 tabular-nums dark:text-red-300">
                     {activeResult.totals.errors}
                   </div>
                 </div>
               </div>
 
               {activeResult.unrecognizedSheets.length > 0 && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900 dark:border-amber-800/70 dark:bg-amber-950/50 dark:text-amber-300">
                   Abas ignoradas por não corresponderem a uma entidade conhecida:{' '}
                   <span className="font-mono font-semibold">{activeResult.unrecognizedSheets.join(', ')}</span>
                 </div>
@@ -633,9 +633,9 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
 
               {/* Sheet Precedence Execution Order */}
               {activeResult.orderedSheets.length > 0 && (
-                <div className="overflow-x-auto rounded-lg border border-slate-200">
+                <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600 dark:bg-slate-800/70 dark:border-slate-700 dark:text-slate-300">
                       <tr>
                         <th className="px-3 py-2">Ordem</th>
                         <th className="px-3 py-2">Camada</th>
@@ -646,22 +646,22 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
                         <th className="px-3 py-2 text-right">Erros</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {activeResult.orderedSheets.map((s, idx) => (
-                        <tr key={`${s.entityKey}-${idx}`} className="hover:bg-slate-50">
-                          <td className="px-3 py-2 font-mono font-bold text-slate-700 tabular-nums">#{idx + 1}</td>
-                          <td className="px-3 py-2 font-mono text-slate-500">Camada {s.tier}</td>
-                          <td className="px-3 py-2 font-semibold text-slate-900">
-                            {s.sheetName} <span className="font-normal text-slate-500">· {s.label}</span>
+                        <tr key={`${s.entityKey}-${idx}`} className="hover:bg-slate-50 dark:hover:bg-slate-800">
+                          <td className="px-3 py-2 font-mono font-bold text-slate-700 tabular-nums dark:text-slate-200">#{idx + 1}</td>
+                          <td className="px-3 py-2 font-mono text-slate-500 dark:text-slate-400">Camada {s.tier}</td>
+                          <td className="px-3 py-2 font-semibold text-slate-900 dark:text-slate-100">
+                            {s.sheetName} <span className="font-normal text-slate-500 dark:text-slate-400">· {s.label}</span>
                           </td>
                           <td className="px-3 py-2 text-right font-mono tabular-nums">{s.totalRows}</td>
-                          <td className="px-3 py-2 text-right font-mono text-emerald-700 font-semibold tabular-nums">
+                          <td className="px-3 py-2 text-right font-mono text-emerald-700 font-semibold tabular-nums dark:text-emerald-300">
                             {s.inserts}
                           </td>
-                          <td className="px-3 py-2 text-right font-mono text-blue-700 font-semibold tabular-nums">
+                          <td className="px-3 py-2 text-right font-mono text-blue-700 font-semibold tabular-nums dark:text-blue-300">
                             {s.updates}
                           </td>
-                          <td className="px-3 py-2 text-right font-mono text-red-700 font-semibold tabular-nums">
+                          <td className="px-3 py-2 text-right font-mono text-red-700 font-semibold tabular-nums dark:text-red-300">
                             {s.errors}
                           </td>
                         </tr>
@@ -675,7 +675,7 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
               {activeResult.rowResults.length > 0 && (
                 <div className="space-y-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-semibold text-slate-800">
+                    <span className="font-semibold text-slate-800 dark:text-slate-100">
                       Detalhamento Linha a Linha (Códigos Atribuídos &amp; Upsert)
                     </span>
                     <div className="flex items-center gap-1">
@@ -686,8 +686,8 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
                           onClick={() => setActionFilter(f)}
                           className={`rounded-md border px-2.5 py-1 text-[11px] font-semibold ${
                             actionFilter === f
-                              ? 'border-slate-900 bg-slate-900 text-white'
-                              : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                              ? 'border-slate-900 bg-slate-900 text-white dark:border-emerald-500 dark:bg-emerald-600'
+                              : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
                           }`}
                         >
                           {f === 'ALL' ? 'Todas' : f === 'INSERT' ? 'Inserções' : f === 'UPDATE' ? 'Atualizações' : 'Erros'}
@@ -695,9 +695,9 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
                       ))}
                     </div>
                   </div>
-                  <div className="overflow-x-auto max-h-72 overflow-y-auto rounded-lg border border-slate-200 scroll-rulers">
+                  <div className="overflow-x-auto max-h-72 overflow-y-auto rounded-lg border border-slate-200 scroll-rulers dark:border-slate-700">
                     <table className="w-full min-w-[780px] text-left text-xs">
-                      <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600">
+                      <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600 dark:bg-slate-800/70 dark:border-slate-700 dark:text-slate-300">
                         <tr>
                           <th className="px-3 py-2">Aba · Linha</th>
                           <th className="px-3 py-2">Ação</th>
@@ -707,35 +707,35 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
                           <th className="px-3 py-2">Resultado</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100">
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                         {visibleRows.map((rr, idx) => (
                           <tr key={idx} className="hover:bg-slate-50/80">
-                            <td className="px-3 py-2 font-mono text-slate-600 whitespace-nowrap">
+                            <td className="px-3 py-2 font-mono text-slate-600 whitespace-nowrap dark:text-slate-300">
                               {rr.sheetName} #{rr.rowNumber}
                             </td>
                             <td className="px-3 py-2 font-mono font-bold whitespace-nowrap">
                               <span
                                 className={
                                   rr.action === 'INSERT'
-                                    ? 'text-emerald-700'
+                                    ? 'text-emerald-700 dark:text-emerald-300'
                                     : rr.action === 'UPDATE'
-                                    ? 'text-blue-700'
+                                    ? 'text-blue-700 dark:text-blue-300'
                                     : rr.action === 'ERROR'
-                                    ? 'text-red-700'
-                                    : 'text-slate-500'
+                                    ? 'text-red-700 dark:text-red-300'
+                                    : 'text-slate-500 dark:text-slate-400'
                                 }
                               >
                                 {rr.action}
                               </span>
                             </td>
-                            <td className="px-3 py-2 font-mono text-slate-800">{rr.naturalKey || '—'}</td>
-                            <td className="px-3 py-2 font-mono font-semibold text-slate-900">
+                            <td className="px-3 py-2 font-mono text-slate-800 dark:text-slate-100">{rr.naturalKey || '—'}</td>
+                            <td className="px-3 py-2 font-mono font-semibold text-slate-900 dark:text-slate-100">
                               {rr.assignedCode || '—'}
                             </td>
-                            <td className="px-3 py-2 font-mono text-emerald-800">
+                            <td className="px-3 py-2 font-mono text-emerald-800 dark:text-emerald-300">
                               {rr.integrativeCode || '—'}
                             </td>
-                            <td className="px-3 py-2 text-slate-600">{rr.message}</td>
+                            <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{rr.message}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -760,37 +760,37 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
             return (
               <div
                 key={pkg.key}
-                className="rounded-xl border border-slate-200 bg-white p-4 flex flex-col justify-between gap-4"
+                className="rounded-xl border border-slate-200 bg-white p-4 flex flex-col justify-between gap-4 dark:border-slate-700 dark:bg-slate-900"
               >
                 <div className="space-y-2.5">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <div className="font-display text-sm font-bold text-slate-900">{pkg.label}</div>
-                      <p className="mt-0.5 text-slate-500 leading-relaxed">{pkg.description}</p>
+                      <div className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">{pkg.label}</div>
+                      <p className="mt-0.5 text-slate-500 leading-relaxed dark:text-slate-400">{pkg.description}</p>
                     </div>
-                    <span className="font-mono text-[11px] font-semibold text-slate-500 whitespace-nowrap tabular-nums">
+                    <span className="font-mono text-[11px] font-semibold text-slate-500 whitespace-nowrap tabular-nums dark:text-slate-400">
                       {includedEntities.length} abas
                     </span>
                   </div>
 
                   {/* Precedence Chain Inside Package */}
-                  <div className="rounded-lg border border-slate-100 bg-slate-50 p-2.5">
-                    <div className="text-[11px] font-semibold text-slate-600 mb-1.5">
+                  <div className="rounded-lg border border-slate-100 bg-slate-50 p-2.5 dark:border-slate-800 dark:bg-slate-800/70">
+                    <div className="text-[11px] font-semibold text-slate-600 mb-1.5 dark:text-slate-300">
                       Abas do Workbook em Ordem de Precedência:
                     </div>
-                    <div className="flex flex-wrap items-center gap-1.5 font-mono text-[11px] text-slate-700">
+                    <div className="flex flex-wrap items-center gap-1.5 font-mono text-[11px] text-slate-700 dark:text-slate-200">
                       {includedEntities.slice(0, 10).map((ent, idx) => (
                         <React.Fragment key={ent.key}>
-                          <span className="rounded border border-slate-200 bg-white px-2 py-0.5">
+                          <span className="rounded border border-slate-200 bg-white px-2 py-0.5 dark:border-slate-700 dark:bg-slate-900">
                             C{ent.tier} · {ent.sheetName}
                           </span>
                           {idx < Math.min(includedEntities.length, 10) - 1 && (
-                            <span className="text-slate-400">→</span>
+                            <span className="text-slate-400 dark:text-slate-400">→</span>
                           )}
                         </React.Fragment>
                       ))}
                       {includedEntities.length > 10 && (
-                        <span className="text-slate-500 font-semibold">
+                        <span className="text-slate-500 font-semibold dark:text-slate-400">
                           +{includedEntities.length - 10} tabelas
                         </span>
                       )}
@@ -799,7 +799,7 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
                 </div>
 
                 {/* Mandatory Symmetric Round-Trip Actions: Template, Export Data, AND Import from this Layout */}
-                <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+                <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
                   <button
                     type="button"
                     onClick={() =>
@@ -810,7 +810,7 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
                         label: pkg.label,
                       })
                     }
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                   >
                     <Download className="w-3.5 h-3.5" />
                     Baixar Modelo (.xlsx)
@@ -825,7 +825,7 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
                         label: pkg.label,
                       })
                     }
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-slate-900 px-3 py-1.5 font-semibold text-white hover:bg-slate-800 whitespace-nowrap"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-slate-900 px-3 py-1.5 font-semibold text-white hover:bg-slate-800 whitespace-nowrap dark:border-slate-600 dark:bg-emerald-600 dark:hover:bg-emerald-500"
                   >
                     <FileSpreadsheet className="w-3.5 h-3.5" />
                     Exportar Dados (.xlsx)
@@ -840,7 +840,7 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
                         label: pkg.label,
                       })
                     }
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 font-semibold text-emerald-800 hover:bg-emerald-100 whitespace-nowrap ml-auto"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 font-semibold text-emerald-800 hover:bg-emerald-100 whitespace-nowrap ml-auto dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
                   >
                     <Upload className="w-3.5 h-3.5" />
                     Importar deste Layout (.xlsx)
@@ -854,24 +854,24 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
 
       {/* VIEW 2: TABELAS ISOLADAS (32 ENTIDADES COM EXPORTAÇÃO + IMPORTAÇÃO EM CADA UMA) */}
       {viewMode === 'entities' && (
-        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-          <div className="p-3.5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-slate-50/70">
+        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
+          <div className="p-3.5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-slate-50/70 dark:border-slate-700 dark:bg-slate-800/60">
             <div className="relative flex-1 max-w-md">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 dark:text-slate-400" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Buscar tabela, aba Excel ou chave natural..."
-                className="w-full rounded-lg border border-slate-200 bg-white pl-8 pr-3 py-1.5 text-xs text-slate-900"
+                className="w-full rounded-lg border border-slate-200 bg-white pl-8 pr-3 py-1.5 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               />
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-slate-500 font-medium">Camada:</span>
+              <span className="text-slate-500 font-medium dark:text-slate-400">Camada:</span>
               <select
                 value={tierFilter}
                 onChange={(e) => setTierFilter(e.target.value)}
-                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-800"
+                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               >
                 <option value="all">Todas (0 → 4)</option>
                 {[0, 1, 2, 3, 4].map((t) => (
@@ -885,7 +885,7 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
 
           <div className="overflow-x-auto">
             <table className="w-full min-w-[880px] text-left text-xs">
-              <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600">
+              <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
                 <tr>
                   <th className="px-4 py-2.5">Precedência</th>
                   <th className="px-4 py-2.5">Tabela / Aba Excel</th>
@@ -894,41 +894,41 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
                   <th className="px-4 py-2.5 text-right">Ações Simétricas (Exportar ↔ Importar)</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {filteredEntities.map((ent) => {
                   const isExpanded = expandedEntityKey === ent.key;
                   return (
                     <React.Fragment key={ent.key}>
-                      <tr className="hover:bg-slate-50/70">
-                        <td className="px-4 py-2.5 font-mono text-slate-600 whitespace-nowrap tabular-nums">
+                      <tr className="hover:bg-slate-50/70 dark:hover:bg-slate-800">
+                        <td className="px-4 py-2.5 font-mono text-slate-600 whitespace-nowrap tabular-nums dark:text-slate-300">
                           C{ent.tier} · #{ent.order}
                         </td>
                         <td className="px-4 py-2.5">
                           <button
                             type="button"
                             onClick={() => setExpandedEntityKey(isExpanded ? null : ent.key)}
-                            className="inline-flex items-center gap-1.5 font-semibold text-slate-900 hover:text-emerald-700 text-left"
+                            className="inline-flex items-center gap-1.5 font-semibold text-slate-900 hover:text-emerald-700 text-left dark:text-slate-100"
                           >
                             {isExpanded ? (
-                              <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0 dark:text-slate-400" />
                             ) : (
-                              <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0 dark:text-slate-400" />
                             )}
                             <span>{ent.label}</span>
                           </button>
-                          <div className="pl-5 font-mono text-[11px] text-slate-500">
+                          <div className="pl-5 font-mono text-[11px] text-slate-500 dark:text-slate-400">
                             Aba: {ent.sheetName} · {ent.columns.length} coluna(s)
                           </div>
                         </td>
                         <td className="px-4 py-2.5">
-                          <div className="font-mono text-[11px] text-slate-800">{ent.naturalKeyDescription}</div>
+                          <div className="font-mono text-[11px] text-slate-800 dark:text-slate-100">{ent.naturalKeyDescription}</div>
                           {ent.autoCodeField && (
-                            <div className="font-mono text-[11px] text-emerald-700">
+                            <div className="font-mono text-[11px] text-emerald-700 dark:text-emerald-300">
                               Auto-código: {ent.autoCodePrefix}-xxxx (se vazio)
                             </div>
                           )}
                         </td>
-                        <td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
+                        <td className="px-4 py-2.5 font-mono text-[11px] text-slate-500 dark:text-slate-400">
                           {ent.dependsOn.length === 0 ? 'Raiz (nenhuma)' : ent.dependsOn.join(', ')}
                         </td>
                         <td className="px-4 py-2.5 text-right whitespace-nowrap">
@@ -943,7 +943,7 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
                                   label: ent.label,
                                 })
                               }
-                              className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-slate-50"
+                              className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                             >
                               <Download className="w-3 h-3" />
                               Modelo
@@ -958,7 +958,7 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
                                   label: ent.label,
                                 })
                               }
-                              className="inline-flex items-center gap-1 rounded-md bg-slate-900 px-2.5 py-1.5 font-semibold text-white hover:bg-slate-800"
+                              className="inline-flex items-center gap-1 rounded-md bg-slate-900 px-2.5 py-1.5 font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
                             >
                               <FileSpreadsheet className="w-3 h-3" />
                               Exportar
@@ -973,7 +973,7 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
                                   label: ent.label,
                                 })
                               }
-                              className="inline-flex items-center gap-1 rounded-md border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 font-semibold text-emerald-800 hover:bg-emerald-100"
+                              className="inline-flex items-center gap-1 rounded-md border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 font-semibold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
                             >
                               <Upload className="w-3 h-3" />
                               Importar
@@ -982,28 +982,28 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
                         </td>
                       </tr>
                       {isExpanded && (
-                        <tr className="bg-slate-50/80">
+                        <tr className="bg-slate-50/80 dark:bg-slate-800/60">
                           <td colSpan={5} className="px-6 py-3">
-                            <div className="text-[11px] font-semibold text-slate-700 mb-2">
+                            <div className="text-[11px] font-semibold text-slate-700 mb-2 dark:text-slate-200">
                               Dicionário de Colunas do Layout "{ent.sheetName}"
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                               {ent.columns.map((c) => (
                                 <div
                                   key={c.key}
-                                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 space-y-0.5"
+                                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 space-y-0.5 dark:border-slate-700 dark:bg-slate-900"
                                 >
                                   <div className="flex items-center justify-between gap-2">
-                                    <span className="font-mono font-bold text-slate-900">{c.header}</span>
-                                    <span className="font-mono text-[10px] text-slate-500">
+                                    <span className="font-mono font-bold text-slate-900 dark:text-slate-100">{c.header}</span>
+                                    <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400">
                                       {c.type}
                                       {c.required ? ' · Obrig.' : ''}
                                       {c.isUpsertKey ? ' · Upsert' : ''}
                                       {c.isAutoCode ? ' · Auto' : ''}
                                     </span>
                                   </div>
-                                  <div className="text-[11px] text-slate-600">{c.description}</div>
-                                  <div className="font-mono text-[10px] text-slate-400">Ex: {c.example}</div>
+                                  <div className="text-[11px] text-slate-600 dark:text-slate-300">{c.description}</div>
+                                  <div className="font-mono text-[10px] text-slate-400 dark:text-slate-400">Ex: {c.example}</div>
                                 </div>
                               ))}
                             </div>
@@ -1020,8 +1020,8 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
       )}
 
       {/* Integrity Notice */}
-      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 flex items-center gap-2.5 text-[11px] text-slate-600">
-        <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0" />
+      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 flex items-center gap-2.5 text-[11px] text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+        <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0 dark:text-emerald-300" />
         <span>
           Cada importação confirmada executa em transação única PostgreSQL com trilha em <span className="font-mono">audit_logs</span> e gera imediatamente o arquivo <span className="font-mono">retorno_importacao_*.xlsx</span> com todos os códigos gerados e chaves HMAC integrativas.
         </span>
@@ -1029,19 +1029,19 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
 
       {/* Collapsible Legacy CSV Utility */}
       {legacyCsvSection && (
-        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
           <button
             type="button"
             onClick={() => setShowLegacyCsv((v) => !v)}
-            className="w-full px-4 py-3 flex items-center justify-between text-left font-semibold text-slate-700 hover:bg-slate-50"
+            className="w-full px-4 py-3 flex items-center justify-between text-left font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             <span className="flex items-center gap-2">
               {showLegacyCsv ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
               Utilitário Legado de Carga &amp; Exportação Rápida CSV (Ponto-e-Vírgula)
             </span>
-            <span className="text-[11px] font-normal text-slate-500">Compatibilidade Retroativa</span>
+            <span className="text-[11px] font-normal text-slate-500 dark:text-slate-400">Compatibilidade Retroativa</span>
           </button>
-          {showLegacyCsv && <div className="border-t border-slate-100 p-4 space-y-4">{legacyCsvSection}</div>}
+          {showLegacyCsv && <div className="border-t border-slate-100 p-4 space-y-4 dark:border-slate-800">{legacyCsvSection}</div>}
         </div>
       )}
     </div>

@@ -69,17 +69,17 @@ export const LINKED_ENTITY_LABELS: Record<string, string> = {
 };
 
 export const FORM_STATUS_CONFIG: Record<string, { label: string; textClass: string }> = {
-  publicado: { label: 'Publicado', textClass: 'text-emerald-700' },
-  rascunho: { label: 'Rascunho', textClass: 'text-amber-700' },
-  arquivado: { label: 'Arquivado', textClass: 'text-slate-500' },
+  publicado: { label: 'Publicado', textClass: 'text-emerald-700 dark:text-emerald-300' },
+  rascunho: { label: 'Rascunho', textClass: 'text-amber-700 dark:text-amber-300' },
+  arquivado: { label: 'Arquivado', textClass: 'text-slate-500 dark:text-slate-400' },
 };
 
 export const SUBMISSION_STATUS_CONFIG: Record<string, { label: string; textClass: string }> = {
-  recebido: { label: 'Recebido', textClass: 'text-blue-700' },
-  em_analise: { label: 'Em Análise', textClass: 'text-amber-700' },
-  aprovado: { label: 'Aprovado', textClass: 'text-emerald-700' },
-  pendente_ajuste: { label: 'Pendente Ajuste', textClass: 'text-rose-700' },
-  arquivado: { label: 'Arquivado', textClass: 'text-slate-500' },
+  recebido: { label: 'Recebido', textClass: 'text-blue-700 dark:text-blue-300' },
+  em_analise: { label: 'Em Análise', textClass: 'text-amber-700 dark:text-amber-300' },
+  aprovado: { label: 'Aprovado', textClass: 'text-emerald-700 dark:text-emerald-300' },
+  pendente_ajuste: { label: 'Pendente Ajuste', textClass: 'text-rose-700 dark:text-rose-300' },
+  arquivado: { label: 'Arquivado', textClass: 'text-slate-500 dark:text-slate-400' },
 };
 
 export const FIELD_TYPE_CATALOG: Array<{ type: CustomFormFieldType; label: string }> = [

@@ -101,21 +101,21 @@ export const MovementAuditModal: React.FC<MovementAuditModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-4xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs max-h-[88vh] flex flex-col"
+        className="w-full max-w-4xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs max-h-[88vh] flex flex-col dark:border-slate-700 dark:bg-slate-900"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
           <div className="flex items-center gap-2 min-w-0">
-            <History className="w-4 h-4 text-slate-700 shrink-0" />
-            <h3 className="font-display text-sm font-bold text-slate-900 truncate">
+            <History className="w-4 h-4 text-slate-700 shrink-0 dark:text-slate-200" />
+            <h3 className="font-display text-sm font-bold text-slate-900 truncate dark:text-slate-100">
               Histórico de Movimentações · {movementDescription}
             </h3>
             {!loading && (
-              <span className="font-mono text-[11px] font-bold rounded bg-slate-100 px-2 py-0.5 text-slate-700 shrink-0">
+              <span className="font-mono text-[11px] font-bold rounded bg-slate-100 px-2 py-0.5 text-slate-700 shrink-0 dark:bg-slate-800 dark:text-slate-200">
                 {eventCounterText} eventos
               </span>
             )}
@@ -124,24 +124,24 @@ export const MovementAuditModal: React.FC<MovementAuditModalProps> = ({
             type="button"
             onClick={onClose}
             aria-label="Fechar histórico"
-            className="rounded-lg p-1 text-slate-400 hover:text-slate-700"
+            className="rounded-lg p-1 text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-auto scroll-rulers border border-slate-200 rounded-xl">
+        <div className="flex-1 overflow-auto scroll-rulers border border-slate-200 rounded-xl dark:border-slate-700">
           {loading ? (
-            <div className="py-10 text-center text-slate-500">Carregando histórico de auditoria...</div>
+            <div className="py-10 text-center text-slate-500 dark:text-slate-400">Carregando histórico de auditoria...</div>
           ) : error ? (
-            <div className="m-4 rounded-lg bg-red-50 border border-red-200 p-3 text-red-700">{error}</div>
+            <div className="m-4 rounded-lg bg-red-50 border border-red-200 p-3 text-red-700 dark:bg-red-950/50 dark:border-red-800/70 dark:text-red-300">{error}</div>
           ) : pagedRows.length === 0 ? (
-            <div className="py-10 text-center text-slate-500">
+            <div className="py-10 text-center text-slate-500 dark:text-slate-400">
               Nenhuma movimentação registrada na auditoria para este lançamento.
             </div>
           ) : (
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-[11px] font-semibold text-slate-600 border-b border-slate-200 sticky top-0">
+              <thead className="bg-slate-50 text-[11px] font-semibold text-slate-600 border-b border-slate-200 sticky top-0 dark:bg-slate-800/70 dark:text-slate-300 dark:border-slate-700">
                 <tr>
                   <th className="px-3 py-2.5">Data/Hora</th>
                   <th className="px-3 py-2.5">Usuário</th>
@@ -152,20 +152,20 @@ export const MovementAuditModal: React.FC<MovementAuditModalProps> = ({
                   <th className="px-3 py-2.5">Para</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {pagedRows.map((row) => (
-                  <tr key={row.rowKey} className="hover:bg-slate-50">
-                    <td className="px-3 py-2 font-mono text-[11px] text-slate-600 whitespace-nowrap">
+                  <tr key={row.rowKey} className="hover:bg-slate-50 dark:hover:bg-slate-800">
+                    <td className="px-3 py-2 font-mono text-[11px] text-slate-600 whitespace-nowrap dark:text-slate-300">
                       {formatDateTimeBR(row.createdAt)}
                     </td>
-                    <td className="px-3 py-2 font-semibold text-slate-800">{row.userName}</td>
-                    <td className="px-3 py-2 font-mono text-[11px] text-slate-700">{row.action}</td>
-                    <td className="px-3 py-2 font-semibold text-slate-700">{row.field}</td>
-                    <td className="px-3 py-2 text-slate-500 max-w-[160px] truncate" title={row.from}>
+                    <td className="px-3 py-2 font-semibold text-slate-800 dark:text-slate-100">{row.userName}</td>
+                    <td className="px-3 py-2 font-mono text-[11px] text-slate-700 dark:text-slate-200">{row.action}</td>
+                    <td className="px-3 py-2 font-semibold text-slate-700 dark:text-slate-200">{row.field}</td>
+                    <td className="px-3 py-2 text-slate-500 max-w-[160px] truncate dark:text-slate-400" title={row.from}>
                       {row.from}
                     </td>
-                    <td className="px-2 py-2 text-center text-slate-400">→</td>
-                    <td className="px-3 py-2 font-medium text-slate-900 max-w-[180px] truncate" title={row.to}>
+                    <td className="px-2 py-2 text-center text-slate-400 dark:text-slate-400">→</td>
+                    <td className="px-3 py-2 font-medium text-slate-900 max-w-[180px] truncate dark:text-slate-100" title={row.to}>
                       {row.to}
                     </td>
                   </tr>
@@ -175,25 +175,25 @@ export const MovementAuditModal: React.FC<MovementAuditModalProps> = ({
           )}
         </div>
 
-        <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+        <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-2">
             <button
               type="button"
               disabled={page <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               <ChevronLeft className="w-3.5 h-3.5" />
               Anterior
             </button>
-            <span className="font-mono text-[11px] text-slate-600">
+            <span className="font-mono text-[11px] text-slate-600 dark:text-slate-300">
               Página {page} de {totalPages}
             </span>
             <button
               type="button"
               disabled={page >= totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               Próxima
               <ChevronRight className="w-3.5 h-3.5" />
@@ -202,7 +202,7 @@ export const MovementAuditModal: React.FC<MovementAuditModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg bg-slate-900 px-4 py-1.5 font-semibold text-white hover:bg-slate-800"
+            className="rounded-lg bg-slate-900 px-4 py-1.5 font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
           >
             Fechar
           </button>

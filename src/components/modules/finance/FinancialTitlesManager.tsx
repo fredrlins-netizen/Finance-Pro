@@ -124,15 +124,15 @@ function getStatusLabel(stUpper: string): string {
 }
 
 function getStatusToneClass(stUpper: string, isOverdue: boolean): string {
-  if (stUpper === 'PAGO' || stUpper === 'DEVOLUCAO_VINCULADA') return 'text-emerald-700 font-semibold';
+  if (stUpper === 'PAGO' || stUpper === 'DEVOLUCAO_VINCULADA') return 'text-emerald-700 font-semibold dark:text-emerald-300';
   if (stUpper === 'CANCELADO') return 'text-slate-400 line-through';
-  if (stUpper === 'PROTESTADO') return 'text-red-800 font-bold';
-  if (stUpper.startsWith('ADIANTAMENTO')) return 'text-amber-700 font-semibold';
-  if (stUpper.startsWith('DEVOLUCAO')) return 'text-rose-700 font-semibold';
+  if (stUpper === 'PROTESTADO') return 'text-red-800 font-bold dark:text-red-200';
+  if (stUpper.startsWith('ADIANTAMENTO')) return 'text-amber-700 font-semibold dark:text-amber-300';
+  if (stUpper.startsWith('DEVOLUCAO')) return 'text-rose-700 font-semibold dark:text-rose-300';
   if (stUpper === 'AGRUPADO' || stUpper === 'FATURA_GERADA') return 'text-indigo-700 font-semibold';
-  if (isOverdue) return 'text-red-600 font-bold';
-  if (stUpper === 'PARCIAL') return 'text-amber-700 font-semibold';
-  return 'text-blue-700 font-semibold';
+  if (isOverdue) return 'text-red-600 font-bold dark:text-red-400';
+  if (stUpper === 'PARCIAL') return 'text-amber-700 font-semibold dark:text-amber-300';
+  return 'text-blue-700 font-semibold dark:text-blue-300';
 }
 
 export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
@@ -569,11 +569,11 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
   };
 
   const renderSortIcon = (field: SortField) => {
-    if (sortField !== field) return <ArrowUpDown className="w-3 h-3 text-slate-400 inline ml-1" />;
+    if (sortField !== field) return <ArrowUpDown className="w-3 h-3 text-slate-400 inline ml-1 dark:text-slate-400" />;
     return sortDir === 'asc' ? (
-      <ChevronUp className="w-3.5 h-3.5 text-slate-900 inline ml-0.5" />
+      <ChevronUp className="w-3.5 h-3.5 text-slate-900 inline ml-0.5 dark:text-slate-100" />
     ) : (
-      <ChevronDown className="w-3.5 h-3.5 text-slate-900 inline ml-0.5" />
+      <ChevronDown className="w-3.5 h-3.5 text-slate-900 inline ml-0.5 dark:text-slate-100" />
     );
   };
 
@@ -804,9 +804,9 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
     <div className="space-y-4">
       {/* Feedback Banners */}
       {toast && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-medium text-emerald-900 flex items-center justify-between gap-2">
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-medium text-emerald-900 flex items-center justify-between gap-2 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300">
           <span className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+            <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0 dark:text-emerald-300" />
             {toast}
           </span>
           <button type="button" onClick={() => setToast('')}>
@@ -816,9 +816,9 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
       )}
 
       {errorBanner && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-900 flex items-center justify-between gap-2">
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-900 flex items-center justify-between gap-2 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
           <span className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-red-700 shrink-0" />
+            <AlertTriangle className="w-4 h-4 text-red-700 shrink-0 dark:text-red-300" />
             {errorBanner}
           </span>
           <button type="button" onClick={() => setErrorBanner('')}>
@@ -829,11 +829,11 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
 
       {/* Dedicated Régua separation notice on Contas a Receber */}
       {isReceber && (
-        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-start sm:items-center gap-2.5 text-xs text-slate-600">
-            <BellRing className="w-4 h-4 text-blue-700 shrink-0 mt-0.5 sm:mt-0" />
+        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex items-start sm:items-center gap-2.5 text-xs text-slate-600 dark:text-slate-300">
+            <BellRing className="w-4 h-4 text-blue-700 shrink-0 mt-0.5 sm:mt-0 dark:text-blue-300" />
             <span>
-              <strong className="text-slate-900">Rotina diária segura:</strong> os disparos da{' '}
+              <strong className="text-slate-900 dark:text-slate-100">Rotina diária segura:</strong> os disparos da{' '}
               <strong>Régua de Cobrança Ivi (-15d / -5d / +7d)</strong> ficam em tela separada para revisão e confirmação de lote antes do envio automático.
             </span>
           </div>
@@ -841,7 +841,7 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
             <button
               type="button"
               onClick={() => onNavigate('finance_regua')}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-800 hover:bg-blue-100 whitespace-nowrap shrink-0"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-800 hover:bg-blue-100 whitespace-nowrap shrink-0 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300 dark:hover:bg-blue-900/60"
             >
               <BellRing className="w-3.5 h-3.5" />
               Abrir Régua Ivi
@@ -852,50 +852,50 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
 
       {/* KPI Strip */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="text-[11px] font-medium text-slate-500">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
             {isReceber ? 'Recebimentos Liquidados' : 'Pagamentos Efetuados'}
           </div>
-          <div className="mt-1 font-mono text-xl font-bold text-emerald-700 tabular-nums">
+          <div className="mt-1 font-mono text-xl font-bold text-emerald-700 tabular-nums dark:text-emerald-300">
             {formatBRL(metrics.settledCents)}
           </div>
-          <div className="mt-1 text-[11px] text-slate-500">
+          <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
             {tabCounts.settled} título(s) liquidado(s)
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="text-[11px] font-medium text-slate-500">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
             {isReceber ? 'Total a Receber em Aberto' : 'Total a Pagar em Aberto'}
           </div>
-          <div className="mt-1 font-mono text-xl font-bold text-blue-700 tabular-nums">
+          <div className="mt-1 font-mono text-xl font-bold text-blue-700 tabular-nums dark:text-blue-300">
             {formatBRL(metrics.openCents)}
           </div>
-          <div className="mt-1 text-[11px] text-slate-500">
+          <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
             {tabCounts.open} lançamento(s) ativo(s)
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="text-[11px] font-medium text-slate-500">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
             {isReceber ? 'Vencido (Em Atraso)' : 'Contas Vencidas'}
           </div>
-          <div className="mt-1 font-mono text-xl font-bold text-red-600 tabular-nums">
+          <div className="mt-1 font-mono text-xl font-bold text-red-600 tabular-nums dark:text-red-400">
             {formatBRL(metrics.overdueCents)}
           </div>
-          <div className="mt-1 text-[11px] text-slate-500">
+          <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
             {tabCounts.overdue} título(s) vencido(s)
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="text-[11px] font-medium text-slate-500">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
             {isReceber ? 'Prazo Médio Recebimento' : 'Vencimentos Próx. 7 Dias'}
           </div>
-          <div className="mt-1 font-mono text-xl font-bold text-slate-900 tabular-nums">
+          <div className="mt-1 font-mono text-xl font-bold text-slate-900 tabular-nums dark:text-slate-100">
             {isReceber ? `${metrics.avgReceiptDays} dias` : formatBRL(metrics.next7DaysCents)}
           </div>
-          <div className="mt-1 text-[11px] text-slate-500">
+          <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
             {isReceber ? 'Média sobre baixas liquidadas' : 'Compromissos da semana'}
           </div>
         </div>
@@ -924,19 +924,19 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
               }}
               className={`rounded-xl border p-3 text-left transition-colors ${
                 active
-                  ? 'border-red-600 bg-red-50/70'
-                  : 'border-slate-200 bg-white hover:bg-slate-50'
+                  ? 'border-red-600 bg-red-50/70 dark:bg-red-950/50'
+                  : 'border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800'
               }`}
             >
               <div className="flex items-center justify-between text-[11px]">
-                <span className={active ? 'font-bold text-red-900' : 'font-medium text-slate-500'}>
+                <span className={active ? 'font-bold text-red-900 dark:text-red-300' : 'font-medium text-slate-500 dark:text-slate-400'}>
                   {card.label}
                 </span>
-                <span className="font-mono font-semibold text-slate-600 tabular-nums">{info.count}</span>
+                <span className="font-mono font-semibold text-slate-600 tabular-nums dark:text-slate-300">{info.count}</span>
               </div>
               <div
                 className={`mt-1 font-mono text-sm font-bold tabular-nums ${
-                  info.cents > 0 ? 'text-red-700' : 'text-slate-400'
+                  info.cents > 0 ? 'text-red-700 dark:text-red-300' : 'text-slate-400 dark:text-slate-400'
                 }`}
               >
                 {formatBRL(info.cents)}
@@ -947,10 +947,10 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
       </div>
 
       {/* Main Data Grid Container */}
-      <div className="rounded-xl border border-slate-200 bg-white overflow-visible">
+      <div className="rounded-xl border border-slate-200 bg-white overflow-visible dark:border-slate-700 dark:bg-slate-900">
         {/* Header Bar: Quick Lay-User Tabs + Primary CTA + Ações Menu */}
-        <div className="p-4 border-b border-slate-200 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg overflow-x-auto">
+        <div className="p-4 border-b border-slate-200 flex flex-col lg:flex-row lg:items-center justify-between gap-3 dark:border-slate-700">
+          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg overflow-x-auto dark:bg-slate-800">
             {(
               [
                 { id: 'open' as const, label: `Em Aberto (${tabCounts.open})` },
@@ -972,7 +972,7 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
                     setPage(1);
                   }}
                   className={`px-3 py-1.5 text-xs font-semibold rounded-md whitespace-nowrap transition-colors ${
-                    active ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    active ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-slate-100' : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
                   }`}
                 >
                   {t.label}
@@ -987,13 +987,13 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
               <button
                 type="button"
                 onClick={() => setColsOpen((o) => !o)}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
               >
-                <Columns3 className="w-3.5 h-3.5 text-slate-500" />
+                <Columns3 className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                 Colunas
               </button>
               {colsOpen && (
-                <div className="absolute right-0 mt-1.5 w-48 rounded-xl border border-slate-200 bg-white p-2.5 shadow-xl z-30 text-xs space-y-1.5">
+                <div className="absolute right-0 mt-1.5 w-48 rounded-xl border border-slate-200 bg-white p-2.5 shadow-xl z-30 text-xs space-y-1.5 dark:border-slate-700 dark:bg-slate-900">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
@@ -1027,19 +1027,19 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
               <button
                 type="button"
                 onClick={() => setActionsMenuOpen((o) => !o)}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
               >
-                <SlidersHorizontal className="w-3.5 h-3.5 text-slate-600" />
+                <SlidersHorizontal className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
                 Ações {selectedIds.length > 0 ? `(${selectedIds.length})` : ''}
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
               </button>
 
               {actionsMenuOpen && (
-                <div className="absolute right-0 mt-1.5 w-60 rounded-xl border border-slate-200 bg-white py-1.5 shadow-xl z-30 text-xs">
+                <div className="absolute right-0 mt-1.5 w-60 rounded-xl border border-slate-200 bg-white py-1.5 shadow-xl z-30 text-xs dark:border-slate-700 dark:bg-slate-900">
                   <button
                     type="button"
                     onClick={() => triggerSettleFlow(selectedTitles, 'total')}
-                    className="w-full px-3.5 py-2 text-left hover:bg-slate-50 flex items-center gap-2 font-semibold text-emerald-700"
+                    className="w-full px-3.5 py-2 text-left hover:bg-slate-50 flex items-center gap-2 font-semibold text-emerald-700 dark:hover:bg-slate-800 dark:text-emerald-300"
                   >
                     <CheckCircle2 className="w-3.5 h-3.5" />
                     Baixa Total em Lote
@@ -1047,7 +1047,7 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
                   <button
                     type="button"
                     onClick={() => triggerSettleFlow(selectedTitles, 'parcial')}
-                    className="w-full px-3.5 py-2 text-left hover:bg-slate-50 flex items-center gap-2 font-semibold text-blue-700"
+                    className="w-full px-3.5 py-2 text-left hover:bg-slate-50 flex items-center gap-2 font-semibold text-blue-700 dark:hover:bg-slate-800 dark:text-blue-300"
                   >
                     <CheckCircle2 className="w-3.5 h-3.5" />
                     Baixa Parcial
@@ -1055,9 +1055,9 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
                   <button
                     type="button"
                     onClick={triggerGroupInvoice}
-                    className="w-full px-3.5 py-2 text-left hover:bg-slate-50 flex items-center gap-2 text-slate-800"
+                    className="w-full px-3.5 py-2 text-left hover:bg-slate-50 flex items-center gap-2 text-slate-800 dark:hover:bg-slate-800 dark:text-slate-100"
                   >
-                    <Layers className="w-3.5 h-3.5 text-indigo-700" />
+                    <Layers className="w-3.5 h-3.5 text-indigo-700 dark:text-indigo-300" />
                     Gerar Faturas (Agrupar 2+)
                   </button>
                   <button
@@ -1070,12 +1070,12 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
                       }
                       setRecurringModel(selectedTitles[0]);
                     }}
-                    className="w-full px-3.5 py-2 text-left hover:bg-slate-50 flex items-center gap-2 text-slate-800"
+                    className="w-full px-3.5 py-2 text-left hover:bg-slate-50 flex items-center gap-2 text-slate-800 dark:hover:bg-slate-800 dark:text-slate-100"
                   >
-                    <Repeat className="w-3.5 h-3.5 text-blue-700" />
+                    <Repeat className="w-3.5 h-3.5 text-blue-700 dark:text-blue-300" />
                     Lançamento Recorrente
                   </button>
-                  <div className="my-1 border-t border-slate-100" />
+                  <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
                   <button
                     type="button"
                     onClick={() => {
@@ -1087,17 +1087,17 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
                       }
                       setReleaseTarget(target);
                     }}
-                    className="w-full px-3.5 py-2 text-left hover:bg-slate-50 flex items-center gap-2 text-slate-800"
+                    className="w-full px-3.5 py-2 text-left hover:bg-slate-50 flex items-center gap-2 text-slate-800 dark:hover:bg-slate-800 dark:text-slate-100"
                   >
-                    <Unlock className="w-3.5 h-3.5 text-emerald-700" />
+                    <Unlock className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-300" />
                     Liberar Protesto / Provisão
                   </button>
                   <button
                     type="button"
                     onClick={() => handleReopenSelected(selectedTitles)}
-                    className="w-full px-3.5 py-2 text-left hover:bg-slate-50 flex items-center gap-2 text-slate-800"
+                    className="w-full px-3.5 py-2 text-left hover:bg-slate-50 flex items-center gap-2 text-slate-800 dark:hover:bg-slate-800 dark:text-slate-100"
                   >
-                    <RotateCcw className="w-3.5 h-3.5 text-amber-700" />
+                    <RotateCcw className="w-3.5 h-3.5 text-amber-700 dark:text-amber-300" />
                     Reabrir Título
                   </button>
                   <button
@@ -1110,7 +1110,7 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
                       }
                       setCancelSettlementTargets(selectedTitles);
                     }}
-                    className="w-full px-3.5 py-2 text-left hover:bg-slate-50 flex items-center gap-2 text-amber-800"
+                    className="w-full px-3.5 py-2 text-left hover:bg-slate-50 flex items-center gap-2 text-amber-800 dark:hover:bg-slate-800 dark:text-amber-300"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
                     Cancelar Baixa(s)
@@ -1118,7 +1118,7 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
                   <button
                     type="button"
                     onClick={() => triggerCancelTitles(selectedTitles)}
-                    className="w-full px-3.5 py-2 text-left hover:bg-red-50 flex items-center gap-2 text-red-700 font-semibold"
+                    className="w-full px-3.5 py-2 text-left hover:bg-red-50 flex items-center gap-2 text-red-700 font-semibold dark:hover:bg-red-950/60 dark:text-red-300"
                   >
                     <X className="w-3.5 h-3.5" />
                     Cancelar Título(s)
@@ -1142,16 +1142,16 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
         </div>
 
         {/* Search & Advanced Filters Row */}
-        <div className="px-4 py-3 bg-slate-50/70 border-b border-slate-200 space-y-3">
+        <div className="px-4 py-3 bg-slate-50/70 border-b border-slate-200 space-y-3 dark:bg-slate-800/60 dark:border-slate-700">
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative flex-1 min-w-[220px]">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5 dark:text-slate-400" />
               <input
                 type="text"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder={`Buscar por Nº Documento, ${personLabel} ou histórico...`}
-                className="w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 py-1.5 text-xs focus:border-slate-900 focus:outline-none"
+                className="w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 py-1.5 text-xs focus:border-slate-900 focus:outline-none dark:border-slate-700 dark:bg-slate-900"
               />
             </div>
 
@@ -1160,8 +1160,8 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
               onClick={() => setAdvFiltersOpen((o) => !o)}
               className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold whitespace-nowrap ${
                 advFiltersOpen
-                  ? 'border-slate-900 bg-slate-900 text-white'
-                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  ? 'border-slate-900 bg-slate-900 text-white dark:border-emerald-500 dark:bg-emerald-600'
+                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
               }`}
             >
               <Filter className="w-3.5 h-3.5" />
@@ -1179,7 +1179,7 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
               <button
                 type="button"
                 onClick={clearAllFilters}
-                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 whitespace-nowrap"
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 whitespace-nowrap dark:border-slate-700 dark:bg-slate-900 dark:text-red-300 dark:hover:bg-red-950/60"
               >
                 <X className="w-3.5 h-3.5" />
                 Limpar Filtros
@@ -1190,16 +1190,16 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
               type="button"
               onClick={() => loadTitles()}
               title="Atualizar listagem"
-              className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100"
+              className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             </button>
           </div>
 
           {advFiltersOpen && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-2 border-t border-slate-200 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-2 border-t border-slate-200 text-xs dark:border-slate-700">
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Status Exato</label>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">Status Exato</label>
                 <select
                   value={exactStatusFilter}
                   onChange={(e) => {
@@ -1207,7 +1207,7 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
                     setOverdueBracket(null);
                     setPage(1);
                   }}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-900"
                 >
                   <option value="ALL">Usar aba rápida</option>
                   <option value="ABERTO">Em Aberto</option>
@@ -1227,14 +1227,14 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">{personLabel}</label>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">{personLabel}</label>
                 <select
                   value={personFilterId}
                   onChange={(e) => {
                     setPersonFilterId(e.target.value);
                     setPage(1);
                   }}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                 >
                   <option value="ALL">Todos</option>
                   {localClients.map((c) => (
@@ -1246,14 +1246,14 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Tipo de Documento</label>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">Tipo de Documento</label>
                 <select
                   value={docTypeFilterId}
                   onChange={(e) => {
                     setDocTypeFilterId(e.target.value);
                     setPage(1);
                   }}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                 >
                   <option value="ALL">Todos</option>
                   {documentTypes.map((d) => (
@@ -1265,37 +1265,37 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Vencimento (De / Até)</label>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">Vencimento (De / Até)</label>
                 <div className="flex gap-1">
                   <input
                     type="date"
                     value={dueFrom}
                     onChange={(e) => setDueFrom(e.target.value)}
-                    className="w-1/2 rounded-lg border border-slate-200 bg-white px-1.5 py-1.5 font-mono text-[11px]"
+                    className="w-1/2 rounded-lg border border-slate-200 bg-white px-1.5 py-1.5 font-mono text-[11px] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                   />
                   <input
                     type="date"
                     value={dueTo}
                     onChange={(e) => setDueTo(e.target.value)}
-                    className="w-1/2 rounded-lg border border-slate-200 bg-white px-1.5 py-1.5 font-mono text-[11px]"
+                    className="w-1/2 rounded-lg border border-slate-200 bg-white px-1.5 py-1.5 font-mono text-[11px] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Data de Baixa (De / Até)</label>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">Data de Baixa (De / Até)</label>
                 <div className="flex gap-1">
                   <input
                     type="date"
                     value={settledFrom}
                     onChange={(e) => setSettledFrom(e.target.value)}
-                    className="w-1/2 rounded-lg border border-slate-200 bg-white px-1.5 py-1.5 font-mono text-[11px]"
+                    className="w-1/2 rounded-lg border border-slate-200 bg-white px-1.5 py-1.5 font-mono text-[11px] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                   />
                   <input
                     type="date"
                     value={settledTo}
                     onChange={(e) => setSettledTo(e.target.value)}
-                    className="w-1/2 rounded-lg border border-slate-200 bg-white px-1.5 py-1.5 font-mono text-[11px]"
+                    className="w-1/2 rounded-lg border border-slate-200 bg-white px-1.5 py-1.5 font-mono text-[11px] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                   />
                 </div>
               </div>
@@ -1306,7 +1306,7 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
         {/* High-Density Data Grid */}
         <div className="overflow-x-auto scroll-rulers">
           <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 text-[11px] font-semibold text-slate-500 border-b border-slate-200">
+            <thead className="bg-slate-50 text-[11px] font-semibold text-slate-500 border-b border-slate-200 dark:bg-slate-800/70 dark:text-slate-400 dark:border-slate-700">
               <tr>
                 <th className="px-3 py-2.5 w-8">
                   <input
@@ -1389,16 +1389,16 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {loading && titles.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="py-10 text-center text-slate-500">
+                  <td colSpan={12} className="py-10 text-center text-slate-500 dark:text-slate-400">
                     Carregando títulos financeiros...
                   </td>
                 </tr>
               ) : pagedTitles.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="py-10 text-center text-slate-500">
+                  <td colSpan={12} className="py-10 text-center text-slate-500 dark:text-slate-400">
                     Nenhum lançamento encontrado para os filtros aplicados.
                   </td>
                 </tr>
@@ -1440,50 +1440,50 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
                         />
                       </td>
 
-                      <td className="px-3 py-2.5 font-mono font-semibold text-slate-900 whitespace-nowrap">
+                      <td className="px-3 py-2.5 font-mono font-semibold text-slate-900 whitespace-nowrap dark:text-slate-100">
                         <div>{t.documentNumber || t.titleCode}</div>
                         {(t.origin === 'AUDITORIA' || t.origin === 'RECORRENCIA' || t.origin === 'FATURAMENTO') && (
-                          <div className="text-[10px] font-normal text-slate-400">{t.origin}</div>
+                          <div className="text-[10px] font-normal text-slate-400 dark:text-slate-400">{t.origin}</div>
                         )}
                       </td>
 
-                      <td className="px-3 py-2.5 font-medium text-slate-800">
+                      <td className="px-3 py-2.5 font-medium text-slate-800 dark:text-slate-100">
                         <div className="truncate max-w-[200px]">{cl?.fullName || t.clientName || '—'}</div>
                         {cl && (cl.status === 'suspenso' || cl.status === 'cancelado') && (
-                          <span className="text-[10px] font-bold text-red-700 uppercase">
+                          <span className="text-[10px] font-bold text-red-700 uppercase dark:text-red-300">
                             Pessoa {cl.status}
                           </span>
                         )}
                       </td>
 
                       {showHistoryCol && (
-                        <td className="px-3 py-2.5 text-slate-600 max-w-[220px] truncate">
+                        <td className="px-3 py-2.5 text-slate-600 max-w-[220px] truncate dark:text-slate-300">
                           {t.description || '—'}
                         </td>
                       )}
 
                       {showDocTypeCol && (
-                        <td className="px-3 py-2.5 text-slate-600 whitespace-nowrap">
+                        <td className="px-3 py-2.5 text-slate-600 whitespace-nowrap dark:text-slate-300">
                           {docType?.description || '—'}
                         </td>
                       )}
 
-                      <td className="px-3 py-2.5 font-mono tabular-nums text-slate-600 whitespace-nowrap">
+                      <td className="px-3 py-2.5 font-mono tabular-nums text-slate-600 whitespace-nowrap dark:text-slate-300">
                         {t.installmentNumber}/{t.totalInstallments}
                       </td>
 
                       {showIssueCol && (
-                        <td className="px-3 py-2.5 font-mono tabular-nums text-slate-500 whitespace-nowrap">
+                        <td className="px-3 py-2.5 font-mono tabular-nums text-slate-500 whitespace-nowrap dark:text-slate-400">
                           {t.issueDate ? formatIsoDateToBR(t.issueDate) : '—'}
                         </td>
                       )}
 
                       <td className="px-3 py-2.5 font-mono tabular-nums whitespace-nowrap">
-                        <span className={overdueDays > 0 ? 'text-red-600 font-bold' : 'text-slate-700'}>
+                        <span className={overdueDays > 0 ? 'text-red-600 font-bold dark:text-red-400' : 'text-slate-700 dark:text-slate-200'}>
                           {formatIsoDateToBR(t.dueDate)}
                         </span>
                         {overdueDays > 0 && (
-                          <span className="ml-1.5 text-[10px] font-bold text-red-600">
+                          <span className="ml-1.5 text-[10px] font-bold text-red-600 dark:text-red-400">
                             +{overdueDays}d
                           </span>
                         )}
@@ -1491,7 +1491,7 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
 
                       <td
                         className={`px-3 py-2.5 text-right font-mono font-bold tabular-nums whitespace-nowrap ${
-                          isAdt ? 'text-amber-700' : isDev ? 'text-rose-700' : 'text-slate-900'
+                          isAdt ? 'text-amber-700 dark:text-amber-300' : isDev ? 'text-rose-700 dark:text-rose-300' : 'text-slate-900 dark:text-slate-100'
                         }`}
                       >
                         {isDev && bal > 0 ? `-${formatBRL(bal)}` : formatBRL(bal)}
@@ -1499,7 +1499,7 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
 
                       <td
                         className={`px-3 py-2.5 text-right font-mono tabular-nums whitespace-nowrap ${
-                          isAdt ? 'text-amber-700 font-semibold' : 'text-slate-600'
+                          isAdt ? 'text-amber-700 font-semibold dark:text-amber-300' : 'text-slate-600 dark:text-slate-300'
                         }`}
                       >
                         {isDev ? `-${formatBRL(t.amountCents)}` : formatBRL(t.amountCents)}
@@ -1519,7 +1519,7 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
                           <button
                             type="button"
                             onClick={() => triggerSettleFlow([t], 'total')}
-                            className="text-[11px] font-semibold text-emerald-700 hover:underline"
+                            className="text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-300"
                           >
                             Baixar
                           </button>
@@ -1528,7 +1528,7 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
                           <button
                             type="button"
                             onClick={() => setReleaseTarget(t)}
-                            className="text-[11px] font-semibold text-blue-700 hover:underline"
+                            className="text-[11px] font-semibold text-blue-700 hover:underline dark:text-blue-300"
                           >
                             Liberar
                           </button>
@@ -1537,7 +1537,7 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
                           <button
                             type="button"
                             onClick={() => setViewChildrenTarget(t)}
-                            className="text-[11px] font-semibold text-slate-700 hover:underline"
+                            className="text-[11px] font-semibold text-slate-700 hover:underline dark:text-slate-200"
                           >
                             Parcelas
                           </button>
@@ -1546,7 +1546,7 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
                           <button
                             type="button"
                             onClick={() => setTraceTarget(t)}
-                            className="text-[11px] font-semibold text-indigo-700 hover:underline"
+                            className="text-[11px] font-semibold text-indigo-700 hover:underline dark:text-indigo-300"
                           >
                             Rastreio
                           </button>
@@ -1556,7 +1556,7 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
                             type="button"
                             onClick={() => setDeleteTarget(t)}
                             title="Excluir definitivamente"
-                            className="text-[11px] font-semibold text-red-700 hover:underline inline-flex items-center gap-0.5"
+                            className="text-[11px] font-semibold text-red-700 hover:underline inline-flex items-center gap-0.5 dark:text-red-300"
                           >
                             <Trash2 className="w-3 h-3" />
                             Excluir
@@ -1567,7 +1567,7 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
                             <button
                               type="button"
                               onClick={() => triggerCancelTitles([t])}
-                              className="text-[11px] font-semibold text-slate-500 hover:text-red-700 hover:underline"
+                              className="text-[11px] font-semibold text-slate-500 hover:text-red-700 hover:underline dark:text-slate-400"
                             >
                               Cancelar
                             </button>
@@ -1577,7 +1577,7 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
                           type="button"
                           onClick={() => setAuditTarget(t)}
                           title="Histórico de Auditoria"
-                          className="text-[11px] font-semibold text-slate-500 hover:text-slate-900 inline-flex items-center gap-0.5"
+                          className="text-[11px] font-semibold text-slate-500 hover:text-slate-900 inline-flex items-center gap-0.5 dark:text-slate-400 dark:hover:text-white"
                         >
                           <History className="w-3 h-3" />
                         </button>
@@ -1591,24 +1591,24 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
         </div>
 
         {/* Footer: Totals Drawer & 50/page Pagination */}
-        <div className="px-4 py-3 border-t border-slate-200 bg-slate-50/70 space-y-2.5 text-xs">
+        <div className="px-4 py-3 border-t border-slate-200 bg-slate-50/70 space-y-2.5 text-xs dark:border-slate-700 dark:bg-slate-800/60">
           {showTotalsFooter && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pb-2 border-b border-slate-200">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pb-2 border-b border-slate-200 dark:border-slate-700">
               <div>
-                <div className="text-[10px] text-slate-500">Qtd. Filtrada</div>
-                <div className="font-mono font-bold text-slate-900 tabular-nums">{footerTotals.count} título(s)</div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400">Qtd. Filtrada</div>
+                <div className="font-mono font-bold text-slate-900 tabular-nums dark:text-slate-100">{footerTotals.count} título(s)</div>
               </div>
               <div>
-                <div className="text-[10px] text-slate-500">Valor Total Filtrado</div>
-                <div className="font-mono font-bold text-slate-900 tabular-nums">{formatBRL(footerTotals.origCents)}</div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400">Valor Total Filtrado</div>
+                <div className="font-mono font-bold text-slate-900 tabular-nums dark:text-slate-100">{formatBRL(footerTotals.origCents)}</div>
               </div>
               <div>
-                <div className="text-[10px] text-slate-500">Total Baixado</div>
-                <div className="font-mono font-bold text-emerald-700 tabular-nums">{formatBRL(footerTotals.settledCents)}</div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400">Total Baixado</div>
+                <div className="font-mono font-bold text-emerald-700 tabular-nums dark:text-emerald-300">{formatBRL(footerTotals.settledCents)}</div>
               </div>
               <div>
-                <div className="text-[10px] text-slate-500">Saldo em Aberto Filtrado</div>
-                <div className="font-mono font-bold text-blue-700 tabular-nums">{formatBRL(footerTotals.balCents)}</div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400">Saldo em Aberto Filtrado</div>
+                <div className="font-mono font-bold text-blue-700 tabular-nums dark:text-blue-300">{formatBRL(footerTotals.balCents)}</div>
               </div>
             </div>
           )}
@@ -1617,12 +1617,12 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
             <button
               type="button"
               onClick={() => setShowTotalsFooter((v) => !v)}
-              className="text-[11px] font-semibold text-blue-700 hover:underline"
+              className="text-[11px] font-semibold text-blue-700 hover:underline dark:text-blue-300"
             >
               {showTotalsFooter ? 'Ocultar Totais' : 'Ver Totais do Filtro'}
             </button>
 
-            <div className="flex items-center gap-3 text-[11px] text-slate-600">
+            <div className="flex items-center gap-3 text-[11px] text-slate-600 dark:text-slate-300">
               <span>
                 Mostrando {pagedTitles.length} de {sortedTitles.length} título(s) · Página {page} de {totalPages}
               </span>
@@ -1632,7 +1632,7 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
                     type="button"
                     disabled={page <= 1}
                     onClick={() => setPage((p) => p - 1)}
-                    className="rounded border border-slate-200 bg-white px-2.5 py-1 font-semibold disabled:opacity-40"
+                    className="rounded border border-slate-200 bg-white px-2.5 py-1 font-semibold disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900"
                   >
                     Anterior
                   </button>
@@ -1640,7 +1640,7 @@ export const FinancialTitlesManager: React.FC<FinancialTitlesManagerProps> = ({
                     type="button"
                     disabled={page >= totalPages}
                     onClick={() => setPage((p) => p + 1)}
-                    className="rounded border border-slate-200 bg-white px-2.5 py-1 font-semibold disabled:opacity-40"
+                    className="rounded border border-slate-200 bg-white px-2.5 py-1 font-semibold disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900"
                   >
                     Próxima
                   </button>

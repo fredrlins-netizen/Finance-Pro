@@ -37,32 +37,32 @@ export const RISK_LEVELS: Array<{ value: CompanyProcessRiskLevel; label: string 
 export const STATUS_BADGE_MAP: Record<string, { label: string; badgeClass: string; colorHex: string }> = {
   ATIVO: {
     label: 'Ativo',
-    badgeClass: 'bg-blue-50 text-blue-700 border-blue-200',
+    badgeClass: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800/70',
     colorHex: '#2563eb',
   },
   SUSPENSO: {
     label: 'Suspenso',
-    badgeClass: 'bg-amber-50 text-amber-800 border-amber-200',
+    badgeClass: 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/60 dark:text-amber-200 dark:border-amber-800/70',
     colorHex: '#d97706',
   },
   ARQUIVADO: {
     label: 'Arquivado',
-    badgeClass: 'bg-slate-100 text-slate-700 border-slate-300',
+    badgeClass: 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-600',
     colorHex: '#64748b',
   },
   ENCERRADO_PROCEDENTE: {
     label: 'Encerrado (Proc.)',
-    badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800/70',
     colorHex: '#059669',
   },
   ENCERRADO_IMPROCEDENTE: {
     label: 'Encerrado (Impr.)',
-    badgeClass: 'bg-red-50 text-red-700 border-red-200',
+    badgeClass: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/60 dark:text-red-300 dark:border-red-800/70',
     colorHex: '#dc2626',
   },
   ACORDO: {
     label: 'Acordo',
-    badgeClass: 'bg-purple-50 text-purple-700 border-purple-200',
+    badgeClass: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800/70',
     colorHex: '#7c3aed',
   },
 };
@@ -70,23 +70,23 @@ export const STATUS_BADGE_MAP: Record<string, { label: string; badgeClass: strin
 export const RISK_BADGE_MAP: Record<string, { label: string; badgeClass: string; activeBoxClass: string }> = {
   BAIXO: {
     label: 'Baixo',
-    badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    activeBoxClass: 'border-emerald-500 bg-emerald-50 text-emerald-800 ring-2 ring-emerald-200',
+    badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800/70',
+    activeBoxClass: 'border-emerald-500 bg-emerald-50 text-emerald-800 ring-2 ring-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-200 dark:ring-emerald-800/70',
   },
   MEDIO: {
     label: 'Médio',
-    badgeClass: 'bg-amber-50 text-amber-800 border-amber-200',
-    activeBoxClass: 'border-amber-500 bg-amber-50 text-amber-900 ring-2 ring-amber-200',
+    badgeClass: 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/60 dark:text-amber-200 dark:border-amber-800/70',
+    activeBoxClass: 'border-amber-500 bg-amber-50 text-amber-900 ring-2 ring-amber-200 dark:bg-amber-950/60 dark:text-amber-200 dark:ring-amber-800/70',
   },
   ALTO: {
     label: 'Alto',
-    badgeClass: 'bg-orange-50 text-orange-800 border-orange-200',
-    activeBoxClass: 'border-orange-500 bg-orange-50 text-orange-900 ring-2 ring-orange-200',
+    badgeClass: 'bg-orange-50 text-orange-800 border-orange-200 dark:bg-orange-950/60 dark:text-orange-200 dark:border-orange-800/70',
+    activeBoxClass: 'border-orange-500 bg-orange-50 text-orange-900 ring-2 ring-orange-200 dark:bg-orange-950/60 dark:text-orange-200 dark:ring-orange-800/70',
   },
   CRITICO: {
     label: 'Crítico',
-    badgeClass: 'bg-red-50 text-red-700 border-red-200',
-    activeBoxClass: 'border-red-600 bg-red-50 text-red-800 ring-2 ring-red-200',
+    badgeClass: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/60 dark:text-red-300 dark:border-red-800/70',
+    activeBoxClass: 'border-red-600 bg-red-50 text-red-800 ring-2 ring-red-200 dark:bg-red-950/60 dark:text-red-200 dark:ring-red-800/70',
   },
 };
 

@@ -40,8 +40,8 @@ export const CollapsibleFilterBar: React.FC<CollapsibleFilterBarProps> = ({
           onClick={() => setOpen(!open)}
           className={`inline-flex items-center gap-2 rounded-lg border px-3.5 py-2 text-xs font-semibold transition-colors min-h-[38px] whitespace-nowrap ${
             open || hasActiveFilters
-              ? 'border-blue-600 bg-blue-50 text-blue-800'
-              : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+              ? 'border-blue-600 bg-blue-50 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300'
+              : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
           }`}
         >
           <Filter className="w-3.5 h-3.5" />
@@ -58,7 +58,7 @@ export const CollapsibleFilterBar: React.FC<CollapsibleFilterBarProps> = ({
               onSearchChange('');
               if (onStatusChange) onStatusChange('all');
             }}
-            className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-900"
+            className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
           >
             <X className="w-3.5 h-3.5" />
             Limpar filtros
@@ -67,13 +67,13 @@ export const CollapsibleFilterBar: React.FC<CollapsibleFilterBarProps> = ({
       </div>
 
       {open && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 rounded-xl border border-slate-200 bg-white p-3.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 rounded-xl border border-slate-200 bg-white p-3.5 dark:border-slate-700 dark:bg-slate-900">
           <div>
-            <label className="block text-[11px] font-semibold text-slate-500 mb-1">Unidade</label>
+            <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">Unidade</label>
             <select
               value={selectedUnitId}
               onChange={(e) => onUnitChange(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-800 focus:border-blue-600 focus:outline-none"
+              className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-800 focus:border-blue-600 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
             >
               <option value="all">Todas as 7 Unidades</option>
               {units.map((u) => (
@@ -85,11 +85,11 @@ export const CollapsibleFilterBar: React.FC<CollapsibleFilterBarProps> = ({
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-slate-500 mb-1">Período</label>
+            <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">Período</label>
             <select
               value={period}
               onChange={(e) => onPeriodChange(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-800 focus:border-blue-600 focus:outline-none"
+              className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-800 focus:border-blue-600 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
             >
               <option value="7d">Últimos 7 dias</option>
               <option value="30d">Últimos 30 dias</option>
@@ -100,11 +100,11 @@ export const CollapsibleFilterBar: React.FC<CollapsibleFilterBarProps> = ({
 
           {extraStatuses && onStatusChange && (
             <div>
-              <label className="block text-[11px] font-semibold text-slate-500 mb-1">Status</label>
+              <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">Status</label>
               <select
                 value={selectedStatus || 'all'}
                 onChange={(e) => onStatusChange(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-800 focus:border-blue-600 focus:outline-none"
+                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-800 focus:border-blue-600 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               >
                 <option value="all">Todos</option>
                 {extraStatuses.map((st) => (
@@ -117,13 +117,13 @@ export const CollapsibleFilterBar: React.FC<CollapsibleFilterBarProps> = ({
           )}
 
           <div>
-            <label className="block text-[11px] font-semibold text-slate-500 mb-1">Busca rápida</label>
+            <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">Busca rápida</label>
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
               placeholder="Cliente, banco, processo..."
-              className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-800 focus:border-blue-600 focus:outline-none"
+              className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-800 focus:border-blue-600 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
             />
           </div>
         </div>

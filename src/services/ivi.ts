@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { GoogleGenAI, Type } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel, Type } from '@google/genai';
 import { db } from '../db/index.ts';
 import {
   CustomFormField,
@@ -2650,19 +2650,23 @@ export async function iviGenerateFormFromPromptOrModel(params: {
       const contentsParts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [];
 
       if (params.referenceFile) {
-        const mime = params.referenceFile.mimeType.toLowerCase();
-        if (
-          mime.startsWith('image/') ||
-          mime === 'application/pdf'
-        ) {
+        let mime = (params.referenceFile.mimeType || '').toLowerCase();
+        const lowerName = (params.referenceFile.fileName || '').toLowerCase();
+        if (!mime || mime === 'application/octet-stream' || mime === 'application/x-pdf') {
+          if (lowerName.endsWith('.pdf')) mime = 'application/pdf';
+          else if (lowerName.endsWith('.png')) mime = 'image/png';
+          else if (lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg')) mime = 'image/jpeg';
+          else if (lowerName.endsWith('.webp')) mime = 'image/webp';
+        }
+        if (mime.startsWith('image/') || mime === 'application/pdf') {
           contentsParts.push({
             inlineData: {
-              mimeType: params.referenceFile.mimeType,
+              mimeType: mime,
               data: params.referenceFile.buffer.toString('base64'),
             },
           });
           baseTextParts.push(
-            `Arquivo modelo anexado: "${params.referenceFile.fileName}" (${params.referenceFile.mimeType}). Extraia fielmente todas as seções, perguntas, tipos de campos e regras presentes neste arquivo modelo e combine com o prompt.`
+            `Arquivo modelo anexado: "${params.referenceFile.fileName}" (${mime}). Extraia fielmente todas as seções, perguntas, tipos de campos e regras presentes neste arquivo modelo e combine com o prompt.`
           );
         } else {
           const textExtract = params.referenceFile.buffer.toString('utf8').slice(0, 14000);
@@ -2674,10 +2678,11 @@ export async function iviGenerateFormFromPromptOrModel(params: {
 
       contentsParts.push({ text: baseTextParts.join('\n\n') });
 
-      const res = await ai.models.generateContent({
+      const aiPromise = ai.models.generateContent({
         model: 'gemini-4-hydrogen',
         contents: { parts: contentsParts },
         config: {
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
           systemInstruction: [
             'Você é a Ivi IA, arquiteta especialista em formulários corporativos e processos de assessoria bancária/jurídica do FinancePro.',
             'Transforme o prompt, modelo base e/ou arquivo anexado em um formulário completo, bem organizado com blocos (section_header), validações reais e rótulos claros em Português do Brasil.',
@@ -2723,7 +2728,19 @@ export async function iviGenerateFormFromPromptOrModel(params: {
         },
       });
 
-      const parsed = JSON.parse((res.text || '{}').trim()) as {
+      const res = await Promise.race([
+        aiPromise,
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Gemini timeout (22s)')), 22000)
+        ),
+      ]);
+
+      const rawJson = (res.text || '{}')
+        .trim()
+        .replace(/^```(?:json)?\s*/i, '')
+        .replace(/\s*```$/i, '');
+
+      const parsed = JSON.parse(rawJson) as {
         title?: string;
         description?: string;
         category?: string;

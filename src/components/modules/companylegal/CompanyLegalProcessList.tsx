@@ -209,9 +209,9 @@ export const CompanyLegalProcessList: React.FC<CompanyLegalProcessListProps> = (
   const renderSortIcon = (key: SortKey) => {
     if (sortKey !== key) return <ArrowUpDown className="w-3 h-3 text-slate-300" />;
     return sortDir === 'asc' ? (
-      <ArrowUp className="w-3 h-3 text-slate-900" />
+      <ArrowUp className="w-3 h-3 text-slate-900 dark:text-slate-100" />
     ) : (
-      <ArrowDown className="w-3 h-3 text-slate-900" />
+      <ArrowDown className="w-3 h-3 text-slate-900 dark:text-slate-100" />
     );
   };
 
@@ -247,8 +247,8 @@ export const CompanyLegalProcessList: React.FC<CompanyLegalProcessListProps> = (
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
-          <h2 className="font-display text-lg font-bold text-slate-900">Processos Judiciais</h2>
-          <p className="text-xs text-slate-500 tabular-nums">
+          <h2 className="font-display text-lg font-bold text-slate-900 dark:text-slate-100">Processos Judiciais</h2>
+          <p className="text-xs text-slate-500 tabular-nums dark:text-slate-400">
             {filteredProcesses.length} processo(s) encontrado(s)
           </p>
         </div>
@@ -264,7 +264,7 @@ export const CompanyLegalProcessList: React.FC<CompanyLegalProcessListProps> = (
           <button
             type="button"
             onClick={onCreateNew}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
           >
             <Plus className="w-4 h-4 text-emerald-400" /> Novo Processo
           </button>
@@ -272,10 +272,10 @@ export const CompanyLegalProcessList: React.FC<CompanyLegalProcessListProps> = (
       </div>
 
       {/* Search & Filter Toggle */}
-      <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-3">
+      <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-3 dark:border-slate-700 dark:bg-slate-900">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative flex-1 min-w-[220px]">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5 dark:text-slate-400" />
             <input
               type="text"
               value={searchTerm}
@@ -284,7 +284,7 @@ export const CompanyLegalProcessList: React.FC<CompanyLegalProcessListProps> = (
                 setPage(1);
               }}
               placeholder="Buscar por número CNJ, vara, comarca, parte adversa, assunto, advogado ou parceiro..."
-              className="w-full rounded-lg border border-slate-200 pl-9 pr-3 py-2 text-xs focus:border-blue-600 focus:outline-none"
+              className="w-full rounded-lg border border-slate-200 pl-9 pr-3 py-2 text-xs focus:border-blue-600 focus:outline-none dark:border-slate-700"
             />
           </div>
           <button
@@ -292,8 +292,8 @@ export const CompanyLegalProcessList: React.FC<CompanyLegalProcessListProps> = (
             onClick={() => setShowFilters((v) => !v)}
             className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold ${
               showFilters
-                ? 'border-slate-900 bg-slate-900 text-white'
-                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                ? 'border-slate-900 bg-slate-900 text-white dark:border-emerald-500 dark:bg-emerald-600'
+                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
             }`}
           >
             <Filter className="w-3.5 h-3.5" /> Filtros
@@ -302,7 +302,7 @@ export const CompanyLegalProcessList: React.FC<CompanyLegalProcessListProps> = (
             <button
               type="button"
               onClick={clearFilters}
-              className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100"
+              className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300 dark:hover:bg-red-900/60"
             >
               <X className="w-3.5 h-3.5" /> Limpar
             </button>
@@ -311,16 +311,16 @@ export const CompanyLegalProcessList: React.FC<CompanyLegalProcessListProps> = (
 
         {/* 7-Filter Panel */}
         {showFilters && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-2.5 pt-2 border-t border-slate-100 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-2.5 pt-2 border-t border-slate-100 text-xs dark:border-slate-800">
             <div>
-              <label className="block text-[11px] font-semibold text-slate-500 mb-1">Tipo</label>
+              <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">Tipo</label>
               <select
                 value={filterType}
                 onChange={(e) => {
                   setFilterType(e.target.value);
                   setPage(1);
                 }}
-                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5"
+                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               >
                 <option value="">Todos</option>
                 {PROCESS_TYPES.map((t) => (
@@ -331,14 +331,14 @@ export const CompanyLegalProcessList: React.FC<CompanyLegalProcessListProps> = (
               </select>
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-slate-500 mb-1">Status</label>
+              <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">Status</label>
               <select
                 value={filterStatus}
                 onChange={(e) => {
                   setFilterStatus(e.target.value);
                   setPage(1);
                 }}
-                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5"
+                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               >
                 <option value="">Todos</option>
                 {PROCESS_STATUSES.map((s) => (
@@ -349,14 +349,14 @@ export const CompanyLegalProcessList: React.FC<CompanyLegalProcessListProps> = (
               </select>
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-slate-500 mb-1">Risco</label>
+              <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">Risco</label>
               <select
                 value={filterRisk}
                 onChange={(e) => {
                   setFilterRisk(e.target.value);
                   setPage(1);
                 }}
-                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5"
+                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               >
                 <option value="">Todos</option>
                 {RISK_LEVELS.map((r) => (
@@ -367,14 +367,14 @@ export const CompanyLegalProcessList: React.FC<CompanyLegalProcessListProps> = (
               </select>
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-slate-500 mb-1">Unidade</label>
+              <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">Unidade</label>
               <select
                 value={filterUnit}
                 onChange={(e) => {
                   setFilterUnit(e.target.value);
                   setPage(1);
                 }}
-                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5"
+                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               >
                 <option value="">Todas</option>
                 {units.map((u) => (
@@ -385,7 +385,7 @@ export const CompanyLegalProcessList: React.FC<CompanyLegalProcessListProps> = (
               </select>
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-slate-500 mb-1">Parceiro</label>
+              <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">Parceiro</label>
               <input
                 type="text"
                 value={filterPartner}
@@ -394,11 +394,11 @@ export const CompanyLegalProcessList: React.FC<CompanyLegalProcessListProps> = (
                   setPage(1);
                 }}
                 placeholder="Nome / CPF / Tel..."
-                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 dark:border-slate-700"
               />
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-slate-500 mb-1">Distribuição De</label>
+              <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">Distribuição De</label>
               <input
                 type="date"
                 value={filterDateFrom}
@@ -406,11 +406,11 @@ export const CompanyLegalProcessList: React.FC<CompanyLegalProcessListProps> = (
                   setFilterDateFrom(e.target.value);
                   setPage(1);
                 }}
-                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 dark:border-slate-700"
               />
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-slate-500 mb-1">Distribuição Até</label>
+              <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">Distribuição Até</label>
               <input
                 type="date"
                 value={filterDateTo}
@@ -418,7 +418,7 @@ export const CompanyLegalProcessList: React.FC<CompanyLegalProcessListProps> = (
                   setFilterDateTo(e.target.value);
                   setPage(1);
                 }}
-                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 dark:border-slate-700"
               />
             </div>
           </div>
@@ -426,11 +426,11 @@ export const CompanyLegalProcessList: React.FC<CompanyLegalProcessListProps> = (
       </div>
 
       {/* 12-Column Sortable Table */}
-      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap">
+              <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] font-semibold text-slate-600 whitespace-nowrap dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
                 <th className="px-3 py-2.5">
                   <button type="button" onClick={() => toggleSort('processNumber')} className="inline-flex items-center gap-1">
                     Nº Processo {renderSortIcon('processNumber')}
@@ -489,10 +489,10 @@ export const CompanyLegalProcessList: React.FC<CompanyLegalProcessListProps> = (
                 <th className="px-3 py-2.5 text-right">Ações</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {pagedProcesses.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="px-4 py-10 text-center text-slate-400">
+                  <td colSpan={12} className="px-4 py-10 text-center text-slate-400 dark:text-slate-400">
                     Nenhum processo encontrado.
                   </td>
                 </tr>
@@ -503,27 +503,27 @@ export const CompanyLegalProcessList: React.FC<CompanyLegalProcessListProps> = (
                   const statusMeta = STATUS_BADGE_MAP[proc.status] || STATUS_BADGE_MAP.ATIVO;
 
                   return (
-                    <tr key={proc.id} className="hover:bg-slate-50/70">
-                      <td className="px-3 py-2.5 font-mono text-[11px] font-semibold text-slate-900 whitespace-nowrap">
+                    <tr key={proc.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800">
+                      <td className="px-3 py-2.5 font-mono text-[11px] font-semibold text-slate-900 whitespace-nowrap dark:text-slate-100">
                         {proc.processNumber}
                       </td>
                       <td className="px-3 py-2.5 max-w-[160px]">
-                        <div className="truncate font-medium text-slate-800">{proc.court || '-'}</div>
-                        <div className="truncate text-[10px] text-slate-400">{proc.jurisdiction || '-'}</div>
+                        <div className="truncate font-medium text-slate-800 dark:text-slate-100">{proc.court || '-'}</div>
+                        <div className="truncate text-[10px] text-slate-400 dark:text-slate-400">{proc.jurisdiction || '-'}</div>
                       </td>
-                      <td className="px-3 py-2.5 max-w-[150px] truncate text-slate-700" title={proc.opposingParty}>
+                      <td className="px-3 py-2.5 max-w-[150px] truncate text-slate-700 dark:text-slate-200" title={proc.opposingParty}>
                         {proc.opposingParty || '-'}
                       </td>
-                      <td className="px-3 py-2.5 max-w-[140px] truncate text-slate-600" title={partner?.fullName || '—'}>
+                      <td className="px-3 py-2.5 max-w-[140px] truncate text-slate-600 dark:text-slate-300" title={partner?.fullName || '—'}>
                         {partner?.fullName || '—'}
                       </td>
                       <td className="px-3 py-2.5 whitespace-nowrap">
-                        <span className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700">
+                        <span className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-200">
                           {proc.type}
                         </span>
                       </td>
                       <td className="px-3 py-2.5 whitespace-nowrap">
-                        <span className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-700">
+                        <span className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
                           {proc.role}
                         </span>
                       </td>
@@ -537,13 +537,13 @@ export const CompanyLegalProcessList: React.FC<CompanyLegalProcessListProps> = (
                           {statusMeta.label}
                         </span>
                       </td>
-                      <td className="px-3 py-2.5 max-w-[120px] truncate text-slate-600">
+                      <td className="px-3 py-2.5 max-w-[120px] truncate text-slate-600 dark:text-slate-300">
                         {proc.responsibleLawyer || '-'}
                       </td>
-                      <td className="px-3 py-2.5 whitespace-nowrap tabular-nums text-slate-600">
+                      <td className="px-3 py-2.5 whitespace-nowrap tabular-nums text-slate-600 dark:text-slate-300">
                         {formatDateBR(proc.lastMovementDate)}
                       </td>
-                      <td className="px-3 py-2.5 text-right whitespace-nowrap font-mono tabular-nums text-slate-800">
+                      <td className="px-3 py-2.5 text-right whitespace-nowrap font-mono tabular-nums text-slate-800 dark:text-slate-100">
                         {proc.causeValue ? `R$ ${proc.causeValue}` : '-'}
                       </td>
                       <td className="px-3 py-2.5 text-right whitespace-nowrap">
@@ -552,7 +552,7 @@ export const CompanyLegalProcessList: React.FC<CompanyLegalProcessListProps> = (
                             type="button"
                             onClick={() => setHistoryTarget({ id: proc.id, processNumber: proc.processNumber })}
                             title="Histórico de Movimentações"
-                            className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100"
+                            className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                           >
                             <History className="w-3.5 h-3.5" />
                           </button>
@@ -560,7 +560,7 @@ export const CompanyLegalProcessList: React.FC<CompanyLegalProcessListProps> = (
                             type="button"
                             onClick={() => onViewDetail(proc)}
                             title="Ver Detalhes"
-                            className="p-1.5 rounded-lg border border-slate-200 text-blue-700 hover:bg-blue-50"
+                            className="p-1.5 rounded-lg border border-slate-200 text-blue-700 hover:bg-blue-50 dark:border-slate-700 dark:text-blue-300 dark:hover:bg-blue-950/60"
                           >
                             <Eye className="w-3.5 h-3.5" />
                           </button>
@@ -568,7 +568,7 @@ export const CompanyLegalProcessList: React.FC<CompanyLegalProcessListProps> = (
                             type="button"
                             onClick={() => onEdit(proc)}
                             title="Editar"
-                            className="p-1.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-100"
+                            className="p-1.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
@@ -576,7 +576,7 @@ export const CompanyLegalProcessList: React.FC<CompanyLegalProcessListProps> = (
                             type="button"
                             onClick={() => void onDuplicate(proc)}
                             title="Duplicar"
-                            className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100"
+                            className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                           >
                             <Copy className="w-3.5 h-3.5" />
                           </button>
@@ -584,7 +584,7 @@ export const CompanyLegalProcessList: React.FC<CompanyLegalProcessListProps> = (
                             type="button"
                             onClick={() => setDeleteTarget(proc)}
                             title="Excluir"
-                            className="p-1.5 rounded-lg border border-red-200 text-red-700 hover:bg-red-50"
+                            className="p-1.5 rounded-lg border border-red-200 text-red-700 hover:bg-red-50 dark:border-red-800/70 dark:text-red-300 dark:hover:bg-red-950/60"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -600,8 +600,8 @@ export const CompanyLegalProcessList: React.FC<CompanyLegalProcessListProps> = (
 
         {/* Pagination */}
         {sortedProcesses.length > 0 && (
-          <div className="px-4 py-3 border-t border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-2 text-xs">
-            <div className="flex items-center gap-3 text-slate-600">
+          <div className="px-4 py-3 border-t border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-2 text-xs dark:border-slate-700 dark:bg-slate-800/70">
+            <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300">
               <span>
                 Mostrando {(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, sortedProcesses.length)} de{' '}
                 {sortedProcesses.length}
@@ -614,7 +614,7 @@ export const CompanyLegalProcessList: React.FC<CompanyLegalProcessListProps> = (
                     setPageSize(Number(e.target.value));
                     setPage(1);
                   }}
-                  className="rounded border border-slate-200 bg-white px-2 py-1 text-xs"
+                  className="rounded border border-slate-200 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                 >
                   {[5, 10, 20, 50, 100].map((sz) => (
                     <option key={sz} value={sz}>
@@ -630,14 +630,14 @@ export const CompanyLegalProcessList: React.FC<CompanyLegalProcessListProps> = (
                 type="button"
                 disabled={safePage <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="rounded border border-slate-200 bg-white px-2.5 py-1 font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-40"
+                className="rounded border border-slate-200 bg-white px-2.5 py-1 font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 Anterior
               </button>
               <div className="hidden sm:flex items-center gap-1">
                 {pageNumbers.map((pn, idx) =>
                   pn === '...' ? (
-                    <span key={`e-${idx}`} className="px-1.5 text-slate-400">
+                    <span key={`e-${idx}`} className="px-1.5 text-slate-400 dark:text-slate-400">
                       ...
                     </span>
                   ) : (
@@ -647,8 +647,8 @@ export const CompanyLegalProcessList: React.FC<CompanyLegalProcessListProps> = (
                       onClick={() => setPage(pn)}
                       className={`rounded border px-2.5 py-1 font-semibold tabular-nums ${
                         safePage === pn
-                          ? 'border-slate-900 bg-slate-900 text-white'
-                          : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
+                          ? 'border-slate-900 bg-slate-900 text-white dark:border-emerald-500 dark:bg-emerald-600'
+                          : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
                       }`}
                     >
                       {pn}
@@ -663,7 +663,7 @@ export const CompanyLegalProcessList: React.FC<CompanyLegalProcessListProps> = (
                 type="button"
                 disabled={safePage >= totalPages}
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                className="rounded border border-slate-200 bg-white px-2.5 py-1 font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-40"
+                className="rounded border border-slate-200 bg-white px-2.5 py-1 font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 Próxima
               </button>
@@ -683,15 +683,15 @@ export const CompanyLegalProcessList: React.FC<CompanyLegalProcessListProps> = (
       {/* Delete Confirmation Modal (avoids window.confirm inside iframe) */}
       {deleteTarget && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80"
           role="alertdialog"
           aria-modal="true"
         >
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-3 text-xs">
-            <h4 className="text-sm font-bold text-slate-900">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-3 text-xs dark:border-slate-700 dark:bg-slate-900">
+            <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">
               Excluir o processo <span className="font-mono">{deleteTarget.processNumber}</span>?
             </h4>
-            <p className="text-slate-600">
+            <p className="text-slate-600 dark:text-slate-300">
               Esta ação removerá permanentemente o processo e todas as movimentações, prazos, audiências e anexos vinculados.
             </p>
             <div className="flex justify-end gap-2 pt-2">
@@ -699,7 +699,7 @@ export const CompanyLegalProcessList: React.FC<CompanyLegalProcessListProps> = (
                 type="button"
                 disabled={deleting}
                 onClick={() => setDeleteTarget(null)}
-                className="rounded-lg border border-slate-300 bg-white px-4 py-1.5 font-semibold text-slate-700 hover:bg-slate-100"
+                className="rounded-lg border border-slate-300 bg-white px-4 py-1.5 font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 Cancelar
               </button>

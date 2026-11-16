@@ -97,39 +97,39 @@ export const EntityAuditModal: React.FC<{
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-      <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs max-h-[85vh] flex flex-col">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80">
+      <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs max-h-[85vh] flex flex-col dark:border-slate-700 dark:bg-slate-900">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
           <div className="flex items-center gap-2">
-            <History className="w-4 h-4 text-slate-700" />
-            <h3 className="font-display text-sm font-bold text-slate-900">
+            <History className="w-4 h-4 text-slate-700 dark:text-slate-200" />
+            <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
               Auditoria · {title}
             </h3>
           </div>
-          <button type="button" onClick={onClose} className="rounded-lg p-1 text-slate-400 hover:text-slate-700">
+          <button type="button" onClick={onClose} className="rounded-lg p-1 text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
+        <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
           {loading ? (
-            <div className="py-8 text-center text-slate-500">Carregando trilha de auditoria...</div>
+            <div className="py-8 text-center text-slate-500 dark:text-slate-400">Carregando trilha de auditoria...</div>
           ) : err ? (
-            <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-red-700">{err}</div>
+            <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-red-700 dark:bg-red-950/50 dark:border-red-800/70 dark:text-red-300">{err}</div>
           ) : logs.length === 0 ? (
-            <div className="py-8 text-center text-slate-500">Nenhum evento registrado para este cadastro.</div>
+            <div className="py-8 text-center text-slate-500 dark:text-slate-400">Nenhum evento registrado para este cadastro.</div>
           ) : (
             logs.map((log) => (
               <div key={log.id} className="py-3 space-y-1">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-[11px] font-bold text-slate-900">{log.action}</span>
-                  <span className="font-mono text-[11px] text-slate-500">{formatDateTimeBR(log.createdAt)}</span>
+                  <span className="font-mono text-[11px] font-bold text-slate-900 dark:text-slate-100">{log.action}</span>
+                  <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400">{formatDateTimeBR(log.createdAt)}</span>
                 </div>
-                <div className="text-slate-600">
-                  Responsável: <strong className="text-slate-800">{log.userName}</strong>
+                <div className="text-slate-600 dark:text-slate-300">
+                  Responsável: <strong className="text-slate-800 dark:text-slate-100">{log.userName}</strong>
                 </div>
                 {log.details && Object.keys(log.details).length > 0 && (
-                  <pre className="rounded-lg bg-slate-50 border border-slate-100 px-2.5 py-1.5 font-mono text-[10px] text-slate-600 overflow-x-auto">
+                  <pre className="rounded-lg bg-slate-50 border border-slate-100 px-2.5 py-1.5 font-mono text-[10px] text-slate-600 overflow-x-auto dark:bg-slate-800/70 dark:border-slate-800 dark:text-slate-300">
                     {JSON.stringify(log.details)}
                   </pre>
                 )}
@@ -156,28 +156,28 @@ export const ConfirmDeleteModal: React.FC<{
 }> = ({ open, title, description, busy, error, onCancel, onConfirm }) => {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80">
+      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs dark:border-slate-700 dark:bg-slate-900">
         <div className="flex items-start gap-3">
-          <div className="h-9 w-9 rounded-xl bg-red-100 text-red-700 flex items-center justify-center shrink-0">
+          <div className="h-9 w-9 rounded-xl bg-red-100 text-red-700 flex items-center justify-center shrink-0 dark:bg-red-900/50 dark:text-red-300">
             <AlertTriangle className="w-5 h-5" />
           </div>
           <div className="space-y-1">
-            <h3 className="font-display text-sm font-bold text-slate-900">{title}</h3>
-            <p className="text-slate-600 leading-relaxed">{description}</p>
+            <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">{title}</h3>
+            <p className="text-slate-600 leading-relaxed dark:text-slate-300">{description}</p>
           </div>
         </div>
         {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 font-medium">
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 font-medium dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
             {error}
           </div>
         )}
-        <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+        <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
           <button
             type="button"
             disabled={busy}
             onClick={onCancel}
-            className="rounded-lg border border-slate-200 px-3.5 py-2 font-semibold text-slate-700 hover:bg-slate-50"
+            className="rounded-lg border border-slate-200 px-3.5 py-2 font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             Cancelar
           </button>
@@ -298,11 +298,11 @@ export const CameraCaptureModal: React.FC<{
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/75 p-4">
-      <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl space-y-4 text-xs">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-          <div className="flex items-center gap-2 font-display text-sm font-bold text-slate-900">
-            <Camera className="w-4 h-4 text-emerald-700" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/75 p-4 dark:bg-slate-950/80">
+      <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl space-y-4 text-xs dark:bg-slate-900">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+          <div className="flex items-center gap-2 font-display text-sm font-bold text-slate-900 dark:text-slate-100">
+            <Camera className="w-4 h-4 text-emerald-700 dark:text-emerald-300" />
             Capturar Foto do Colaborador
           </div>
           <button
@@ -311,23 +311,23 @@ export const CameraCaptureModal: React.FC<{
               stopStream();
               onClose();
             }}
-            className="text-slate-400 hover:text-slate-700"
+            className="text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {err ? (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-center text-red-700 space-y-2">
+          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-center text-red-700 space-y-2 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
             <p className="font-semibold">{err}</p>
-            <p className="text-[11px] text-red-600">
+            <p className="text-[11px] text-red-600 dark:text-red-400">
               Você ainda pode enviar uma foto por arquivo diretamente no formulário.
             </p>
           </div>
         ) : (
           <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-slate-950">
             {loading && (
-              <div className="absolute inset-0 flex items-center justify-center text-slate-400">
+              <div className="absolute inset-0 flex items-center justify-center text-slate-400 dark:text-slate-400">
                 Iniciando câmera...
               </div>
             )}
@@ -341,7 +341,7 @@ export const CameraCaptureModal: React.FC<{
             <button
               type="button"
               onClick={() => setIsMirrored((m) => !m)}
-              className="absolute bottom-2 right-2 rounded-lg bg-slate-900/70 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-slate-900"
+              className="absolute bottom-2 right-2 rounded-lg bg-slate-900/70 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-slate-900 dark:bg-slate-950/80"
             >
               Espelhar
             </button>
@@ -354,7 +354,7 @@ export const CameraCaptureModal: React.FC<{
           <select
             value={selectedDeviceId}
             onChange={(e) => switchDevice(e.target.value)}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700"
+            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200 dark:bg-slate-950"
           >
             {devices.map((d, idx) => (
               <option key={d.deviceId || idx} value={d.deviceId}>
@@ -364,14 +364,14 @@ export const CameraCaptureModal: React.FC<{
           </select>
         )}
 
-        <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+        <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
           <button
             type="button"
             onClick={() => {
               stopStream();
               onClose();
             }}
-            className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700"
+            className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
           >
             Cancelar
           </button>
@@ -443,11 +443,11 @@ export const MaritalStatusModal: React.FC<{
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-          <h3 className="font-display text-sm font-bold text-slate-900">Gerenciar Estados Civis</h3>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80">
+      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs dark:border-slate-700 dark:bg-slate-900">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+          <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">Gerenciar Estados Civis</h3>
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -458,28 +458,28 @@ export const MaritalStatusModal: React.FC<{
             value={newLabel}
             onChange={(e) => setNewLabel(e.target.value)}
             placeholder="Novo estado civil..."
-            className="flex-1 rounded-lg border border-slate-200 px-3 py-2"
+            className="flex-1 rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
           />
           <button
             type="submit"
             disabled={busy || !newLabel.trim()}
-            className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-3.5 py-2 font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+            className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-3.5 py-2 font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
           >
             <Plus className="w-3.5 h-3.5" /> Adicionar
           </button>
         </form>
 
-        {err && <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-red-700">{err}</div>}
+        {err && <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-red-700 dark:bg-red-950/50 dark:border-red-800/70 dark:text-red-300">{err}</div>}
 
-        <div className="max-h-60 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-xl">
+        <div className="max-h-60 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-xl dark:divide-slate-800 dark:border-slate-700">
           {options.map((opt) => (
             <div key={opt} className="flex items-center justify-between px-3 py-2">
-              <span className="font-medium text-slate-800">{opt}</span>
+              <span className="font-medium text-slate-800 dark:text-slate-100">{opt}</span>
               <button
                 type="button"
                 disabled={busy}
                 onClick={() => handleRemove(opt)}
-                className="text-red-600 hover:text-red-800 p-1"
+                className="text-red-600 hover:text-red-800 p-1 dark:text-red-400 dark:hover:text-red-200"
                 title="Remover opção"
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -557,20 +557,20 @@ export const BlockClientModal: React.FC<{
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-          <div className="flex items-center gap-2 font-display text-sm font-bold text-slate-900">
-            <ShieldAlert className="w-4 h-4 text-red-600" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80">
+      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs dark:border-slate-700 dark:bg-slate-900">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+          <div className="flex items-center gap-2 font-display text-sm font-bold text-slate-900 dark:text-slate-100">
+            <ShieldAlert className="w-4 h-4 text-red-600 dark:text-red-400" />
             Administrar Restrição · {client.fullName}
           </div>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700">
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {isBlocked && (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-1 text-amber-900">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-1 text-amber-900 dark:border-amber-800/70 dark:bg-amber-950/50 dark:text-amber-300">
             <div className="font-bold uppercase text-[11px]">Status atual: {client.status}</div>
             <div>Motivo: {client.suspensionReason || client.cancelledReason || '—'}</div>
           </div>
@@ -578,31 +578,31 @@ export const BlockClientModal: React.FC<{
 
         <form onSubmit={handleBlock} className="space-y-3">
           <div>
-            <label className="block font-semibold text-slate-700 mb-1">Tipo de Restrição</label>
+            <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Tipo de Restrição</label>
             <select
               value={statusChoice}
               onChange={(e) => setStatusChoice(e.target.value as 'suspenso' | 'cancelado')}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 font-semibold"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 font-semibold dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             >
               <option value="suspenso">Suspenso Temporariamente</option>
               <option value="cancelado">Bloqueado / Cancelado</option>
             </select>
           </div>
           <div>
-            <label className="block font-semibold text-slate-700 mb-1">Motivo da Restrição *</label>
+            <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Motivo da Restrição *</label>
             <textarea
               rows={3}
               required
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Descreva o motivo administrativo ou financeiro da restrição..."
-              className="w-full rounded-lg border border-slate-200 p-2.5"
+              className="w-full rounded-lg border border-slate-200 p-2.5 dark:border-slate-700"
             />
           </div>
 
-          {err && <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-red-700">{err}</div>}
+          {err && <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-red-700 dark:bg-red-950/50 dark:border-red-800/70 dark:text-red-300">{err}</div>}
 
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
             {isBlocked ? (
               <button
                 type="button"
@@ -621,7 +621,7 @@ export const BlockClientModal: React.FC<{
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-lg border border-slate-200 px-3.5 py-2 font-semibold text-slate-700"
+                className="rounded-lg border border-slate-200 px-3.5 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
               >
                 Fechar
               </button>
@@ -685,24 +685,24 @@ export const DeleteClientModal: React.FC<{
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-      <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-          <div className="flex items-center gap-2 font-display text-sm font-bold text-red-700">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80">
+      <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs dark:border-slate-700 dark:bg-slate-900">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+          <div className="flex items-center gap-2 font-display text-sm font-bold text-red-700 dark:text-red-300">
             <Trash2 className="w-4 h-4" />
             Excluir Cliente · {client.fullName}
           </div>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700">
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="flex gap-2 border-b border-slate-200">
+        <div className="flex gap-2 border-b border-slate-200 dark:border-slate-700">
           <button
             type="button"
             onClick={() => setTab('dados')}
             className={`px-3 py-2 font-semibold border-b-2 ${
-              tab === 'dados' ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500'
+              tab === 'dados' ? 'border-slate-900 text-slate-900 dark:border-emerald-500 dark:text-slate-100' : 'border-transparent text-slate-500 dark:text-slate-400'
             }`}
           >
             Dados & Vínculos
@@ -711,7 +711,7 @@ export const DeleteClientModal: React.FC<{
             type="button"
             onClick={() => setTab('documentos')}
             className={`px-3 py-2 font-semibold border-b-2 ${
-              tab === 'documentos' ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500'
+              tab === 'documentos' ? 'border-slate-900 text-slate-900 dark:border-emerald-500 dark:text-slate-100' : 'border-transparent text-slate-500 dark:text-slate-400'
             }`}
           >
             Documentos ({docsTotal})
@@ -720,14 +720,14 @@ export const DeleteClientModal: React.FC<{
 
         {tab === 'dados' ? (
           <div className="space-y-3">
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-1">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-1 dark:border-slate-700 dark:bg-slate-800/70">
               <div><strong>CPF/CNPJ:</strong> <span className="font-mono">{client.cpfCnpj || '—'}</span></div>
               <div><strong>Telefone:</strong> {client.phone || '—'}</div>
               <div><strong>Cidade/UF:</strong> {client.city || '—'}/{client.state || '—'}</div>
               <div><strong>Fichas de Admissão:</strong> {admsTotal}</div>
             </div>
             {hasDocs && (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900 space-y-1.5">
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900 space-y-1.5 dark:border-amber-800/70 dark:bg-amber-950/50 dark:text-amber-300">
                 <div className="font-bold">Exclusão desabilitada por segurança</div>
                 <p>
                   Existem <strong>{docsTotal} documento(s)</strong> armazenado(s) no bucket Cloudflare R2 para este cliente. Exclua ou mova os documentos antes de remover o cadastro.
@@ -738,7 +738,7 @@ export const DeleteClientModal: React.FC<{
                     onClose();
                     onGoToDocs();
                   }}
-                  className="font-bold text-blue-700 hover:underline"
+                  className="font-bold text-blue-700 hover:underline dark:text-blue-300"
                 >
                   Abrir guia Documentos do Cliente →
                 </button>
@@ -746,9 +746,9 @@ export const DeleteClientModal: React.FC<{
             )}
           </div>
         ) : (
-          <div className="max-h-56 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-xl">
+          <div className="max-h-56 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-xl dark:divide-slate-800 dark:border-slate-700">
             {clientDocs.length === 0 ? (
-              <div className="p-4 text-center text-slate-500">
+              <div className="p-4 text-center text-slate-500 dark:text-slate-400">
                 {docsTotal > 0
                   ? `Existem ${docsTotal} documento(s) vinculado(s) a este cliente.`
                   : 'Nenhum documento ativo no bucket.'}
@@ -757,23 +757,23 @@ export const DeleteClientModal: React.FC<{
               clientDocs.map((d) => (
                 <div key={d.id} className="flex items-center justify-between px-3 py-2">
                   <div className="min-w-0">
-                    <div className="font-semibold text-slate-800 truncate">{d.fileName}</div>
-                    <div className="text-[11px] text-slate-500">{d.docCategory} · {formatBytes(d.sizeBytes)}</div>
+                    <div className="font-semibold text-slate-800 truncate dark:text-slate-100">{d.fileName}</div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">{d.docCategory} · {formatBytes(d.sizeBytes)}</div>
                   </div>
-                  <span className="font-mono text-[10px] text-slate-400">{formatDateBR(d.createdAt)}</span>
+                  <span className="font-mono text-[10px] text-slate-400 dark:text-slate-400">{formatDateBR(d.createdAt)}</span>
                 </div>
               ))
             )}
           </div>
         )}
 
-        {err && <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-red-700">{err}</div>}
+        {err && <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-red-700 dark:bg-red-950/50 dark:border-red-800/70 dark:text-red-300">{err}</div>}
 
-        <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+        <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-slate-200 px-3.5 py-2 font-semibold text-slate-700"
+            className="rounded-lg border border-slate-200 px-3.5 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
           >
             Cancelar
           </button>
@@ -809,50 +809,50 @@ export const AdmissionQuickViewerModal: React.FC<{
   const unit = units.find((u) => u.id === admission.unitId);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-      <div className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-          <div className="flex items-center gap-2 font-display text-sm font-bold text-slate-900">
-            <FileText className="w-4 h-4 text-blue-700" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80">
+      <div className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs dark:border-slate-700 dark:bg-slate-900">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+          <div className="flex items-center gap-2 font-display text-sm font-bold text-slate-900 dark:text-slate-100">
+            <FileText className="w-4 h-4 text-blue-700 dark:text-blue-300" />
             Ficha {admission.series || 'ADM'} · {admission.contractNumber}
           </div>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700">
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+        <div className="grid grid-cols-2 gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/70">
           <div>
-            <div className="text-[10px] font-semibold text-slate-400 uppercase">Responsável</div>
-            <div className="font-bold text-slate-900">{resp?.fullName || '—'}</div>
+            <div className="text-[10px] font-semibold text-slate-400 uppercase dark:text-slate-400">Responsável</div>
+            <div className="font-bold text-slate-900 dark:text-slate-100">{resp?.fullName || '—'}</div>
           </div>
           <div>
-            <div className="text-[10px] font-semibold text-slate-400 uppercase">Titular</div>
-            <div className="font-bold text-slate-900">{tit?.fullName || 'Mesmo responsável'}</div>
+            <div className="text-[10px] font-semibold text-slate-400 uppercase dark:text-slate-400">Titular</div>
+            <div className="font-bold text-slate-900 dark:text-slate-100">{tit?.fullName || 'Mesmo responsável'}</div>
           </div>
           <div>
-            <div className="text-[10px] font-semibold text-slate-400 uppercase">Banco / Modalidade</div>
-            <div className="font-semibold text-slate-800">{admission.bankName} · {admission.modality || admission.debtType}</div>
+            <div className="text-[10px] font-semibold text-slate-400 uppercase dark:text-slate-400">Banco / Modalidade</div>
+            <div className="font-semibold text-slate-800 dark:text-slate-100">{admission.bankName} · {admission.modality || admission.debtType}</div>
           </div>
           <div>
-            <div className="text-[10px] font-semibold text-slate-400 uppercase">Unidade / Status</div>
-            <div className="font-semibold text-slate-800">{unit?.name || admission.unitId} · {admission.status.toUpperCase()}</div>
+            <div className="text-[10px] font-semibold text-slate-400 uppercase dark:text-slate-400">Unidade / Status</div>
+            <div className="font-semibold text-slate-800 dark:text-slate-100">{unit?.name || admission.unitId} · {admission.status.toUpperCase()}</div>
           </div>
           <div>
-            <div className="text-[10px] font-semibold text-slate-400 uppercase">Dívida Base</div>
-            <div className="font-mono font-bold text-slate-900">{formatBRL(admission.debtAmountCents)}</div>
+            <div className="text-[10px] font-semibold text-slate-400 uppercase dark:text-slate-400">Dívida Base</div>
+            <div className="font-mono font-bold text-slate-900 dark:text-slate-100">{formatBRL(admission.debtAmountCents)}</div>
           </div>
           <div>
-            <div className="text-[10px] font-semibold text-slate-400 uppercase">Serviços / Honorários</div>
-            <div className="font-mono font-bold text-emerald-700">{formatBRL(admission.serviceFeeCents)}</div>
+            <div className="text-[10px] font-semibold text-slate-400 uppercase dark:text-slate-400">Serviços / Honorários</div>
+            <div className="font-mono font-bold text-emerald-700 dark:text-emerald-300">{formatBRL(admission.serviceFeeCents)}</div>
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+        <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-slate-200 px-3.5 py-2 font-semibold text-slate-700"
+            className="rounded-lg border border-slate-200 px-3.5 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
           >
             Fechar
           </button>
@@ -862,7 +862,7 @@ export const AdmissionQuickViewerModal: React.FC<{
               onClose();
               onOpenInAdmissionModule(admission.id);
             }}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
           >
             <Check className="w-3.5 h-3.5" />
             Abrir Ficha em Admissão &amp; Dossiês

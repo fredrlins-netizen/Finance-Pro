@@ -26,6 +26,7 @@ import type {
 } from '../../../types.ts';
 import { getAuthToken } from '../../../lib/api.ts';
 import { FormTemplateButton } from '../../FormTemplateButton.tsx';
+import { DossierDocumentPreviewModal } from '../../DossierDocumentViewer.tsx';
 import {
   buildCompanyLegalMergeContext,
   DEADLINE_TYPES,
@@ -245,7 +246,16 @@ export const CompanyLegalProcessDetail: React.FC<CompanyLegalProcessDetailProps>
     }
   };
 
+  const [previewAtt, setPreviewAtt] = useState<{
+    att: CompanyProcessAttachment;
+    blobUrl: string;
+  } | null>(null);
+
   const handleOpenAttachment = async (att: CompanyProcessAttachment) => {
+    if (att.fileData) {
+      setPreviewAtt({ att, blobUrl: att.fileData });
+      return;
+    }
     if (!att.fileUrl) return;
     const token = getAuthToken();
     const resp = await fetch(`${att.fileUrl}?preview=1`, {
@@ -254,17 +264,19 @@ export const CompanyLegalProcessDetail: React.FC<CompanyLegalProcessDetailProps>
     if (!resp.ok) return;
     const blob = await resp.blob();
     const url = URL.createObjectURL(blob);
-    window.open(url, '_blank', 'noopener,noreferrer');
-    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    setPreviewAtt((prev) => {
+      if (prev?.blobUrl && prev.blobUrl.startsWith('blob:')) URL.revokeObjectURL(prev.blobUrl);
+      return { att, blobUrl: url };
+    });
   };
 
   const getMovementIcon = (t: string) => {
-    if (t === 'SENTENCA') return <Gavel className="w-3.5 h-3.5 text-purple-600" />;
-    if (t === 'DECISAO') return <Scale className="w-3.5 h-3.5 text-blue-600" />;
-    if (t === 'PETICAO') return <FileText className="w-3.5 h-3.5 text-emerald-600" />;
-    if (t === 'CERTIDAO') return <FileCheck2 className="w-3.5 h-3.5 text-amber-600" />;
-    if (t === 'AUDIENCIA') return <CalendarClock className="w-3.5 h-3.5 text-rose-600" />;
-    return <ScrollText className="w-3.5 h-3.5 text-slate-600" />;
+    if (t === 'SENTENCA') return <Gavel className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />;
+    if (t === 'DECISAO') return <Scale className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />;
+    if (t === 'PETICAO') return <FileText className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />;
+    if (t === 'CERTIDAO') return <FileCheck2 className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />;
+    if (t === 'AUDIENCIA') return <CalendarClock className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />;
+    return <ScrollText className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />;
   };
 
   return (
@@ -274,7 +286,7 @@ export const CompanyLegalProcessDetail: React.FC<CompanyLegalProcessDetailProps>
         <button
           type="button"
           onClick={onBack}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
         >
           <ArrowLeft className="w-3.5 h-3.5" /> Voltar à Lista
         </button>
@@ -288,17 +300,17 @@ export const CompanyLegalProcessDetail: React.FC<CompanyLegalProcessDetailProps>
       </div>
 
       {/* Summary Card */}
-      <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4">
-        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-4">
+      <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4 dark:border-slate-700 dark:bg-slate-900">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-4 dark:border-slate-800">
           <div className="space-y-1">
-            <div className="font-mono text-lg font-bold text-slate-900">{process.processNumber}</div>
-            <div className="text-xs text-slate-600">
+            <div className="font-mono text-lg font-bold text-slate-900 dark:text-slate-100">{process.processNumber}</div>
+            <div className="text-xs text-slate-600 dark:text-slate-300">
               {process.court || '-'} — {process.jurisdiction || '-'}
             </div>
-            {process.subject && <div className="text-xs font-medium text-slate-800">{process.subject}</div>}
+            {process.subject && <div className="text-xs font-medium text-slate-800 dark:text-slate-100">{process.subject}</div>}
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700">
+            <span className="rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-200">
               {unitObj ? getUnitDisplayName(unitObj) : '-'}
             </span>
             <span className={`rounded border px-2 py-1 text-[11px] font-semibold ${statusMeta.badgeClass}`}>
@@ -307,7 +319,7 @@ export const CompanyLegalProcessDetail: React.FC<CompanyLegalProcessDetailProps>
             <span className={`rounded border px-2 py-1 text-[11px] font-bold ${riskMeta.badgeClass}`}>
               Risco: {riskMeta.label}
             </span>
-            <span className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700">
+            <span className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
               {process.role}
             </span>
           </div>
@@ -315,50 +327,50 @@ export const CompanyLegalProcessDetail: React.FC<CompanyLegalProcessDetailProps>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
           <div>
-            <div className="text-[10px] font-semibold uppercase text-slate-400">Tipo</div>
-            <div className="font-semibold text-slate-800 mt-0.5">{process.type}</div>
+            <div className="text-[10px] font-semibold uppercase text-slate-400 dark:text-slate-400">Tipo</div>
+            <div className="font-semibold text-slate-800 mt-0.5 dark:text-slate-100">{process.type}</div>
           </div>
           <div>
-            <div className="text-[10px] font-semibold uppercase text-slate-400">Parte Adversa</div>
-            <div className="font-semibold text-slate-800 mt-0.5">{process.opposingParty || '-'}</div>
+            <div className="text-[10px] font-semibold uppercase text-slate-400 dark:text-slate-400">Parte Adversa</div>
+            <div className="font-semibold text-slate-800 mt-0.5 dark:text-slate-100">{process.opposingParty || '-'}</div>
           </div>
           <div>
-            <div className="text-[10px] font-semibold uppercase text-slate-400">Advogado Responsável</div>
-            <div className="font-semibold text-slate-800 mt-0.5">{process.responsibleLawyer || '-'}</div>
+            <div className="text-[10px] font-semibold uppercase text-slate-400 dark:text-slate-400">Advogado Responsável</div>
+            <div className="font-semibold text-slate-800 mt-0.5 dark:text-slate-100">{process.responsibleLawyer || '-'}</div>
           </div>
           <div>
-            <div className="text-[10px] font-semibold uppercase text-slate-400">Distribuição</div>
-            <div className="font-semibold text-slate-800 mt-0.5 tabular-nums">
+            <div className="text-[10px] font-semibold uppercase text-slate-400 dark:text-slate-400">Distribuição</div>
+            <div className="font-semibold text-slate-800 mt-0.5 tabular-nums dark:text-slate-100">
               {formatDateBR(process.distributionDate)}
             </div>
           </div>
           <div>
-            <div className="text-[10px] font-semibold uppercase text-slate-400">Valor da Causa</div>
-            <div className="font-mono font-semibold text-slate-900 mt-0.5">
+            <div className="text-[10px] font-semibold uppercase text-slate-400 dark:text-slate-400">Valor da Causa</div>
+            <div className="font-mono font-semibold text-slate-900 mt-0.5 dark:text-slate-100">
               {process.causeValue ? `R$ ${process.causeValue}` : '-'}
             </div>
           </div>
           <div>
-            <div className="text-[10px] font-semibold uppercase text-slate-400">Provisionado</div>
-            <div className="font-mono font-semibold text-slate-900 mt-0.5">
+            <div className="text-[10px] font-semibold uppercase text-slate-400 dark:text-slate-400">Provisionado</div>
+            <div className="font-mono font-semibold text-slate-900 mt-0.5 dark:text-slate-100">
               {process.provisionValue ? `R$ ${process.provisionValue}` : '-'}
             </div>
           </div>
         </div>
 
         {partnerObj && (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 flex items-center gap-3 text-xs">
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 flex items-center gap-3 text-xs dark:border-emerald-800/70 dark:bg-emerald-950/50">
             <div className="w-9 h-9 rounded-full bg-emerald-700 text-white font-bold flex items-center justify-center shrink-0">
               {partnerObj.fullName.charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <span className="font-bold text-slate-900">{partnerObj.fullName}</span>
-                <span className="rounded border border-emerald-300 bg-white px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">
+                <span className="font-bold text-slate-900 dark:text-slate-100">{partnerObj.fullName}</span>
+                <span className="rounded border border-emerald-300 bg-white px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:border-emerald-800/70 dark:bg-slate-900 dark:text-emerald-300">
                   Parceiro Vinculado
                 </span>
               </div>
-              <div className="text-[11px] text-slate-600">
+              <div className="text-[11px] text-slate-600 dark:text-slate-300">
                 {partnerObj.cpfCnpj} · {partnerObj.phone || 'Sem telefone'} · {partnerObj.email || 'Sem e-mail'}
               </div>
             </div>
@@ -368,8 +380,8 @@ export const CompanyLegalProcessDetail: React.FC<CompanyLegalProcessDetailProps>
 
       {/* Inline Delete Confirmation */}
       {confirmRemove && (
-        <div className="rounded-xl border border-red-300 bg-red-50 p-3 flex flex-wrap items-center justify-between gap-2 text-xs">
-          <span className="font-semibold text-red-800">{confirmRemove.label}</span>
+        <div className="rounded-xl border border-red-300 bg-red-50 p-3 flex flex-wrap items-center justify-between gap-2 text-xs dark:border-red-800/70 dark:bg-red-950/50">
+          <span className="font-semibold text-red-800 dark:text-red-300">{confirmRemove.label}</span>
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -382,7 +394,7 @@ export const CompanyLegalProcessDetail: React.FC<CompanyLegalProcessDetailProps>
             <button
               type="button"
               onClick={() => setConfirmRemove(null)}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-1 font-semibold text-slate-700"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1 font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
             >
               Cancelar
             </button>
@@ -393,38 +405,38 @@ export const CompanyLegalProcessDetail: React.FC<CompanyLegalProcessDetailProps>
       {/* 2-Column Content: Movimentações (Left) + Prazos/Audiências (Right) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* LEFT: Movimentações */}
-        <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 text-xs">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 text-xs dark:border-slate-700 dark:bg-slate-900">
           <div className="flex items-center justify-between">
-            <h3 className="font-bold text-slate-800 uppercase tracking-wider">
+            <h3 className="font-bold text-slate-800 uppercase tracking-wider dark:text-slate-100">
               Movimentações ({sortedMovements.length})
             </h3>
             <button
               type="button"
               onClick={openAddMovement}
-              className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-slate-800"
+              className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
             >
               <Plus className="w-3.5 h-3.5" /> Adicionar
             </button>
           </div>
 
           {showMovForm && (
-            <form onSubmit={handleSaveMovement} className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2.5">
+            <form onSubmit={handleSaveMovement} className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2.5 dark:border-slate-700 dark:bg-slate-800/70">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Data</label>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">Data</label>
                   <input
                     type="date"
                     value={movDate}
                     onChange={(e) => setMovDate(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5"
+                    className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Tipo</label>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">Tipo</label>
                   <select
                     value={movType}
                     onChange={(e) => setMovType(e.target.value as CompanyProcessMovement['type'])}
-                    className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5"
+                    className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                   >
                     {MOVEMENT_TYPES.map((t) => (
                       <option key={t.value} value={t.value}>
@@ -435,23 +447,23 @@ export const CompanyLegalProcessDetail: React.FC<CompanyLegalProcessDetailProps>
                 </div>
               </div>
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Descrição</label>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">Descrição</label>
                 <textarea
                   rows={2}
                   value={movDesc}
                   onChange={(e) => setMovDesc(e.target.value)}
                   placeholder="Teor da movimentação..."
-                  className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                 />
               </div>
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Fonte</label>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">Fonte</label>
                 <input
                   type="text"
                   value={movSource}
                   onChange={(e) => setMovSource(e.target.value)}
                   placeholder="Ex: Diário Oficial / PJe"
-                  className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                 />
               </div>
               <div className="flex justify-end gap-2">
@@ -461,14 +473,14 @@ export const CompanyLegalProcessDetail: React.FC<CompanyLegalProcessDetailProps>
                     setShowMovForm(false);
                     setEditingMovId(null);
                   }}
-                  className="rounded-lg border border-slate-300 bg-white px-3 py-1 font-semibold text-slate-700"
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-1 font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={busy}
-                  className="rounded-lg bg-slate-900 px-3 py-1 font-semibold text-white hover:bg-slate-800"
+                  className="rounded-lg bg-slate-900 px-3 py-1 font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
                 >
                   {editingMovId !== null ? 'Salvar' : 'Adicionar'}
                 </button>
@@ -477,21 +489,21 @@ export const CompanyLegalProcessDetail: React.FC<CompanyLegalProcessDetailProps>
           )}
 
           {sortedMovements.length === 0 ? (
-            <div className="py-8 text-center text-slate-400">Nenhuma movimentação registrada.</div>
+            <div className="py-8 text-center text-slate-400 dark:text-slate-400">Nenhuma movimentação registrada.</div>
           ) : (
             <div className="space-y-2.5">
               {sortedMovements.map((m) => (
                 <div
                   key={String(m.id)}
-                  className="group rounded-xl border border-slate-200 p-3 hover:border-slate-300 transition-colors space-y-1"
+                  className="group rounded-xl border border-slate-200 p-3 hover:border-slate-300 transition-colors space-y-1 dark:border-slate-700"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       {getMovementIcon(m.type)}
-                      <span className="font-mono font-bold text-slate-700 tabular-nums">
+                      <span className="font-mono font-bold text-slate-700 tabular-nums dark:text-slate-200">
                         {formatDateBR(m.date)}
                       </span>
-                      <span className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700">
+                      <span className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-200">
                         {m.type}
                       </span>
                     </div>
@@ -500,7 +512,7 @@ export const CompanyLegalProcessDetail: React.FC<CompanyLegalProcessDetailProps>
                         type="button"
                         onClick={() => openEditMovement(m)}
                         title="Editar"
-                        className="p-1 rounded text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                        className="p-1 rounded text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                       </button>
@@ -514,14 +526,14 @@ export const CompanyLegalProcessDetail: React.FC<CompanyLegalProcessDetailProps>
                           })
                         }
                         title="Excluir"
-                        className="p-1 rounded text-red-500 hover:bg-red-50"
+                        className="p-1 rounded text-red-500 hover:bg-red-50 dark:hover:bg-red-950/60"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
-                  <p className="text-slate-800 leading-relaxed whitespace-pre-wrap">{m.description}</p>
-                  {m.source && <div className="text-[11px] text-slate-400">Fonte: {m.source}</div>}
+                  <p className="text-slate-800 leading-relaxed whitespace-pre-wrap dark:text-slate-100">{m.description}</p>
+                  {m.source && <div className="text-[11px] text-slate-400 dark:text-slate-400">Fonte: {m.source}</div>}
                 </div>
               ))}
             </div>
@@ -531,29 +543,29 @@ export const CompanyLegalProcessDetail: React.FC<CompanyLegalProcessDetailProps>
         {/* RIGHT: Prazos & Audiências */}
         <div className="space-y-4">
           {/* Prazos */}
-          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 text-xs">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 text-xs dark:border-slate-700 dark:bg-slate-900">
             <div className="flex items-center justify-between">
-              <h3 className="font-bold text-slate-800 uppercase tracking-wider">
+              <h3 className="font-bold text-slate-800 uppercase tracking-wider dark:text-slate-100">
                 Prazos ({process.deadlines?.length || 0})
               </h3>
               <button
                 type="button"
                 onClick={() => setShowDlForm((v) => !v)}
-                className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-slate-800"
+                className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
               >
                 <Plus className="w-3.5 h-3.5" /> Prazo
               </button>
             </div>
 
             {showDlForm && (
-              <form onSubmit={handleAddDeadline} className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+              <form onSubmit={handleAddDeadline} className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2 dark:border-slate-700 dark:bg-slate-800/70">
                 <input
                   type="text"
                   required
                   value={dlDesc}
                   onChange={(e) => setDlDesc(e.target.value)}
                   placeholder="Descrição do prazo..."
-                  className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 dark:border-slate-600 dark:bg-slate-900"
                 />
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <input
@@ -561,12 +573,12 @@ export const CompanyLegalProcessDetail: React.FC<CompanyLegalProcessDetailProps>
                     required
                     value={dlDueDate}
                     onChange={(e) => setDlDueDate(e.target.value)}
-                    className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5"
+                    className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                   />
                   <select
                     value={dlType}
                     onChange={(e) => setDlType(e.target.value as CompanyProcessDeadline['type'])}
-                    className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5"
+                    className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                   >
                     {DEADLINE_TYPES.map((dt) => (
                       <option key={dt} value={dt}>
@@ -577,7 +589,7 @@ export const CompanyLegalProcessDetail: React.FC<CompanyLegalProcessDetailProps>
                   <select
                     value={dlRespId}
                     onChange={(e) => setDlRespId(e.target.value ? Number(e.target.value) : '')}
-                    className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5"
+                    className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                   >
                     <option value="">Responsável...</option>
                     {collaborators.map((c) => (
@@ -591,14 +603,14 @@ export const CompanyLegalProcessDetail: React.FC<CompanyLegalProcessDetailProps>
                   <button
                     type="button"
                     onClick={() => setShowDlForm(false)}
-                    className="rounded-lg border border-slate-300 bg-white px-3 py-1 font-semibold text-slate-700"
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-1 font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
                     disabled={busy}
-                    className="rounded-lg bg-slate-900 px-3 py-1 font-semibold text-white"
+                    className="rounded-lg bg-slate-900 px-3 py-1 font-semibold text-white dark:bg-emerald-600"
                   >
                     Adicionar
                   </button>
@@ -607,7 +619,7 @@ export const CompanyLegalProcessDetail: React.FC<CompanyLegalProcessDetailProps>
             )}
 
             {(process.deadlines || []).length === 0 ? (
-              <div className="py-4 text-center text-slate-400">Nenhum prazo cadastrado.</div>
+              <div className="py-4 text-center text-slate-400 dark:text-slate-400">Nenhum prazo cadastrado.</div>
             ) : (
               <div className="space-y-2">
                 {(process.deadlines || []).map((dl) => {
@@ -617,11 +629,11 @@ export const CompanyLegalProcessDetail: React.FC<CompanyLegalProcessDetailProps>
                   return (
                     <div
                       key={String(dl.id)}
-                      className="rounded-xl border border-slate-200 p-2.5 flex items-center justify-between gap-2"
+                      className="rounded-xl border border-slate-200 p-2.5 flex items-center justify-between gap-2 dark:border-slate-700"
                     >
                       <div className="min-w-0">
-                        <div className="font-semibold text-slate-800 truncate">{dl.description}</div>
-                        <div className="text-[11px] text-slate-500">
+                        <div className="font-semibold text-slate-800 truncate dark:text-slate-100">{dl.description}</div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">
                           {formatDateBR(dl.dueDate)} · {dl.type} {respName ? `· ${respName}` : ''}
                         </div>
                       </div>
@@ -631,12 +643,12 @@ export const CompanyLegalProcessDetail: React.FC<CompanyLegalProcessDetailProps>
                             type="button"
                             disabled={busy}
                             onClick={() => void handleCompleteDeadline(dl.id)}
-                            className="inline-flex items-center gap-1 rounded border border-emerald-300 bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 hover:bg-emerald-100"
+                            className="inline-flex items-center gap-1 rounded border border-emerald-300 bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
                           >
                             <Check className="w-3 h-3" /> Cumprido
                           </button>
                         ) : (
-                          <span className="rounded border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                          <span className="rounded border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
                             {dl.status}
                           </span>
                         )}
@@ -645,7 +657,7 @@ export const CompanyLegalProcessDetail: React.FC<CompanyLegalProcessDetailProps>
                           onClick={() =>
                             setConfirmRemove({ kind: 'dl', id: dl.id, label: 'Excluir este prazo?' })
                           }
-                          className="p-1 text-red-500 hover:bg-red-50 rounded"
+                          className="p-1 text-red-500 hover:bg-red-50 rounded dark:hover:bg-red-950/60"
                           title="Excluir prazo"
                         >
                           <X className="w-3.5 h-3.5" />
@@ -659,41 +671,41 @@ export const CompanyLegalProcessDetail: React.FC<CompanyLegalProcessDetailProps>
           </div>
 
           {/* Audiências */}
-          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 text-xs">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 text-xs dark:border-slate-700 dark:bg-slate-900">
             <div className="flex items-center justify-between">
-              <h3 className="font-bold text-slate-800 uppercase tracking-wider">
+              <h3 className="font-bold text-slate-800 uppercase tracking-wider dark:text-slate-100">
                 Audiências ({process.hearings?.length || 0})
               </h3>
               <button
                 type="button"
                 onClick={() => setShowHrForm((v) => !v)}
-                className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-slate-800"
+                className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
               >
                 <Plus className="w-3.5 h-3.5" /> Audiência
               </button>
             </div>
 
             {showHrForm && (
-              <form onSubmit={handleAddHearing} className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+              <form onSubmit={handleAddHearing} className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2 dark:border-slate-700 dark:bg-slate-800/70">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <input
                     type="date"
                     required
                     value={hrDate}
                     onChange={(e) => setHrDate(e.target.value)}
-                    className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5"
+                    className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                   />
                   <input
                     type="time"
                     required
                     value={hrTime}
                     onChange={(e) => setHrTime(e.target.value)}
-                    className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5"
+                    className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                   />
                   <select
                     value={hrType}
                     onChange={(e) => setHrType(e.target.value as CompanyProcessHearing['type'])}
-                    className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5"
+                    className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                   >
                     {HEARING_TYPES.map((ht) => (
                       <option key={ht} value={ht}>
@@ -707,20 +719,20 @@ export const CompanyLegalProcessDetail: React.FC<CompanyLegalProcessDetailProps>
                   value={hrLocation}
                   onChange={(e) => setHrLocation(e.target.value)}
                   placeholder="Ex: Fórum Central, Sala 301"
-                  className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                 />
                 <div className="flex justify-end gap-2">
                   <button
                     type="button"
                     onClick={() => setShowHrForm(false)}
-                    className="rounded-lg border border-slate-300 bg-white px-3 py-1 font-semibold text-slate-700"
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-1 font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
                     disabled={busy}
-                    className="rounded-lg bg-slate-900 px-3 py-1 font-semibold text-white"
+                    className="rounded-lg bg-slate-900 px-3 py-1 font-semibold text-white dark:bg-emerald-600"
                   >
                     Adicionar
                   </button>
@@ -729,22 +741,22 @@ export const CompanyLegalProcessDetail: React.FC<CompanyLegalProcessDetailProps>
             )}
 
             {(process.hearings || []).length === 0 ? (
-              <div className="py-4 text-center text-slate-400">Nenhuma audiência agendada.</div>
+              <div className="py-4 text-center text-slate-400 dark:text-slate-400">Nenhuma audiência agendada.</div>
             ) : (
               <div className="space-y-2">
                 {(process.hearings || []).map((hr) => (
                   <div
                     key={String(hr.id)}
-                    className="rounded-xl border border-slate-200 p-2.5 flex items-center justify-between gap-2"
+                    className="rounded-xl border border-slate-200 p-2.5 flex items-center justify-between gap-2 dark:border-slate-700"
                   >
                     <div className="min-w-0">
-                      <div className="font-semibold text-slate-800">
+                      <div className="font-semibold text-slate-800 dark:text-slate-100">
                         {formatDateBR(hr.date)} às {hr.time} · {hr.type}
                       </div>
-                      <div className="text-[11px] text-slate-500">{hr.location || 'Local não informado'}</div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">{hr.location || 'Local não informado'}</div>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+                      <span className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300">
                         {hr.status}
                       </span>
                       <button
@@ -752,7 +764,7 @@ export const CompanyLegalProcessDetail: React.FC<CompanyLegalProcessDetailProps>
                         onClick={() =>
                           setConfirmRemove({ kind: 'hr', id: hr.id, label: 'Excluir esta audiência?' })
                         }
-                        className="p-1 text-red-500 hover:bg-red-50 rounded"
+                        className="p-1 text-red-500 hover:bg-red-50 rounded dark:hover:bg-red-950/60"
                         title="Excluir audiência"
                       >
                         <X className="w-3.5 h-3.5" />
@@ -768,10 +780,10 @@ export const CompanyLegalProcessDetail: React.FC<CompanyLegalProcessDetailProps>
 
       {/* Notas / Observações */}
       {process.notes && (
-        <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-2">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">Notas / Observações</h3>
+        <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-2 dark:border-slate-700 dark:bg-slate-900">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">Notas / Observações</h3>
           <div
-            className="prose prose-sm max-w-none text-slate-800"
+            className="prose prose-sm max-w-none text-slate-800 dark:text-slate-100"
             dangerouslySetInnerHTML={{ __html: sanitizeLegalHtml(process.notes) }}
           />
         </div>
@@ -779,9 +791,9 @@ export const CompanyLegalProcessDetail: React.FC<CompanyLegalProcessDetailProps>
 
       {/* Anexos do Processo */}
       {(process.attachments || []).length > 0 && (
-        <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-2 text-xs">
-          <h3 className="font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-            <Paperclip className="w-3.5 h-3.5 text-blue-600" />
+        <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-2 text-xs dark:border-slate-700 dark:bg-slate-900">
+          <h3 className="font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 dark:text-slate-200">
+            <Paperclip className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
             Anexos do Processo ({process.attachments!.length})
           </h3>
           <div className="flex flex-wrap gap-2">
@@ -790,15 +802,28 @@ export const CompanyLegalProcessDetail: React.FC<CompanyLegalProcessDetailProps>
                 key={String(att.id)}
                 type="button"
                 onClick={() => void handleOpenAttachment(att)}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-100"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-200 dark:hover:bg-slate-800"
               >
-                <FileText className="w-3.5 h-3.5 text-blue-600" />
+                <FileText className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                 <span>{att.title || att.fileName}</span>
               </button>
             ))}
           </div>
         </div>
       )}
+      <DossierDocumentPreviewModal
+        open={Boolean(previewAtt)}
+        title={previewAtt?.att.title || previewAtt?.att.fileName || ''}
+        subtitle={previewAtt?.att.fileName}
+        mimeType={previewAtt?.att.mimeType || ''}
+        blobUrl={previewAtt?.blobUrl || ''}
+        onClose={() => {
+          if (previewAtt?.blobUrl && previewAtt.blobUrl.startsWith('blob:')) {
+            URL.revokeObjectURL(previewAtt.blobUrl);
+          }
+          setPreviewAtt(null);
+        }}
+      />
     </div>
   );
 };

@@ -176,27 +176,27 @@ export const UazapiQrModal: React.FC<{
     qrCode && (qrCode.startsWith('data:') ? qrCode : `data:image/png;base64,${qrCode}`);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-      <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80">
+      <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs dark:border-slate-700 dark:bg-slate-900">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
           <div className="flex items-center gap-2">
-            <QrCode className="w-4 h-4 text-slate-800" />
-            <h3 className="font-display text-sm font-bold text-slate-900">
+            <QrCode className="w-4 h-4 text-slate-800 dark:text-slate-100" />
+            <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
               Conectar WhatsApp · {instance.label}
             </h3>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1 text-slate-400 hover:text-slate-700"
+            className="rounded-lg p-1 text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="flex items-center justify-between text-[11px] text-slate-500 border-b border-slate-100 pb-2.5">
+        <div className="flex items-center justify-between text-[11px] text-slate-500 border-b border-slate-100 pb-2.5 dark:text-slate-400 dark:border-slate-800">
           <span>
-            Instância: <strong className="font-mono text-slate-800">{instance.uazapiInstanceId}</strong>
+            Instância: <strong className="font-mono text-slate-800 dark:text-slate-100">{instance.uazapiInstanceId}</strong>
           </span>
           {!connected && (
             <span className="font-mono tabular-nums">
@@ -206,22 +206,22 @@ export const UazapiQrModal: React.FC<{
         </div>
 
         {connected ? (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-center space-y-2">
-            <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" />
-            <div className="font-display text-sm font-bold text-emerald-950">
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-center space-y-2 dark:border-emerald-800/70 dark:bg-emerald-950/50">
+            <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto dark:text-emerald-400" />
+            <div className="font-display text-sm font-bold text-emerald-950 dark:text-emerald-300">
               Sessão WhatsApp Conectada
             </div>
-            <div className="text-emerald-800 font-mono tabular-nums">
+            <div className="text-emerald-800 font-mono tabular-nums dark:text-emerald-300">
               {profileName || 'Aparelho Corporativo'} · {connectedPhone || instance.defaultPhone || 'Ativo'}
             </div>
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row items-center gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <div className="w-44 h-44 shrink-0 rounded-xl border border-slate-200 bg-white p-2 flex items-center justify-center">
+            <div className="flex flex-col sm:flex-row items-center gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/70">
+              <div className="w-44 h-44 shrink-0 rounded-xl border border-slate-200 bg-white p-2 flex items-center justify-center dark:border-slate-700 dark:bg-slate-900">
                 {loadingQr ? (
-                  <div className="text-center text-slate-400 space-y-1.5">
-                    <RefreshCw className="w-5 h-5 animate-spin mx-auto text-slate-500" />
+                  <div className="text-center text-slate-400 space-y-1.5 dark:text-slate-400">
+                    <RefreshCw className="w-5 h-5 animate-spin mx-auto text-slate-500 dark:text-slate-400" />
                     <div className="text-[11px]">Gerando QR...</div>
                   </div>
                 ) : qrSrc ? (
@@ -232,7 +232,7 @@ export const UazapiQrModal: React.FC<{
                     className="w-full h-full object-contain"
                   />
                 ) : (
-                  <div className="text-center text-slate-400 px-2 space-y-1">
+                  <div className="text-center text-slate-400 px-2 space-y-1 dark:text-slate-400">
                     <QrCode className="w-8 h-8 mx-auto text-slate-300" />
                     <div className="text-[11px]">Clique em Gerar novo QR Code</div>
                   </div>
@@ -240,16 +240,16 @@ export const UazapiQrModal: React.FC<{
               </div>
 
               <div className="space-y-2.5 flex-1">
-                <div className="font-semibold text-slate-900">Instruções de Pareamento</div>
-                <ol className="list-decimal list-inside space-y-1 text-slate-600 leading-relaxed">
+                <div className="font-semibold text-slate-900 dark:text-slate-100">Instruções de Pareamento</div>
+                <ol className="list-decimal list-inside space-y-1 text-slate-600 leading-relaxed dark:text-slate-300">
                   <li>Abra o WhatsApp no celular do setor/unidade.</li>
                   <li>Toque em Aparelhos Conectados → Conectar um aparelho.</li>
                   <li>Aponte a câmera para o QR Code ao lado.</li>
                 </ol>
                 {pairCode && (
                   <div className="pt-1">
-                    <div className="text-[11px] text-slate-500">Código de pareamento numérico:</div>
-                    <div className="font-mono text-base font-bold text-slate-900 tracking-wider tabular-nums">
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">Código de pareamento numérico:</div>
+                    <div className="font-mono text-base font-bold text-slate-900 tracking-wider tabular-nums dark:text-slate-100">
                       {pairCode}
                     </div>
                   </div>
@@ -259,7 +259,7 @@ export const UazapiQrModal: React.FC<{
 
             <div className="flex flex-col sm:flex-row gap-2 items-end">
               <div className="flex-1 w-full">
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">
                   Telefone para código de pareamento opcional (DDI+DDD+Número)
                 </label>
                 <input
@@ -267,14 +267,14 @@ export const UazapiQrModal: React.FC<{
                   value={phoneHint}
                   onChange={(e) => setPhoneHint(e.target.value)}
                   placeholder="Ex: 5581999887766"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-xs tabular-nums"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-xs tabular-nums dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <button
                 type="button"
                 disabled={loadingQr}
                 onClick={() => requestConnect(phoneHint)}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${loadingQr ? 'animate-spin' : ''}`} />
                 Gerar novo QR Code
@@ -284,16 +284,16 @@ export const UazapiQrModal: React.FC<{
         )}
 
         {err && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 font-medium">
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 font-medium dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
             {err}
           </div>
         )}
 
-        <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+        <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 whitespace-nowrap shrink-0"
+            className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 whitespace-nowrap shrink-0 dark:bg-emerald-600 dark:hover:bg-emerald-500"
           >
             {connected ? 'Concluir' : 'Fechar'}
           </button>
@@ -510,10 +510,10 @@ export const ConfigUnitsView: React.FC<{
   return (
     <div className="space-y-4">
       {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
         <div className="flex flex-1 flex-wrap items-center gap-2.5">
           <div className="relative flex-1 min-w-[220px] max-w-md">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5 dark:text-slate-400" />
             <input
               type="text"
               value={search}
@@ -522,11 +522,11 @@ export const ConfigUnitsView: React.FC<{
                 setPage(1);
               }}
               placeholder="Filtrar por código, nome fantasia, razão social, CNPJ ou cidade..."
-              className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-1.5 text-xs text-slate-900 focus:border-slate-900 focus:outline-none"
+              className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-1.5 text-xs text-slate-900 focus:border-slate-900 focus:outline-none dark:border-slate-700 dark:text-slate-100"
             />
           </div>
 
-          <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1">
+          <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-800">
             {(
               [
                 { id: 'all', label: `Todas (${units.length})` },
@@ -543,8 +543,8 @@ export const ConfigUnitsView: React.FC<{
                 }}
                 className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
                   statusFilter === opt.id
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-slate-100'
+                    : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
                 }`}
               >
                 {opt.label}
@@ -557,7 +557,7 @@ export const ConfigUnitsView: React.FC<{
           <button
             type="button"
             onClick={openNewModal}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 whitespace-nowrap shrink-0"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 whitespace-nowrap shrink-0 dark:bg-emerald-600 dark:hover:bg-emerald-500"
           >
             <Plus className="w-3.5 h-3.5" />
             Nova Unidade
@@ -566,10 +566,10 @@ export const ConfigUnitsView: React.FC<{
       </div>
 
       {/* Data Grid */}
-      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600">
+            <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
               <tr>
                 <th className="px-4 py-2.5 whitespace-nowrap">Código &amp; Unidade</th>
                 <th className="px-4 py-2.5 whitespace-nowrap">CNPJ</th>
@@ -581,10 +581,10 @@ export const ConfigUnitsView: React.FC<{
                 <th className="px-4 py-2.5 text-right whitespace-nowrap">Ações</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {paged.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan={8} className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
                     Nenhuma unidade encontrada para o filtro informado.
                   </td>
                 </tr>
@@ -596,33 +596,33 @@ export const ConfigUnitsView: React.FC<{
                   return (
                     <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="px-4 py-2.5">
-                        <div className="font-semibold text-slate-900">
-                          <span className="font-mono text-slate-700">{u.code}</span> · {u.name}
+                        <div className="font-semibold text-slate-900 dark:text-slate-100">
+                          <span className="font-mono text-slate-700 dark:text-slate-200">{u.code}</span> · {u.name}
                         </div>
-                        <div className="text-[11px] text-slate-500 truncate max-w-[230px]">
+                        <div className="text-[11px] text-slate-500 truncate max-w-[230px] dark:text-slate-400">
                           {u.legalName || `${u.name} Assessoria Ltda`}
                         </div>
                       </td>
-                      <td className="px-4 py-2.5 font-mono text-[11px] text-slate-700 tabular-nums whitespace-nowrap">
+                      <td className="px-4 py-2.5 font-mono text-[11px] text-slate-700 tabular-nums whitespace-nowrap dark:text-slate-200">
                         {u.cnpj || '—'}
                       </td>
                       <td className="px-4 py-2.5">
-                        <div className="font-medium text-slate-800 whitespace-nowrap">
+                        <div className="font-medium text-slate-800 whitespace-nowrap dark:text-slate-100">
                           {u.city}/{u.state}
                         </div>
-                        <div className="text-[11px] text-slate-500 truncate max-w-[210px]">
+                        <div className="text-[11px] text-slate-500 truncate max-w-[210px] dark:text-slate-400">
                           {[u.address, u.addressNumber, u.neighborhood].filter(Boolean).join(', ') || '—'}
                         </div>
                       </td>
                       <td className="px-4 py-2.5">
-                        <div className="font-mono text-[11px] text-slate-800 tabular-nums whitespace-nowrap">
+                        <div className="font-mono text-[11px] text-slate-800 tabular-nums whitespace-nowrap dark:text-slate-100">
                           {u.whatsappNumber || u.phone || '—'}
                         </div>
-                        <div className="text-[11px] text-slate-500 truncate max-w-[180px]">
+                        <div className="text-[11px] text-slate-500 truncate max-w-[180px] dark:text-slate-400">
                           {u.email || 'Sem e-mail'}
                         </div>
                       </td>
-                      <td className="px-4 py-2.5 text-right font-mono font-bold text-slate-900 tabular-nums whitespace-nowrap">
+                      <td className="px-4 py-2.5 text-right font-mono font-bold text-slate-900 tabular-nums whitespace-nowrap dark:text-slate-100">
                         {formatBRL(u.minAdmissionCostCents)}
                       </td>
                       <td className="px-4 py-2.5 whitespace-nowrap">
@@ -630,7 +630,7 @@ export const ConfigUnitsView: React.FC<{
                           <button
                             type="button"
                             onClick={() => onOpenUazapiForUnit(u.id)}
-                            className="text-left text-[11px] font-medium text-blue-700 hover:underline whitespace-nowrap"
+                            className="text-left text-[11px] font-medium text-blue-700 hover:underline whitespace-nowrap dark:text-blue-300"
                           >
                             {unitInsts.length === 0
                               ? 'Vincular linha →'
@@ -641,7 +641,7 @@ export const ConfigUnitsView: React.FC<{
                               type="button"
                               onClick={() => onPairInstanceQr(primaryInst)}
                               title={`Parear QR Code (${primaryInst.label})`}
-                              className="rounded border border-slate-200 p-1 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                              className="rounded border border-slate-200 p-1 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
                             >
                               <QrCode className="w-3.5 h-3.5" />
                             </button>
@@ -651,7 +651,7 @@ export const ConfigUnitsView: React.FC<{
                       <td className="px-4 py-2.5 whitespace-nowrap">
                         <span
                           className={`text-[11px] font-semibold ${
-                            u.active ? 'text-emerald-700' : 'text-slate-400'
+                            u.active ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-400 dark:text-slate-400'
                           }`}
                         >
                           {u.active ? 'Ativa' : 'Inativa'}
@@ -663,7 +663,7 @@ export const ConfigUnitsView: React.FC<{
                             type="button"
                             onClick={() => setAuditTarget(u)}
                             title="Histórico de Auditoria"
-                            className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                            className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
                           >
                             <History className="w-3.5 h-3.5" />
                           </button>
@@ -673,7 +673,7 @@ export const ConfigUnitsView: React.FC<{
                                 type="button"
                                 onClick={() => openEditModal(u, false)}
                                 title="Editar Unidade"
-                                className="rounded-md p-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                                className="rounded-md p-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
                               >
                                 <Edit3 className="w-3.5 h-3.5" />
                               </button>
@@ -681,7 +681,7 @@ export const ConfigUnitsView: React.FC<{
                                 type="button"
                                 onClick={() => openEditModal(u, true)}
                                 title="Duplicar Unidade"
-                                className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                                className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
                               >
                                 <CopyIcon className="w-3.5 h-3.5" />
                               </button>
@@ -692,7 +692,7 @@ export const ConfigUnitsView: React.FC<{
                                   setDeleteTarget(u);
                                 }}
                                 title="Excluir Unidade"
-                                className="rounded-md p-1.5 text-red-600 hover:bg-red-50"
+                                className="rounded-md p-1.5 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/60"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
@@ -709,7 +709,7 @@ export const ConfigUnitsView: React.FC<{
         </div>
 
         {totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2.5 text-xs text-slate-600">
+          <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2.5 text-xs text-slate-600 dark:border-slate-800 dark:text-slate-300">
             <span className="font-mono tabular-nums">
               Página {page} de {totalPages} · {filtered.length} unidade(s)
             </span>
@@ -718,7 +718,7 @@ export const ConfigUnitsView: React.FC<{
                 type="button"
                 disabled={page <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="rounded border border-slate-200 px-2.5 py-1 font-semibold disabled:opacity-40"
+                className="rounded border border-slate-200 px-2.5 py-1 font-semibold disabled:opacity-40 dark:border-slate-700"
               >
                 Anterior
               </button>
@@ -726,7 +726,7 @@ export const ConfigUnitsView: React.FC<{
                 type="button"
                 disabled={page >= totalPages}
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                className="rounded border border-slate-200 px-2.5 py-1 font-semibold disabled:opacity-40"
+                className="rounded border border-slate-200 px-2.5 py-1 font-semibold disabled:opacity-40 dark:border-slate-700"
               >
                 Próxima
               </button>
@@ -737,36 +737,36 @@ export const ConfigUnitsView: React.FC<{
 
       {/* Modal Criar / Editar / Duplicar Unidade */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80">
           <form
             onSubmit={handleSaveUnit}
-            className="w-full max-w-3xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs max-h-[90vh] overflow-y-auto"
+            className="w-full max-w-3xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs max-h-[90vh] overflow-y-auto dark:border-slate-700 dark:bg-slate-900"
           >
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
               <div className="flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-slate-800" />
-                <h3 className="font-display text-sm font-bold text-slate-900">
+                <Building2 className="w-4 h-4 text-slate-800 dark:text-slate-100" />
+                <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                   {editingId ? 'Editar Unidade & Piso Operacional' : 'Cadastrar Nova Unidade'}
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setModalOpen(false)}
-                className="rounded-lg p-1 text-slate-400 hover:text-slate-700"
+                className="rounded-lg p-1 text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {formErr && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 font-medium text-red-700">
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 font-medium text-red-700 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
                 {formErr}
               </div>
             )}
 
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
               <div className="sm:col-span-3">
-                <label className="block font-semibold text-slate-700 mb-1">Código / Sigla *</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Código / Sigla *</label>
                 <input
                   type="text"
                   required
@@ -774,53 +774,53 @@ export const ConfigUnitsView: React.FC<{
                   value={code}
                   onChange={(e) => setCode(e.target.value.toUpperCase())}
                   placeholder="Ex: REC-01"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono uppercase"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono uppercase dark:border-slate-700"
                 />
               </div>
               <div className="sm:col-span-4">
-                <label className="block font-semibold text-slate-700 mb-1">Nome Fantasia *</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Nome Fantasia *</label>
                 <input
                   type="text"
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Ex: Matriz Recife"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700"
                 />
               </div>
               <div className="sm:col-span-5">
-                <label className="block font-semibold text-slate-700 mb-1">Razão Social</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Razão Social</label>
                 <input
                   type="text"
                   value={legalName}
                   onChange={(e) => setLegalName(e.target.value)}
                   placeholder="FinancePro Assessoria Empresarial Ltda"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700"
                 />
               </div>
 
               <div className="sm:col-span-4">
-                <label className="block font-semibold text-slate-700 mb-1">CNPJ (Validação Mod-11)</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">CNPJ (Validação Mod-11)</label>
                 <input
                   type="text"
                   value={cnpj}
                   onChange={(e) => setCnpj(formatCpfCnpjMask(e.target.value, 'PJ'))}
                   placeholder="00.000.000/0001-00"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono tabular-nums"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono tabular-nums dark:border-slate-700"
                 />
               </div>
               <div className="sm:col-span-4">
-                <label className="block font-semibold text-slate-700 mb-1">E-mail da Unidade</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">E-mail da Unidade</label>
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="unidade@financepro.com.br"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div className="sm:col-span-4">
-                <label className="block font-semibold text-slate-700 mb-1">Taxa / Piso Mínimo (R$) *</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Taxa / Piso Mínimo (R$) *</label>
                 <input
                   type="number"
                   step="0.01"
@@ -828,13 +828,13 @@ export const ConfigUnitsView: React.FC<{
                   required
                   value={minCostBrl}
                   onChange={(e) => setMinCostBrl(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono font-bold tabular-nums"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono font-bold tabular-nums dark:border-slate-700"
                 />
               </div>
 
               <div className="sm:col-span-3">
-                <label className="block font-semibold text-slate-700 mb-1">
-                  CEP {cepLoading && <span className="text-blue-600">(Buscando...)</span>}
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">
+                  CEP {cepLoading && <span className="text-blue-600 dark:text-blue-400">(Buscando...)</span>}
                 </label>
                 <input
                   type="text"
@@ -847,66 +847,66 @@ export const ConfigUnitsView: React.FC<{
                     }
                   }}
                   placeholder="00000-000"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono tabular-nums"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono tabular-nums dark:border-slate-700"
                 />
               </div>
               <div className="sm:col-span-6">
-                <label className="block font-semibold text-slate-700 mb-1">Logradouro</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Logradouro</label>
                 <input
                   type="text"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
                   placeholder="Av. Eng. Domingos Ferreira"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div className="sm:col-span-3">
-                <label className="block font-semibold text-slate-700 mb-1">Número</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Número</label>
                 <input
                   type="text"
                   value={addressNumber}
                   onChange={(e) => setAddressNumber(e.target.value)}
                   placeholder="1200"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
 
               <div className="sm:col-span-4">
-                <label className="block font-semibold text-slate-700 mb-1">Complemento (Preservado no CEP)</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Complemento (Preservado no CEP)</label>
                 <input
                   type="text"
                   value={complement}
                   onChange={(e) => setComplement(e.target.value)}
                   placeholder="Sala 804 / Empresarial"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div className="sm:col-span-3">
-                <label className="block font-semibold text-slate-700 mb-1">Bairro</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Bairro</label>
                 <input
                   type="text"
                   value={neighborhood}
                   onChange={(e) => setNeighborhood(e.target.value)}
                   placeholder="Boa Viagem"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div className="sm:col-span-3">
-                <label className="block font-semibold text-slate-700 mb-1">Cidade *</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Cidade *</label>
                 <input
                   type="text"
                   required
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className="block font-semibold text-slate-700 mb-1">UF *</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">UF *</label>
                 <select
                   value={stateUf}
                   onChange={(e) => setStateUf(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-mono"
+                  className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 >
                   {BRAZILIAN_UFS.map((uf) => (
                     <option key={uf} value={uf}>
@@ -917,27 +917,27 @@ export const ConfigUnitsView: React.FC<{
               </div>
 
               <div className="sm:col-span-4">
-                <label className="block font-semibold text-slate-700 mb-1">Telefone Fixo / Recepção</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Telefone Fixo / Recepção</label>
                 <input
                   type="text"
                   value={phone}
                   onChange={(e) => setPhone(formatPhoneMask(e.target.value))}
                   placeholder="(81) 3030-4000"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono tabular-nums"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono tabular-nums dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div className="sm:col-span-4">
-                <label className="block font-semibold text-slate-700 mb-1">WhatsApp Padrão da Unidade</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">WhatsApp Padrão da Unidade</label>
                 <input
                   type="text"
                   value={whatsappNumber}
                   onChange={(e) => setWhatsappNumber(formatPhoneMask(e.target.value))}
                   placeholder="(81) 99988-7766"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono tabular-nums"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono tabular-nums dark:border-slate-700"
                 />
               </div>
               <div className="sm:col-span-4 flex items-end pb-1">
-                <label className="flex items-center gap-2 cursor-pointer font-semibold text-slate-800">
+                <label className="flex items-center gap-2 cursor-pointer font-semibold text-slate-800 dark:text-slate-100">
                   <input
                     type="checkbox"
                     checked={active}
@@ -948,18 +948,18 @@ export const ConfigUnitsView: React.FC<{
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
+            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
               <button
                 type="button"
                 onClick={() => setModalOpen(false)}
-                className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700 hover:bg-slate-50"
+                className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={saving}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
               >
                 <Check className="w-3.5 h-3.5" />
                 {saving ? 'Salvando...' : 'Salvar Unidade'}
@@ -1320,17 +1320,17 @@ export const ConfigUazapiView: React.FC<{
   return (
     <div className="space-y-4">
       {/* Arquitetura Recomendada em 3 Camadas (Resposta técnica limpa integrada ao painel) */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-2 text-xs">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-2 text-xs dark:border-slate-700 dark:bg-slate-900">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div className="font-display text-sm font-bold text-slate-900">
+          <div className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
             Governança Multi-Número UaZapi · Separação em 3 Camadas (Segurança, Grupos &amp; Operação)
           </div>
-          <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1 self-start">
+          <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1 self-start dark:bg-slate-800">
             <button
               type="button"
               onClick={() => setSubView('instances')}
               className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
-                subView === 'instances' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                subView === 'instances' ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-slate-100' : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
               }`}
             >
               Instâncias &amp; Grupos ({instances.length})
@@ -1339,14 +1339,14 @@ export const ConfigUazapiView: React.FC<{
               type="button"
               onClick={() => setSubView('history')}
               className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
-                subView === 'history' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                subView === 'history' ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-slate-100' : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
               }`}
             >
               Histórico &amp; Importação UaZapi
             </button>
           </div>
         </div>
-        <p className="text-slate-600 leading-relaxed">
+        <p className="text-slate-600 leading-relaxed dark:text-slate-300">
           Para evitar acoplar credenciais sensíveis apenas ao cadastro fiscal de Unidades ou expor tokens nas telas operacionais, cada linha WhatsApp é provisionada com criptografia <strong>AES-256-GCM</strong> nesta grade e associada simultaneamente a <strong>Unidade</strong>, múltiplos <strong>Grupos de Usuários</strong>, <strong>Módulos</strong> (Prospecção, Admissão, Cobrança, Jurídico) e <strong>Colaborador Titular</strong> opcional.
         </p>
       </div>
@@ -1354,17 +1354,17 @@ export const ConfigUazapiView: React.FC<{
       {subView === 'instances' ? (
         <>
           {/* Filter + Actions Toolbar */}
-          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 text-xs">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 text-xs dark:border-slate-700 dark:bg-slate-900">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-2 flex-1">
                 <div className="relative min-w-[200px] flex-1 max-w-xs">
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5 dark:text-slate-400" />
                   <input
                     type="text"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Buscar rótulo, ID instância ou telefone..."
-                    className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-1.5"
+                    className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-1.5 dark:border-slate-700"
                   />
                 </div>
 
@@ -1374,7 +1374,7 @@ export const ConfigUazapiView: React.FC<{
                     setUnitFilter(e.target.value);
                     if (e.target.value === 'all') onClearUnitFilter();
                   }}
-                  className="rounded-lg border border-slate-200 px-2.5 py-1.5 font-medium text-slate-700"
+                  className="rounded-lg border border-slate-200 px-2.5 py-1.5 font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200"
                 >
                   <option value="all">Todas as Unidades</option>
                   {units.map((u) => (
@@ -1387,7 +1387,7 @@ export const ConfigUazapiView: React.FC<{
                 <select
                   value={groupFilter}
                   onChange={(e) => setGroupFilter(e.target.value)}
-                  className="rounded-lg border border-slate-200 px-2.5 py-1.5 font-medium text-slate-700"
+                  className="rounded-lg border border-slate-200 px-2.5 py-1.5 font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200 dark:bg-slate-950"
                 >
                   <option value="all">Todos os Grupos de Acesso</option>
                   {groups.map((g) => (
@@ -1411,7 +1411,7 @@ export const ConfigUazapiView: React.FC<{
                         'Auto-descoberta UaZapi concluída via AdminToken.'
                       )
                     }
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${busyAction === 'discover' ? 'animate-spin' : ''}`} />
                     Auto-Descobrir
@@ -1427,15 +1427,15 @@ export const ConfigUazapiView: React.FC<{
                         'Autoteste de Webhook UaZapi validado (Ingestão + ACK + Imutabilidade).'
                       )
                     }
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                   >
-                    <Play className="w-3.5 h-3.5 text-emerald-600" />
+                    <Play className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                     Testar Webhook
                   </button>
                   <button
                     type="button"
                     onClick={openNewInstance}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-1.5 font-semibold text-white hover:bg-slate-800 whitespace-nowrap shrink-0"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-1.5 font-semibold text-white hover:bg-slate-800 whitespace-nowrap shrink-0 dark:bg-emerald-600 dark:hover:bg-emerald-500"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     Nova Instância / Número
@@ -1444,10 +1444,10 @@ export const ConfigUazapiView: React.FC<{
               )}
             </div>
 
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-t border-slate-100 pt-2.5 text-[11px] text-slate-500">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-t border-slate-100 pt-2.5 text-[11px] text-slate-500 dark:border-slate-800 dark:text-slate-400">
               <div className="truncate">
                 Endpoint Webhook UaZapi V2:{' '}
-                <code className="font-mono text-slate-800">
+                <code className="font-mono text-slate-800 dark:text-slate-100">
                   {typeof window !== 'undefined'
                     ? `${window.location.origin}/api/integrations/uazapi/webhook`
                     : '/api/integrations/uazapi/webhook'}
@@ -1463,7 +1463,7 @@ export const ConfigUazapiView: React.FC<{
                   navigator.clipboard?.writeText(url).catch(() => {});
                   onToast('URL do Webhook UaZapi copiada.');
                 }}
-                className="inline-flex items-center gap-1 font-semibold text-slate-700 hover:text-slate-900 whitespace-nowrap shrink-0"
+                className="inline-flex items-center gap-1 font-semibold text-slate-700 hover:text-slate-900 whitespace-nowrap shrink-0 dark:text-slate-200 dark:hover:text-white"
               >
                 <CopyIcon className="w-3 h-3" />
                 Copiar URL Webhook
@@ -1472,10 +1472,10 @@ export const ConfigUazapiView: React.FC<{
           </div>
 
           {/* Instances Data Grid */}
-          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600">
+                <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
                   <tr>
                     <th className="px-4 py-2.5 whitespace-nowrap">Rótulo &amp; ID Instância</th>
                     <th className="px-4 py-2.5 whitespace-nowrap">Número / Perfil</th>
@@ -1486,16 +1486,16 @@ export const ConfigUazapiView: React.FC<{
                     <th className="px-4 py-2.5 text-right whitespace-nowrap">Ações</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {filteredInstances.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center space-y-2 text-slate-500">
+                      <td colSpan={7} className="px-4 py-8 text-center space-y-2 text-slate-500 dark:text-slate-400">
                         <div>Nenhuma instância UaZapi cadastrada neste filtro.</div>
                         {isAdmin && (
                           <button
                             type="button"
                             onClick={openNewInstance}
-                            className="inline-flex items-center gap-1 font-semibold text-blue-700 hover:underline"
+                            className="inline-flex items-center gap-1 font-semibold text-blue-700 hover:underline dark:text-blue-300"
                           >
                             <Plus className="w-3.5 h-3.5" /> Adicionar primeira linha WhatsApp
                           </button>
@@ -1517,39 +1517,39 @@ export const ConfigUazapiView: React.FC<{
                       return (
                         <tr key={inst.id} className="hover:bg-slate-50/80 transition-colors">
                           <td className="px-4 py-2.5">
-                            <div className="font-semibold text-slate-900">
+                            <div className="font-semibold text-slate-900 dark:text-slate-100">
                               {inst.label}
                               {inst.isDefaultForUnit ? (
-                                <span className="text-[11px] font-normal text-emerald-700"> · Padrão</span>
+                                <span className="text-[11px] font-normal text-emerald-700 dark:text-emerald-300"> · Padrão</span>
                               ) : null}
                             </div>
-                            <div className="font-mono text-[11px] text-slate-500">
+                            <div className="font-mono text-[11px] text-slate-500 dark:text-slate-400">
                               {inst.uazapiInstanceId}
                             </div>
                           </td>
                           <td className="px-4 py-2.5 whitespace-nowrap">
-                            <div className="font-mono text-xs font-semibold text-slate-900 tabular-nums">
+                            <div className="font-mono text-xs font-semibold text-slate-900 tabular-nums dark:text-slate-100">
                               {inst.connectedPhone || inst.defaultPhone || 'Não pareado'}
                             </div>
-                            <div className="text-[11px] text-slate-500 truncate max-w-[160px]">
+                            <div className="text-[11px] text-slate-500 truncate max-w-[160px] dark:text-slate-400">
                               {inst.profileName || 'AES-256-GCM Token Ativo'}
                             </div>
                           </td>
-                          <td className="px-4 py-2.5 whitespace-nowrap font-medium text-slate-800">
+                          <td className="px-4 py-2.5 whitespace-nowrap font-medium text-slate-800 dark:text-slate-100">
                             {unit ? `${unit.code} · ${unit.name}` : `#${inst.unitId}`}
                           </td>
                           <td className="px-4 py-2.5 max-w-[230px]">
-                            <div className="text-[11px] text-slate-700 truncate">
+                            <div className="text-[11px] text-slate-700 truncate dark:text-slate-200">
                               {groupNames.length > 0
                                 ? groupNames.join(' · ')
                                 : 'Todos os grupos da unidade'}
                             </div>
                           </td>
                           <td className="px-4 py-2.5 max-w-[220px]">
-                            <div className="text-[11px] text-slate-700 truncate">
+                            <div className="text-[11px] text-slate-700 truncate dark:text-slate-200">
                               {modLabels.join(' · ') || 'Geral'}
                             </div>
-                            <div className="text-[11px] text-slate-500 truncate">
+                            <div className="text-[11px] text-slate-500 truncate dark:text-slate-400">
                               {collab ? `Titular: ${collab.name}` : 'Uso compartilhado do grupo'}
                             </div>
                           </td>
@@ -1557,10 +1557,10 @@ export const ConfigUazapiView: React.FC<{
                             <div
                               className={`font-semibold text-[11px] ${
                                 !inst.active
-                                  ? 'text-slate-400'
+                                  ? 'text-slate-400 dark:text-slate-400'
                                   : inst.isConnected
-                                  ? 'text-emerald-700'
-                                  : 'text-amber-700'
+                                  ? 'text-emerald-700 dark:text-emerald-300'
+                                  : 'text-amber-700 dark:text-amber-300'
                               }`}
                             >
                               {!inst.active
@@ -1569,7 +1569,7 @@ export const ConfigUazapiView: React.FC<{
                                 ? 'Conectada'
                                 : 'Aguardando QR Code'}
                             </div>
-                            <div className="text-[10px] text-slate-500">
+                            <div className="text-[10px] text-slate-500 dark:text-slate-400">
                               {inst.webhookRegisteredAt ? 'Webhook ativo' : inst.webhookLastError || 'Webhook pendente'}
                             </div>
                           </td>
@@ -1581,9 +1581,9 @@ export const ConfigUazapiView: React.FC<{
                                     type="button"
                                     onClick={() => onPairInstanceQr(inst)}
                                     title="Conectar / Parear via QR Code"
-                                    className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-800 hover:bg-slate-100 whitespace-nowrap"
+                                    className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-800 hover:bg-slate-100 whitespace-nowrap dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
                                   >
-                                    <QrCode className="w-3.5 h-3.5 text-blue-700" />
+                                    <QrCode className="w-3.5 h-3.5 text-blue-700 dark:text-blue-300" />
                                     QR Code
                                   </button>
                                   <button
@@ -1598,7 +1598,7 @@ export const ConfigUazapiView: React.FC<{
                                       )
                                     }
                                     title="Verificar Status Remoto"
-                                    className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                                    className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
                                   >
                                     <RefreshCw
                                       className={`w-3.5 h-3.5 ${
@@ -1618,7 +1618,7 @@ export const ConfigUazapiView: React.FC<{
                                       )
                                     }
                                     title="Registrar Webhook na UaZapi"
-                                    className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-blue-700"
+                                    className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-blue-700 dark:text-slate-400 dark:hover:bg-slate-800"
                                   >
                                     <Link2 className="w-3.5 h-3.5" />
                                   </button>
@@ -1626,7 +1626,7 @@ export const ConfigUazapiView: React.FC<{
                                     type="button"
                                     onClick={() => openEditInstance(inst)}
                                     title="Editar Instância e Grupos"
-                                    className="rounded-md p-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                                    className="rounded-md p-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
                                   >
                                     <Edit3 className="w-3.5 h-3.5" />
                                   </button>
@@ -1643,7 +1643,7 @@ export const ConfigUazapiView: React.FC<{
                                         )
                                       }
                                       title="Desconectar Sessão"
-                                      className="rounded-md p-1.5 text-amber-700 hover:bg-amber-50"
+                                      className="rounded-md p-1.5 text-amber-700 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/60"
                                     >
                                       <Unplug className="w-3.5 h-3.5" />
                                     </button>
@@ -1656,7 +1656,7 @@ export const ConfigUazapiView: React.FC<{
                                       setRemoveTarget(inst);
                                     }}
                                     title="Remover Instância"
-                                    className="rounded-md p-1.5 text-red-600 hover:bg-red-50"
+                                    className="rounded-md p-1.5 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/60"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </button>
@@ -1676,13 +1676,13 @@ export const ConfigUazapiView: React.FC<{
       ) : (
         /* SUB-ABA: HISTÓRICO & IMPORTAÇÃO COMPLETA UAZAPI (Seção 4 do Manual) */
         <div className="space-y-4 text-xs">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 dark:border-slate-700 dark:bg-slate-900">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <div className="font-display text-sm font-bold text-slate-900">
+                <div className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                   Importação Integral de Histórico UaZapi
                 </div>
-                <p className="text-slate-500">
+                <p className="text-slate-500 dark:text-slate-400">
                   Varre todas as instâncias ativas, cria threads ausentes e importa mensagens preservando deduplicação por ID externo.
                 </p>
               </div>
@@ -1703,7 +1703,7 @@ export const ConfigUazapiView: React.FC<{
                       onToast(err instanceof Error ? err.message : 'Aviso na importação UaZapi.');
                     }
                   }}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 font-semibold text-white hover:bg-slate-800 disabled:opacity-50 whitespace-nowrap shrink-0"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 font-semibold text-white hover:bg-slate-800 disabled:opacity-50 whitespace-nowrap shrink-0 dark:bg-emerald-600 dark:hover:bg-emerald-500"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${importState?.running ? 'animate-spin' : ''}`} />
                   {importState?.running ? 'Importando conversas...' : 'Importar Histórico Completo'}
@@ -1712,7 +1712,7 @@ export const ConfigUazapiView: React.FC<{
             </div>
 
             {importState && (importState.running || importState.startedAt) && (
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2 dark:border-slate-700 dark:bg-slate-800/70">
                 <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-[11px] tabular-nums">
                   <span>
                     Conversas processadas: <strong>{importState.chatsProcessed}</strong> / {importState.totalChats}
@@ -1736,29 +1736,29 @@ export const ConfigUazapiView: React.FC<{
                   className="w-full h-2 rounded overflow-hidden accent-emerald-600"
                 />
                 {importState.lastError && (
-                  <div className="text-red-700 font-medium">{importState.lastError}</div>
+                  <div className="text-red-700 font-medium dark:text-red-300">{importState.lastError}</div>
                 )}
               </div>
             )}
 
             {/* Filter Bar */}
-            <div className="grid grid-cols-1 sm:grid-cols-6 gap-2.5 pt-2 border-t border-slate-100 items-end">
+            <div className="grid grid-cols-1 sm:grid-cols-6 gap-2.5 pt-2 border-t border-slate-100 items-end dark:border-slate-800">
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Número</label>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">Número</label>
                 <input
                   type="text"
                   value={histPhone}
                   onChange={(e) => setHistPhone(e.target.value)}
                   placeholder="DDD + Número"
-                  className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 font-mono"
+                  className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Direção</label>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">Direção</label>
                 <select
                   value={histDir}
                   onChange={(e) => setHistDir(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                  className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 >
                   <option value="all">Todas</option>
                   <option value="inbound">Recebidas (Inbound)</option>
@@ -1766,11 +1766,11 @@ export const ConfigUazapiView: React.FC<{
                 </select>
               </div>
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Instância</label>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">Instância</label>
                 <select
                   value={histInst}
                   onChange={(e) => setHistInst(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                  className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 >
                   <option value="">Todas</option>
                   {instances.map((i) => (
@@ -1781,21 +1781,21 @@ export const ConfigUazapiView: React.FC<{
                 </select>
               </div>
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">De</label>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">De</label>
                 <input
                   type="date"
                   value={histFrom}
                   onChange={(e) => setHistFrom(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 font-mono"
+                  className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Até</label>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">Até</label>
                 <input
                   type="date"
                   value={histTo}
                   onChange={(e) => setHistTo(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 font-mono"
+                  className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div className="flex gap-1.5">
@@ -1805,7 +1805,7 @@ export const ConfigUazapiView: React.FC<{
                     setHistPage(1);
                     loadHistory(1);
                   }}
-                  className="flex-1 rounded-lg bg-slate-900 px-3 py-1.5 font-semibold text-white hover:bg-slate-800 whitespace-nowrap"
+                  className="flex-1 rounded-lg bg-slate-900 px-3 py-1.5 font-semibold text-white hover:bg-slate-800 whitespace-nowrap dark:bg-emerald-600 dark:hover:bg-emerald-500"
                 >
                   Filtrar
                 </button>
@@ -1819,7 +1819,7 @@ export const ConfigUazapiView: React.FC<{
                     setHistTo('');
                     setHistPage(1);
                   }}
-                  className="rounded-lg border border-slate-200 px-2.5 py-1.5 font-semibold text-slate-600 hover:bg-slate-50 whitespace-nowrap"
+                  className="rounded-lg border border-slate-200 px-2.5 py-1.5 font-semibold text-slate-600 hover:bg-slate-50 whitespace-nowrap dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
                   Limpar
                 </button>
@@ -1827,10 +1827,10 @@ export const ConfigUazapiView: React.FC<{
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600">
+                <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
                   <tr>
                     <th className="px-4 py-2.5 whitespace-nowrap">Data / Hora</th>
                     <th className="px-4 py-2.5 whitespace-nowrap">Telefone &amp; Contato</th>
@@ -1840,47 +1840,47 @@ export const ConfigUazapiView: React.FC<{
                     <th className="px-4 py-2.5 whitespace-nowrap">Unidade · Instância</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {histLoading ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                      <td colSpan={6} className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
                         Carregando histórico UaZapi...
                       </td>
                     </tr>
                   ) : histRows.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                      <td colSpan={6} className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
                         Nenhuma mensagem UaZapi encontrada para os filtros selecionados.
                       </td>
                     </tr>
                   ) : (
                     histRows.map((r) => (
                       <tr key={r.id} className="hover:bg-slate-50/80">
-                        <td className="px-4 py-2.5 font-mono text-[11px] text-slate-600 tabular-nums whitespace-nowrap">
+                        <td className="px-4 py-2.5 font-mono text-[11px] text-slate-600 tabular-nums whitespace-nowrap dark:text-slate-300">
                           {formatDateTimeBR(r.createdAt)}
                         </td>
                         <td className="px-4 py-2.5 whitespace-nowrap">
-                          <div className="font-mono font-semibold text-slate-900 tabular-nums">{r.phone}</div>
-                          <div className="text-[11px] text-slate-500 truncate max-w-[160px]">{r.contactName}</div>
+                          <div className="font-mono font-semibold text-slate-900 tabular-nums dark:text-slate-100">{r.phone}</div>
+                          <div className="text-[11px] text-slate-500 truncate max-w-[160px] dark:text-slate-400">{r.contactName}</div>
                         </td>
                         <td className="px-4 py-2.5 whitespace-nowrap">
                           <span
                             className={`text-[11px] font-semibold ${
-                              r.direction === 'inbound' ? 'text-blue-700' : 'text-emerald-700'
+                              r.direction === 'inbound' ? 'text-blue-700 dark:text-blue-300' : 'text-emerald-700 dark:text-emerald-300'
                             }`}
                           >
                             {r.direction === 'inbound' ? 'Recebida' : 'Enviada'}
                           </span>
                         </td>
-                        <td className="px-4 py-2.5 font-mono text-[11px] text-slate-600 whitespace-nowrap">
+                        <td className="px-4 py-2.5 font-mono text-[11px] text-slate-600 whitespace-nowrap dark:text-slate-300">
                           {r.contentType}
                         </td>
                         <td className="px-4 py-2.5 max-w-md">
-                          <div className="text-slate-800 line-clamp-2">
+                          <div className="text-slate-800 line-clamp-2 dark:text-slate-100">
                             {r.deletedInOrigin ? `[Apagada na origem] ${r.body}` : r.body}
                           </div>
                         </td>
-                        <td className="px-4 py-2.5 text-[11px] text-slate-600 whitespace-nowrap">
+                        <td className="px-4 py-2.5 text-[11px] text-slate-600 whitespace-nowrap dark:text-slate-300">
                           {r.unitName} · <span className="font-mono">{r.instanceId}</span>
                         </td>
                       </tr>
@@ -1890,7 +1890,7 @@ export const ConfigUazapiView: React.FC<{
               </table>
             </div>
 
-            <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2.5 text-xs text-slate-600">
+            <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2.5 text-xs text-slate-600 dark:border-slate-800 dark:text-slate-300">
               <span className="font-mono tabular-nums">
                 Total: {histTotal} mensagem(ns) · Página {histPage} de {histTotalPages} (50/pág)
               </span>
@@ -1899,7 +1899,7 @@ export const ConfigUazapiView: React.FC<{
                   type="button"
                   disabled={histPage <= 1}
                   onClick={() => setHistPage((p) => Math.max(1, p - 1))}
-                  className="rounded border border-slate-200 px-2.5 py-1 font-semibold disabled:opacity-40"
+                  className="rounded border border-slate-200 px-2.5 py-1 font-semibold disabled:opacity-40 dark:border-slate-700"
                 >
                   Anterior
                 </button>
@@ -1907,7 +1907,7 @@ export const ConfigUazapiView: React.FC<{
                   type="button"
                   disabled={histPage >= histTotalPages}
                   onClick={() => setHistPage((p) => Math.min(histTotalPages, p + 1))}
-                  className="rounded border border-slate-200 px-2.5 py-1 font-semibold disabled:opacity-40"
+                  className="rounded border border-slate-200 px-2.5 py-1 font-semibold disabled:opacity-40 dark:border-slate-700"
                 >
                   Próxima
                 </button>
@@ -1919,59 +1919,59 @@ export const ConfigUazapiView: React.FC<{
 
       {/* Modal Nova / Editar Instância UaZapi + Associação por Grupos & Setores */}
       {instModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80">
           <form
             onSubmit={handleSaveInstance}
-            className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs max-h-[90vh] overflow-y-auto"
+            className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs max-h-[90vh] overflow-y-auto dark:border-slate-700 dark:bg-slate-900"
           >
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-display text-sm font-bold text-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+              <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                 {editInstId ? 'Editar Instância UaZapi & Grupos Autorizados' : 'Nova Instância / Número UaZapi'}
               </h3>
               <button
                 type="button"
                 onClick={() => setInstModalOpen(false)}
-                className="rounded-lg p-1 text-slate-400 hover:text-slate-700"
+                className="rounded-lg p-1 text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {instErr && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 font-medium text-red-700">
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 font-medium text-red-700 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
                 {instErr}
               </div>
             )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Rótulo Identificador *</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Rótulo Identificador *</label>
                 <input
                   type="text"
                   required
                   value={instLabel}
                   onChange={(e) => setInstLabel(e.target.value)}
                   placeholder="Ex: Comercial Matriz #01"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700"
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">ID da Instância no UaZapi *</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">ID da Instância no UaZapi *</label>
                 <input
                   type="text"
                   required
                   value={instCode}
                   onChange={(e) => setInstCode(e.target.value)}
                   placeholder="Ex: inst_recife_comercial_01"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700"
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Unidade Base *</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Unidade Base *</label>
                 <select
                   value={instUnitId}
                   onChange={(e) => setInstUnitId(Number(e.target.value))}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 >
                   {units.map((u) => (
                     <option key={u.id} value={u.id}>
@@ -1981,26 +1981,26 @@ export const ConfigUazapiView: React.FC<{
                 </select>
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Telefone Padrão da Linha</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Telefone Padrão da Linha</label>
                 <input
                   type="text"
                   value={instDefaultPhone}
                   onChange={(e) => setInstDefaultPhone(formatPhoneMask(e.target.value))}
                   placeholder="(81) 99988-7766"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono tabular-nums"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono tabular-nums dark:border-slate-700"
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Server URL UaZapi</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Server URL UaZapi</label>
                 <input
                   type="url"
                   value={instServerUrl}
                   onChange={(e) => setInstServerUrl(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">
                   Token da Instância {editInstId ? '(Deixe em branco p/ manter)' : '*'}
                 </label>
                 <input
@@ -2009,7 +2009,7 @@ export const ConfigUazapiView: React.FC<{
                   value={instToken}
                   onChange={(e) => setInstToken(e.target.value)}
                   placeholder={editInstId ? '••••••••••••••••' : 'Cole o token da instância'}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700"
                 />
               </div>
             </div>
@@ -2017,14 +2017,14 @@ export const ConfigUazapiView: React.FC<{
             {/* Associação Multi-Grupo */}
             <div className="space-y-1.5 pt-1">
               <div className="flex items-center justify-between">
-                <label className="font-semibold text-slate-800">
+                <label className="font-semibold text-slate-800 dark:text-slate-100">
                   Grupos de Usuários Autorizados a Operar este Número
                 </label>
-                <span className="text-[11px] text-slate-500">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
                   Vazio = liberado a todos os grupos da unidade
                 </span>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/70">
                 {groups.map((g) => (
                   <label key={g.id} className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -2032,7 +2032,7 @@ export const ConfigUazapiView: React.FC<{
                       checked={instAllowedGroupIds.includes(g.id)}
                       onChange={() => toggleGroupSelection(g.id)}
                     />
-                    <span className="font-medium text-slate-800">{g.name}</span>
+                    <span className="font-medium text-slate-800 dark:text-slate-100">{g.name}</span>
                   </label>
                 ))}
               </div>
@@ -2040,10 +2040,10 @@ export const ConfigUazapiView: React.FC<{
 
             {/* Escopo de Módulos Operacionais */}
             <div className="space-y-1.5">
-              <label className="block font-semibold text-slate-800">
+              <label className="block font-semibold text-slate-800 dark:text-slate-100">
                 Módulos Operacionais Habilitados para esta Linha
               </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/70">
                 {MODULE_SCOPE_OPTIONS.map((m) => (
                   <label key={m.id} className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -2051,7 +2051,7 @@ export const ConfigUazapiView: React.FC<{
                       checked={instAllowedModules.includes(m.id)}
                       onChange={() => toggleModuleSelection(m.id)}
                     />
-                    <span className="font-medium text-slate-800">{m.label}</span>
+                    <span className="font-medium text-slate-800 dark:text-slate-100">{m.label}</span>
                   </label>
                 ))}
               </div>
@@ -2059,13 +2059,13 @@ export const ConfigUazapiView: React.FC<{
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">
                   Colaborador Titular Dedicado (Opcional)
                 </label>
                 <select
                   value={instCollaboratorId}
                   onChange={(e) => setInstCollaboratorId(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 >
                   <option value="">Compartilhado entre o grupo / setor</option>
                   {collaborators.map((c) => (
@@ -2077,7 +2077,7 @@ export const ConfigUazapiView: React.FC<{
               </div>
 
               <div className="flex flex-col gap-2 pb-1">
-                <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-800">
+                <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-800 dark:text-slate-100">
                   <input
                     type="checkbox"
                     checked={instDefaultForUnit}
@@ -2085,7 +2085,7 @@ export const ConfigUazapiView: React.FC<{
                   />
                   <span>Definir como número padrão da unidade</span>
                 </label>
-                <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-800">
+                <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-800 dark:text-slate-100">
                   <input
                     type="checkbox"
                     checked={instActive}
@@ -2096,18 +2096,18 @@ export const ConfigUazapiView: React.FC<{
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
+            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
               <button
                 type="button"
                 onClick={() => setInstModalOpen(false)}
-                className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700 hover:bg-slate-50"
+                className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={instSaving}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
               >
                 <Check className="w-3.5 h-3.5" />
                 {instSaving ? 'Criptografando & Salvando...' : 'Salvar Instância'}
@@ -2119,34 +2119,34 @@ export const ConfigUazapiView: React.FC<{
 
       {/* Modal Remover Instância com Fallback Forçar Remoção Local */}
       {removeTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs dark:border-slate-700 dark:bg-slate-900">
             <div className="flex items-start gap-3">
-              <div className="h-9 w-9 rounded-xl bg-red-100 text-red-700 flex items-center justify-center shrink-0">
+              <div className="h-9 w-9 rounded-xl bg-red-100 text-red-700 flex items-center justify-center shrink-0 dark:bg-red-900/50 dark:text-red-300">
                 <AlertTriangle className="w-5 h-5" />
               </div>
               <div className="space-y-1">
-                <h3 className="font-display text-sm font-bold text-slate-900">
+                <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                   Remover Instância · {removeTarget.label}
                 </h3>
-                <p className="text-slate-600 leading-relaxed">
+                <p className="text-slate-600 leading-relaxed dark:text-slate-300">
                   O sistema tentará desconectar a sessão remota antes de excluir as credenciais criptografadas locais. O histórico de mensagens já recebidas permanece preservado.
                 </p>
               </div>
             </div>
 
             {removeErr && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 font-medium">
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 font-medium dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
                 {removeErr}
               </div>
             )}
 
-            <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-3">
+            <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
               <button
                 type="button"
                 disabled={removeBusy}
                 onClick={() => setRemoveTarget(null)}
-                className="rounded-lg border border-slate-200 px-3.5 py-2 font-semibold text-slate-700"
+                className="rounded-lg border border-slate-200 px-3.5 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
               >
                 Cancelar
               </button>

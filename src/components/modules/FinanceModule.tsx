@@ -621,9 +621,9 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b border-slate-200 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b border-slate-200 pb-4 dark:border-slate-700">
         <div>
-          <p className="text-xs font-medium text-slate-500">
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
             {activeModule === 'finance_movimento'
               ? 'Administração Financeira · Conta Corrente · Cadastro · Movimento'
               : activeModule === 'finance_conciliacao'
@@ -638,7 +638,7 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
               ? `Administração Financeira · Cadastros · ${activeCadLabel}`
               : 'Administração Financeira · Contas a Receber · Títulos, Baixas em Lote, Faturas & Recorrência'}
           </p>
-          <h1 className="mt-1 font-display text-2xl font-bold text-slate-900">
+          <h1 className="mt-1 font-display text-2xl font-bold text-slate-900 dark:text-slate-100">
             {isCadastrosView
               ? `Cadastros · ${activeCadLabel}`
               : activeModule === 'finance_conta_corrente'
@@ -657,7 +657,7 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
       </div>
 
       {toast && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-medium text-emerald-900 flex items-center justify-between">
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-medium text-emerald-900 flex items-center justify-between dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300">
           <span>{toast}</span>
           <button type="button" onClick={() => setToast('')}><X className="w-3.5 h-3.5" /></button>
         </div>
@@ -713,10 +713,10 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h2 className="font-display text-lg font-bold text-slate-900">
+              <h2 className="font-display text-lg font-bold text-slate-900 dark:text-slate-100">
                 Conta Corrente &amp; Movimentações Bancárias
               </h2>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Saldos em tempo real, extratos de caixas, contas correntes e transferências
               </p>
             </div>
@@ -724,7 +724,7 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
               <button
                 type="button"
                 onClick={() => openBankAccModal()}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
               >
                 <Plus className="w-3.5 h-3.5 text-emerald-400" />
                 Nova Conta Bancária
@@ -742,34 +742,34 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
 
           {/* KPI Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <div className="text-[11px] font-medium text-slate-500">Saldo Consolidado Total</div>
-              <div className="mt-1 font-mono text-xl font-bold text-emerald-700 tabular-nums">
+            <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+              <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Saldo Consolidado Total</div>
+              <div className="mt-1 font-mono text-xl font-bold text-emerald-700 tabular-nums dark:text-emerald-300">
                 {formatBRL(bankAccountsList.reduce((acc, b) => acc + (b.currentBalanceCents || 0), 0))}
               </div>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <div className="text-[11px] font-medium text-slate-500">Contas Ativas</div>
-              <div className="mt-1 font-mono text-xl font-bold text-slate-900 tabular-nums">
+            <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+              <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Contas Ativas</div>
+              <div className="mt-1 font-mono text-xl font-bold text-slate-900 tabular-nums dark:text-slate-100">
                 {bankAccountsList.filter((b) => b.active).length} contas
               </div>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <div className="text-[11px] font-medium text-slate-500">Movimentações no Período</div>
-              <div className="mt-1 font-mono text-xl font-bold text-blue-700 tabular-nums">
+            <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+              <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Movimentações no Período</div>
+              <div className="mt-1 font-mono text-xl font-bold text-blue-700 tabular-nums dark:text-blue-300">
                 {bankMovementsList.length} registros
               </div>
             </div>
           </div>
 
           {/* Bank Accounts List Table */}
-          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-            <div className="px-4 py-3 border-b border-slate-100 font-bold text-xs text-slate-900">
+          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
+            <div className="px-4 py-3 border-b border-slate-100 font-bold text-xs text-slate-900 dark:border-slate-800 dark:text-slate-100">
               Contas Cadastradas
             </div>
             <div className="overflow-x-auto scroll-rulers">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-[11px] font-semibold text-slate-500 border-b border-slate-200">
+                <thead className="bg-slate-50 text-[11px] font-semibold text-slate-500 border-b border-slate-200 dark:bg-slate-800/70 dark:text-slate-400 dark:border-slate-700">
                   <tr>
                     <th className="px-4 py-3">Banco</th>
                     <th className="px-4 py-3">Agência</th>
@@ -779,28 +779,28 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                     <th className="px-4 py-3 text-right">Ações</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {bankAccountsList.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-8 text-center text-slate-500">
+                      <td colSpan={6} className="py-8 text-center text-slate-500 dark:text-slate-400">
                         Nenhuma conta bancária cadastrada.
                       </td>
                     </tr>
                   ) : (
                     bankAccountsList.map((acc) => (
-                      <tr key={acc.id} className="hover:bg-slate-50">
-                        <td className="px-4 py-3 font-semibold text-slate-900">{acc.bankName}</td>
-                        <td className="px-4 py-3 font-mono text-slate-600">{acc.agency || '—'}</td>
-                        <td className="px-4 py-3 font-mono text-slate-600">{acc.accountNumber || '—'}</td>
-                        <td className="px-4 py-3 uppercase font-mono text-slate-600">{acc.accountType}</td>
-                        <td className="px-4 py-3 font-mono font-bold text-slate-900">
+                      <tr key={acc.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
+                        <td className="px-4 py-3 font-semibold text-slate-900 dark:text-slate-100">{acc.bankName}</td>
+                        <td className="px-4 py-3 font-mono text-slate-600 dark:text-slate-300">{acc.agency || '—'}</td>
+                        <td className="px-4 py-3 font-mono text-slate-600 dark:text-slate-300">{acc.accountNumber || '—'}</td>
+                        <td className="px-4 py-3 uppercase font-mono text-slate-600 dark:text-slate-300">{acc.accountType}</td>
+                        <td className="px-4 py-3 font-mono font-bold text-slate-900 dark:text-slate-100">
                           {formatBRL(acc.currentBalanceCents)}
                         </td>
                         <td className="px-4 py-3 text-right space-x-2 whitespace-nowrap">
                           <button
                             type="button"
                             onClick={() => openBankAccModal(acc)}
-                            className="text-blue-700 font-semibold hover:underline"
+                            className="text-blue-700 font-semibold hover:underline dark:text-blue-300"
                           >
                             Editar
                           </button>
@@ -809,7 +809,7 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                             onClick={() =>
                               setDeleteTarget({ type: 'bank_accounts', id: acc.id, name: acc.bankName })
                             }
-                            className="text-red-600 font-semibold hover:underline"
+                            className="text-red-600 font-semibold hover:underline dark:text-red-400"
                           >
                             Excluir
                           </button>
@@ -823,13 +823,13 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
           </div>
 
           {/* Statement Ledger / Recent Movements */}
-          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-            <div className="px-4 py-3 border-b border-slate-100 font-bold text-xs text-slate-900">
+          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
+            <div className="px-4 py-3 border-b border-slate-100 font-bold text-xs text-slate-900 dark:border-slate-800 dark:text-slate-100">
               Extrato de Movimentações Recentes
             </div>
             <div className="overflow-x-auto scroll-rulers">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-[11px] font-semibold text-slate-500 border-b border-slate-200">
+                <thead className="bg-slate-50 text-[11px] font-semibold text-slate-500 border-b border-slate-200 dark:bg-slate-800/70 dark:text-slate-400 dark:border-slate-700">
                   <tr>
                     <th className="px-4 py-3">Data</th>
                     <th className="px-4 py-3">Banco / Conta</th>
@@ -839,10 +839,10 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                     <th className="px-4 py-3 text-right">Valor</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {bankMovementsList.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-8 text-center text-slate-500">
+                      <td colSpan={6} className="py-8 text-center text-slate-500 dark:text-slate-400">
                         Nenhuma movimentação registrada.
                       </td>
                     </tr>
@@ -850,29 +850,29 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                     bankMovementsList.map((mov) => {
                       const acc = bankAccountsList.find((b) => b.id === mov.bankAccountId);
                       return (
-                        <tr key={mov.id} className="hover:bg-slate-50">
-                          <td className="px-4 py-3 font-mono text-slate-600">
+                        <tr key={mov.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
+                          <td className="px-4 py-3 font-mono text-slate-600 dark:text-slate-300">
                             {formatDateBR(mov.movementDate)}
                           </td>
-                          <td className="px-4 py-3 font-semibold text-slate-900">
+                          <td className="px-4 py-3 font-semibold text-slate-900 dark:text-slate-100">
                             {acc?.bankName || 'Conta'}
                           </td>
                           <td className="px-4 py-3">
                             <span
                               className={`uppercase font-mono font-semibold ${
-                                mov.movementType === 'entrada' ? 'text-emerald-700' : 'text-red-600'
+                                mov.movementType === 'entrada' ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-600 dark:text-red-400'
                               }`}
                             >
                               {mov.movementType}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-slate-800">{mov.description}</td>
-                          <td className="px-4 py-3 font-mono text-slate-600">
+                          <td className="px-4 py-3 text-slate-800 dark:text-slate-100">{mov.description}</td>
+                          <td className="px-4 py-3 font-mono text-slate-600 dark:text-slate-300">
                             {mov.documentNumber || '—'}
                           </td>
                           <td
                             className={`px-4 py-3 font-mono font-bold text-right tabular-nums ${
-                              mov.movementType === 'entrada' ? 'text-emerald-700' : 'text-red-600'
+                              mov.movementType === 'entrada' ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-600 dark:text-red-400'
                             }`}
                           >
                             {mov.movementType === 'entrada' ? '+' : '-'}
@@ -919,10 +919,10 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="font-display text-lg font-bold text-slate-900">
+                  <h2 className="font-display text-lg font-bold text-slate-900 dark:text-slate-100">
                     Cadastros · {activeCadLabel}
                   </h2>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
                     Gerenciamento corporativo e relacional integrado ao fluxo financeiro
                   </p>
                 </div>
@@ -936,10 +936,10 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                 </button>
               </div>
 
-              <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+              <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
                 <div className="overflow-x-auto scroll-rulers">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-50 text-[11px] font-semibold text-slate-500 border-b border-slate-200">
+                    <thead className="bg-slate-50 text-[11px] font-semibold text-slate-500 border-b border-slate-200 dark:bg-slate-800/70 dark:text-slate-400 dark:border-slate-700">
                       {activeCadTab === 'fornecedores' && (
                         <tr>
                           <th className="px-4 py-3">Nome / Razão Social</th>
@@ -976,21 +976,21 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                         </tr>
                       )}
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {activeCadTab === 'fornecedores' && (
                         suppliers.length === 0 ? (
-                          <tr><td colSpan={5} className="py-8 text-center text-slate-500">Nenhum fornecedor cadastrado.</td></tr>
+                          <tr><td colSpan={5} className="py-8 text-center text-slate-500 dark:text-slate-400">Nenhum fornecedor cadastrado.</td></tr>
                         ) : (
                           suppliers.map((s) => (
-                            <tr key={s.id} className="hover:bg-slate-50">
-                              <td className="px-4 py-3 font-semibold text-slate-900">{s.fullName}</td>
-                              <td className="px-4 py-3 font-mono text-slate-600">{s.cpfCnpj}</td>
-                              <td className="px-4 py-3 font-mono text-slate-600">{s.phone || '—'}</td>
-                              <td className="px-4 py-3 text-slate-600">{s.city ? `${s.city}/${s.state}` : '—'}</td>
+                            <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
+                              <td className="px-4 py-3 font-semibold text-slate-900 dark:text-slate-100">{s.fullName}</td>
+                              <td className="px-4 py-3 font-mono text-slate-600 dark:text-slate-300">{s.cpfCnpj}</td>
+                              <td className="px-4 py-3 font-mono text-slate-600 dark:text-slate-300">{s.phone || '—'}</td>
+                              <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{s.city ? `${s.city}/${s.state}` : '—'}</td>
                               <td className="px-4 py-3 text-right space-x-2 whitespace-nowrap">
-                                <button type="button" onClick={() => setAuditTarget({ entityType: 'supplier', entityId: s.id, label: s.fullName })} className="text-slate-500 hover:text-slate-800" title="Auditoria"><History className="w-3.5 h-3.5 inline" /></button>
-                                <button type="button" onClick={() => openCadForm(s)} className="text-blue-700 font-semibold hover:underline">Editar</button>
-                                <button type="button" onClick={() => setDeleteTarget({ type: 'fornecedores', id: s.id, name: s.fullName })} className="text-red-600 font-semibold hover:underline">Excluir</button>
+                                <button type="button" onClick={() => setAuditTarget({ entityType: 'supplier', entityId: s.id, label: s.fullName })} className="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white" title="Auditoria"><History className="w-3.5 h-3.5 inline" /></button>
+                                <button type="button" onClick={() => openCadForm(s)} className="text-blue-700 font-semibold hover:underline dark:text-blue-300">Editar</button>
+                                <button type="button" onClick={() => setDeleteTarget({ type: 'fornecedores', id: s.id, name: s.fullName })} className="text-red-600 font-semibold hover:underline dark:text-red-400">Excluir</button>
                               </td>
                             </tr>
                           ))
@@ -999,18 +999,18 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
 
                       {activeCadTab === 'document_types' && (
                         documentTypes.length === 0 ? (
-                          <tr><td colSpan={5} className="py-8 text-center text-slate-500">Nenhum tipo de documento cadastrado.</td></tr>
+                          <tr><td colSpan={5} className="py-8 text-center text-slate-500 dark:text-slate-400">Nenhum tipo de documento cadastrado.</td></tr>
                         ) : (
                           documentTypes.map((d) => (
-                            <tr key={d.id} className="hover:bg-slate-50">
-                              <td className="px-4 py-3 font-semibold text-slate-900">{d.description}</td>
-                              <td className="px-4 py-3 font-mono uppercase text-slate-600">{d.category}</td>
-                              <td className="px-4 py-3 font-semibold text-slate-700">{d.isFiscal ? 'Sim' : 'Não'}</td>
-                              <td className="px-4 py-3 font-semibold text-slate-700">{d.requiresNumber ? 'Sim' : 'Não'}</td>
+                            <tr key={d.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
+                              <td className="px-4 py-3 font-semibold text-slate-900 dark:text-slate-100">{d.description}</td>
+                              <td className="px-4 py-3 font-mono uppercase text-slate-600 dark:text-slate-300">{d.category}</td>
+                              <td className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-200">{d.isFiscal ? 'Sim' : 'Não'}</td>
+                              <td className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-200">{d.requiresNumber ? 'Sim' : 'Não'}</td>
                               <td className="px-4 py-3 text-right space-x-2 whitespace-nowrap">
-                                <button type="button" onClick={() => setAuditTarget({ entityType: 'document_type', entityId: d.id, label: d.description })} className="text-slate-500 hover:text-slate-800" title="Auditoria"><History className="w-3.5 h-3.5 inline" /></button>
-                                <button type="button" onClick={() => openCadForm(d)} className="text-blue-700 font-semibold hover:underline">Editar</button>
-                                <button type="button" onClick={() => setDeleteTarget({ type: 'document_types', id: d.id, name: d.description })} className="text-red-600 font-semibold hover:underline">Excluir</button>
+                                <button type="button" onClick={() => setAuditTarget({ entityType: 'document_type', entityId: d.id, label: d.description })} className="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white" title="Auditoria"><History className="w-3.5 h-3.5 inline" /></button>
+                                <button type="button" onClick={() => openCadForm(d)} className="text-blue-700 font-semibold hover:underline dark:text-blue-300">Editar</button>
+                                <button type="button" onClick={() => setDeleteTarget({ type: 'document_types', id: d.id, name: d.description })} className="text-red-600 font-semibold hover:underline dark:text-red-400">Excluir</button>
                               </td>
                             </tr>
                           ))
@@ -1019,17 +1019,17 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
 
                       {activeCadTab === 'bearers' && (
                         bearers.length === 0 ? (
-                          <tr><td colSpan={4} className="py-8 text-center text-slate-500">Nenhum portador cadastrado.</td></tr>
+                          <tr><td colSpan={4} className="py-8 text-center text-slate-500 dark:text-slate-400">Nenhum portador cadastrado.</td></tr>
                         ) : (
                           bearers.map((b) => (
-                            <tr key={b.id} className="hover:bg-slate-50">
-                              <td className="px-4 py-3 font-mono font-semibold text-slate-900">{b.code || '—'}</td>
-                              <td className="px-4 py-3 font-semibold text-slate-900">{b.name}</td>
-                              <td className="px-4 py-3 uppercase font-mono text-slate-600">{b.type}</td>
+                            <tr key={b.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
+                              <td className="px-4 py-3 font-mono font-semibold text-slate-900 dark:text-slate-100">{b.code || '—'}</td>
+                              <td className="px-4 py-3 font-semibold text-slate-900 dark:text-slate-100">{b.name}</td>
+                              <td className="px-4 py-3 uppercase font-mono text-slate-600 dark:text-slate-300">{b.type}</td>
                               <td className="px-4 py-3 text-right space-x-2 whitespace-nowrap">
-                                <button type="button" onClick={() => setAuditTarget({ entityType: 'bearer', entityId: b.id, label: b.name })} className="text-slate-500 hover:text-slate-800" title="Auditoria"><History className="w-3.5 h-3.5 inline" /></button>
-                                <button type="button" onClick={() => openCadForm(b)} className="text-blue-700 font-semibold hover:underline">Editar</button>
-                                <button type="button" onClick={() => setDeleteTarget({ type: 'bearers', id: b.id, name: b.name })} className="text-red-600 font-semibold hover:underline">Excluir</button>
+                                <button type="button" onClick={() => setAuditTarget({ entityType: 'bearer', entityId: b.id, label: b.name })} className="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white" title="Auditoria"><History className="w-3.5 h-3.5 inline" /></button>
+                                <button type="button" onClick={() => openCadForm(b)} className="text-blue-700 font-semibold hover:underline dark:text-blue-300">Editar</button>
+                                <button type="button" onClick={() => setDeleteTarget({ type: 'bearers', id: b.id, name: b.name })} className="text-red-600 font-semibold hover:underline dark:text-red-400">Excluir</button>
                               </td>
                             </tr>
                           ))
@@ -1038,18 +1038,18 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
 
                       {activeCadTab === 'chart_of_accounts' && (
                         chartOfAccounts.length === 0 ? (
-                          <tr><td colSpan={5} className="py-8 text-center text-slate-500">Nenhuma conta cadastrada no plano.</td></tr>
+                          <tr><td colSpan={5} className="py-8 text-center text-slate-500 dark:text-slate-400">Nenhuma conta cadastrada no plano.</td></tr>
                         ) : (
                           chartOfAccounts.map((a) => (
-                            <tr key={a.id} className="hover:bg-slate-50">
-                              <td className="px-4 py-3 font-mono font-bold text-slate-900">{a.code}</td>
-                              <td className="px-4 py-3 font-semibold text-slate-900">{a.name}</td>
-                              <td className="px-4 py-3 uppercase font-mono text-slate-600">{a.type}</td>
-                              <td className="px-4 py-3 font-semibold text-slate-700">{a.isAnalytic ? 'Sim (Analítica)' : 'Não (Sintética)'}</td>
+                            <tr key={a.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
+                              <td className="px-4 py-3 font-mono font-bold text-slate-900 dark:text-slate-100">{a.code}</td>
+                              <td className="px-4 py-3 font-semibold text-slate-900 dark:text-slate-100">{a.name}</td>
+                              <td className="px-4 py-3 uppercase font-mono text-slate-600 dark:text-slate-300">{a.type}</td>
+                              <td className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-200">{a.isAnalytic ? 'Sim (Analítica)' : 'Não (Sintética)'}</td>
                               <td className="px-4 py-3 text-right space-x-2 whitespace-nowrap">
-                                <button type="button" onClick={() => setAuditTarget({ entityType: 'chart_of_accounts', entityId: a.id, label: `${a.code} - ${a.name}` })} className="text-slate-500 hover:text-slate-800" title="Auditoria"><History className="w-3.5 h-3.5 inline" /></button>
-                                <button type="button" onClick={() => openCadForm(a)} className="text-blue-700 font-semibold hover:underline">Editar</button>
-                                <button type="button" onClick={() => setDeleteTarget({ type: 'chart_of_accounts', id: a.id, name: `${a.code} - ${a.name}` })} className="text-red-600 font-semibold hover:underline">Excluir</button>
+                                <button type="button" onClick={() => setAuditTarget({ entityType: 'chart_of_accounts', entityId: a.id, label: `${a.code} - ${a.name}` })} className="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white" title="Auditoria"><History className="w-3.5 h-3.5 inline" /></button>
+                                <button type="button" onClick={() => openCadForm(a)} className="text-blue-700 font-semibold hover:underline dark:text-blue-300">Editar</button>
+                                <button type="button" onClick={() => setDeleteTarget({ type: 'chart_of_accounts', id: a.id, name: `${a.code} - ${a.name}` })} className="text-red-600 font-semibold hover:underline dark:text-red-400">Excluir</button>
                               </td>
                             </tr>
                           ))
@@ -1062,12 +1062,12 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
             </div>
           ) : (
             /* CADASTROS FORM */
-            <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <h3 className="font-display text-base font-bold text-slate-900">
+            <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4 dark:border-slate-700 dark:bg-slate-900">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+                <h3 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
                   {editingId ? 'Editar Registro' : 'Novo Registro'} · {activeCadLabel}
                 </h3>
-                <button type="button" onClick={() => setCadMode('list')} className="text-slate-400 hover:text-slate-700">
+                <button type="button" onClick={() => setCadMode('list')} className="text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -1076,46 +1076,46 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                 {activeCadTab === 'fornecedores' && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                     <div className="sm:col-span-2">
-                      <label className="block font-semibold text-slate-700 mb-1">Razão Social / Nome Completo *</label>
-                      <input type="text" required value={suppName} onChange={(e) => setSuppName(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2" />
+                      <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Razão Social / Nome Completo *</label>
+                      <input type="text" required value={suppName} onChange={(e) => setSuppName(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
                     </div>
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">CPF / CNPJ *</label>
-                      <input type="text" required value={suppCnpj} onChange={(e) => setSuppCnpj(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono" />
+                      <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">CPF / CNPJ *</label>
+                      <input type="text" required value={suppCnpj} onChange={(e) => setSuppCnpj(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
                     </div>
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Natureza</label>
-                      <select value={suppNature} onChange={(e) => setSuppNature(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2">
+                      <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Natureza</label>
+                      <select value={suppNature} onChange={(e) => setSuppNature(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100">
                         <option value="PJ">Pessoa Jurídica (PJ)</option>
                         <option value="PF">Pessoa Física (PF)</option>
                       </select>
                     </div>
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Telefone / WhatsApp</label>
-                      <input type="text" value={suppPhone} onChange={(e) => setSuppPhone(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono" />
+                      <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Telefone / WhatsApp</label>
+                      <input type="text" value={suppPhone} onChange={(e) => setSuppPhone(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
                     </div>
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">E-mail</label>
-                      <input type="email" value={suppEmail} onChange={(e) => setSuppEmail(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2" />
+                      <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">E-mail</label>
+                      <input type="email" value={suppEmail} onChange={(e) => setSuppEmail(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
                     </div>
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">CEP</label>
-                      <input type="text" value={suppCep} onChange={(e) => setSuppCep(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono" />
+                      <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">CEP</label>
+                      <input type="text" value={suppCep} onChange={(e) => setSuppCep(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
                     </div>
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Cidade</label>
-                      <input type="text" value={suppCity} onChange={(e) => setSuppCity(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2" />
+                      <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Cidade</label>
+                      <input type="text" value={suppCity} onChange={(e) => setSuppCity(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
                     </div>
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Estado (UF)</label>
-                      <select value={suppState} onChange={(e) => setSuppState(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2">
+                      <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Estado (UF)</label>
+                      <select value={suppState} onChange={(e) => setSuppState(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100">
                         <option value="">Selecione...</option>
                         {BRAZILIAN_UFS.map((uf) => <option key={uf} value={uf}>{uf}</option>)}
                       </select>
                     </div>
                     <div className="sm:col-span-2">
-                      <label className="block font-semibold text-slate-700 mb-1">Endereço</label>
-                      <input type="text" value={suppAddress} onChange={(e) => setSuppAddress(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2" />
+                      <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Endereço</label>
+                      <input type="text" value={suppAddress} onChange={(e) => setSuppAddress(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
                     </div>
                   </div>
                 )}
@@ -1123,12 +1123,12 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                 {activeCadTab === 'document_types' && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                     <div className="sm:col-span-2">
-                      <label className="block font-semibold text-slate-700 mb-1">Descrição do Documento *</label>
-                      <input type="text" required value={docDesc} onChange={(e) => setDocDesc(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2" />
+                      <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Descrição do Documento *</label>
+                      <input type="text" required value={docDesc} onChange={(e) => setDocDesc(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
                     </div>
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Categoria</label>
-                      <select value={docCategory} onChange={(e) => setDocCategory(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2">
+                      <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Categoria</label>
+                      <select value={docCategory} onChange={(e) => setDocCategory(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100">
                         <option value="ambos">Ambos (Entrada e Saída)</option>
                         <option value="pagar">Contas a Pagar</option>
                         <option value="receber">Contas a Receber</option>
@@ -1150,16 +1150,16 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                 {activeCadTab === 'bearers' && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Código</label>
-                      <input type="text" value={bearCode} onChange={(e) => setBearCode(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono" />
+                      <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Código</label>
+                      <input type="text" value={bearCode} onChange={(e) => setBearCode(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
                     </div>
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Nome do Portador *</label>
-                      <input type="text" required value={bearName} onChange={(e) => setBearName(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2" />
+                      <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Nome do Portador *</label>
+                      <input type="text" required value={bearName} onChange={(e) => setBearName(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
                     </div>
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Tipo</label>
-                      <select value={bearType} onChange={(e) => setBearType(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2">
+                      <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Tipo</label>
+                      <select value={bearType} onChange={(e) => setBearType(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100">
                         <option value="banco">Banco / Conta</option>
                         <option value="caixa">Caixa Físico</option>
                         <option value="cartao">Cartão Corporativo</option>
@@ -1171,16 +1171,16 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                 {activeCadTab === 'chart_of_accounts' && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Código da Conta *</label>
-                      <input type="text" required value={acctCode} onChange={(e) => setAcctCode(e.target.value)} placeholder="Ex: 1.1.01" className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono" />
+                      <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Código da Conta *</label>
+                      <input type="text" required value={acctCode} onChange={(e) => setAcctCode(e.target.value)} placeholder="Ex: 1.1.01" className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
                     </div>
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Nome da Conta *</label>
-                      <input type="text" required value={acctName} onChange={(e) => setAcctName(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2" />
+                      <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Nome da Conta *</label>
+                      <input type="text" required value={acctName} onChange={(e) => setAcctName(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
                     </div>
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Tipo</label>
-                      <select value={acctType} onChange={(e) => setAcctType(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2">
+                      <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Tipo</label>
+                      <select value={acctType} onChange={(e) => setAcctType(e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100">
                         <option value="receita">Receita</option>
                         <option value="despesa">Despesa</option>
                         <option value="ativo">Ativo</option>
@@ -1188,8 +1188,8 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                       </select>
                     </div>
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Classificação</label>
-                      <select value={acctAnalytic ? 'analytic' : 'synthetic'} onChange={(e) => setAcctAnalytic(e.target.value === 'analytic')} className="w-full rounded-lg border border-slate-200 px-3 py-2">
+                      <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Classificação</label>
+                      <select value={acctAnalytic ? 'analytic' : 'synthetic'} onChange={(e) => setAcctAnalytic(e.target.value === 'analytic')} className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100">
                         <option value="analytic">Analítica (Lança movimentos)</option>
                         <option value="synthetic">Sintética (Conta pai)</option>
                       </select>
@@ -1198,7 +1198,7 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                 )}
 
                 <div className="flex justify-end gap-2 pt-3">
-                  <button type="button" onClick={() => setCadMode('list')} className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700">Cancelar</button>
+                  <button type="button" onClick={() => setCadMode('list')} className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200">Cancelar</button>
                   <button type="submit" disabled={busy} className="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white hover:bg-emerald-700">Salvar Registro</button>
                 </div>
               </form>
@@ -1209,28 +1209,28 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
 
       {/* Cover Sheet Modal */}
       {coverSheetTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 dark:bg-slate-950/80">
+          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl space-y-4 dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
               <div>
-                <h3 className="font-display text-base font-bold text-slate-900">
+                <h3 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
                   Folha de Rosto · Emissão de Boletos Restantes
                 </h3>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   {coverSheetTarget.protocolCode} · {coverSheetTarget.clientName}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setCoverSheetTarget(null)}
-                className="text-slate-400 hover:text-slate-700"
+                className="text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <form onSubmit={handleApproveCoverSheet} className="space-y-3.5 text-xs">
-              <div className="rounded-lg bg-slate-50 border border-slate-100 p-3 space-y-1">
+              <div className="rounded-lg bg-slate-50 border border-slate-100 p-3 space-y-1 dark:bg-slate-800/70 dark:border-slate-800">
                 <div>
                   <strong>Credor:</strong> {coverSheetTarget.bankName}
                 </div>
@@ -1244,7 +1244,7 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">
                   1º Vencimento das demais parcelas
                 </label>
                 <input
@@ -1252,12 +1252,12 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                   required
                   value={firstDueDate}
                   onChange={(e) => setFirstDueDate(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">
                   Valor unitário (R$)
                 </label>
                 <input
@@ -1266,7 +1266,7 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                   required
                   value={customAmountReais}
                   onChange={(e) => setCustomAmountReais(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700"
                 />
               </div>
 
@@ -1274,7 +1274,7 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                 <button
                   type="button"
                   onClick={() => setCoverSheetTarget(null)}
-                  className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700"
+                  className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
                 >
                   Cancelar
                 </button>
@@ -1294,57 +1294,57 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
 
       {/* Bank Account Modal */}
       {bankAccModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-display text-base font-bold text-slate-900">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 dark:bg-slate-950/80">
+          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-2xl space-y-4 dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+              <h3 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
                 {editingBankAccId ? 'Editar Conta Bancária' : 'Nova Conta Bancária'}
               </h3>
               <button type="button" onClick={() => setBankAccModalOpen(false)}>
-                <X className="w-4 h-4 text-slate-400" />
+                <X className="w-4 h-4 text-slate-400 dark:text-slate-400" />
               </button>
             </div>
             <form onSubmit={handleSaveBankAccount} className="space-y-3.5 text-xs">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Nome do Banco *</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Nome do Banco *</label>
                 <input
                   type="text"
                   required
                   value={bankNameInput}
                   onChange={(e) => setBankNameInput(e.target.value)}
                   placeholder="Ex: Santander, Itaú, Banco do Brasil..."
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Agência</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Agência</label>
                   <input
                     type="text"
                     value={bankAgencyInput}
                     onChange={(e) => setBankAgencyInput(e.target.value)}
                     placeholder="Ex: 0001"
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Conta</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Conta</label>
                   <input
                     type="text"
                     value={bankAccountNumberInput}
                     onChange={(e) => setBankAccountNumberInput(e.target.value)}
                     placeholder="Ex: 12345-6"
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700"
                   />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Tipo de Conta</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Tipo de Conta</label>
                   <select
                     value={bankAccountTypeInput}
                     onChange={(e) => setBankAccountTypeInput(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   >
                     <option value="corrente">Conta Corrente</option>
                     <option value="poupanca">Poupança</option>
@@ -1352,14 +1352,14 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                   </select>
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Saldo Inicial (R$)</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Saldo Inicial (R$)</label>
                   <input
                     type="number"
                     step="0.01"
                     disabled={Boolean(editingBankAccId)}
                     value={bankInitialBalanceReais}
                     onChange={(e) => setBankInitialBalanceReais(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700"
                   />
                 </div>
               </div>
@@ -1367,7 +1367,7 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                 <button
                   type="button"
                   onClick={() => setBankAccModalOpen(false)}
-                  className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700"
+                  className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
                 >
                   Cancelar
                 </button>
@@ -1386,24 +1386,24 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
 
       {/* Bank Movement Modal */}
       {bankMovModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-display text-base font-bold text-slate-900">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 dark:bg-slate-950/80">
+          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-2xl space-y-4 dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+              <h3 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
                 Registrar Movimentação Bancária
               </h3>
               <button type="button" onClick={() => setBankMovModalOpen(false)}>
-                <X className="w-4 h-4 text-slate-400" />
+                <X className="w-4 h-4 text-slate-400 dark:text-slate-400" />
               </button>
             </div>
             <form onSubmit={handleSaveBankMovement} className="space-y-3.5 text-xs">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Conta Bancária *</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Conta Bancária *</label>
                 <select
                   required
                   value={movBankAccountId}
                   onChange={(e) => setMovBankAccountId(Number(e.target.value))}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 >
                   <option value="">Selecione a conta...</option>
                   {bankAccountsList.map((acc) => (
@@ -1415,18 +1415,18 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Tipo de Movimento *</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Tipo de Movimento *</label>
                   <select
                     value={movType}
                     onChange={(e) => setMovType(e.target.value as any)}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-semibold"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-semibold dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   >
                     <option value="entrada">Entrada (Crédito)</option>
                     <option value="saida">Saída (Débito)</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Valor (R$) *</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Valor (R$) *</label>
                   <input
                     type="number"
                     step="0.01"
@@ -1434,36 +1434,36 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                     value={movAmountReais}
                     onChange={(e) => setMovAmountReais(e.target.value)}
                     placeholder="0.00"
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700"
                   />
                 </div>
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Descrição / Histórico *</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Descrição / Histórico *</label>
                 <input
                   type="text"
                   required
                   value={movDesc}
                   onChange={(e) => setMovDesc(e.target.value)}
                   placeholder="Ex: Recebimento de honorários, Pagamento fornecedor..."
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700"
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Nº Documento / Comprovante</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Nº Documento / Comprovante</label>
                 <input
                   type="text"
                   value={movDoc}
                   onChange={(e) => setMovDoc(e.target.value)}
                   placeholder="Ex: DOC-99281"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setBankMovModalOpen(false)}
-                  className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700"
+                  className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
                 >
                   Cancelar
                 </button>

@@ -281,13 +281,13 @@ export const ConfigGroupsAndUsersView: React.FC<{
 
   return (
     <div className="space-y-4 text-xs">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4">
-        <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1 w-fit">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+        <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1 w-fit dark:bg-slate-800">
           <button
             type="button"
             onClick={() => setSubView('groups')}
             className={`rounded-md px-3 py-1.5 font-semibold transition-colors whitespace-nowrap shrink-0 ${
-              subView === 'groups' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              subView === 'groups' ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-slate-100' : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
             }`}
           >
             Grupos RBAC &amp; Números UaZapi ({groups.length})
@@ -296,7 +296,7 @@ export const ConfigGroupsAndUsersView: React.FC<{
             type="button"
             onClick={() => setSubView('users')}
             className={`rounded-md px-3 py-1.5 font-semibold transition-colors whitespace-nowrap shrink-0 ${
-              subView === 'users' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              subView === 'users' ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-slate-100' : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
             }`}
           >
             Usuários &amp; Sessões ({usersList.length})
@@ -309,7 +309,7 @@ export const ConfigGroupsAndUsersView: React.FC<{
               <button
                 type="button"
                 onClick={openNewGroup}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 font-semibold text-white hover:bg-slate-800 whitespace-nowrap shrink-0"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 font-semibold text-white hover:bg-slate-800 whitespace-nowrap shrink-0 dark:bg-emerald-600 dark:hover:bg-emerald-500"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Novo Grupo de Acesso
@@ -318,7 +318,7 @@ export const ConfigGroupsAndUsersView: React.FC<{
               <button
                 type="button"
                 onClick={openNewUser}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 font-semibold text-white hover:bg-slate-800 whitespace-nowrap shrink-0"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 font-semibold text-white hover:bg-slate-800 whitespace-nowrap shrink-0 dark:bg-emerald-600 dark:hover:bg-emerald-500"
               >
                 <UserPlus className="w-3.5 h-3.5" />
                 Novo Usuário
@@ -329,10 +329,10 @@ export const ConfigGroupsAndUsersView: React.FC<{
       </div>
 
       {subView === 'groups' ? (
-        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600">
+              <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
                 <tr>
                   <th className="px-4 py-2.5">Grupo &amp; Finalidade</th>
                   <th className="px-4 py-2.5">Módulos Habilitados</th>
@@ -341,7 +341,7 @@ export const ConfigGroupsAndUsersView: React.FC<{
                   <th className="px-4 py-2.5 text-right whitespace-nowrap">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {groups.map((grp) => {
                   const enabledMods = Object.entries(grp.modulePermissions || {})
                     .filter(([, v]) => Boolean(v))
@@ -356,22 +356,22 @@ export const ConfigGroupsAndUsersView: React.FC<{
                   return (
                     <tr key={grp.id} className="hover:bg-slate-50/80">
                       <td className="px-4 py-2.5">
-                        <div className="font-semibold text-slate-900">{grp.name}</div>
-                        <div className="text-[11px] text-slate-500">{grp.description || '—'}</div>
+                        <div className="font-semibold text-slate-900 dark:text-slate-100">{grp.name}</div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">{grp.description || '—'}</div>
                       </td>
                       <td className="px-4 py-2.5 max-w-xs">
-                        <div className="text-[11px] text-slate-700 truncate">
+                        <div className="text-[11px] text-slate-700 truncate dark:text-slate-200">
                           {enabledMods.join(' · ') || 'Nenhum'}
                         </div>
                       </td>
                       <td className="px-4 py-2.5 max-w-xs">
-                        <div className="text-[11px] text-slate-700 truncate">
+                        <div className="text-[11px] text-slate-700 truncate dark:text-slate-200">
                           {groupInsts.length > 0
                             ? groupInsts.map((i) => i.label).join(' · ')
                             : 'Nenhuma linha associada'}
                         </div>
                       </td>
-                      <td className="px-4 py-2.5 text-right font-mono font-bold text-slate-900 tabular-nums">
+                      <td className="px-4 py-2.5 text-right font-mono font-bold text-slate-900 tabular-nums dark:text-slate-100">
                         {memberCount}
                       </td>
                       <td className="px-4 py-2.5 text-right whitespace-nowrap">
@@ -381,7 +381,7 @@ export const ConfigGroupsAndUsersView: React.FC<{
                             onClick={() =>
                               setAuditEntity({ type: 'user_group', id: grp.id, title: `Grupo ${grp.name}` })
                             }
-                            className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100"
+                            className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
                             title="Histórico de Auditoria"
                           >
                             <History className="w-3.5 h-3.5" />
@@ -391,7 +391,7 @@ export const ConfigGroupsAndUsersView: React.FC<{
                               <button
                                 type="button"
                                 onClick={() => openEditGroup(grp)}
-                                className="rounded-md p-1.5 text-slate-600 hover:bg-slate-100"
+                                className="rounded-md p-1.5 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
                                 title="Editar Permissões & Linhas UaZapi"
                               >
                                 <Edit3 className="w-3.5 h-3.5" />
@@ -402,7 +402,7 @@ export const ConfigGroupsAndUsersView: React.FC<{
                                   setDeleteGrpErr('');
                                   setDeleteGrpTarget(grp);
                                 }}
-                                className="rounded-md p-1.5 text-red-600 hover:bg-red-50"
+                                className="rounded-md p-1.5 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/60"
                                 title="Excluir Grupo"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -420,21 +420,21 @@ export const ConfigGroupsAndUsersView: React.FC<{
         </div>
       ) : (
         <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-3.5">
+          <div className="flex flex-wrap items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-3.5 dark:border-slate-700 dark:bg-slate-900">
             <div className="relative flex-1 min-w-[200px] max-w-sm">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5 dark:text-slate-400" />
               <input
                 type="text"
                 value={userSearch}
                 onChange={(e) => setUserSearch(e.target.value)}
                 placeholder="Buscar usuário por nome, e-mail ou perfil..."
-                className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-1.5"
+                className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-1.5 dark:border-slate-700"
               />
             </div>
             <select
               value={userGroupFilter}
               onChange={(e) => setUserGroupFilter(e.target.value)}
-              className="rounded-lg border border-slate-200 px-2.5 py-1.5"
+              className="rounded-lg border border-slate-200 px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             >
               <option value="all">Todos os Grupos</option>
               {groups.map((g) => (
@@ -445,10 +445,10 @@ export const ConfigGroupsAndUsersView: React.FC<{
             </select>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600">
+                <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
                   <tr>
                     <th className="px-4 py-2.5">Nome &amp; E-mail</th>
                     <th className="px-4 py-2.5 whitespace-nowrap">Perfil · Grupo RBAC</th>
@@ -459,34 +459,34 @@ export const ConfigGroupsAndUsersView: React.FC<{
                     <th className="px-4 py-2.5 text-right whitespace-nowrap">Ações</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {filteredUsers.map((u) => {
                     const grp = u.groupId ? groups.find((g) => g.id === u.groupId) : null;
                     const defUnit = u.defaultUnitId ? units.find((x) => x.id === u.defaultUnitId) : null;
                     return (
                       <tr key={u.id} className="hover:bg-slate-50/80">
                         <td className="px-4 py-2.5">
-                          <div className="font-semibold text-slate-900">{u.name}</div>
-                          <div className="font-mono text-[11px] text-slate-500">{u.email}</div>
+                          <div className="font-semibold text-slate-900 dark:text-slate-100">{u.name}</div>
+                          <div className="font-mono text-[11px] text-slate-500 dark:text-slate-400">{u.email}</div>
                         </td>
                         <td className="px-4 py-2.5 whitespace-nowrap">
-                          <div className="font-medium text-slate-800 uppercase text-[11px]">{u.role}</div>
-                          <div className="text-[11px] text-slate-500">{grp?.name || 'Sem grupo'}</div>
+                          <div className="font-medium text-slate-800 uppercase text-[11px] dark:text-slate-100">{u.role}</div>
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400">{grp?.name || 'Sem grupo'}</div>
                         </td>
                         <td className="px-4 py-2.5 whitespace-nowrap">
-                          <div className="text-slate-800">{defUnit ? `${defUnit.code} · ${defUnit.name}` : '—'}</div>
-                          <div className="text-[11px] text-slate-500 font-mono tabular-nums">
+                          <div className="text-slate-800 dark:text-slate-100">{defUnit ? `${defUnit.code} · ${defUnit.name}` : '—'}</div>
+                          <div className="text-[11px] text-slate-500 font-mono tabular-nums dark:text-slate-400">
                             {(u.allowedUnitIds || []).length} unidade(s) liberada(s)
                           </div>
                         </td>
-                        <td className="px-4 py-2.5 font-mono text-[11px] text-slate-700 tabular-nums whitespace-nowrap">
+                        <td className="px-4 py-2.5 font-mono text-[11px] text-slate-700 tabular-nums whitespace-nowrap dark:text-slate-200">
                           {u.whatsappPhone || '—'}
                         </td>
-                        <td className="px-4 py-2.5 text-right font-mono font-bold text-slate-900 tabular-nums">
+                        <td className="px-4 py-2.5 text-right font-mono font-bold text-slate-900 tabular-nums dark:text-slate-100">
                           {u.points}
                         </td>
                         <td className="px-4 py-2.5 whitespace-nowrap">
-                          <span className={u.active ? 'font-semibold text-emerald-700' : 'text-slate-400'}>
+                          <span className={u.active ? 'font-semibold text-emerald-700 dark:text-emerald-300' : 'text-slate-400 dark:text-slate-400'}>
                             {u.active ? 'Ativo' : 'Inativo'}
                           </span>
                         </td>
@@ -503,7 +503,7 @@ export const ConfigGroupsAndUsersView: React.FC<{
                                     onToast(`Sessões ativas de ${u.name} revogadas.`);
                                   }}
                                   title="Revogar Sessões Imediatamente"
-                                  className="rounded-md border border-red-200 px-2 py-1 text-[11px] font-semibold text-red-700 hover:bg-red-50"
+                                  className="rounded-md border border-red-200 px-2 py-1 text-[11px] font-semibold text-red-700 hover:bg-red-50 dark:border-red-800/70 dark:text-red-300 dark:hover:bg-red-950/60"
                                 >
                                   Revogar
                                 </button>
@@ -511,7 +511,7 @@ export const ConfigGroupsAndUsersView: React.FC<{
                                   type="button"
                                   onClick={() => openEditUser(u)}
                                   title="Editar Usuário"
-                                  className="rounded-md p-1.5 text-slate-600 hover:bg-slate-100"
+                                  className="rounded-md p-1.5 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
                                 >
                                   <Edit3 className="w-3.5 h-3.5" />
                                 </button>
@@ -531,49 +531,49 @@ export const ConfigGroupsAndUsersView: React.FC<{
 
       {/* Modal Criar / Editar Grupo RBAC + Números UaZapi */}
       {grpModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80">
           <form
             onSubmit={handleSaveGroup}
-            className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs max-h-[90vh] overflow-y-auto"
+            className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs max-h-[90vh] overflow-y-auto dark:border-slate-700 dark:bg-slate-900"
           >
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
               <div className="flex items-center gap-2">
-                <Shield className="w-4 h-4 text-slate-800" />
-                <h3 className="font-display text-sm font-bold text-slate-900">
+                <Shield className="w-4 h-4 text-slate-800 dark:text-slate-100" />
+                <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                   {editGrpId ? 'Editar Grupo RBAC & Linhas UaZapi' : 'Novo Grupo de Acesso RBAC'}
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setGrpModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700"
+                className="text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {grpErr && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700">{grpErr}</div>
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">{grpErr}</div>
             )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Nome do Grupo *</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Nome do Grupo *</label>
                 <input
                   type="text"
                   required
                   value={grpName}
                   onChange={(e) => setGrpName(e.target.value)}
                   placeholder="Ex: Consultores Comerciais Senior"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700"
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Permissão Campo Honorários</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Permissão Campo Honorários</label>
                 <select
                   value={grpFeeFieldPerm}
                   onChange={(e) => setGrpFeeFieldPerm(e.target.value as 'edit' | 'read' | 'hidden')}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 >
                   <option value="edit">Editar e Visualizar</option>
                   <option value="read">Somente Leitura</option>
@@ -581,20 +581,20 @@ export const ConfigGroupsAndUsersView: React.FC<{
                 </select>
               </div>
               <div className="sm:col-span-2">
-                <label className="block font-semibold text-slate-700 mb-1">Descrição</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Descrição</label>
                 <input
                   type="text"
                   value={grpDesc}
                   onChange={(e) => setGrpDesc(e.target.value)}
                   placeholder="Atribuições operacionais deste grupo..."
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700"
                 />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <label className="block font-semibold text-slate-800">Módulos Liberados no Menu</label>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <label className="block font-semibold text-slate-800 dark:text-slate-100">Módulos Liberados no Menu</label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/70">
                 {RBAC_MODULE_LIST.map((mod) => (
                   <label key={mod.key} className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -602,22 +602,22 @@ export const ConfigGroupsAndUsersView: React.FC<{
                       checked={Boolean(grpPerms[mod.key])}
                       onChange={() => setGrpPerms((p) => ({ ...p, [mod.key]: !p[mod.key] }))}
                     />
-                    <span className="font-medium text-slate-800">{mod.label}</span>
+                    <span className="font-medium text-slate-800 dark:text-slate-100">{mod.label}</span>
                   </label>
                 ))}
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <label className="block font-semibold text-slate-800">
+              <label className="block font-semibold text-slate-800 dark:text-slate-100">
                 Números / Instâncias WhatsApp UaZapi Associadas a este Grupo
               </label>
               {uazapiInstances.length === 0 ? (
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-slate-500">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-slate-500 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-400">
                   Nenhuma instância UaZapi cadastrada ainda. Cadastre em &ldquo;WhatsApp UaZapi &amp; Grupos&rdquo;.
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/70">
                   {uazapiInstances.map((inst) => (
                     <label key={inst.id} className="flex items-center gap-2 cursor-pointer">
                       <input
@@ -631,9 +631,9 @@ export const ConfigGroupsAndUsersView: React.FC<{
                           )
                         }
                       />
-                      <span className="text-slate-800">
+                      <span className="text-slate-800 dark:text-slate-100">
                         <strong>{inst.label}</strong>{' '}
-                        <span className="font-mono text-[11px] text-slate-500">
+                        <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400">
                           ({inst.connectedPhone || inst.defaultPhone || inst.uazapiInstanceId})
                         </span>
                       </span>
@@ -643,18 +643,18 @@ export const ConfigGroupsAndUsersView: React.FC<{
               )}
             </div>
 
-            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
+            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
               <button
                 type="button"
                 onClick={() => setGrpModalOpen(false)}
-                className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700"
+                className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={grpSaving}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
               >
                 <Check className="w-3.5 h-3.5" />
                 {grpSaving ? 'Salvando...' : 'Salvar Grupo'}
@@ -666,58 +666,58 @@ export const ConfigGroupsAndUsersView: React.FC<{
 
       {/* Modal Criar / Editar Usuário */}
       {usrModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80">
           <form
             onSubmit={handleSaveUser}
-            className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs max-h-[90vh] overflow-y-auto"
+            className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs max-h-[90vh] overflow-y-auto dark:border-slate-700 dark:bg-slate-900"
           >
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
               <div className="flex items-center gap-2">
-                <KeyRound className="w-4 h-4 text-slate-800" />
-                <h3 className="font-display text-sm font-bold text-slate-900">
+                <KeyRound className="w-4 h-4 text-slate-800 dark:text-slate-100" />
+                <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                   {editUsrId ? 'Editar Credenciais & Escopo do Usuário' : 'Cadastrar Novo Usuário Corporativo'}
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setUsrModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700"
+                className="text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {usrErr && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700">{usrErr}</div>
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">{usrErr}</div>
             )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Nome Completo *</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Nome Completo *</label>
                 <input
                   type="text"
                   required
                   value={usrName}
                   onChange={(e) => setUsrName(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">E-mail Corporativo *</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">E-mail Corporativo *</label>
                 <input
                   type="email"
                   required
                   value={usrEmail}
                   onChange={(e) => setUsrEmail(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Perfil Funcional</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Perfil Funcional</label>
                 <select
                   value={usrRole}
                   onChange={(e) => setUsrRole(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 >
                   <option value="admin">Administrador Geral</option>
                   <option value="consultant">Consultor / Admissão</option>
@@ -728,11 +728,11 @@ export const ConfigGroupsAndUsersView: React.FC<{
                 </select>
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Grupo RBAC</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Grupo RBAC</label>
                 <select
                   value={usrGroupId}
                   onChange={(e) => setUsrGroupId(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 >
                   <option value="">Sem grupo específico</option>
                   {groups.map((g) => (
@@ -743,7 +743,7 @@ export const ConfigGroupsAndUsersView: React.FC<{
                 </select>
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Unidade Padrão</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Unidade Padrão</label>
                 <select
                   value={usrDefaultUnitId}
                   onChange={(e) => {
@@ -751,7 +751,7 @@ export const ConfigGroupsAndUsersView: React.FC<{
                     setUsrDefaultUnitId(id);
                     if (!usrAllowedUnits.includes(id)) setUsrAllowedUnits((p) => [...p, id]);
                   }}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700"
                 >
                   {units.map((u) => (
                     <option key={u.id} value={u.id}>
@@ -761,17 +761,17 @@ export const ConfigGroupsAndUsersView: React.FC<{
                 </select>
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">WhatsApp do Usuário</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">WhatsApp do Usuário</label>
                 <input
                   type="text"
                   value={usrPhone}
                   onChange={(e) => setUsrPhone(formatPhoneMask(e.target.value))}
                   placeholder="(81) 99988-7766"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono tabular-nums"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono tabular-nums dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className="block font-semibold text-slate-700 mb-1">
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">
                   {editUsrId ? 'Nova Senha (Opcional — mínimo 6 caracteres)' : 'Senha Inicial (Padrão: Mudar@2026)'}
                 </label>
                 <input
@@ -779,14 +779,14 @@ export const ConfigGroupsAndUsersView: React.FC<{
                   value={usrPassword}
                   onChange={(e) => setUsrPassword(e.target.value)}
                   placeholder={editUsrId ? 'Deixe vazio para não alterar' : 'Mudar@2026'}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700"
                 />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <label className="block font-semibold text-slate-800">Unidades Autorizadas</label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <label className="block font-semibold text-slate-800 dark:text-slate-100">Unidades Autorizadas</label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/70">
                 {units.map((u) => (
                   <label key={u.id} className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -807,7 +807,7 @@ export const ConfigGroupsAndUsersView: React.FC<{
             </div>
 
             <div className="flex flex-wrap gap-4">
-              <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-800">
+              <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-800 dark:text-slate-100">
                 <input
                   type="checkbox"
                   checked={usrMustChangePwd}
@@ -815,7 +815,7 @@ export const ConfigGroupsAndUsersView: React.FC<{
                 />
                 <span>Exigir troca de senha no próximo login</span>
               </label>
-              <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-800">
+              <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-800 dark:text-slate-100">
                 <input
                   type="checkbox"
                   checked={usrActive}
@@ -825,18 +825,18 @@ export const ConfigGroupsAndUsersView: React.FC<{
               </label>
             </div>
 
-            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
+            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
               <button
                 type="button"
                 onClick={() => setUsrModalOpen(false)}
-                className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700"
+                className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={usrSaving}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
               >
                 <Check className="w-3.5 h-3.5" />
                 {usrSaving ? 'Salvando...' : 'Salvar Usuário'}
@@ -1069,13 +1069,13 @@ export const ConfigAuditAndChecklistView: React.FC<{
 
   return (
     <div className="space-y-4 text-xs">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4">
-        <div className="flex flex-wrap gap-1 rounded-lg bg-slate-100 p-1 w-fit">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+        <div className="flex flex-wrap gap-1 rounded-lg bg-slate-100 p-1 w-fit dark:bg-slate-800">
           <button
             type="button"
             onClick={() => setSubTab('checklist')}
             className={`rounded-md px-3 py-1.5 font-semibold whitespace-nowrap ${
-              subTab === 'checklist' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'
+              subTab === 'checklist' ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-slate-100' : 'text-slate-600 dark:text-slate-300'
             }`}
           >
             Checklist de Auditoria ({checklistItems.length})
@@ -1085,7 +1085,7 @@ export const ConfigAuditAndChecklistView: React.FC<{
               type="button"
               onClick={() => setSubTab('unbound')}
               className={`rounded-md px-3 py-1.5 font-semibold whitespace-nowrap ${
-                subTab === 'unbound' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'
+                subTab === 'unbound' ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-slate-100' : 'text-slate-600 dark:text-slate-300'
               }`}
             >
               Auditorias Históricas sem Unidade
@@ -1095,7 +1095,7 @@ export const ConfigAuditAndChecklistView: React.FC<{
             type="button"
             onClick={() => setSubTab('logs')}
             className={`rounded-md px-3 py-1.5 font-semibold whitespace-nowrap ${
-              subTab === 'logs' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'
+              subTab === 'logs' ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-slate-100' : 'text-slate-600 dark:text-slate-300'
             }`}
           >
             Eventos Recentes ({auditLogs.length})
@@ -1104,7 +1104,7 @@ export const ConfigAuditAndChecklistView: React.FC<{
 
         {subTab === 'checklist' && (
           <div className="flex items-center gap-3">
-            <label className="flex items-center gap-1.5 cursor-pointer font-medium text-slate-700">
+            <label className="flex items-center gap-1.5 cursor-pointer font-medium text-slate-700 dark:text-slate-200">
               <input
                 type="checkbox"
                 checked={showInactive}
@@ -1116,7 +1116,7 @@ export const ConfigAuditAndChecklistView: React.FC<{
               <button
                 type="button"
                 onClick={openNewItem}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 font-semibold text-white hover:bg-slate-800 whitespace-nowrap shrink-0"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 font-semibold text-white hover:bg-slate-800 whitespace-nowrap shrink-0 dark:bg-emerald-600 dark:hover:bg-emerald-500"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Novo Item
@@ -1127,10 +1127,10 @@ export const ConfigAuditAndChecklistView: React.FC<{
       </div>
 
       {subTab === 'checklist' && (
-        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600">
+              <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
                 <tr>
                   <th className="px-4 py-2.5 w-16 whitespace-nowrap">Ordem</th>
                   <th className="px-4 py-2.5">Título &amp; Critério de Conferência</th>
@@ -1140,28 +1140,28 @@ export const ConfigAuditAndChecklistView: React.FC<{
                   <th className="px-4 py-2.5 text-right whitespace-nowrap">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {visibleChecklist.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                    <td colSpan={6} className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
                       Nenhum item ativo no checklist.
                     </td>
                   </tr>
                 ) : (
                   visibleChecklist.map((it, idx) => (
                     <tr key={it.id} className="hover:bg-slate-50/80">
-                      <td className="px-4 py-2.5 font-mono font-bold text-slate-900 tabular-nums">
+                      <td className="px-4 py-2.5 font-mono font-bold text-slate-900 tabular-nums dark:text-slate-100">
                         #{it.sortOrder}
                       </td>
                       <td className="px-4 py-2.5">
-                        <div className="font-semibold text-slate-900">{it.title}</div>
-                        <div className="text-[11px] text-slate-500">{it.description}</div>
+                        <div className="font-semibold text-slate-900 dark:text-slate-100">{it.title}</div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">{it.description}</div>
                       </td>
-                      <td className="px-4 py-2.5 whitespace-nowrap text-slate-700">
+                      <td className="px-4 py-2.5 whitespace-nowrap text-slate-700 dark:text-slate-200">
                         {it.modalityCondition || 'Sempre exibir (Todas)'}
                       </td>
                       <td className="px-4 py-2.5 whitespace-nowrap">
-                        <span className={it.active ? 'font-semibold text-emerald-700' : 'text-slate-400'}>
+                        <span className={it.active ? 'font-semibold text-emerald-700 dark:text-emerald-300' : 'text-slate-400 dark:text-slate-400'}>
                           {it.active ? 'Ativo' : 'Inativo'}
                         </span>
                       </td>
@@ -1178,7 +1178,7 @@ export const ConfigAuditAndChecklistView: React.FC<{
                                 });
                                 await onRefresh();
                               }}
-                              className="rounded border border-slate-200 p-1 text-slate-600 hover:bg-slate-100 disabled:opacity-30"
+                              className="rounded border border-slate-200 p-1 text-slate-600 hover:bg-slate-100 disabled:opacity-30 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                             >
                               <ArrowUp className="w-3 h-3" />
                             </button>
@@ -1192,7 +1192,7 @@ export const ConfigAuditAndChecklistView: React.FC<{
                                 });
                                 await onRefresh();
                               }}
-                              className="rounded border border-slate-200 p-1 text-slate-600 hover:bg-slate-100 disabled:opacity-30"
+                              className="rounded border border-slate-200 p-1 text-slate-600 hover:bg-slate-100 disabled:opacity-30 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                             >
                               <ArrowDown className="w-3 h-3" />
                             </button>
@@ -1205,7 +1205,7 @@ export const ConfigAuditAndChecklistView: React.FC<{
                             type="button"
                             onClick={() => setAuditTarget(it)}
                             title="Histórico de Auditoria"
-                            className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100"
+                            className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
                           >
                             <History className="w-3.5 h-3.5" />
                           </button>
@@ -1220,7 +1220,7 @@ export const ConfigAuditAndChecklistView: React.FC<{
                                   setMigrateSource(it);
                                 }}
                                 title="Migrar / Trocar Posição / Duplicar"
-                                className="rounded-md p-1.5 text-slate-600 hover:bg-slate-100"
+                                className="rounded-md p-1.5 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
                               >
                                 <ArrowLeftRight className="w-3.5 h-3.5" />
                               </button>
@@ -1228,7 +1228,7 @@ export const ConfigAuditAndChecklistView: React.FC<{
                                 type="button"
                                 onClick={() => openEditItem(it)}
                                 title="Editar Item"
-                                className="rounded-md p-1.5 text-slate-600 hover:bg-slate-100"
+                                className="rounded-md p-1.5 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
                               >
                                 <Edit3 className="w-3.5 h-3.5" />
                               </button>
@@ -1236,7 +1236,7 @@ export const ConfigAuditAndChecklistView: React.FC<{
                                 <button
                                   type="button"
                                   onClick={() => setInactivateTarget(it)}
-                                  className="rounded-md px-2 py-1 text-[11px] font-semibold text-amber-700 hover:bg-amber-50"
+                                  className="rounded-md px-2 py-1 text-[11px] font-semibold text-amber-700 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/60"
                                 >
                                   Inativar
                                 </button>
@@ -1251,7 +1251,7 @@ export const ConfigAuditAndChecklistView: React.FC<{
                                     await onRefresh();
                                     onToast('Item reativado.');
                                   }}
-                                  className="rounded-md px-2 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-50"
+                                  className="rounded-md px-2 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/60"
                                 >
                                   Reativar
                                 </button>
@@ -1271,12 +1271,12 @@ export const ConfigAuditAndChecklistView: React.FC<{
 
       {subTab === 'unbound' && isAdmin && (
         <div className="space-y-3">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 dark:border-slate-700 dark:bg-slate-900">
             <div>
-              <div className="font-display text-sm font-bold text-slate-900">
+              <div className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                 Relatório de Exceções: Auditorias Históricas sem Unidade Vinculada
               </div>
-              <p className="text-slate-500">
+              <p className="text-slate-500 dark:text-slate-400">
                 Registros globais ou históricos onde <code className="font-mono">unit_id</code> permanece nulo, agrupados por diagnóstico.
               </p>
             </div>
@@ -1286,7 +1286,7 @@ export const ConfigAuditAndChecklistView: React.FC<{
                 setUnboundReason(e.target.value);
                 setUnboundPage(1);
               }}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 font-medium"
+              className="rounded-lg border border-slate-200 px-3 py-1.5 font-medium dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             >
               <option value="all">Todos os motivos ({unboundCounts.all || 0})</option>
               <option value="unsupported_entity">
@@ -1310,10 +1310,10 @@ export const ConfigAuditAndChecklistView: React.FC<{
             </select>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600">
+                <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
                   <tr>
                     <th className="px-4 py-2.5">Diagnóstico</th>
                     <th className="px-4 py-2.5 whitespace-nowrap">Referência</th>
@@ -1323,32 +1323,32 @@ export const ConfigAuditAndChecklistView: React.FC<{
                     <th className="px-4 py-2.5 text-right whitespace-nowrap">Ocorrências</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {unboundLoading ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                      <td colSpan={6} className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
                         Analisando registros históricos...
                       </td>
                     </tr>
                   ) : unboundRows.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                      <td colSpan={6} className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
                         Nenhuma exceção encontrada para este filtro.
                       </td>
                     </tr>
                   ) : (
                     unboundRows.map((r, i) => (
                       <tr key={`${r.entityRef}-${i}`} className="hover:bg-slate-50/80">
-                        <td className="px-4 py-2.5 font-medium text-slate-900">{r.reasonLabel}</td>
-                        <td className="px-4 py-2.5 font-mono text-slate-700">{r.entityRef}</td>
-                        <td className="px-4 py-2.5 text-slate-600">{r.candidateUnits}</td>
-                        <td className="px-4 py-2.5 font-mono text-[11px] text-slate-500 tabular-nums">
+                        <td className="px-4 py-2.5 font-medium text-slate-900 dark:text-slate-100">{r.reasonLabel}</td>
+                        <td className="px-4 py-2.5 font-mono text-slate-700 dark:text-slate-200">{r.entityRef}</td>
+                        <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">{r.candidateUnits}</td>
+                        <td className="px-4 py-2.5 font-mono text-[11px] text-slate-500 tabular-nums dark:text-slate-400">
                           {formatDateTimeBR(r.firstSeenAt)}
                         </td>
-                        <td className="px-4 py-2.5 font-mono text-[11px] text-slate-500 tabular-nums">
+                        <td className="px-4 py-2.5 font-mono text-[11px] text-slate-500 tabular-nums dark:text-slate-400">
                           {formatDateTimeBR(r.lastSeenAt)}
                         </td>
-                        <td className="px-4 py-2.5 text-right font-mono font-bold text-slate-900 tabular-nums">
+                        <td className="px-4 py-2.5 text-right font-mono font-bold text-slate-900 tabular-nums dark:text-slate-100">
                           {r.occurrences}
                         </td>
                       </tr>
@@ -1358,7 +1358,7 @@ export const ConfigAuditAndChecklistView: React.FC<{
               </table>
             </div>
 
-            <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2.5 text-slate-600">
+            <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2.5 text-slate-600 dark:border-slate-800 dark:text-slate-300">
               <span className="font-mono tabular-nums">
                 Total: {unboundTotal} · Página {unboundPage} de {unboundPages} (25/pág)
               </span>
@@ -1367,7 +1367,7 @@ export const ConfigAuditAndChecklistView: React.FC<{
                   type="button"
                   disabled={unboundPage <= 1}
                   onClick={() => setUnboundPage((p) => Math.max(1, p - 1))}
-                  className="rounded border border-slate-200 px-2.5 py-1 font-semibold disabled:opacity-40"
+                  className="rounded border border-slate-200 px-2.5 py-1 font-semibold disabled:opacity-40 dark:border-slate-700"
                 >
                   Anterior
                 </button>
@@ -1375,7 +1375,7 @@ export const ConfigAuditAndChecklistView: React.FC<{
                   type="button"
                   disabled={unboundPage >= unboundPages}
                   onClick={() => setUnboundPage((p) => Math.min(unboundPages, p + 1))}
-                  className="rounded border border-slate-200 px-2.5 py-1 font-semibold disabled:opacity-40"
+                  className="rounded border border-slate-200 px-2.5 py-1 font-semibold disabled:opacity-40 dark:border-slate-700"
                 >
                   Próxima
                 </button>
@@ -1386,10 +1386,10 @@ export const ConfigAuditAndChecklistView: React.FC<{
       )}
 
       {subTab === 'logs' && (
-        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600">
+              <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
                 <tr>
                   <th className="px-4 py-2.5">Evento</th>
                   <th className="px-4 py-2.5">Operador</th>
@@ -1397,15 +1397,15 @@ export const ConfigAuditAndChecklistView: React.FC<{
                   <th className="px-4 py-2.5 text-right">Data / Hora</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {auditLogs.map((log) => (
                   <tr key={log.id} className="hover:bg-slate-50/80">
-                    <td className="px-4 py-2.5 font-mono font-semibold text-slate-900">{log.action}</td>
-                    <td className="px-4 py-2.5 text-slate-700">{log.userName}</td>
-                    <td className="px-4 py-2.5 font-mono text-slate-500">
+                    <td className="px-4 py-2.5 font-mono font-semibold text-slate-900 dark:text-slate-100">{log.action}</td>
+                    <td className="px-4 py-2.5 text-slate-700 dark:text-slate-200">{log.userName}</td>
+                    <td className="px-4 py-2.5 font-mono text-slate-500 dark:text-slate-400">
                       {log.entityType} #{log.entityId}
                     </td>
-                    <td className="px-4 py-2.5 text-right font-mono text-[11px] text-slate-500 tabular-nums">
+                    <td className="px-4 py-2.5 text-right font-mono text-[11px] text-slate-500 tabular-nums dark:text-slate-400">
                       {formatDateTimeBR(log.createdAt)}
                     </td>
                   </tr>
@@ -1418,45 +1418,45 @@ export const ConfigAuditAndChecklistView: React.FC<{
 
       {/* Modal Criar / Editar Item Checklist */}
       {itemModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80">
           <form
             onSubmit={handleSaveItem}
-            className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs"
+            className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs dark:border-slate-700 dark:bg-slate-900"
           >
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-display text-sm font-bold text-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+              <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                 {editItem ? 'Editar Item de Checklist' : 'Novo Item de Checklist de Auditoria'}
               </h3>
               <button
                 type="button"
                 onClick={() => setItemModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700"
+                className="text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {itemErr && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700">{itemErr}</div>
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">{itemErr}</div>
             )}
 
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Nº Ordem</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Nº Ordem</label>
                 <input
                   type="number"
                   min={1}
                   value={itemOrder}
                   onChange={(e) => setItemOrder(Number(e.target.value))}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono tabular-nums"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono tabular-nums dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div className="sm:col-span-3">
-                <label className="block font-semibold text-slate-700 mb-1">Condição de Exibição (Modalidade)</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Condição de Exibição (Modalidade)</label>
                 <select
                   value={itemCondition}
                   onChange={(e) => setItemCondition(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 >
                   <option value="">Sempre exibir (Todas as modalidades)</option>
                   {conditionOptions.map((c) => (
@@ -1467,28 +1467,28 @@ export const ConfigAuditAndChecklistView: React.FC<{
                 </select>
               </div>
               <div className="sm:col-span-4">
-                <label className="block font-semibold text-slate-700 mb-1">Título do Item *</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Título do Item *</label>
                 <input
                   type="text"
                   required
                   value={itemTitle}
                   onChange={(e) => setItemTitle(e.target.value)}
                   placeholder="Ex: Conferência de CRLV, Placa e Renavam"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700"
                 />
               </div>
               <div className="sm:col-span-4">
-                <label className="block font-semibold text-slate-700 mb-1">Descrição / Orientação ao Auditor</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Descrição / Orientação ao Auditor</label>
                 <textarea
                   rows={3}
                   value={itemDesc}
                   onChange={(e) => setItemDesc(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 p-2.5"
+                  className="w-full rounded-lg border border-slate-200 p-2.5 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
             </div>
 
-            <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-800">
+            <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-800 dark:text-slate-100">
               <input
                 type="checkbox"
                 checked={itemActive}
@@ -1497,18 +1497,18 @@ export const ConfigAuditAndChecklistView: React.FC<{
               <span>Item ativo na tela de Auditoria &amp; Boletos</span>
             </label>
 
-            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
+            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
               <button
                 type="button"
                 onClick={() => setItemModalOpen(false)}
-                className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700"
+                className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={itemSaving}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
               >
                 <Check className="w-3.5 h-3.5" />
                 {itemSaving ? 'Salvando...' : 'Salvar Item'}
@@ -1520,30 +1520,30 @@ export const ConfigAuditAndChecklistView: React.FC<{
 
       {/* Modal Migrar / Trocar Posição / Duplicar */}
       {migrateSource && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80">
           <form
             onSubmit={handleMigrate}
-            className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs"
+            className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs dark:border-slate-700 dark:bg-slate-900"
           >
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-display text-sm font-bold text-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+              <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                 Migrar / Duplicar · #{migrateSource.sortOrder} {migrateSource.title}
               </h3>
               <button
                 type="button"
                 onClick={() => setMigrateSource(null)}
-                className="text-slate-400 hover:text-slate-700"
+                className="text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Operação</label>
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Operação</label>
               <select
                 value={migrateOp}
                 onChange={(e) => setMigrateOp(e.target.value as 'swap' | 'overwrite' | 'duplicate')}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               >
                 <option value="duplicate">Duplicar Item (cria cópia ao final)</option>
                 <option value="swap">Trocar Posição com outro item</option>
@@ -1553,11 +1553,11 @@ export const ConfigAuditAndChecklistView: React.FC<{
 
             {migrateOp !== 'duplicate' && (
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Item de Destino</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Item de Destino</label>
                 <select
                   value={migrateTargetId}
                   onChange={(e) => setMigrateTargetId(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 >
                   {checklistItems
                     .filter((x) => x.id !== migrateSource.id)
@@ -1570,18 +1570,18 @@ export const ConfigAuditAndChecklistView: React.FC<{
               </div>
             )}
 
-            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
+            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
               <button
                 type="button"
                 onClick={() => setMigrateSource(null)}
-                className="rounded-lg border border-slate-200 px-3.5 py-2 font-semibold text-slate-700"
+                className="rounded-lg border border-slate-200 px-3.5 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={migrateBusy}
-                className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800"
+                className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
               >
                 {migrateBusy ? 'Aplicando...' : 'Executar'}
               </button>
@@ -1592,24 +1592,24 @@ export const ConfigAuditAndChecklistView: React.FC<{
 
       {/* Confirmação de Inativação */}
       {inactivateTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs dark:border-slate-700 dark:bg-slate-900">
             <div className="flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5 dark:text-amber-400" />
               <div className="space-y-1">
-                <h3 className="font-display text-sm font-bold text-slate-900">
+                <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                   Inativar Item de Checklist?
                 </h3>
-                <p className="text-slate-600">
+                <p className="text-slate-600 dark:text-slate-300">
                   O item <strong>&ldquo;{inactivateTarget.title}&rdquo;</strong> deixará de aparecer nas novas conferências de Auditoria até ser reativado.
                 </p>
               </div>
             </div>
-            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
+            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
               <button
                 type="button"
                 onClick={() => setInactivateTarget(null)}
-                className="rounded-lg border border-slate-200 px-3.5 py-2 font-semibold text-slate-700"
+                className="rounded-lg border border-slate-200 px-3.5 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
               >
                 Cancelar
               </button>
@@ -1749,19 +1749,19 @@ export const ConfigHelpCenterView: React.FC<{
 
   return (
     <div className="space-y-4 text-xs">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
         <div className="flex flex-1 items-center gap-3">
           <div className="relative flex-1 max-w-md">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5 dark:text-slate-400" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar tópico por título, caminho de menu ou palavra-chave..."
-              className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-1.5"
+              className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-1.5 dark:border-slate-700"
             />
           </div>
-          <span className="font-mono text-slate-500 tabular-nums whitespace-nowrap">
+          <span className="font-mono text-slate-500 tabular-nums whitespace-nowrap dark:text-slate-400">
             {filtered.length} de {topics.length} tópico(s)
           </span>
         </div>
@@ -1771,7 +1771,7 @@ export const ConfigHelpCenterView: React.FC<{
             <button
               type="button"
               onClick={() => setRestoreOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               Restaurar Padrão
@@ -1779,7 +1779,7 @@ export const ConfigHelpCenterView: React.FC<{
             <button
               type="button"
               onClick={openNew}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 font-semibold text-white hover:bg-slate-800 whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 font-semibold text-white hover:bg-slate-800 whitespace-nowrap dark:bg-emerald-600 dark:hover:bg-emerald-500"
             >
               <Plus className="w-3.5 h-3.5" />
               Novo Tópico
@@ -1788,10 +1788,10 @@ export const ConfigHelpCenterView: React.FC<{
         )}
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600">
+            <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
               <tr>
                 <th className="px-4 py-2.5 whitespace-nowrap">Caminho do Menu</th>
                 <th className="px-4 py-2.5 whitespace-nowrap">ID Tópico</th>
@@ -1800,25 +1800,25 @@ export const ConfigHelpCenterView: React.FC<{
                 <th className="px-4 py-2.5 text-right whitespace-nowrap">Ações</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan={5} className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
                     Nenhum tópico encontrado.
                   </td>
                 </tr>
               ) : (
                 filtered.map((t) => (
                   <tr key={t.id} className="hover:bg-slate-50/80">
-                    <td className="px-4 py-2.5 font-medium text-slate-700 whitespace-nowrap">{t.menuPath}</td>
-                    <td className="px-4 py-2.5 font-mono text-[11px] text-slate-500 whitespace-nowrap">
+                    <td className="px-4 py-2.5 font-medium text-slate-700 whitespace-nowrap dark:text-slate-200">{t.menuPath}</td>
+                    <td className="px-4 py-2.5 font-mono text-[11px] text-slate-500 whitespace-nowrap dark:text-slate-400">
                       {t.topicKey}
                     </td>
                     <td className="px-4 py-2.5">
-                      <div className="font-semibold text-slate-900">{t.title}</div>
-                      <div className="text-[11px] text-slate-500 line-clamp-1">{t.summary}</div>
+                      <div className="font-semibold text-slate-900 dark:text-slate-100">{t.title}</div>
+                      <div className="text-[11px] text-slate-500 line-clamp-1 dark:text-slate-400">{t.summary}</div>
                     </td>
-                    <td className="px-4 py-2.5 text-[11px] text-slate-500 max-w-xs truncate">
+                    <td className="px-4 py-2.5 text-[11px] text-slate-500 max-w-xs truncate dark:text-slate-400">
                       {(t.keywords || []).join(' · ') || '—'}
                     </td>
                     <td className="px-4 py-2.5 text-right whitespace-nowrap">
@@ -1827,7 +1827,7 @@ export const ConfigHelpCenterView: React.FC<{
                           type="button"
                           onClick={() => setPreviewTopic(t)}
                           title="Ler Artigo"
-                          className="rounded-md p-1.5 text-blue-700 hover:bg-blue-50"
+                          className="rounded-md p-1.5 text-blue-700 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-950/60"
                         >
                           <Eye className="w-3.5 h-3.5" />
                         </button>
@@ -1835,7 +1835,7 @@ export const ConfigHelpCenterView: React.FC<{
                           type="button"
                           onClick={() => setAuditTarget(t)}
                           title="Histórico"
-                          className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100"
+                          className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
                         >
                           <History className="w-3.5 h-3.5" />
                         </button>
@@ -1844,14 +1844,14 @@ export const ConfigHelpCenterView: React.FC<{
                             <button
                               type="button"
                               onClick={() => openEdit(t)}
-                              className="rounded-md p-1.5 text-slate-600 hover:bg-slate-100"
+                              className="rounded-md p-1.5 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
                             >
                               <Edit3 className="w-3.5 h-3.5" />
                             </button>
                             <button
                               type="button"
                               onClick={() => setDeleteTarget(t)}
-                              className="rounded-md p-1.5 text-red-600 hover:bg-red-50"
+                              className="rounded-md p-1.5 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/60"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -1869,32 +1869,32 @@ export const ConfigHelpCenterView: React.FC<{
 
       {/* Modal Criar / Editar Tópico com Preview HTML ao Vivo */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80">
           <form
             onSubmit={handleSave}
-            className="w-full max-w-4xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs max-h-[90vh] overflow-y-auto"
+            className="w-full max-w-4xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs max-h-[90vh] overflow-y-auto dark:border-slate-700 dark:bg-slate-900"
           >
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
               <div className="flex items-center gap-2">
-                <BookOpen className="w-4 h-4 text-slate-800" />
-                <h3 className="font-display text-sm font-bold text-slate-900">
+                <BookOpen className="w-4 h-4 text-slate-800 dark:text-slate-100" />
+                <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                   {editTopic ? 'Editar Tópico da Central de Ajuda' : 'Novo Tópico da Central de Ajuda'}
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700"
+                className="text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {err && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700">{err}</div>}
+            {err && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">{err}</div>}
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">
                   ID do Tópico {editTopic ? '(Somente leitura)' : '(Editável na criação)'}
                 </label>
                 <input
@@ -1903,86 +1903,86 @@ export const ConfigHelpCenterView: React.FC<{
                   value={topicKey}
                   onChange={(e) => setTopicKey(e.target.value)}
                   placeholder="ex: cfg_unidades_custos"
-                  className={`w-full rounded-lg border border-slate-200 px-3 py-2 font-mono ${
-                    editTopic ? 'bg-slate-100 text-slate-500' : ''
+                  className={`w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 ${
+                    editTopic ? 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400' : ''
                   }`}
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className="block font-semibold text-slate-700 mb-1">Caminho do Menu *</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Caminho do Menu *</label>
                 <input
                   type="text"
                   required
                   value={menuPath}
                   onChange={(e) => setMenuPath(e.target.value)}
                   placeholder="Ex: Configurações > Unidades & Custos"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700"
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className="block font-semibold text-slate-700 mb-1">Título *</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Título *</label>
                 <input
                   type="text"
                   required
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Palavras-chave (vírgula)</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Palavras-chave (vírgula)</label>
                 <input
                   type="text"
                   value={keywordsText}
                   onChange={(e) => setKeywordsText(e.target.value)}
                   placeholder="unidade, cnpj, cep, piso"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div className="sm:col-span-3">
-                <label className="block font-semibold text-slate-700 mb-1">Resumo Curto</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Resumo Curto</label>
                 <input
                   type="text"
                   value={summary}
                   onChange={(e) => setSummary(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Conteúdo HTML</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Conteúdo HTML</label>
                 <textarea
                   rows={8}
                   value={htmlContent}
                   onChange={(e) => setHtmlContent(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 p-3 font-mono text-xs"
+                  className="w-full rounded-lg border border-slate-200 p-3 font-mono text-xs dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">
                   Pré-visualização Renderizada (Sanitizada)
                 </label>
                 <div
-                  className="rounded-lg border border-slate-200 bg-slate-50 p-3.5 min-h-[188px] space-y-2 text-slate-800 leading-relaxed"
+                  className="rounded-lg border border-slate-200 bg-slate-50 p-3.5 min-h-[188px] space-y-2 text-slate-800 leading-relaxed dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-100"
                   dangerouslySetInnerHTML={{ __html: sanitizeHelpHtml(htmlContent) }}
                 />
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
+            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
               <button
                 type="button"
                 onClick={() => setModalOpen(false)}
-                className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700"
+                className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={saving}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
               >
                 <Check className="w-3.5 h-3.5" />
                 {saving ? 'Salvando...' : 'Salvar Tópico'}
@@ -1994,23 +1994,23 @@ export const ConfigHelpCenterView: React.FC<{
 
       {/* Modal Leitura do Tópico */}
       {previewTopic && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-          <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80">
+          <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
               <div>
-                <div className="text-[11px] text-slate-500">{previewTopic.menuPath}</div>
-                <h3 className="font-display text-base font-bold text-slate-900">{previewTopic.title}</h3>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400">{previewTopic.menuPath}</div>
+                <h3 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">{previewTopic.title}</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setPreviewTopic(null)}
-                className="text-slate-400 hover:text-slate-700"
+                className="text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
             <div
-              className="space-y-2 text-slate-800 leading-relaxed"
+              className="space-y-2 text-slate-800 leading-relaxed dark:text-slate-100"
               dangerouslySetInnerHTML={{ __html: sanitizeHelpHtml(previewTopic.htmlContent) }}
             />
           </div>
@@ -2085,22 +2085,22 @@ const ColorPickerField: React.FC<{
   onChange: (hex: string) => void;
 }> = ({ label, value, onChange }) => (
   <div>
-    <label className="block font-semibold text-slate-700 mb-1">{label}</label>
+    <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">{label}</label>
     <div className="flex items-center gap-2">
       <input
         type="color"
         value={/^#[0-9A-Fa-f]{6}$/.test(value) ? value : '#0F172A'}
         onChange={(e) => onChange(e.target.value.toUpperCase())}
-        className="h-9 w-11 rounded border border-slate-200 bg-white p-0.5 cursor-pointer"
+        className="h-9 w-11 rounded border border-slate-200 bg-white p-0.5 cursor-pointer dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
       />
-      <svg className="w-5 h-5 rounded border border-slate-200 shrink-0" viewBox="0 0 20 20">
+      <svg className="w-5 h-5 rounded border border-slate-200 shrink-0 dark:border-slate-700" viewBox="0 0 20 20">
         <rect width="20" height="20" fill={value || '#0F172A'} />
       </svg>
       <input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="flex-1 rounded-lg border border-slate-200 px-2.5 py-2 font-mono uppercase"
+        className="flex-1 rounded-lg border border-slate-200 px-2.5 py-2 font-mono uppercase dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
       />
     </div>
   </div>
@@ -2188,25 +2188,25 @@ export const ConfigPortalBrandingView: React.FC<{
 
   return (
     <div className="space-y-4 text-xs">
-      <div className="rounded-xl border border-slate-200 bg-white p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 dark:border-slate-700 dark:bg-slate-900">
         <div className="flex items-center gap-2">
-          <Palette className="w-4 h-4 text-slate-800" />
+          <Palette className="w-4 h-4 text-slate-800 dark:text-slate-100" />
           <div>
-            <div className="font-display text-sm font-bold text-slate-900">
+            <div className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
               Portal &amp; Identidade Visual Corporativa
             </div>
-            <div className="text-slate-500">
+            <div className="text-slate-500 dark:text-slate-400">
               Personalize marca, logotipo, tela de autenticação e superfícies internas.
             </div>
           </div>
         </div>
 
-        <div className="flex gap-1 rounded-lg bg-slate-100 p-1 self-start">
+        <div className="flex gap-1 rounded-lg bg-slate-100 p-1 self-start dark:bg-slate-800">
           <button
             type="button"
             onClick={() => setSubTab('login')}
             className={`rounded-md px-3 py-1.5 font-semibold whitespace-nowrap ${
-              subTab === 'login' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'
+              subTab === 'login' ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-slate-100' : 'text-slate-600 dark:text-slate-300'
             }`}
           >
             Login &amp; Identidade
@@ -2215,7 +2215,7 @@ export const ConfigPortalBrandingView: React.FC<{
             type="button"
             onClick={() => setSubTab('dashboard')}
             className={`rounded-md px-3 py-1.5 font-semibold whitespace-nowrap ${
-              subTab === 'dashboard' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'
+              subTab === 'dashboard' ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-slate-100' : 'text-slate-600 dark:text-slate-300'
             }`}
           >
             Layout Interno (Dashboard)
@@ -2223,17 +2223,17 @@ export const ConfigPortalBrandingView: React.FC<{
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-5">
+      <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-5 dark:border-slate-700 dark:bg-slate-900">
         {subTab === 'login' ? (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Nome da Empresa / Marca</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Nome da Empresa / Marca</label>
                 <input
                   type="text"
                   value={draft.companyName}
                   onChange={(e) => setDraft((p) => ({ ...p, companyName: e.target.value }))}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <ColorPickerField
@@ -2249,9 +2249,9 @@ export const ConfigPortalBrandingView: React.FC<{
             </div>
 
             {/* Upload Imediato de Logotipo */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/70">
               <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-xl border border-slate-200 bg-white flex items-center justify-center overflow-hidden shrink-0">
+                <div className="h-12 w-12 rounded-xl border border-slate-200 bg-white flex items-center justify-center overflow-hidden shrink-0 dark:border-slate-700 dark:bg-slate-900">
                   {draft.logoDataUrl ? (
                     <img
                       src={draft.logoDataUrl}
@@ -2260,12 +2260,12 @@ export const ConfigPortalBrandingView: React.FC<{
                       className="h-full w-full object-contain p-1"
                     />
                   ) : (
-                    <span className="font-display font-bold text-slate-400">FP</span>
+                    <span className="font-display font-bold text-slate-400 dark:text-slate-400">FP</span>
                   )}
                 </div>
                 <div>
-                  <div className="font-semibold text-slate-900">Logotipo Institucional (Salvo Imediatamente)</div>
-                  <div className="text-[11px] text-slate-500">
+                  <div className="font-semibold text-slate-900 dark:text-slate-100">Logotipo Institucional (Salvo Imediatamente)</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">
                     Exibido na barra superior e na tela de login corporativo.
                   </div>
                 </div>
@@ -2273,7 +2273,7 @@ export const ConfigPortalBrandingView: React.FC<{
 
               {isAdmin && (
                 <div className="flex items-center gap-2">
-                  <label className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-800 hover:bg-slate-100 cursor-pointer whitespace-nowrap">
+                  <label className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-800 hover:bg-slate-100 cursor-pointer whitespace-nowrap dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800">
                     <Upload className="w-3.5 h-3.5" />
                     Enviar Logotipo
                     <input
@@ -2291,7 +2291,7 @@ export const ConfigPortalBrandingView: React.FC<{
                         setDraft(next);
                         persistBranding(next, 'Logotipo removido imediatamente.');
                       }}
-                      className="rounded-lg border border-red-200 bg-white px-3 py-1.5 font-semibold text-red-700 hover:bg-red-50 whitespace-nowrap"
+                      className="rounded-lg border border-red-200 bg-white px-3 py-1.5 font-semibold text-red-700 hover:bg-red-50 whitespace-nowrap dark:border-red-800/70 dark:bg-slate-900 dark:text-red-300 dark:hover:bg-red-950/60"
                     >
                       Remover
                     </button>
@@ -2302,21 +2302,21 @@ export const ConfigPortalBrandingView: React.FC<{
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">
-                <label className="block font-semibold text-slate-700 mb-1">Título Principal da Tela de Login</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Título Principal da Tela de Login</label>
                 <input
                   type="text"
                   value={draft.marketingHeadline}
                   onChange={(e) => setDraft((p) => ({ ...p, marketingHeadline: e.target.value }))}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className="block font-semibold text-slate-700 mb-1">Texto Institucional da Tela de Login</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Texto Institucional da Tela de Login</label>
                 <textarea
                   rows={2}
                   value={draft.marketingDescription}
                   onChange={(e) => setDraft((p) => ({ ...p, marketingDescription: e.target.value }))}
-                  className="w-full rounded-lg border border-slate-200 p-2.5"
+                  className="w-full rounded-lg border border-slate-200 p-2.5 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <ColorPickerField
@@ -2372,11 +2372,11 @@ export const ConfigPortalBrandingView: React.FC<{
         )}
 
         {isAdmin && (
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
             <button
               type="button"
               onClick={restoreSectionDefaults}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3.5 py-2 font-semibold text-slate-700 hover:bg-slate-50"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3.5 py-2 font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               Restaurar Padrão da Seção
@@ -2387,7 +2387,7 @@ export const ConfigPortalBrandingView: React.FC<{
                 type="button"
                 disabled={!isDirty || saving}
                 onClick={() => setCancelConfirmOpen(true)}
-                className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 Cancelar
               </button>
@@ -2395,7 +2395,7 @@ export const ConfigPortalBrandingView: React.FC<{
                 type="button"
                 disabled={saving}
                 onClick={() => persistBranding(draft, 'Identidade visual salva e registrada em auditoria.')}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
               >
                 <Check className="w-3.5 h-3.5" />
                 {saving ? 'Salvando...' : 'Salvar Identidade Visual'}
@@ -2407,19 +2407,19 @@ export const ConfigPortalBrandingView: React.FC<{
 
       {/* Confirmação de Descarte de Alterações */}
       {cancelConfirmOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs">
-            <h3 className="font-display text-sm font-bold text-slate-900">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs dark:border-slate-700 dark:bg-slate-900">
+            <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
               Descartar alterações não salvas?
             </h3>
-            <p className="text-slate-600">
+            <p className="text-slate-600 dark:text-slate-300">
               As edições realizadas nos campos de cores e textos serão revertidas para a última versão salva.
             </p>
-            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
+            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
               <button
                 type="button"
                 onClick={() => setCancelConfirmOpen(false)}
-                className="rounded-lg border border-slate-200 px-3.5 py-2 font-semibold text-slate-700"
+                className="rounded-lg border border-slate-200 px-3.5 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
               >
                 Continuar Editando
               </button>

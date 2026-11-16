@@ -338,29 +338,29 @@ export const CollaboratorRankingTables: React.FC<CollaboratorRankingTablesProps>
   return (
     <div className="space-y-4">
       {/* Barra de Filtro do Ranking */}
-      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 dark:border-slate-700 dark:bg-slate-900">
         <div>
-          <h2 className="font-display text-sm font-bold text-slate-900">
+          <h2 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
             Ranking dos Colaboradores de Cobrança
           </h2>
-          <p className="text-xs text-slate-500 font-mono tabular-nums mt-0.5">
+          <p className="text-xs text-slate-500 font-mono tabular-nums mt-0.5 dark:text-slate-400">
             {totalClosures} recuperação(ões) com fechamento · {formatBRL(totalRecoveredCents)} recuperados no recorte
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2" />
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2 dark:text-slate-400" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Filtrar colaborador..."
-              className="w-44 sm:w-52 rounded-lg border border-slate-200 bg-slate-50/50 pl-8 pr-3 py-1.5 text-xs text-slate-900 focus:border-slate-400 focus:bg-white focus:outline-none"
+              className="w-44 sm:w-52 rounded-lg border border-slate-200 bg-slate-50/50 pl-8 pr-3 py-1.5 text-xs text-slate-900 focus:border-slate-400 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-100 dark:focus:bg-slate-900"
             />
           </div>
 
-          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg border border-slate-200">
+          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg border border-slate-200 dark:bg-slate-800 dark:border-slate-700">
             {(
               [
                 { id: 'all', label: 'Todo Período' },
@@ -374,8 +374,8 @@ export const CollaboratorRankingTables: React.FC<CollaboratorRankingTablesProps>
                 onClick={() => setPeriod(opt.id)}
                 className={`px-2.5 py-1 text-xs font-medium rounded-md whitespace-nowrap shrink-0 transition-colors ${
                   period === opt.id
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-slate-100'
+                    : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
                 }`}
               >
                 {opt.label}
@@ -388,27 +388,27 @@ export const CollaboratorRankingTables: React.FC<CollaboratorRankingTablesProps>
       {/* As 2 Tabelas Oficiais de Ranking */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
         {/* TABELA 01: QUANTIDADE DE RECUPERAÇÕES COM FECHAMENTO */}
-        <section className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-2">
+        <section className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
+          <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-2 dark:border-slate-700">
             <div className="flex items-center gap-2 min-w-0">
-              <Trophy className="w-4 h-4 text-amber-600 shrink-0" />
+              <Trophy className="w-4 h-4 text-amber-600 shrink-0 dark:text-amber-400" />
               <div className="min-w-0">
-                <h3 className="font-display text-sm font-bold text-slate-900 truncate">
+                <h3 className="font-display text-sm font-bold text-slate-900 truncate dark:text-slate-100">
                   01. Quantidade de Recuperações com Fechamento
                 </h3>
-                <p className="text-[11px] text-slate-500">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
                   Classificação por volume de quitações, baixas parciais e acordos fechados
                 </p>
               </div>
             </div>
-            <span className="font-mono text-xs font-semibold text-slate-500 tabular-nums shrink-0">
+            <span className="font-mono text-xs font-semibold text-slate-500 tabular-nums shrink-0 dark:text-slate-400">
               {byCount.length} colab.
             </span>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600">
+              <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600 dark:bg-slate-800/70 dark:border-slate-700 dark:text-slate-300">
                 <tr>
                   <th className="py-2.5 px-3 w-12">Pos.</th>
                   <th className="py-2.5 px-3">Colaborador</th>
@@ -417,44 +417,44 @@ export const CollaboratorRankingTables: React.FC<CollaboratorRankingTablesProps>
                   <th className="py-2.5 px-4 text-right whitespace-nowrap">Qtd. Fechamentos</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {byCount.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-10 text-center text-slate-400">
+                    <td colSpan={5} className="py-10 text-center text-slate-400 dark:text-slate-400">
                       Nenhum colaborador encontrado neste filtro.
                     </td>
                   </tr>
                 ) : (
                   byCount.map((row, idx) => (
-                    <tr key={row.key} className="hover:bg-slate-50/70">
-                      <td className="py-2.5 px-3 font-mono font-bold tabular-nums text-slate-500">
-                        <span className={idx < 3 && row.closedRecoveriesCount > 0 ? 'text-slate-900' : 'text-slate-400'}>
+                    <tr key={row.key} className="hover:bg-slate-50/70 dark:hover:bg-slate-800">
+                      <td className="py-2.5 px-3 font-mono font-bold tabular-nums text-slate-500 dark:text-slate-400">
+                        <span className={idx < 3 && row.closedRecoveriesCount > 0 ? 'text-slate-900 dark:text-slate-100' : 'text-slate-400 dark:text-slate-500'}>
                           {idx + 1}º
                         </span>
                       </td>
                       <td className="py-2.5 px-3">
                         <div className="flex items-center gap-1.5">
-                          <span className="font-semibold text-slate-900">{row.name}</span>
+                          <span className="font-semibold text-slate-900 dark:text-slate-100">{row.name}</span>
                           {onMirrorOperator && row.collaboratorId && (
                             <button
                               type="button"
                               onClick={() => onMirrorOperator(row.collaboratorId!)}
                               title={`Espelhar tela de ${row.name}`}
-                              className="p-0.5 rounded text-slate-400 hover:text-slate-900 hover:bg-slate-100"
+                              className="p-0.5 rounded text-slate-400 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800"
                             >
                               <Monitor className="w-3.5 h-3.5" />
                             </button>
                           )}
                         </div>
-                        <div className="text-[11px] text-slate-500">{row.role}</div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">{row.role}</div>
                       </td>
-                      <td className="py-2.5 px-3 text-right font-mono tabular-nums text-slate-700">
+                      <td className="py-2.5 px-3 text-right font-mono tabular-nums text-slate-700 dark:text-slate-200">
                         {row.settledTitlesCount}
                       </td>
-                      <td className="py-2.5 px-3 text-right font-mono tabular-nums text-slate-700">
+                      <td className="py-2.5 px-3 text-right font-mono tabular-nums text-slate-700 dark:text-slate-200">
                         {row.closedAgreementsCount}
                       </td>
-                      <td className="py-2.5 px-4 text-right font-mono tabular-nums font-bold text-slate-900">
+                      <td className="py-2.5 px-4 text-right font-mono tabular-nums font-bold text-slate-900 dark:text-slate-100">
                         {row.closedRecoveriesCount}
                       </td>
                     </tr>
@@ -462,7 +462,7 @@ export const CollaboratorRankingTables: React.FC<CollaboratorRankingTablesProps>
                 )}
               </tbody>
               {byCount.length > 0 && (
-                <tfoot className="bg-slate-50 border-t border-slate-200 text-xs font-bold text-slate-800">
+                <tfoot className="bg-slate-50 border-t border-slate-200 text-xs font-bold text-slate-800 dark:bg-slate-800/70 dark:border-slate-700 dark:text-slate-100">
                   <tr>
                     <td colSpan={2} className="py-2.5 px-3">
                       Total da Equipe
@@ -473,7 +473,7 @@ export const CollaboratorRankingTables: React.FC<CollaboratorRankingTablesProps>
                     <td className="py-2.5 px-3 text-right font-mono tabular-nums">
                       {byCount.reduce((s, r) => s + r.closedAgreementsCount, 0)}
                     </td>
-                    <td className="py-2.5 px-4 text-right font-mono tabular-nums text-slate-900">
+                    <td className="py-2.5 px-4 text-right font-mono tabular-nums text-slate-900 dark:text-slate-100">
                       {totalClosures}
                     </td>
                   </tr>
@@ -484,27 +484,27 @@ export const CollaboratorRankingTables: React.FC<CollaboratorRankingTablesProps>
         </section>
 
         {/* TABELA 02: MAIOR VALOR FINANCEIRO DE RECUPERAÇÃO ALCANÇADO */}
-        <section className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-2">
+        <section className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
+          <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-2 dark:border-slate-700">
             <div className="flex items-center gap-2 min-w-0">
-              <TrendingUp className="w-4 h-4 text-emerald-700 shrink-0" />
+              <TrendingUp className="w-4 h-4 text-emerald-700 shrink-0 dark:text-emerald-300" />
               <div className="min-w-0">
-                <h3 className="font-display text-sm font-bold text-slate-900 truncate">
+                <h3 className="font-display text-sm font-bold text-slate-900 truncate dark:text-slate-100">
                   02. Maior Valor Financeiro de Recuperação Alcançado
                 </h3>
-                <p className="text-[11px] text-slate-500">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
                   Classificação por montante financeiro efetivamente recuperado no período
                 </p>
               </div>
             </div>
-            <span className="font-mono text-xs font-semibold text-emerald-700 tabular-nums shrink-0">
+            <span className="font-mono text-xs font-semibold text-emerald-700 tabular-nums shrink-0 dark:text-emerald-300">
               {formatBRL(totalRecoveredCents)}
             </span>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600">
+              <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600 dark:bg-slate-800/70 dark:border-slate-700 dark:text-slate-300">
                 <tr>
                   <th className="py-2.5 px-3 w-12">Pos.</th>
                   <th className="py-2.5 px-3">Colaborador</th>
@@ -513,44 +513,44 @@ export const CollaboratorRankingTables: React.FC<CollaboratorRankingTablesProps>
                   <th className="py-2.5 px-4 text-right whitespace-nowrap">Valor Recuperado</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {byValue.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-10 text-center text-slate-400">
+                    <td colSpan={5} className="py-10 text-center text-slate-400 dark:text-slate-400">
                       Nenhum colaborador encontrado neste filtro.
                     </td>
                   </tr>
                 ) : (
                   byValue.map((row, idx) => (
-                    <tr key={row.key} className="hover:bg-slate-50/70">
-                      <td className="py-2.5 px-3 font-mono font-bold tabular-nums text-slate-500">
-                        <span className={idx < 3 && row.recoveredCents > 0 ? 'text-slate-900' : 'text-slate-400'}>
+                    <tr key={row.key} className="hover:bg-slate-50/70 dark:hover:bg-slate-800">
+                      <td className="py-2.5 px-3 font-mono font-bold tabular-nums text-slate-500 dark:text-slate-400">
+                        <span className={idx < 3 && row.recoveredCents > 0 ? 'text-slate-900 dark:text-slate-100' : 'text-slate-400 dark:text-slate-500'}>
                           {idx + 1}º
                         </span>
                       </td>
                       <td className="py-2.5 px-3">
                         <div className="flex items-center gap-1.5">
-                          <span className="font-semibold text-slate-900">{row.name}</span>
+                          <span className="font-semibold text-slate-900 dark:text-slate-100">{row.name}</span>
                           {onMirrorOperator && row.collaboratorId && (
                             <button
                               type="button"
                               onClick={() => onMirrorOperator(row.collaboratorId!)}
                               title={`Espelhar tela de ${row.name}`}
-                              className="p-0.5 rounded text-slate-400 hover:text-slate-900 hover:bg-slate-100"
+                              className="p-0.5 rounded text-slate-400 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800"
                             >
                               <Monitor className="w-3.5 h-3.5" />
                             </button>
                           )}
                         </div>
-                        <div className="text-[11px] text-slate-500">{row.role}</div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">{row.role}</div>
                       </td>
-                      <td className="py-2.5 px-3 text-right font-mono tabular-nums text-slate-700">
+                      <td className="py-2.5 px-3 text-right font-mono tabular-nums text-slate-700 dark:text-slate-200">
                         {row.closedRecoveriesCount}
                       </td>
-                      <td className="py-2.5 px-3 text-right font-mono tabular-nums text-slate-600">
+                      <td className="py-2.5 px-3 text-right font-mono tabular-nums text-slate-600 dark:text-slate-300">
                         {formatBRL(row.avgTicketCents)}
                       </td>
-                      <td className="py-2.5 px-4 text-right font-mono tabular-nums font-bold text-emerald-700">
+                      <td className="py-2.5 px-4 text-right font-mono tabular-nums font-bold text-emerald-700 dark:text-emerald-300">
                         {formatBRL(row.recoveredCents)}
                       </td>
                     </tr>
@@ -558,7 +558,7 @@ export const CollaboratorRankingTables: React.FC<CollaboratorRankingTablesProps>
                 )}
               </tbody>
               {byValue.length > 0 && (
-                <tfoot className="bg-slate-50 border-t border-slate-200 text-xs font-bold text-slate-800">
+                <tfoot className="bg-slate-50 border-t border-slate-200 text-xs font-bold text-slate-800 dark:bg-slate-800/70 dark:border-slate-700 dark:text-slate-100">
                   <tr>
                     <td colSpan={2} className="py-2.5 px-3">
                       Total Recuperado
@@ -566,10 +566,10 @@ export const CollaboratorRankingTables: React.FC<CollaboratorRankingTablesProps>
                     <td className="py-2.5 px-3 text-right font-mono tabular-nums">
                       {totalClosures}
                     </td>
-                    <td className="py-2.5 px-3 text-right font-mono tabular-nums text-slate-600">
+                    <td className="py-2.5 px-3 text-right font-mono tabular-nums text-slate-600 dark:text-slate-300">
                       {formatBRL(totalClosures > 0 ? Math.round(totalRecoveredCents / totalClosures) : 0)}
                     </td>
-                    <td className="py-2.5 px-4 text-right font-mono tabular-nums text-emerald-800">
+                    <td className="py-2.5 px-4 text-right font-mono tabular-nums text-emerald-800 dark:text-emerald-300">
                       {formatBRL(totalRecoveredCents)}
                     </td>
                   </tr>

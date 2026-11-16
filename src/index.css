@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 @layer base {
   :root {
@@ -11,6 +12,19 @@
     font-family: var(--font-sans);
     background-color: #F8FAFC;
     color: #0F172A;
+  }
+
+  .dark body {
+    background-color: #020617;
+    color: #F1F5F9;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .dark input,
+  .dark select,
+  .dark textarea {
+    color-scheme: dark;
   }
 
   h1, h2, h3, h4, .font-display {
@@ -26,6 +40,11 @@
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+/* PDF embutido no visualizador segue o tema escuro quando ativo */
+.dark .fp-doc-pdf-themed {
+  filter: invert(0.91) hue-rotate(180deg);
+}
+
 /* Réguas de rolamento horizontais e verticais visíveis em Mobile, Tablets e Desktop */
 .scroll-rulers,
 .overflow-x-auto,
@@ -34,6 +53,13 @@
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   scrollbar-color: #94a3b8 #f1f5f9;
+}
+
+.dark .scroll-rulers,
+.dark .overflow-x-auto,
+.dark .overflow-y-auto,
+.dark .overflow-auto {
+  scrollbar-color: #475569 #0f172a;
 }
 
 .scroll-rulers::-webkit-scrollbar,
@@ -52,6 +78,13 @@
   border-radius: 6px;
 }
 
+.dark .scroll-rulers::-webkit-scrollbar-track,
+.dark .overflow-x-auto::-webkit-scrollbar-track,
+.dark .overflow-y-auto::-webkit-scrollbar-track,
+.dark .overflow-auto::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+
 .scroll-rulers::-webkit-scrollbar-thumb,
 .overflow-x-auto::-webkit-scrollbar-thumb,
 .overflow-y-auto::-webkit-scrollbar-thumb,
@@ -61,6 +94,14 @@
   border: 2px solid #f1f5f9;
 }
 
+.dark .scroll-rulers::-webkit-scrollbar-thumb,
+.dark .overflow-x-auto::-webkit-scrollbar-thumb,
+.dark .overflow-y-auto::-webkit-scrollbar-thumb,
+.dark .overflow-auto::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-color: #0f172a;
+}
+
 .scroll-rulers::-webkit-scrollbar-thumb:hover,
 .overflow-x-auto::-webkit-scrollbar-thumb:hover,
 .overflow-y-auto::-webkit-scrollbar-thumb:hover,
@@ -68,7 +109,19 @@
   background: #64748b;
 }
 
+.dark .scroll-rulers::-webkit-scrollbar-thumb:hover,
+.dark .overflow-x-auto::-webkit-scrollbar-thumb:hover,
+.dark .overflow-y-auto::-webkit-scrollbar-thumb:hover,
+.dark .overflow-auto::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
 .scroll-rulers::-webkit-scrollbar-corner,
 .overflow-auto::-webkit-scrollbar-corner {
   background: #f1f5f9;
+}
+
+.dark .scroll-rulers::-webkit-scrollbar-corner,
+.dark .overflow-auto::-webkit-scrollbar-corner {
+  background: #0f172a;
 }

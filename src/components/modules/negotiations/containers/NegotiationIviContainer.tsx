@@ -61,7 +61,7 @@ export const NegotiationIviContainer: React.FC<NegotiationIviContainerProps> = (
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-slate-800 bg-slate-900 p-4 text-white flex flex-wrap items-center justify-between gap-3">
+      <div className="rounded-xl border border-slate-800 bg-slate-900 p-4 text-white flex flex-wrap items-center justify-between gap-3 dark:bg-emerald-600">
         <div className="flex items-center gap-3">
           <div className="rounded-lg bg-purple-500/20 border border-purple-400/30 p-2">
             <Sparkles className="w-5 h-5 text-purple-300" />
@@ -87,77 +87,77 @@ export const NegotiationIviContainer: React.FC<NegotiationIviContainerProps> = (
       </div>
 
       {!iviAdvisor ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-8 text-center space-y-3">
-          <Sparkles className="w-8 h-8 text-purple-600 mx-auto" />
-          <div className="text-sm font-bold text-slate-800">
+        <div className="rounded-xl border border-slate-200 bg-white p-8 text-center space-y-3 dark:border-slate-700 dark:bg-slate-900">
+          <Sparkles className="w-8 h-8 text-purple-600 mx-auto dark:text-purple-400" />
+          <div className="text-sm font-bold text-slate-800 dark:text-slate-100">
             Gere o Diagnóstico Estratégico da Ivi IA
           </div>
-          <p className="text-xs text-slate-500 max-w-md mx-auto">
+          <p className="text-xs text-slate-500 max-w-md mx-auto dark:text-slate-400">
             A Ivi lê os contatos do banco, conversas de WhatsApp com Cliente e Banco e regras de alçada para sugerir a contraproposta ideal.
           </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           <div className="lg:col-span-7 space-y-4">
-            <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                <h4 className="font-display text-xs font-bold uppercase tracking-wider text-slate-800">
+            <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 dark:border-slate-700 dark:bg-slate-900">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2 dark:border-slate-800">
+                <h4 className="font-display text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-100">
                   Diagnóstico Estratégico & Meta Recomendada
                 </h4>
-                <span className="font-mono text-[10px] text-slate-500">Motor: {iviAdvisor.provider}</span>
+                <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400">Motor: {iviAdvisor.provider}</span>
               </div>
-              <p className="text-xs text-slate-700 leading-relaxed">{iviAdvisor.strategicDiagnosis}</p>
+              <p className="text-xs text-slate-700 leading-relaxed dark:text-slate-200">{iviAdvisor.strategicDiagnosis}</p>
 
-              <div className="grid grid-cols-3 divide-x divide-slate-200 rounded-lg border border-slate-200 bg-slate-50 text-xs font-mono tabular-nums">
+              <div className="grid grid-cols-3 divide-x divide-slate-200 rounded-lg border border-slate-200 bg-slate-50 text-xs font-mono tabular-nums dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-800/70">
                 <div className="p-2.5">
-                  <span className="font-sans text-[10px] text-slate-500 block">Deságio Alvo</span>
-                  <strong className="text-sm text-emerald-700">{iviAdvisor.recommendedDiscountPct}%</strong>
+                  <span className="font-sans text-[10px] text-slate-500 block dark:text-slate-400">Deságio Alvo</span>
+                  <strong className="text-sm text-emerald-700 dark:text-emerald-300">{iviAdvisor.recommendedDiscountPct}%</strong>
                 </div>
                 <div className="p-2.5">
-                  <span className="font-sans text-[10px] text-slate-500 block">Valor Alvo</span>
-                  <strong className="text-sm text-slate-900">
+                  <span className="font-sans text-[10px] text-slate-500 block dark:text-slate-400">Valor Alvo</span>
+                  <strong className="text-sm text-slate-900 dark:text-slate-100">
                     {formatBRL(iviAdvisor.recommendedTargetValueCents)}
                   </strong>
                 </div>
                 <div className="p-2.5">
-                  <span className="font-sans text-[10px] text-slate-500 block">Parcelamento</span>
-                  <strong className="text-sm text-blue-700">Até {iviAdvisor.recommendedInstallments}x</strong>
+                  <span className="font-sans text-[10px] text-slate-500 block dark:text-slate-400">Parcelamento</span>
+                  <strong className="text-sm text-blue-700 dark:text-blue-300">Até {iviAdvisor.recommendedInstallments}x</strong>
                 </div>
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-1.5">
-                <div className="text-[11px] font-bold uppercase text-blue-700 flex items-center gap-1.5">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-1.5 dark:border-slate-700 dark:bg-slate-900">
+                <div className="text-[11px] font-bold uppercase text-blue-700 flex items-center gap-1.5 dark:text-blue-300">
                   <Building2 className="w-3.5 h-3.5" /> Resumo WhatsApp Banco
                 </div>
-                <p className="text-xs text-slate-700 leading-relaxed">{iviAdvisor.summaryBank}</p>
+                <p className="text-xs text-slate-700 leading-relaxed dark:text-slate-200">{iviAdvisor.summaryBank}</p>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-1.5">
-                <div className="text-[11px] font-bold uppercase text-emerald-700 flex items-center gap-1.5">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-1.5 dark:border-slate-700 dark:bg-slate-900">
+                <div className="text-[11px] font-bold uppercase text-emerald-700 flex items-center gap-1.5 dark:text-emerald-300">
                   <User className="w-3.5 h-3.5" /> Resumo WhatsApp Cliente
                 </div>
-                <p className="text-xs text-slate-700 leading-relaxed">{iviAdvisor.summaryClient}</p>
+                <p className="text-xs text-slate-700 leading-relaxed dark:text-slate-200">{iviAdvisor.summaryClient}</p>
               </div>
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-2.5">
-              <h4 className="font-display text-xs font-bold uppercase tracking-wider text-slate-800">
+            <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-2.5 dark:border-slate-700 dark:bg-slate-900">
+              <h4 className="font-display text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-100">
                 Próximas Melhores Ações & Alertas
               </h4>
-              <ul className="space-y-1.5 text-xs text-slate-700">
+              <ul className="space-y-1.5 text-xs text-slate-700 dark:text-slate-200">
                 {iviAdvisor.nextBestActions.map((act, i) => (
                   <li key={i} className="flex items-start gap-2">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5 dark:text-emerald-400" />
                     <span>{act}</span>
                   </li>
                 ))}
               </ul>
               {iviAdvisor.riskAlerts?.length > 0 && (
-                <div className="pt-2 border-t border-slate-100 space-y-1">
+                <div className="pt-2 border-t border-slate-100 space-y-1 dark:border-slate-800">
                   {iviAdvisor.riskAlerts.map((al, i) => (
-                    <div key={i} className="flex items-start gap-1.5 text-xs text-amber-800">
-                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                    <div key={i} className="flex items-start gap-1.5 text-xs text-amber-800 dark:text-amber-300">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5 dark:text-amber-400" />
                       <span>{al}</span>
                     </div>
                   ))}
@@ -167,19 +167,19 @@ export const NegotiationIviContainer: React.FC<NegotiationIviContainerProps> = (
           </div>
 
           <div className="lg:col-span-5 space-y-4">
-            <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
-              <h4 className="font-display text-xs font-bold uppercase tracking-wider text-slate-800">
+            <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 dark:border-slate-700 dark:bg-slate-900">
+              <h4 className="font-display text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-100">
                 Minutas Prontas para WhatsApp
               </h4>
 
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
-                <div className="flex items-center justify-between text-[11px] font-bold text-blue-900">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2 dark:border-slate-700 dark:bg-slate-800/70">
+                <div className="flex items-center justify-between text-[11px] font-bold text-blue-900 dark:text-blue-300">
                   <span>Mensagem para Contato do Banco</span>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => handleCopyText(iviAdvisor.suggestedBankWhatsappDraft, 'Banco')}
-                      className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-700 hover:underline"
+                      className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-700 hover:underline dark:text-blue-300"
                     >
                       {copiedDraft === 'Banco' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                       Copiar
@@ -187,23 +187,23 @@ export const NegotiationIviContainer: React.FC<NegotiationIviContainerProps> = (
                     <button
                       type="button"
                       onClick={() => onUseDraftInWhatsapp('BANCO', iviAdvisor.suggestedBankWhatsappDraft)}
-                      className="text-[10px] font-semibold text-emerald-700 hover:underline"
+                      className="text-[10px] font-semibold text-emerald-700 hover:underline dark:text-emerald-300"
                     >
                       Abrir no Chat →
                     </button>
                   </div>
                 </div>
-                <p className="text-xs text-slate-700 leading-relaxed">{iviAdvisor.suggestedBankWhatsappDraft}</p>
+                <p className="text-xs text-slate-700 leading-relaxed dark:text-slate-200">{iviAdvisor.suggestedBankWhatsappDraft}</p>
               </div>
 
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
-                <div className="flex items-center justify-between text-[11px] font-bold text-emerald-900">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2 dark:border-slate-700 dark:bg-slate-800/70">
+                <div className="flex items-center justify-between text-[11px] font-bold text-emerald-900 dark:text-emerald-300">
                   <span>Mensagem para o Cliente</span>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => handleCopyText(iviAdvisor.suggestedClientWhatsappDraft, 'Cliente')}
-                      className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 hover:underline"
+                      className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 hover:underline dark:text-emerald-300"
                     >
                       {copiedDraft === 'Cliente' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                       Copiar
@@ -211,18 +211,18 @@ export const NegotiationIviContainer: React.FC<NegotiationIviContainerProps> = (
                     <button
                       type="button"
                       onClick={() => onUseDraftInWhatsapp('CLIENTE', iviAdvisor.suggestedClientWhatsappDraft)}
-                      className="text-[10px] font-semibold text-blue-700 hover:underline"
+                      className="text-[10px] font-semibold text-blue-700 hover:underline dark:text-blue-300"
                     >
                       Abrir no Chat →
                     </button>
                   </div>
                 </div>
-                <p className="text-xs text-slate-700 leading-relaxed">{iviAdvisor.suggestedClientWhatsappDraft}</p>
+                <p className="text-xs text-slate-700 leading-relaxed dark:text-slate-200">{iviAdvisor.suggestedClientWhatsappDraft}</p>
               </div>
             </div>
 
-            <form onSubmit={handleAskIvi} className="rounded-xl border border-slate-200 bg-white p-4 space-y-2.5">
-              <h4 className="font-display text-xs font-bold uppercase tracking-wider text-slate-800">
+            <form onSubmit={handleAskIvi} className="rounded-xl border border-slate-200 bg-white p-4 space-y-2.5 dark:border-slate-700 dark:bg-slate-900">
+              <h4 className="font-display text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-100">
                 Perguntar à Assessora Ivi IA
               </h4>
               <div className="flex gap-2">
@@ -231,7 +231,7 @@ export const NegotiationIviContainer: React.FC<NegotiationIviContainerProps> = (
                   value={iviQuestion}
                   onChange={(e) => setIviQuestion(e.target.value)}
                   placeholder="Ex: Qual valor mínimo podemos propor à vista?"
-                  className="flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-xs"
+                  className="flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-xs dark:border-slate-600"
                 />
                 <button
                   type="submit"
@@ -243,7 +243,7 @@ export const NegotiationIviContainer: React.FC<NegotiationIviContainerProps> = (
                 </button>
               </div>
               {iviAnswer && (
-                <div className="rounded-lg border border-purple-200 bg-purple-50/40 p-3 text-xs text-slate-800 leading-relaxed whitespace-pre-wrap">
+                <div className="rounded-lg border border-purple-200 bg-purple-50/40 p-3 text-xs text-slate-800 leading-relaxed whitespace-pre-wrap dark:border-purple-800/70 dark:bg-purple-950/50 dark:text-slate-100">
                   {iviAnswer}
                 </div>
               )}

@@ -460,14 +460,14 @@ export const BankReconciliationManager: React.FC<BankReconciliationManagerProps>
   return (
     <div className="space-y-4">
       {/* Cabeçalho (Seção 9) */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4 dark:border-slate-700 dark:bg-slate-900">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
           <div className="lg:col-span-1">
-            <label className="block font-semibold text-slate-600 mb-1">Conta Corrente *</label>
+            <label className="block font-semibold text-slate-600 mb-1 dark:text-slate-300">Conta Corrente *</label>
             <select
               value={selectedAccountId}
               onChange={(e) => setSelectedAccountId(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 font-semibold text-slate-900"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 font-semibold text-slate-900 dark:border-slate-700 dark:text-slate-100 dark:bg-slate-950"
             >
               <option value="">Selecione...</option>
               {bankAccounts.map((acc) => (
@@ -478,46 +478,46 @@ export const BankReconciliationManager: React.FC<BankReconciliationManagerProps>
             </select>
           </div>
           <div>
-            <label className="block font-semibold text-slate-600 mb-1">Período De</label>
+            <label className="block font-semibold text-slate-600 mb-1 dark:text-slate-300">Período De</label>
             <input
               type="date"
               value={periodFrom}
               onChange={(e) => setPeriodFrom(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-mono"
+              className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             />
           </div>
           <div>
-            <label className="block font-semibold text-slate-600 mb-1">Período Até</label>
+            <label className="block font-semibold text-slate-600 mb-1 dark:text-slate-300">Período Até</label>
             <input
               type="date"
               value={periodTo}
               onChange={(e) => setPeriodTo(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-mono"
+              className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             />
           </div>
           <div>
-            <label className="block font-semibold text-slate-600 mb-1">Data Conciliação</label>
+            <label className="block font-semibold text-slate-600 mb-1 dark:text-slate-300">Data Conciliação</label>
             <input
               type="date"
               value={reconciliationDate}
               onChange={(e) => setReconciliationDate(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-mono"
+              className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             />
           </div>
           <div>
-            <label className="block font-semibold text-slate-600 mb-1">Data Compensação</label>
+            <label className="block font-semibold text-slate-600 mb-1 dark:text-slate-300">Data Compensação</label>
             <input
               type="date"
               value={compensationDate}
               onChange={(e) => setCompensationDate(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-mono"
+              className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             />
           </div>
         </div>
 
         {/* Barra de Operações (Seção 10) */}
         {selectedAccount && (
-          <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+          <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 dark:border-slate-800">
             <div className="flex flex-wrap items-center gap-2">
               <input
                 ref={fileInputRef}
@@ -529,7 +529,7 @@ export const BankReconciliationManager: React.FC<BankReconciliationManagerProps>
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
               >
                 <Upload className="w-3.5 h-3.5 text-emerald-400" />
                 Importar Extrato
@@ -537,15 +537,15 @@ export const BankReconciliationManager: React.FC<BankReconciliationManagerProps>
               <button
                 type="button"
                 onClick={openNewEntryModal}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Novo Lançamento
               </button>
 
               {importedFileName && (
-                <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1.5 text-[11px] font-mono text-slate-700">
-                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-700" />
+                <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1.5 text-[11px] font-mono text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-300" />
                   {importedFileName} · {statementRows.length} linha(s)
                 </span>
               )}
@@ -554,7 +554,7 @@ export const BankReconciliationManager: React.FC<BankReconciliationManagerProps>
                 <button
                   type="button"
                   onClick={handleClearStatement}
-                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
                   <Eraser className="w-3.5 h-3.5" />
                   Limpar
@@ -567,7 +567,7 @@ export const BankReconciliationManager: React.FC<BankReconciliationManagerProps>
                 type="button"
                 disabled={busy || statementRows.length === 0 || filteredMovements.length === 0}
                 onClick={handleAutoReconcile}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3.5 py-2 text-xs font-semibold text-blue-800 hover:bg-blue-100 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3.5 py-2 text-xs font-semibold text-blue-800 hover:bg-blue-100 disabled:opacity-50 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300 dark:hover:bg-blue-900/60"
               >
                 <Sparkles className="w-3.5 h-3.5" />
                 Auto-Conciliar
@@ -587,7 +587,7 @@ export const BankReconciliationManager: React.FC<BankReconciliationManagerProps>
       </div>
 
       {toast && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-medium text-emerald-900 flex items-center justify-between">
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-medium text-emerald-900 flex items-center justify-between dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300">
           <span>{toast}</span>
           <button type="button" onClick={() => setToast('')}>
             <X className="w-3.5 h-3.5" />
@@ -596,7 +596,7 @@ export const BankReconciliationManager: React.FC<BankReconciliationManagerProps>
       )}
 
       {errorMsg && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-900 flex items-center justify-between">
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-900 flex items-center justify-between dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
           <span>{errorMsg}</span>
           <button type="button" onClick={() => setErrorMsg('')}>
             <X className="w-3.5 h-3.5" />
@@ -606,28 +606,28 @@ export const BankReconciliationManager: React.FC<BankReconciliationManagerProps>
 
       {/* Estado Inicial vs Duas Grades (Seções 9 & 12) */}
       {!selectedAccount ? (
-        <div className="rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center">
-          <FileSpreadsheet className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-          <div className="font-display text-sm font-bold text-slate-800">
+        <div className="rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-600 dark:bg-slate-900">
+          <FileSpreadsheet className="w-8 h-8 text-slate-400 mx-auto mb-2 dark:text-slate-400" />
+          <div className="font-display text-sm font-bold text-slate-800 dark:text-slate-100">
             Selecione uma Conta Corrente
           </div>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-slate-500 mt-1 dark:text-slate-400">
             Escolha a conta corrente no cabeçalho acima para importar extratos OFX/XLSX e conciliar com os movimentos do sistema.
           </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           {/* LADO ESQUERDO: EXTRATO BANCÁRIO (Seção 12.1) */}
-          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden flex flex-col">
-            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden flex flex-col dark:border-slate-700 dark:bg-slate-900">
+            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/70 dark:border-slate-800 dark:bg-slate-800/60">
               <div>
-                <h3 className="font-display text-xs font-bold text-slate-900">
+                <h3 className="font-display text-xs font-bold text-slate-900 dark:text-slate-100">
                   Extrato Bancário ({filteredStatement.length})
                 </h3>
-                <p className="text-[10px] text-slate-500">Linhas locais importadas (.OFX / .XLSX)</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">Linhas locais importadas (.OFX / .XLSX)</p>
               </div>
               {pendingStatementRows.length > 0 && (
-                <label className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 cursor-pointer">
+                <label className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 cursor-pointer dark:text-slate-300">
                   <input
                     type="checkbox"
                     checked={allPendingStmtSelected}
@@ -640,7 +640,7 @@ export const BankReconciliationManager: React.FC<BankReconciliationManagerProps>
 
             <div className="overflow-x-auto max-h-[440px] overflow-y-auto scroll-rulers flex-1">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-[11px] font-semibold text-slate-500 border-b border-slate-200 sticky top-0">
+                <thead className="bg-slate-50 text-[11px] font-semibold text-slate-500 border-b border-slate-200 sticky top-0 dark:bg-slate-800/70 dark:text-slate-400 dark:border-slate-700">
                   <tr>
                     <th className="px-3 py-2.5 w-8">
                       <input
@@ -657,16 +657,16 @@ export const BankReconciliationManager: React.FC<BankReconciliationManagerProps>
                     <th className="px-3 py-2.5">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {statementRows.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-10 text-center text-slate-500">
+                      <td colSpan={6} className="py-10 text-center text-slate-500 dark:text-slate-400">
                         Importe um arquivo OFX ou XLSX clicando em <strong>Importar Extrato</strong>.
                       </td>
                     </tr>
                   ) : filteredStatement.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-10 text-center text-slate-500">
+                      <td colSpan={6} className="py-10 text-center text-slate-500 dark:text-slate-400">
                         Nenhuma linha do extrato encontrada para o período informado.
                       </td>
                     </tr>
@@ -674,14 +674,14 @@ export const BankReconciliationManager: React.FC<BankReconciliationManagerProps>
                     filteredStatement.map((row) => {
                       const checked = selectedStatementIds.includes(row.localId);
                       return (
-                        <tr key={row.localId} className="hover:bg-slate-50">
+                        <tr key={row.localId} className="hover:bg-slate-50 dark:hover:bg-slate-800">
                           <td className="px-3 py-2.5">
                             {row.matched ? (
                               <button
                                 type="button"
                                 onClick={() => handleUnreconcileStatementRow(row.localId)}
                                 title="Desconciliar linha do extrato"
-                                className="text-emerald-600 hover:text-emerald-800"
+                                className="text-emerald-600 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-200"
                               >
                                 <CheckCircle2 className="w-4 h-4" />
                               </button>
@@ -699,30 +699,30 @@ export const BankReconciliationManager: React.FC<BankReconciliationManagerProps>
                               />
                             )}
                           </td>
-                          <td className="px-3 py-2.5 font-mono text-slate-600 whitespace-nowrap">
+                          <td className="px-3 py-2.5 font-mono text-slate-600 whitespace-nowrap dark:text-slate-300">
                             {formatIsoDateToBR(row.date)}
                           </td>
-                          <td className="px-3 py-2.5 text-slate-900 max-w-[180px] truncate" title={row.description}>
+                          <td className="px-3 py-2.5 text-slate-900 max-w-[180px] truncate dark:text-slate-100" title={row.description}>
                             {row.description}
                           </td>
                           <td
                             className={`px-3 py-2.5 font-mono font-bold text-right tabular-nums whitespace-nowrap ${
-                              row.type === 'CREDITO' ? 'text-emerald-700' : 'text-red-600'
+                              row.type === 'CREDITO' ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-600 dark:text-red-400'
                             }`}
                           >
                             {row.type === 'CREDITO'
                               ? formatBRL(row.amountCents)
                               : formatSignedBRL(-row.amountCents)}
                           </td>
-                          <td className="px-2 py-2.5 text-center font-mono font-bold text-slate-600">
+                          <td className="px-2 py-2.5 text-center font-mono font-bold text-slate-600 dark:text-slate-300">
                             {row.type === 'CREDITO' ? 'C' : 'D'}
                           </td>
                           <td className="px-3 py-2.5 whitespace-nowrap">
                             <span
                               className={`inline-block rounded px-2 py-0.5 text-[10px] font-bold ${
                                 row.matched
-                                  ? 'bg-emerald-100 text-emerald-800'
-                                  : 'bg-amber-100 text-amber-800'
+                                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300'
+                                  : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300'
                               }`}
                             >
                               {row.matched ? 'Conciliado' : 'Pendente'}
@@ -737,28 +737,28 @@ export const BankReconciliationManager: React.FC<BankReconciliationManagerProps>
             </div>
 
             {/* Totais Extrato (Seção 12.3) */}
-            <div className="bg-slate-50 border-t border-slate-200 p-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+            <div className="bg-slate-50 border-t border-slate-200 p-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] dark:bg-slate-800/70 dark:border-slate-700">
               <div>
-                <div className="text-slate-500">Entradas</div>
-                <div className="font-mono font-bold text-emerald-700">
+                <div className="text-slate-500 dark:text-slate-400">Entradas</div>
+                <div className="font-mono font-bold text-emerald-700 dark:text-emerald-300">
                   {formatBRL(statementTotals.entries)}
                 </div>
               </div>
               <div>
-                <div className="text-slate-500">Saídas</div>
-                <div className="font-mono font-bold text-red-600">
+                <div className="text-slate-500 dark:text-slate-400">Saídas</div>
+                <div className="font-mono font-bold text-red-600 dark:text-red-400">
                   {formatSignedBRL(-statementTotals.exits)}
                 </div>
               </div>
               <div>
-                <div className="text-slate-500">Saldo Movimentado</div>
-                <div className="font-mono font-bold text-slate-900">
+                <div className="text-slate-500 dark:text-slate-400">Saldo Movimentado</div>
+                <div className="font-mono font-bold text-slate-900 dark:text-slate-100">
                   {formatSignedBRL(statementTotals.movedBalance)}
                 </div>
               </div>
               <div>
-                <div className="text-slate-500">Saldo Conciliado</div>
-                <div className="font-mono font-bold text-emerald-800">
+                <div className="text-slate-500 dark:text-slate-400">Saldo Conciliado</div>
+                <div className="font-mono font-bold text-emerald-800 dark:text-emerald-300">
                   {formatSignedBRL(statementTotals.reconciledBalance)}
                 </div>
               </div>
@@ -766,18 +766,18 @@ export const BankReconciliationManager: React.FC<BankReconciliationManagerProps>
           </div>
 
           {/* LADO DIREITO: MOVIMENTOS DO SISTEMA (Seção 12.2) */}
-          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden flex flex-col">
-            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden flex flex-col dark:border-slate-700 dark:bg-slate-900">
+            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/70 dark:border-slate-800 dark:bg-slate-800/60">
               <div>
-                <h3 className="font-display text-xs font-bold text-slate-900">
+                <h3 className="font-display text-xs font-bold text-slate-900 dark:text-slate-100">
                   Movimentos do Sistema ({filteredMovements.length})
                 </h3>
-                <p className="text-[10px] text-slate-500">
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">
                   Duplo clique na linha para editar lançamento não vinculado
                 </p>
               </div>
               {pendingSystemMovements.length > 0 && (
-                <label className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 cursor-pointer">
+                <label className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 cursor-pointer dark:text-slate-300">
                   <input
                     type="checkbox"
                     checked={allPendingSysSelected}
@@ -790,7 +790,7 @@ export const BankReconciliationManager: React.FC<BankReconciliationManagerProps>
 
             <div className="overflow-x-auto max-h-[440px] overflow-y-auto scroll-rulers flex-1">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-[11px] font-semibold text-slate-500 border-b border-slate-200 sticky top-0">
+                <thead className="bg-slate-50 text-[11px] font-semibold text-slate-500 border-b border-slate-200 sticky top-0 dark:bg-slate-800/70 dark:text-slate-400 dark:border-slate-700">
                   <tr>
                     <th className="px-3 py-2.5 w-8">
                       <input
@@ -807,10 +807,10 @@ export const BankReconciliationManager: React.FC<BankReconciliationManagerProps>
                     <th className="px-3 py-2.5">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {filteredMovements.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-10 text-center text-slate-500">
+                      <td colSpan={6} className="py-10 text-center text-slate-500 dark:text-slate-400">
                         Nenhum movimento registrado para esta conta/período.
                       </td>
                     </tr>
@@ -821,7 +821,7 @@ export const BankReconciliationManager: React.FC<BankReconciliationManagerProps>
                         <tr
                           key={mov.id}
                           onDoubleClick={() => handleRowDoubleClick(mov)}
-                          className="hover:bg-slate-50 cursor-pointer"
+                          className="hover:bg-slate-50 cursor-pointer dark:hover:bg-slate-800"
                         >
                           <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
                             {mov.reconciled ? (
@@ -829,7 +829,7 @@ export const BankReconciliationManager: React.FC<BankReconciliationManagerProps>
                                 type="button"
                                 onClick={() => handleUnreconcileMovement(mov.id)}
                                 title="Desconciliar movimento do sistema"
-                                className="text-emerald-600 hover:text-emerald-800"
+                                className="text-emerald-600 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-200"
                               >
                                 <CheckCircle2 className="w-4 h-4" />
                               </button>
@@ -847,36 +847,36 @@ export const BankReconciliationManager: React.FC<BankReconciliationManagerProps>
                               />
                             )}
                           </td>
-                          <td className="px-3 py-2.5 font-mono text-slate-600 whitespace-nowrap">
+                          <td className="px-3 py-2.5 font-mono text-slate-600 whitespace-nowrap dark:text-slate-300">
                             {formatIsoDateToBR(mov.isoDate)}
                           </td>
-                          <td className="px-3 py-2.5 text-slate-900 max-w-[180px] truncate" title={mov.description}>
+                          <td className="px-3 py-2.5 text-slate-900 max-w-[180px] truncate dark:text-slate-100" title={mov.description}>
                             {mov.description}
                           </td>
                           <td
                             className={`px-3 py-2.5 font-mono font-bold text-right tabular-nums whitespace-nowrap ${
-                              mov.normType === 'CREDITO' ? 'text-emerald-700' : 'text-red-600'
+                              mov.normType === 'CREDITO' ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-600 dark:text-red-400'
                             }`}
                           >
                             {mov.normType === 'CREDITO'
                               ? formatBRL(mov.amountCents)
                               : formatSignedBRL(-mov.amountCents)}
                           </td>
-                          <td className="px-2 py-2.5 text-center font-mono font-bold text-slate-600">
+                          <td className="px-2 py-2.5 text-center font-mono font-bold text-slate-600 dark:text-slate-300">
                             {mov.normType === 'CREDITO' ? 'C' : 'D'}
                           </td>
                           <td className="px-3 py-2.5 whitespace-nowrap">
                             <span
                               className={`inline-block rounded px-2 py-0.5 text-[10px] font-bold ${
                                 mov.reconciled
-                                  ? 'bg-emerald-100 text-emerald-800'
-                                  : 'bg-amber-100 text-amber-800'
+                                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300'
+                                  : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300'
                               }`}
                             >
                               {mov.reconciled ? 'Conciliado' : 'Pendente'}
                             </span>
                             {mov.reconciled && mov.reconciliationDate && (
-                              <div className="text-[10px] font-mono text-slate-400 mt-0.5">
+                              <div className="text-[10px] font-mono text-slate-400 mt-0.5 dark:text-slate-400">
                                 {formatIsoDateToBR(mov.reconciliationDate)}
                               </div>
                             )}
@@ -890,28 +890,28 @@ export const BankReconciliationManager: React.FC<BankReconciliationManagerProps>
             </div>
 
             {/* Totais Sistema (Seção 12.3) */}
-            <div className="bg-slate-50 border-t border-slate-200 p-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+            <div className="bg-slate-50 border-t border-slate-200 p-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] dark:bg-slate-800/70 dark:border-slate-700">
               <div>
-                <div className="text-slate-500">Entradas</div>
-                <div className="font-mono font-bold text-emerald-700">
+                <div className="text-slate-500 dark:text-slate-400">Entradas</div>
+                <div className="font-mono font-bold text-emerald-700 dark:text-emerald-300">
                   {formatBRL(systemTotals.entries)}
                 </div>
               </div>
               <div>
-                <div className="text-slate-500">Saídas</div>
-                <div className="font-mono font-bold text-red-600">
+                <div className="text-slate-500 dark:text-slate-400">Saídas</div>
+                <div className="font-mono font-bold text-red-600 dark:text-red-400">
                   {formatSignedBRL(-systemTotals.exits)}
                 </div>
               </div>
               <div>
-                <div className="text-slate-500">Saldo Movimentado</div>
-                <div className="font-mono font-bold text-slate-900">
+                <div className="text-slate-500 dark:text-slate-400">Saldo Movimentado</div>
+                <div className="font-mono font-bold text-slate-900 dark:text-slate-100">
                   {formatSignedBRL(systemTotals.movedBalance)}
                 </div>
               </div>
               <div>
-                <div className="text-slate-500">Saldo Conciliado</div>
-                <div className="font-mono font-bold text-emerald-800">
+                <div className="text-slate-500 dark:text-slate-400">Saldo Conciliado</div>
+                <div className="font-mono font-bold text-emerald-800 dark:text-emerald-300">
                   {formatSignedBRL(systemTotals.reconciledBalance)}
                 </div>
               </div>
@@ -922,17 +922,17 @@ export const BankReconciliationManager: React.FC<BankReconciliationManagerProps>
 
       {/* ================= MODAL NOVO / EDITAR LANÇAMENTO NA CONCILIAÇÃO (Seção 16) ================= */}
       {entryModalOpen && selectedAccount && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs">
-            <div className="border-b border-slate-100 pb-3">
-              <h3 className="font-display text-base font-bold text-slate-900">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 dark:bg-slate-950/80">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs dark:border-slate-700 dark:bg-slate-900">
+            <div className="border-b border-slate-100 pb-3 dark:border-slate-800">
+              <h3 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
                 {editingMovement ? 'Editar Lançamento' : 'Novo Lançamento'}
               </h3>
-              <p className="text-[11px] text-slate-500 mt-0.5">{formatAccountLabel(selectedAccount)}</p>
+              <p className="text-[11px] text-slate-500 mt-0.5 dark:text-slate-400">{formatAccountLabel(selectedAccount)}</p>
             </div>
 
             {entryError && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 font-medium">
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 font-medium dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
                 {entryError}
               </div>
             )}
@@ -940,24 +940,24 @@ export const BankReconciliationManager: React.FC<BankReconciliationManagerProps>
             <form onSubmit={handleSaveEntry} className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Data *</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Data *</label>
                   <input
                     type="date"
                     required
                     value={entryDate}
                     onChange={(e) => setEntryDate(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Tipo *</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Tipo *</label>
                   <select
                     value={entryType}
                     onChange={(e) => {
                       setEntryType(e.target.value as 'DEBITO' | 'CREDITO');
                       setEntryCategoryId('');
                     }}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-semibold"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-semibold dark:border-slate-700"
                   >
                     <option value="DEBITO">Saída (Débito)</option>
                     <option value="CREDITO">Entrada (Crédito)</option>
@@ -967,57 +967,57 @@ export const BankReconciliationManager: React.FC<BankReconciliationManagerProps>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Valor *</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Valor *</label>
                   <input
                     type="text"
                     required
                     value={entryAmountMask}
                     onChange={(e) => setEntryAmountMask(formatCurrencyTyping(e.target.value))}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono font-bold text-right"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono font-bold text-right dark:border-slate-700"
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Nº Documento</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Nº Documento</label>
                   <input
                     type="text"
                     value={entryDoc}
                     onChange={(e) => setEntryDoc(e.target.value)}
                     placeholder="Opcional"
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Descrição *</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Descrição *</label>
                 <input
                   type="text"
                   required
                   value={entryDesc}
                   onChange={(e) => setEntryDesc(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Status</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Status</label>
                   <select
                     value={entryStatus}
                     onChange={(e) => setEntryStatus(e.target.value as 'PENDENTE' | 'CONCILIADO')}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   >
                     <option value="PENDENTE">Pendente</option>
                     <option value="CONCILIADO">Conciliado</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Categoria *</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Categoria *</label>
                   <select
                     required
                     value={entryCategoryId}
                     onChange={(e) => setEntryCategoryId(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   >
                     <option value="">Selecione...</option>
                     {entryCategoriesList.map((cat) => (
@@ -1029,12 +1029,12 @@ export const BankReconciliationManager: React.FC<BankReconciliationManagerProps>
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
                   disabled={entryBusy}
                   onClick={() => setEntryModalOpen(false)}
-                  className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700"
+                  className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
                 >
                   Cancelar
                 </button>

@@ -85,12 +85,12 @@ const ACTION_TYPE_LABELS: Record<string, string> = {
 };
 
 const PROCESS_STATUS_META: Record<string, { label: string; toneClass: string }> = {
-  alerta_movimentacao: { label: 'Movimentação Nova', toneClass: 'text-red-700 font-semibold' },
-  apreendido: { label: 'Veículo Apreendido', toneClass: 'text-red-700 font-bold' },
-  em_acompanhamento: { label: 'Em Acompanhamento', toneClass: 'text-blue-700 font-semibold' },
-  revertido: { label: 'Revertido', toneClass: 'text-emerald-700 font-semibold' },
-  suspenso: { label: 'Suspenso (Cobrança)', toneClass: 'text-amber-800 font-semibold' },
-  cancelado: { label: 'Cancelado (Contrato)', toneClass: 'text-red-800 font-semibold' },
+  alerta_movimentacao: { label: 'Movimentação Nova', toneClass: 'text-red-700 font-semibold dark:text-red-300' },
+  apreendido: { label: 'Veículo Apreendido', toneClass: 'text-red-700 font-bold dark:text-red-300' },
+  em_acompanhamento: { label: 'Em Acompanhamento', toneClass: 'text-blue-700 font-semibold dark:text-blue-300' },
+  revertido: { label: 'Revertido', toneClass: 'text-emerald-700 font-semibold dark:text-emerald-300' },
+  suspenso: { label: 'Suspenso (Cobrança)', toneClass: 'text-amber-800 font-semibold dark:text-amber-200' },
+  cancelado: { label: 'Cancelado (Contrato)', toneClass: 'text-red-800 font-semibold dark:text-red-200' },
 };
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -717,12 +717,12 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b border-slate-200 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b border-slate-200 pb-4 dark:border-slate-700">
         <div>
-          <p className="text-xs font-medium text-slate-500">
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
             Webhook Escavador · Tradução Jurídica Ivi PT-BR · Integração Automática com Cobrança
           </p>
-          <h1 className="mt-1 font-display text-2xl font-bold text-slate-900">
+          <h1 className="mt-1 font-display text-2xl font-bold text-slate-900 dark:text-slate-100">
             Setor Jurídico &amp; Escavador
           </h1>
         </div>
@@ -732,7 +732,7 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
             <button
               type="button"
               onClick={handleCloseAnalyzedProcess}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap min-h-[38px]"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap min-h-[38px] dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
             >
               <X className="w-3.5 h-3.5" />
               Fechar Processo Analisado
@@ -748,7 +748,7 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                   : 'Ivi retirou este CPF/CNPJ do Escavador porque o cliente está suspenso ou cancelado'
               }
               onClick={() => setDispatchModalOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-45 disabled:cursor-not-allowed whitespace-nowrap min-h-[38px]"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-45 disabled:cursor-not-allowed whitespace-nowrap min-h-[38px] dark:bg-emerald-600 dark:hover:bg-emerald-500"
             >
               <Plus className="w-3.5 h-3.5 text-emerald-400" />
               Registrar Despacho Escavador
@@ -779,14 +779,14 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
       {feedbackMsg && (
         <div
           role="status"
-          className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-medium text-emerald-900 flex items-center justify-between gap-2"
+          className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-medium text-emerald-900 flex items-center justify-between gap-2 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300"
         >
           <span>{feedbackMsg}</span>
           <button
             type="button"
             onClick={() => setFeedbackMsg('')}
             aria-label="Dispensar aviso"
-            className="text-emerald-700 hover:text-emerald-900"
+            className="text-emerald-700 hover:text-emerald-900 dark:text-emerald-300 dark:hover:text-emerald-200"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -795,14 +795,14 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
       {errorMsg && (
         <div
           role="alert"
-          className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-900 flex items-center justify-between gap-2"
+          className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-900 flex items-center justify-between gap-2 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300"
         >
           <span>{errorMsg}</span>
           <button
             type="button"
             onClick={() => setErrorMsg('')}
             aria-label="Dispensar erro"
-            className="text-red-700 hover:text-red-900"
+            className="text-red-700 hover:text-red-900 dark:text-red-300 dark:hover:text-red-200"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -811,40 +811,40 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
 
       {/* SLA, Escavador & Risk KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5">
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="text-[11px] font-medium text-slate-500">Processos no Grid</div>
-          <div className="mt-1 font-mono text-2xl font-bold text-slate-900 tabular-nums">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Processos no Grid</div>
+          <div className="mt-1 font-mono text-2xl font-bold text-slate-900 tabular-nums dark:text-slate-100">
             {slaStats.total}
           </div>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="text-[11px] font-medium text-slate-500">Varredura Escavador (Ivi)</div>
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Varredura Escavador (Ivi)</div>
           <div className="mt-1 flex items-baseline gap-2">
-            <span className="font-mono text-2xl font-bold text-emerald-700 tabular-nums">
+            <span className="font-mono text-2xl font-bold text-emerald-700 tabular-nums dark:text-emerald-300">
               {slaStats.escavadorActiveCount}
             </span>
-            <span className="text-[11px] font-medium text-slate-500 tabular-nums">
+            <span className="text-[11px] font-medium text-slate-500 tabular-nums dark:text-slate-400">
               {slaStats.escavadorPausedCount > 0
                 ? `(${slaStats.escavadorPausedCount} retirado${slaStats.escavadorPausedCount > 1 ? 's' : ''})`
                 : 'ativos'}
             </span>
           </div>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="text-[11px] font-medium text-slate-500">Com Busca e Apreensão</div>
-          <div className="mt-1 font-mono text-2xl font-bold text-amber-700 tabular-nums">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Com Busca e Apreensão</div>
+          <div className="mt-1 font-mono text-2xl font-bold text-amber-700 tabular-nums dark:text-amber-300">
             {slaStats.searchSeizure}
           </div>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="text-[11px] font-medium text-slate-500">Veículos Apreendidos</div>
-          <div className="mt-1 font-mono text-2xl font-bold text-red-600 tabular-nums">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Veículos Apreendidos</div>
+          <div className="mt-1 font-mono text-2xl font-bold text-red-600 tabular-nums dark:text-red-400">
             {slaStats.seized}
           </div>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="text-[11px] font-medium text-slate-500">SLA Leitura / Retorno</div>
-          <div className="mt-1 font-mono text-2xl font-bold text-blue-700 tabular-nums">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">SLA Leitura / Retorno</div>
+          <div className="mt-1 font-mono text-2xl font-bold text-blue-700 tabular-nums dark:text-blue-300">
             {slaStats.avgOpenToReadMin}m / {slaStats.avgReadToContactMin}m
           </div>
         </div>
@@ -853,15 +853,15 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
       {/* DATA GRID OF LEGAL PROCESSES (Double-click row to open) */}
       <section
         aria-label="Grid de Processos Jurídicos e Escavador"
-        className="rounded-xl border border-slate-200 bg-white overflow-hidden"
+        className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900"
       >
-        <div className="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div className="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs dark:border-slate-700">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-bold text-slate-900">
+            <span className="font-bold text-slate-900 dark:text-slate-100">
               Data Grid · Processos Jurídicos ({filteredProcesses.length})
             </span>
             <span className="text-slate-300">·</span>
-            <span className="text-slate-500">
+            <span className="text-slate-500 dark:text-slate-400">
               Dê dois cliques na linha do processo para abrir a análise
             </span>
           </div>
@@ -871,7 +871,7 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
               <button
                 type="button"
                 onClick={handleCloseAnalyzedProcess}
-                className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-red-700 hover:bg-red-50 whitespace-nowrap"
+                className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-red-700 hover:bg-red-50 whitespace-nowrap dark:border-red-800/70 dark:bg-slate-900 dark:text-red-300 dark:hover:bg-red-950/60"
               >
                 <X className="w-3 h-3" />
                 Fechar Analisado
@@ -880,7 +880,7 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
             <button
               type="button"
               onClick={() => setGridCollapsed((prev) => !prev)}
-              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap"
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               {gridCollapsed ? 'Expandir Grid' : 'Recolher Grid'}
             </button>
@@ -890,11 +890,11 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
         {!gridCollapsed && (
           <div className="overflow-x-auto">
             {loadingList ? (
-              <div className="p-6 text-center text-xs text-slate-500">
+              <div className="p-6 text-center text-xs text-slate-500 dark:text-slate-400">
                 Carregando processos jurídicos...
               </div>
             ) : filteredProcesses.length === 0 ? (
-              <div className="p-8 text-center space-y-2 text-xs text-slate-500">
+              <div className="p-8 text-center space-y-2 text-xs text-slate-500 dark:text-slate-400">
                 <p>Nenhum processo encontrado para o filtro selecionado.</p>
                 {statusFilter !== 'all' && (
                   <button
@@ -903,7 +903,7 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                       setStatusFilter('all');
                       setSearchQuery('');
                     }}
-                    className="font-semibold text-blue-700 hover:underline"
+                    className="font-semibold text-blue-700 hover:underline dark:text-blue-300"
                   >
                     Limpar filtros
                   </button>
@@ -912,7 +912,7 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
             ) : (
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-600">
+                  <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-600 dark:bg-slate-800/70 dark:border-slate-700 dark:text-slate-300">
                     <th className="py-2.5 px-4">Processo / Ação</th>
                     <th className="py-2.5 px-4">Cliente</th>
                     <th className="py-2.5 px-4">Cobrança / Títulos</th>
@@ -921,7 +921,7 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                     <th className="py-2.5 px-4 text-right">Ação</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {filteredProcesses.map((proc) => {
                     const client = clients.find((c) => c.id === proc.clientId);
                     const lawyer = lawyers.find((l) => l.id === proc.assignedLawyerId);
@@ -932,7 +932,7 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                     const escActive = isEscavadorActiveForProcess(proc, client);
                     const stMeta = PROCESS_STATUS_META[proc.status] || {
                       label: proc.status.replace(/_/g, ' '),
-                      toneClass: 'text-slate-700',
+                      toneClass: 'text-slate-700 dark:text-slate-200',
                     };
                     const clientSt = (client?.status || 'ativo').toLowerCase();
 
@@ -954,9 +954,9 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                         title="Clique para visualizar a linha do tempo · Dois cliques para abrir o processo em análise"
                         className={`cursor-pointer select-none transition-colors focus-visible:outline-none focus-visible:bg-blue-50 ${
                           isOpened
-                            ? 'bg-blue-50/80'
+                            ? 'bg-blue-50/80 dark:bg-blue-950/50'
                             : isHighlighted
-                            ? 'bg-slate-50'
+                            ? 'bg-slate-50 dark:bg-slate-800/70'
                             : 'hover:bg-slate-50/80'
                         }`}
                       >
@@ -964,18 +964,18 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                           <div className="flex items-center gap-2">
                             <span
                               className={`font-mono text-xs font-bold tabular-nums ${
-                                proc.hasUnreadMovement && escActive ? 'text-red-700' : 'text-slate-900'
+                                proc.hasUnreadMovement && escActive ? 'text-red-700 dark:text-red-300' : 'text-slate-900 dark:text-slate-100'
                               }`}
                             >
                               {proc.processNumber}
                             </span>
                             {isOpened && (
-                              <span className="text-[11px] font-semibold text-blue-700">
+                              <span className="text-[11px] font-semibold text-blue-700 dark:text-blue-300">
                                 · Analisando
                               </span>
                             )}
                           </div>
-                          <div className="text-[11px] text-slate-500 mt-0.5">
+                          <div className="text-[11px] text-slate-500 mt-0.5 dark:text-slate-400">
                             {ACTION_TYPE_LABELS[proc.actionType] || proc.actionType} · {proc.courtName}
                           </div>
                         </td>
@@ -983,12 +983,12 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                         <td className="py-3 px-4 align-middle">
                           <div
                             className={`font-semibold ${
-                              proc.hasUnreadMovement && escActive ? 'text-red-800' : 'text-slate-900'
+                              proc.hasUnreadMovement && escActive ? 'text-red-800 dark:text-red-300' : 'text-slate-900 dark:text-slate-100'
                             }`}
                           >
                             {client?.fullName || `Cliente #${proc.clientId}`}
                           </div>
-                          <div className="text-[11px] font-mono text-slate-500 tabular-nums">
+                          <div className="text-[11px] font-mono text-slate-500 tabular-nums dark:text-slate-400">
                             {client?.cpfCnpj || '—'} · {lawyer?.name || 'Equipe Jurídica'}
                           </div>
                         </td>
@@ -997,12 +997,12 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                           <div
                             className={`font-mono font-semibold tabular-nums ${
                               clientSt === 'cancelado'
-                                ? 'text-red-700'
+                                ? 'text-red-700 dark:text-red-300'
                                 : clientSt === 'suspenso'
-                                ? 'text-amber-800'
+                                ? 'text-amber-800 dark:text-amber-300'
                                 : billing && billing.overdueCount > 0
-                                ? 'text-red-700'
-                                : 'text-slate-800'
+                                ? 'text-red-700 dark:text-red-300'
+                                : 'text-slate-800 dark:text-slate-100'
                             }`}
                           >
                             {clientSt === 'cancelado'
@@ -1013,7 +1013,7 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                               ? formatBRL(billing.openBalanceCents)
                               : 'Regular'}
                           </div>
-                          <div className="text-[11px] text-slate-500 mt-0.5 tabular-nums">
+                          <div className="text-[11px] text-slate-500 mt-0.5 tabular-nums dark:text-slate-400">
                             {billing
                               ? `${billing.openCount} aberto(s) · ${billing.overdueCount} vencido(s)`
                               : 'Sem títulos vinculados'}
@@ -1023,13 +1023,13 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                         <td className="py-3 px-4 align-middle">
                           <div className={`flex items-center gap-1.5 ${stMeta.toneClass}`}>
                             {proc.vehicleSeized && (
-                              <AlertTriangle className="w-3.5 h-3.5 text-red-600 shrink-0" />
+                              <AlertTriangle className="w-3.5 h-3.5 text-red-600 shrink-0 dark:text-red-400" />
                             )}
                             <span>{stMeta.label}</span>
                           </div>
                           <div
                             className={`text-[11px] mt-0.5 flex items-center gap-1 font-medium ${
-                              escActive ? 'text-emerald-700' : 'text-red-700'
+                              escActive ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'
                             }`}
                           >
                             {escActive ? (
@@ -1046,7 +1046,7 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                           </div>
                           {proc.statusChangeReason && !escActive && (
                             <div
-                              className="text-[11px] text-slate-500 mt-0.5 max-w-[260px] truncate"
+                              className="text-[11px] text-slate-500 mt-0.5 max-w-[260px] truncate dark:text-slate-400"
                               title={proc.statusChangeReason}
                             >
                               Causa: {proc.statusChangeReason}
@@ -1054,9 +1054,9 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                           )}
                         </td>
 
-                        <td className="py-3 px-4 align-middle font-mono text-[11px] text-slate-600 tabular-nums">
+                        <td className="py-3 px-4 align-middle font-mono text-[11px] text-slate-600 tabular-nums dark:text-slate-300">
                           <div>{proc.lastMovementAt ? formatDateTimeBR(proc.lastMovementAt) : '—'}</div>
-                          <div className="text-slate-400">
+                          <div className="text-slate-400 dark:text-slate-400">
                             {procMovCount} registro(s)
                             {proc.hasUnreadMovement && escActive ? ' · Leitura pendente' : ''}
                           </div>
@@ -1070,7 +1070,7 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                                 e.stopPropagation();
                                 handleCloseAnalyzedProcess();
                               }}
-                              className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-red-700 hover:bg-red-50 whitespace-nowrap"
+                              className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-red-700 hover:bg-red-50 whitespace-nowrap dark:border-red-800/70 dark:bg-slate-900 dark:text-red-300 dark:hover:bg-red-950/60"
                             >
                               <X className="w-3 h-3" />
                               Fechar Análise
@@ -1082,7 +1082,7 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                                 e.stopPropagation();
                                 openProcessForAnalysis(proc);
                               }}
-                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap"
+                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
                             >
                               <FolderOpen className="w-3 h-3" />
                               Abrir Processo
@@ -1106,29 +1106,29 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
           aria-label="Linha do tempo do processo"
           className={`${
             analyzedProcess ? 'lg:col-span-5' : 'lg:col-span-12'
-          } rounded-xl border border-slate-200 bg-white overflow-hidden`}
+          } rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900`}
         >
-          <div className="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs dark:border-slate-700">
             <div className="flex items-center gap-2 min-w-0">
-              <History className="w-4 h-4 text-slate-700 shrink-0" />
+              <History className="w-4 h-4 text-slate-700 shrink-0 dark:text-slate-200" />
               <div className="min-w-0">
-                <div className="font-bold text-slate-900 truncate">
+                <div className="font-bold text-slate-900 truncate dark:text-slate-100">
                   Linha do Tempo {timelineProcess ? `· ${timelineProcess.processNumber}` : ''}
                 </div>
-                <div className="text-[11px] text-slate-500 truncate">
+                <div className="text-[11px] text-slate-500 truncate dark:text-slate-400">
                   {timelineProcess
                     ? `${timelineClient?.fullName || 'Cliente'} · Clique em uma linha para abrir o processo naquele ponto`
                     : 'Selecione um processo no grid acima'}
                 </div>
               </div>
             </div>
-            <span className="font-mono text-[11px] text-slate-500 tabular-nums shrink-0">
+            <span className="font-mono text-[11px] text-slate-500 tabular-nums shrink-0 dark:text-slate-400">
               {timelinePoints.length} marco(s)
             </span>
           </div>
 
           {!timelineProcess || timelinePoints.length === 0 ? (
-            <div className="p-8 text-center text-xs text-slate-500">
+            <div className="p-8 text-center text-xs text-slate-500 dark:text-slate-400">
               Nenhum processo selecionado para exibir a linha do tempo.
             </div>
           ) : (
@@ -1139,11 +1139,11 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                   const isLast = idx === timelinePoints.length - 1;
                   const nodeTone =
                     pt.tone === 'red'
-                      ? 'border-red-300 bg-red-50 text-red-700'
+                      ? 'border-red-300 bg-red-50 text-red-700 dark:border-red-700/70 dark:bg-red-950/60 dark:text-red-300'
                       : pt.tone === 'amber'
-                      ? 'border-amber-300 bg-amber-50 text-amber-800'
+                      ? 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-700/70 dark:bg-amber-950/60 dark:text-amber-200'
                       : pt.tone === 'emerald'
-                      ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                      ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700/70 dark:bg-emerald-950/60 dark:text-emerald-300'
                       : 'border-blue-300 bg-blue-50 text-blue-700';
 
                   return (
@@ -1163,7 +1163,7 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                         {!isLast && (
                           <span
                             aria-hidden="true"
-                            className="w-px flex-1 bg-slate-200 mt-1.5"
+                            className="w-px flex-1 bg-slate-200 mt-1.5 dark:bg-slate-700"
                           />
                         )}
                       </div>
@@ -1174,38 +1174,38 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                         onClick={() => handleTimelinePointClick(pt)}
                         className={`flex-1 text-left rounded-xl border p-3 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 ${
                           isActivePt && analyzedProcess
-                            ? 'border-blue-600 bg-blue-50/70'
+                            ? 'border-blue-600 bg-blue-50/70 dark:bg-blue-950/50'
                             : isActivePt
-                            ? 'border-slate-300 bg-slate-50'
-                            : 'border-slate-200 bg-white hover:bg-slate-50'
+                            ? 'border-slate-300 bg-slate-50 dark:border-slate-600 dark:bg-slate-800/70'
+                            : 'border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800'
                         }`}
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
-                          <span className="font-mono font-bold text-slate-800 tabular-nums">
+                          <span className="font-mono font-bold text-slate-800 tabular-nums dark:text-slate-100">
                             Marco {pt.stepIndex}/{timelinePoints.length} ·{' '}
                             {formatDateTimeBR(pt.timestamp)}
                           </span>
                           <span
                             className={`font-semibold ${
                               pt.tone === 'red'
-                                ? 'text-red-700'
+                                ? 'text-red-700 dark:text-red-300'
                                 : pt.tone === 'amber'
-                                ? 'text-amber-800'
+                                ? 'text-amber-800 dark:text-amber-300'
                                 : pt.tone === 'emerald'
-                                ? 'text-emerald-700'
-                                : 'text-blue-700'
+                                ? 'text-emerald-700 dark:text-emerald-300'
+                                : 'text-blue-700 dark:text-blue-300'
                             }`}
                           >
                             {pt.statusAtPoint}
                           </span>
                         </div>
-                        <div className="mt-1 text-xs font-bold text-slate-900">
+                        <div className="mt-1 text-xs font-bold text-slate-900 dark:text-slate-100">
                           {pt.title}
                         </div>
-                        <div className="mt-0.5 text-[11px] text-slate-500">
+                        <div className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
                           {pt.subtitle}
                         </div>
-                        <p className="mt-1.5 text-xs text-slate-700 line-clamp-2 leading-snug">
+                        <p className="mt-1.5 text-xs text-slate-700 line-clamp-2 leading-snug dark:text-slate-200">
                           {pt.summary}
                         </p>
                       </button>
@@ -1221,22 +1221,22 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
         {analyzedProcess && activePoint && (
           <section
             aria-label={`Processo analisado ${analyzedProcess.processNumber}`}
-            className="lg:col-span-7 rounded-xl border border-slate-200 bg-white p-5 space-y-4"
+            className="lg:col-span-7 rounded-xl border border-slate-200 bg-white p-5 space-y-4 dark:border-slate-700 dark:bg-slate-900"
           >
             {/* Header + Fechar Processo Analisado */}
-            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 border-b border-slate-100 pb-3.5">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 border-b border-slate-100 pb-3.5 dark:border-slate-800">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Scale className="w-4 h-4 text-slate-700 shrink-0" />
-                  <h2 className="font-mono text-base font-bold text-slate-900 tabular-nums">
+                  <Scale className="w-4 h-4 text-slate-700 shrink-0 dark:text-slate-200" />
+                  <h2 className="font-mono text-base font-bold text-slate-900 tabular-nums dark:text-slate-100">
                     {analyzedProcess.processNumber}
                   </h2>
                   <span className="text-slate-300">·</span>
-                  <span className="text-xs font-semibold text-blue-700">
+                  <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">
                     Marco {activePoint.stepIndex} de {timelinePoints.length}
                   </span>
                 </div>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="text-xs text-slate-500 mt-0.5 dark:text-slate-400">
                   {timelineClient?.fullName || 'Cliente'} · {analyzedProcess.courtName} ·{' '}
                   {timelineLawyerName}
                 </p>
@@ -1264,7 +1264,7 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                     onClick={() =>
                       onNavigate('admission', { clientId: timelineClient.id, tab: 'clientes' })
                     }
-                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap min-h-[36px]"
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap min-h-[36px] dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                   >
                     Abrir Dossiê
                     <ArrowUpRight className="w-3.5 h-3.5" />
@@ -1273,7 +1273,7 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                 <button
                   type="button"
                   onClick={handleCloseAnalyzedProcess}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 whitespace-nowrap min-h-[36px]"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 whitespace-nowrap min-h-[36px] dark:border-red-800/70 dark:bg-slate-900 dark:text-red-300 dark:hover:bg-red-950/60"
                 >
                   <X className="w-3.5 h-3.5" />
                   Fechar Processo Analisado
@@ -1285,16 +1285,16 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
             <div
               className={`rounded-xl border p-3.5 text-xs grid grid-cols-1 md:grid-cols-2 gap-3 ${
                 analyzedEscavadorActive
-                  ? 'border-slate-200 bg-slate-50/60'
-                  : 'border-amber-200 bg-amber-50/70'
+                  ? 'border-slate-200 bg-slate-50/60 dark:border-slate-700 dark:bg-slate-800/60'
+                  : 'border-amber-200 bg-amber-50/70 dark:border-amber-800/70 dark:bg-amber-950/50'
               }`}
             >
               <div className="space-y-1">
-                <div className="flex items-center gap-1.5 font-bold text-slate-900">
+                <div className="flex items-center gap-1.5 font-bold text-slate-900 dark:text-slate-100">
                   {analyzedEscavadorActive ? (
-                    <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 dark:text-emerald-400" />
                   ) : (
-                    <ShieldOff className="w-4 h-4 text-red-600 shrink-0" />
+                    <ShieldOff className="w-4 h-4 text-red-600 shrink-0 dark:text-red-400" />
                   )}
                   <span>
                     {analyzedEscavadorActive
@@ -1302,7 +1302,7 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                       : 'Dados Retirados do Escavador pela Ivi (CPF/CNPJ)'}
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-600 leading-relaxed">
+                <p className="text-[11px] text-slate-600 leading-relaxed dark:text-slate-300">
                   {analyzedProcess.escavadorLastActionNote ||
                     (analyzedEscavadorActive
                       ? `CPF/CNPJ ${
@@ -1313,7 +1313,7 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                         } retirado automaticamente da varredura Escavador até retorno ao status normal.`)}
                 </p>
                 {analyzedProcess.statusChangeReason && (
-                  <p className="text-[11px] font-semibold text-slate-800">
+                  <p className="text-[11px] font-semibold text-slate-800 dark:text-slate-100">
                     Causa registrada no histórico: {analyzedProcess.statusChangeReason}
                   </p>
                 )}
@@ -1322,19 +1322,19 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
               <div className="flex flex-col justify-between gap-2 md:border-l md:border-slate-200/80 md:pl-3">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <div className="flex items-center gap-1.5 font-bold text-slate-900">
-                      <Wallet className="w-3.5 h-3.5 text-slate-700" />
+                    <div className="flex items-center gap-1.5 font-bold text-slate-900 dark:text-slate-100">
+                      <Wallet className="w-3.5 h-3.5 text-slate-700 dark:text-slate-200" />
                       <span>Integração Lançamentos de Cobrança</span>
                     </div>
-                    <div className="text-[11px] text-slate-600 mt-0.5 tabular-nums">
+                    <div className="text-[11px] text-slate-600 mt-0.5 tabular-nums dark:text-slate-300">
                       Status cliente:{' '}
                       <strong
                         className={
                           analyzedClient?.status === 'cancelado'
-                            ? 'text-red-700'
+                            ? 'text-red-700 dark:text-red-300'
                             : analyzedClient?.status === 'suspenso'
-                            ? 'text-amber-800'
-                            : 'text-emerald-700'
+                            ? 'text-amber-800 dark:text-amber-300'
+                            : 'text-emerald-700 dark:text-emerald-300'
                         }
                       >
                         {(analyzedClient?.status || 'ativo').toUpperCase()}
@@ -1347,7 +1347,7 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                     <button
                       type="button"
                       onClick={() => onNavigate('collection', { clientId: analyzedClient.id })}
-                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0"
+                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
                     >
                       Cobrança
                       <ArrowUpRight className="w-3 h-3" />
@@ -1355,8 +1355,8 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                   )}
                 </div>
                 {!analyzedEscavadorActive && (
-                  <div className="text-[11px] text-slate-600 flex items-center gap-1.5">
-                    <RefreshCw className="w-3 h-3 text-amber-700 shrink-0" />
+                  <div className="text-[11px] text-slate-600 flex items-center gap-1.5 dark:text-slate-300">
+                    <RefreshCw className="w-3 h-3 text-amber-700 shrink-0 dark:text-amber-300" />
                     <span>
                       Ao retornar o cliente para status normal em Cobrança, a Ivi reativa o CPF/CNPJ automaticamente.
                     </span>
@@ -1366,13 +1366,13 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
             </div>
 
             {/* Process Snapshot at the Selected Timeline Point */}
-            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-3 text-xs">
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-3 text-xs dark:border-slate-700 dark:bg-slate-800/60">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <div className="text-[11px] font-semibold text-slate-500">
+                  <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
                     Estado do Processo no Ponto Selecionado da Linha do Tempo
                   </div>
-                  <div className="mt-0.5 text-sm font-bold text-slate-900">
+                  <div className="mt-0.5 text-sm font-bold text-slate-900 dark:text-slate-100">
                     {activePoint.title}
                   </div>
                 </div>
@@ -1381,7 +1381,7 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                     type="button"
                     disabled={!prevTimelinePoint}
                     onClick={() => prevTimelinePoint && setActiveTimelinePointId(prevTimelinePoint.id)}
-                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-40"
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                   >
                     <ChevronLeft className="w-3.5 h-3.5" />
                     Anterior
@@ -1390,7 +1390,7 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                     type="button"
                     disabled={!nextTimelinePoint}
                     onClick={() => nextTimelinePoint && setActiveTimelinePointId(nextTimelinePoint.id)}
-                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-40"
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                   >
                     Próximo
                     <ChevronRight className="w-3.5 h-3.5" />
@@ -1400,30 +1400,30 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1 border-t border-slate-200/80">
                 <div>
-                  <div className="text-[11px] text-slate-500">Data/Hora do Ponto</div>
-                  <div className="font-mono font-semibold text-slate-900 tabular-nums">
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Data/Hora do Ponto</div>
+                  <div className="font-mono font-semibold text-slate-900 tabular-nums dark:text-slate-100">
                     {formatDateTimeBR(activePoint.timestamp)}
                   </div>
                 </div>
                 <div>
-                  <div className="text-[11px] text-slate-500">Situação neste Ponto</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Situação neste Ponto</div>
                   <div
                     className={`font-semibold ${
                       activePoint.tone === 'red'
-                        ? 'text-red-700'
+                        ? 'text-red-700 dark:text-red-300'
                         : activePoint.tone === 'amber'
-                        ? 'text-amber-800'
+                        ? 'text-amber-800 dark:text-amber-300'
                         : activePoint.tone === 'emerald'
-                        ? 'text-emerald-700'
-                        : 'text-blue-700'
+                        ? 'text-emerald-700 dark:text-emerald-300'
+                        : 'text-blue-700 dark:text-blue-300'
                     }`}
                   >
                     {activePoint.statusAtPoint}
                   </div>
                 </div>
                 <div>
-                  <div className="text-[11px] text-slate-500">Ação / Vara</div>
-                  <div className="font-medium text-slate-800 truncate">
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Ação / Vara</div>
+                  <div className="font-medium text-slate-800 truncate dark:text-slate-100">
                     {ACTION_TYPE_LABELS[analyzedProcess.actionType] || analyzedProcess.actionType}
                   </div>
                 </div>
@@ -1431,29 +1431,29 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
 
               {/* Dispatch & Ivi Translation Snapshot at This Timeline Point */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-                <div className="rounded-lg border border-slate-200 bg-white p-3">
-                  <div className="font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
-                    <Eye className="w-3.5 h-3.5 text-slate-500" />
+                <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+                  <div className="font-semibold text-slate-700 mb-1 flex items-center gap-1.5 dark:text-slate-200">
+                    <Eye className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                     Registro / Despacho neste Ponto
                   </div>
-                  <p className="text-slate-600 leading-relaxed">
+                  <p className="text-slate-600 leading-relaxed dark:text-slate-300">
                     {activePoint.originalDispatchSnapshot}
                   </p>
                 </div>
-                <div className="rounded-lg border border-blue-200 bg-blue-50/70 p-3">
-                  <div className="font-semibold text-blue-900 mb-1 flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-blue-700" />
+                <div className="rounded-lg border border-blue-200 bg-blue-50/70 p-3 dark:border-blue-800/70 dark:bg-blue-950/50">
+                  <div className="font-semibold text-blue-900 mb-1 flex items-center gap-1.5 dark:text-blue-300">
+                    <Sparkles className="w-3.5 h-3.5 text-blue-700 dark:text-blue-300" />
                     Tradução Ivi neste Ponto (PT-BR)
                   </div>
-                  <p className="text-slate-800 leading-relaxed">
+                  <p className="text-slate-800 leading-relaxed dark:text-slate-100">
                     {activePoint.iviTranslationSnapshot}
                   </p>
                 </div>
               </div>
 
               {activePoint.contactSnapshot && (
-                <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-3 text-emerald-950 flex items-start gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-3 text-emerald-950 flex items-start gap-2 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5 dark:text-emerald-400" />
                   <div>
                     <strong>
                       Retorno ao cliente via {(activePoint.contactSnapshot.channel || 'whatsapp').toUpperCase()} em{' '}
@@ -1469,18 +1469,18 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
             {/* Interactive SLA Action Bar for Movement-Linked Points */}
             {activeMovementForPoint ? (
               activeMovementForPoint.source === 'integracao_cobranca' ? (
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 flex flex-wrap items-center justify-between gap-2 text-xs">
-                  <div className="flex items-start gap-2 text-slate-700">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 flex flex-wrap items-center justify-between gap-2 text-xs dark:border-slate-700 dark:bg-slate-800/70">
+                  <div className="flex items-start gap-2 text-slate-700 dark:text-slate-200">
                     {activeMovementForPoint.originalDispatch.toUpperCase().includes('RETORNO') ? (
-                      <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5 dark:text-emerald-400" />
                     ) : (
-                      <Ban className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                      <Ban className="w-4 h-4 text-amber-700 shrink-0 mt-0.5 dark:text-amber-300" />
                     )}
                     <div>
-                      <div className="font-semibold text-slate-900">
+                      <div className="font-semibold text-slate-900 dark:text-slate-100">
                         Evento Automático Cobrança ↔ Jurídico &amp; Escavador (Ivi)
                       </div>
-                      <div className="text-[11px] text-slate-600 mt-0.5">
+                      <div className="text-[11px] text-slate-600 mt-0.5 dark:text-slate-300">
                         {activeMovementForPoint.contactSummary ||
                           'Sincronização de ciclo de vida registrada no histórico processual.'}
                       </div>
@@ -1490,7 +1490,7 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                     <button
                       type="button"
                       onClick={() => onNavigate('collection', { clientId: analyzedClient.id })}
-                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-semibold text-slate-800 hover:bg-slate-100 whitespace-nowrap"
+                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-semibold text-slate-800 hover:bg-slate-100 whitespace-nowrap dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
                     >
                       Abrir em Cobrança
                       <ArrowUpRight className="w-3.5 h-3.5" />
@@ -1498,20 +1498,20 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                   )}
                 </div>
               ) : (
-                <div className="rounded-xl border border-slate-200 p-4 space-y-3 text-xs">
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
-                    <span className="font-semibold text-slate-800">
+                <div className="rounded-xl border border-slate-200 p-4 space-y-3 text-xs dark:border-slate-700">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                    <span className="font-semibold text-slate-800 dark:text-slate-100">
                       Tratativa da Movimentação #{activeMovementForPoint.id} (
                       {SOURCE_LABELS[activeMovementForPoint.source] || activeMovementForPoint.source})
                     </span>
                     <div className="flex items-center gap-2 font-semibold">
-                      <span className={activeMovementForPoint.openedAt ? 'text-emerald-700' : 'text-slate-400'}>
+                      <span className={activeMovementForPoint.openedAt ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-400 dark:text-slate-400'}>
                         1. Aberto
                       </span>
                       <span>→</span>
                       <span
                         className={
-                          activeMovementForPoint.readCompletedAt ? 'text-emerald-700' : 'text-amber-700'
+                          activeMovementForPoint.readCompletedAt ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'
                         }
                       >
                         2. Lido
@@ -1519,7 +1519,7 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                       <span>→</span>
                       <span
                         className={
-                          activeMovementForPoint.clientContactedAt ? 'text-emerald-700' : 'text-slate-400'
+                          activeMovementForPoint.clientContactedAt ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-400 dark:text-slate-400'
                         }
                       >
                         3. Retornado
@@ -1540,8 +1540,8 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                       </button>
                     </div>
                   ) : activeMovementForPoint.clientContactedAt ? (
-                    <div className="rounded-lg bg-emerald-50/70 border border-emerald-200 p-2.5 text-emerald-950 flex items-start gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <div className="rounded-lg bg-emerald-50/70 border border-emerald-200 p-2.5 text-emerald-950 flex items-start gap-2 dark:bg-emerald-950/50 dark:border-emerald-800/70 dark:text-emerald-300">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5 dark:text-emerald-400" />
                       <div>
                         <strong>
                           Retorno registrado ({activeMovementForPoint.contactChannel}) em{' '}
@@ -1552,15 +1552,15 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                       </div>
                     </div>
                   ) : (
-                    <div className="pt-2 border-t border-slate-100 space-y-2">
-                      <div className="font-semibold text-slate-800">
+                    <div className="pt-2 border-t border-slate-100 space-y-2 dark:border-slate-800">
+                      <div className="font-semibold text-slate-800 dark:text-slate-100">
                         Passo 3: Registrar Retorno ao Cliente &amp; Finalizar SLA
                       </div>
                       <div className="flex flex-col sm:flex-row gap-2">
                         <select
                           value={contactChannel}
                           onChange={(e) => setContactChannel(e.target.value)}
-                          className="rounded-lg border border-slate-200 px-2.5 py-2 text-xs min-h-[38px]"
+                          className="rounded-lg border border-slate-200 px-2.5 py-2 text-xs min-h-[38px] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                         >
                           <option value="whatsapp">WhatsApp</option>
                           <option value="telefone">Telefone</option>
@@ -1571,9 +1571,9 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                           value={contactSummary}
                           onChange={(e) => setContactSummary(e.target.value)}
                           placeholder="Resumo das orientações passadas ao cliente..."
-                          className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-xs min-h-[38px]"
+                          className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-xs min-h-[38px] dark:border-slate-700"
                         />
-                        <label className="flex items-center gap-1.5 text-xs text-slate-700 whitespace-nowrap">
+                        <label className="flex items-center gap-1.5 text-xs text-slate-700 whitespace-nowrap dark:text-slate-200">
                           <input
                             type="checkbox"
                             checked={emailSent}
@@ -1596,7 +1596,7 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                 </div>
               )
             ) : (
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
                 <span>
                   {analyzedEscavadorActive
                     ? 'Marco inicial do processo. Selecione outra linha na Linha do Tempo ou registre um novo despacho Escavador.'
@@ -1606,7 +1606,7 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                   <button
                     type="button"
                     onClick={() => setDispatchModalOpen(true)}
-                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-semibold text-slate-800 hover:bg-slate-100 whitespace-nowrap"
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-semibold text-slate-800 hover:bg-slate-100 whitespace-nowrap dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     Registrar Despacho Escavador
@@ -1624,18 +1624,18 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
           role="dialog"
           aria-modal="true"
           aria-label="Registrar Novo Despacho Escavador"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 dark:bg-slate-950/80"
         >
           <form
             onSubmit={handleSimulateEscavador}
-            className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-3.5 text-xs"
+            className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-3.5 text-xs dark:border-slate-700 dark:bg-slate-900"
           >
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
               <div>
-                <h3 className="font-display text-base font-bold text-slate-900">
+                <h3 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
                   Novo Despacho Escavador · Tradução Ivi
                 </h3>
-                <p className="font-mono text-[11px] text-slate-500">
+                <p className="font-mono text-[11px] text-slate-500 dark:text-slate-400">
                   Processo {(analyzedProcess || timelineProcess)!.processNumber}
                 </p>
               </div>
@@ -1643,7 +1643,7 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                 type="button"
                 onClick={() => setDispatchModalOpen(false)}
                 aria-label="Fechar modal de despacho"
-                className="text-slate-400 hover:text-slate-700 p-1"
+                className="text-slate-400 hover:text-slate-700 p-1 dark:text-slate-400 dark:hover:text-slate-200"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1654,9 +1654,9 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
               value={newDispatchText}
               onChange={(e) => setNewDispatchText(e.target.value)}
               placeholder="Cole o despacho judicial em juridiquês para a Ivi traduzir automaticamente para PT-BR..."
-              className="w-full rounded-lg border border-slate-200 p-3 text-xs"
+              className="w-full rounded-lg border border-slate-200 p-3 text-xs dark:border-slate-700"
             />
-            <label className="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
+            <label className="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer dark:text-slate-200">
               <input
                 type="checkbox"
                 checked={isSeizedFlag}
@@ -1668,14 +1668,14 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
               <button
                 type="button"
                 onClick={() => setDispatchModalOpen(false)}
-                className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700"
+                className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={busy || !newDispatchText.trim()}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
               >
                 <Sparkles className="w-3.5 h-3.5" />
                 Processar &amp; Traduzir c/ Ivi

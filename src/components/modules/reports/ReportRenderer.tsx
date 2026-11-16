@@ -14,6 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import { apiFetch } from '../../../lib/api.ts';
+import { applyThemeToHtmlDocument, useTheme } from '../../../lib/theme.tsx';
 import {
   ensurePortalBrandingLoaded,
   getCachedLogoNeedsDarkBackdrop,
@@ -65,6 +66,7 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
   onRowsLoaded,
   onNotify,
 }) => {
+  const { theme } = useTheme();
   const [cachedBranding, setCachedBrandingState] = useState<PortalBrandingConfig | null>(() =>
     getCachedPortalBranding()
   );
@@ -313,18 +315,18 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
   return (
     <div className="space-y-4">
       {/* Toolbar & Export Actions */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
         <div className="flex items-center gap-2">
           <button
             type="button"
             disabled={loading}
             onClick={() => void executeReport(filterValues)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             Atualizar Dados
           </button>
-          <span className="text-xs text-slate-500 tabular-nums">
+          <span className="text-xs text-slate-500 tabular-nums dark:text-slate-400">
             {filteredRows.length} registro(s)
           </span>
         </div>
@@ -334,16 +336,16 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
             type="button"
             disabled={!!exporting}
             onClick={() => void runExport('print')}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
-            <Printer className="w-3.5 h-3.5 text-slate-600" />
+            <Printer className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
             Imprimir
           </button>
           <button
             type="button"
             disabled={!!exporting}
             onClick={() => void runExport('pdf')}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-red-300 dark:hover:bg-red-950/60"
           >
             <Download className="w-3.5 h-3.5" />
             PDF
@@ -352,7 +354,7 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
             type="button"
             disabled={!!exporting}
             onClick={() => void runExport('excel')}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-emerald-300 dark:hover:bg-emerald-950/60"
           >
             <FileSpreadsheet className="w-3.5 h-3.5" />
             Excel
@@ -361,7 +363,7 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
             type="button"
             disabled={!!exporting}
             onClick={() => void runExport('word')}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-blue-300 dark:hover:bg-blue-950/60"
           >
             <FileText className="w-3.5 h-3.5" />
             Word
@@ -370,7 +372,7 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
             type="button"
             disabled={!!exporting}
             onClick={() => void runExport('csv')}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             CSV
           </button>
@@ -378,7 +380,7 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
             type="button"
             disabled={!!exporting}
             onClick={() => void runExport('html')}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             <Code2 className="w-3.5 h-3.5" />
             HTML
@@ -388,10 +390,10 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
 
       {/* Filters Bar */}
       {(template.filters || []).length > 0 && (
-        <div className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-3">
+        <div className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-3 dark:border-slate-700 dark:bg-slate-900">
           <div className="flex items-center justify-between">
-            <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-700">
-              <Filter className="w-3.5 h-3.5 text-blue-600" />
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">
+              <Filter className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
               Filtros do Relatório
             </span>
             <button
@@ -402,7 +404,7 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
                 setFilterValues(cleared);
                 void executeReport(cleared);
               }}
-              className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-900"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
             >
               <RotateCcw className="w-3 h-3" />
               Limpar Filtros
@@ -412,7 +414,7 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {template.filters.map((f) => (
               <div key={f.id}>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">
                   {f.label || f.placeholder}
                 </label>
                 {f.type === 'select' ? (
@@ -421,7 +423,7 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
                     onChange={(e) =>
                       setFilterValues((prev) => ({ ...prev, [f.id]: e.target.value }))
                     }
-                    className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-900"
                   >
                     <option value="">Todos</option>
                     {(f.options || []).map((opt) => (
@@ -441,7 +443,7 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
                       if (e.key === 'Enter') void executeReport(filterValues);
                     }}
                     placeholder={`Filtrar ${f.label || f.placeholder}...`}
-                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs"
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs dark:border-slate-700"
                   />
                 )}
               </div>
@@ -463,7 +465,7 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
 
       {/* Alerts */}
       {error && (
-        <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3.5 text-xs text-red-700">
+        <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3.5 text-xs text-red-700 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
           <div>
             <div className="font-bold">Falha na execução do relatório</div>
@@ -473,13 +475,13 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
       )}
 
       {truncated && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800">
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800 dark:border-amber-800/70 dark:bg-amber-950/50 dark:text-amber-300">
           Aviso: A consulta retornou mais de 500 registros e foi limitada por segurança aos primeiros 500 resultados. Refine os filtros para visualizar um recorte específico.
         </div>
       )}
 
       {isDirtyDraft && isAdmin && (
-        <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-xs text-blue-800">
+        <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-xs text-blue-800 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300">
           Visualizando rascunho não salvo. Clique em <strong>Salvar</strong> para persistir alterações e atualizar o acesso de usuários.
         </div>
       )}
@@ -487,7 +489,7 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
       {/* Report Sheet */}
       <div
         ref={chartsRootRef}
-        className={`${sheetWidthClass} rounded-xl border border-slate-200 bg-white shadow-sm p-6 md:p-8 transition-all`}
+        className={`${sheetWidthClass} rounded-xl border border-slate-200 bg-white shadow-sm p-6 md:p-8 transition-all dark:border-slate-700 dark:bg-slate-900`}
         style={{
           fontFamily: layout.general.fontFamily || 'Arial',
           fontSize: `${Math.max(10, Math.min(16, Number(layout.general.fontSize || 12)))}px`,
@@ -496,14 +498,14 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
         {/* Header */}
         {layout.header.show && (
           <header
-            className="border-b border-slate-200 pb-4 mb-5"
+            className="border-b border-slate-200 pb-4 mb-5 dark:border-slate-700"
             style={{ textAlign: layout.header.alignment || 'left' }}
           >
             {layout.header.showLogo !== false && effectiveLogo && (
               <div className="flex justify-center mb-3">
                 <div
                   className={`inline-flex items-center justify-center rounded-xl ${
-                    useDarkBadgeForSheet ? 'bg-slate-900 px-3.5 py-1.5' : ''
+                    useDarkBadgeForSheet ? 'bg-slate-900 px-3.5 py-1.5 dark:bg-emerald-600' : ''
                   }`}
                 >
                   <img
@@ -514,14 +516,14 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
                 </div>
               </div>
             )}
-            <h2 className="text-lg font-bold text-slate-900">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
               {layout.header.title || template.name || 'Relatório Geral'}
             </h2>
             {layout.header.subtitle && (
-              <p className="text-xs text-slate-500 mt-0.5">{layout.header.subtitle}</p>
+              <p className="text-xs text-slate-500 mt-0.5 dark:text-slate-400">{layout.header.subtitle}</p>
             )}
             {layout.header.showDate && (
-              <p className="text-[11px] text-slate-400 mt-1">
+              <p className="text-[11px] text-slate-400 mt-1 dark:text-slate-400">
                 Gerado em {new Date().toLocaleString('pt-BR')} · {filteredRows.length} registro(s)
               </p>
             )}
@@ -535,17 +537,17 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
         {template.content_mode !== 'charts' && (
           <>
             {loading ? (
-              <div className="py-12 text-center text-xs text-slate-500">
+              <div className="py-12 text-center text-xs text-slate-500 dark:text-slate-400">
                 Executando consulta no PostgreSQL...
               </div>
             ) : filteredRows.length === 0 ? (
-              <div className="py-12 text-center text-xs text-slate-500">
+              <div className="py-12 text-center text-xs text-slate-500 dark:text-slate-400">
                 Nenhum registro encontrado para os filtros selecionados.
               </div>
             ) : (
-              <div className="overflow-x-auto rounded-lg border border-slate-200">
+              <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
                 <table className="w-full text-left border-collapse tabular-nums">
-                  <thead className="bg-slate-900 text-white text-[11px] uppercase tracking-wider">
+                  <thead className="bg-slate-900 text-white text-[11px] uppercase tracking-wider dark:bg-slate-950 dark:border-slate-700">
                     <tr>
                       {visibleColumns.map((col) => (
                         <th
@@ -561,11 +563,11 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 text-xs">
+                  <tbody className="divide-y divide-slate-100 text-xs dark:divide-slate-800">
                     {groupedBlocks.map((grp, gIdx) => (
                       <React.Fragment key={gIdx}>
                         {groupingFields.length > 0 && (
-                          <tr className="bg-slate-100 font-bold text-slate-900">
+                          <tr className="bg-slate-100 font-bold text-slate-900 dark:bg-slate-800 dark:text-slate-100">
                             <td colSpan={visibleColumns.length} className="px-3 py-2">
                               {formatGroupHeaderText(
                                 layout.grouping?.headerTemplate || '',
@@ -573,7 +575,7 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
                                 groupingFields,
                                 grp.rows[0] || {}
                               )}{' '}
-                              <span className="font-normal text-slate-500">
+                              <span className="font-normal text-slate-500 dark:text-slate-400">
                                 ({grp.rows.length} registro{grp.rows.length === 1 ? '' : 's'})
                               </span>
                             </td>
@@ -585,15 +587,15 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
                             key={rIdx}
                             className={
                               layout.general.zebra && rIdx % 2 === 1
-                                ? 'bg-slate-50/70 hover:bg-blue-50/30'
-                                : 'bg-white hover:bg-blue-50/30'
+                                ? 'bg-slate-50/70 hover:bg-blue-50/30 dark:bg-slate-800/60'
+                                : 'bg-white hover:bg-blue-50/30 dark:bg-slate-900'
                             }
                           >
                             {visibleColumns.map((col) => (
                               <td
                                 key={col.field}
                                 style={{ textAlign: col.align || 'left' }}
-                                className="px-3 py-2 text-slate-700"
+                                className="px-3 py-2 text-slate-700 dark:text-slate-200"
                               >
                                 {formatReportValue(row[col.field], col.format)}
                               </td>
@@ -602,7 +604,7 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
                         ))}
 
                         {groupingFields.length > 0 && layout.grouping?.showSubtotals && (
-                          <tr className="bg-slate-50 font-bold text-slate-900 border-t border-slate-300">
+                          <tr className="bg-slate-50 font-bold text-slate-900 border-t border-slate-300 dark:bg-slate-800/70 dark:text-slate-100 dark:border-slate-600">
                             {visibleColumns.map((col, cIdx) => {
                               const tot = (layout.grouping?.totalizers || []).find(
                                 (t) => t.field === col.field && t.operation !== 'nenhum'
@@ -634,7 +636,7 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
                   </tbody>
                   {layout.footer.showTotals &&
                     (layout.footer.totalizers || []).some((t) => t.operation !== 'nenhum') && (
-                      <tfoot className="bg-slate-100 border-t-2 border-slate-300 font-bold text-xs text-slate-900">
+                      <tfoot className="bg-slate-100 border-t-2 border-slate-300 font-bold text-xs text-slate-900 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100">
                         <tr>
                           {visibleColumns.map((col, cIdx) => {
                             const tot = (layout.footer.totalizers || []).find(
@@ -690,10 +692,10 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
 
           return (
             <section key={subreport.id} className="mt-6 space-y-2">
-              <h4 className="text-xs font-bold uppercase tracking-wide text-slate-800">
+              <h4 className="text-xs font-bold uppercase tracking-wide text-slate-800 dark:text-slate-100">
                 {subreport.title || 'Sub-relatório'}
               </h4>
-              <div className="overflow-x-auto rounded-lg border border-slate-200">
+              <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
                 <table className="w-full text-left border-collapse text-xs tabular-nums">
                   <thead className="bg-slate-700 text-white text-[11px]">
                     <tr>
@@ -704,18 +706,18 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {subRows.length === 0 ? (
                       <tr>
-                        <td colSpan={subCols.length} className="px-3 py-4 text-center text-slate-400">
+                        <td colSpan={subCols.length} className="px-3 py-4 text-center text-slate-400 dark:text-slate-400">
                           Sem dados no sub-relatório.
                         </td>
                       </tr>
                     ) : (
                       subRows.map((sr, rIdx) => (
-                        <tr key={rIdx} className={rIdx % 2 === 1 ? 'bg-slate-50/70' : ''}>
+                        <tr key={rIdx} className={rIdx % 2 === 1 ? 'bg-slate-50/70 dark:bg-slate-800/60' : ''}>
                           {subCols.map((sc) => (
-                            <td key={sc.field} style={{ textAlign: sc.align }} className="px-3 py-1.5 text-slate-700">
+                            <td key={sc.field} style={{ textAlign: sc.align }} className="px-3 py-1.5 text-slate-700 dark:text-slate-200">
                               {formatReportValue(sr[sc.field], sc.format || 'text')}
                             </td>
                           ))}
@@ -724,7 +726,7 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
                     )}
                   </tbody>
                   {subreport.totalizers.some((t) => t.operation !== 'none') && (
-                    <tfoot className="bg-slate-100 border-t border-slate-300 font-bold">
+                    <tfoot className="bg-slate-100 border-t border-slate-300 font-bold dark:bg-slate-800 dark:border-slate-600">
                       <tr>
                         {subCols.map((sc, cIdx) => {
                           const tot = subreport.totalizers.find(
@@ -741,7 +743,7 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
                             ? 'Total'
                             : '';
                           return (
-                            <td key={sc.field} style={{ textAlign: sc.align }} className="px-3 py-2 text-slate-900">
+                            <td key={sc.field} style={{ textAlign: sc.align }} className="px-3 py-2 text-slate-900 dark:text-slate-100">
                               {val}
                             </td>
                           );
@@ -760,7 +762,7 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
 
         {/* Footer */}
         {layout.footer.show && (
-          <footer className="mt-6 pt-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
+          <footer className="mt-6 pt-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500 dark:border-slate-700 dark:text-slate-400">
             <span>
               {[
                 layout.footer.customText,
@@ -780,8 +782,8 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
 
       {/* Pagination Footer */}
       {filteredRows.length > 0 && template.content_mode !== 'charts' && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs">
-          <div className="flex items-center gap-2 text-slate-600">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
             <span>Exibir:</span>
             <select
               value={pageSize}
@@ -789,7 +791,7 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
                 setPageSize(Number(e.target.value));
                 setPage(1);
               }}
-              className="rounded border border-slate-200 px-2 py-1 text-xs"
+              className="rounded border border-slate-200 px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             >
               <option value={25}>25 linhas</option>
               <option value={50}>50 linhas</option>
@@ -802,19 +804,19 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
               type="button"
               disabled={safePage <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="inline-flex items-center gap-1 rounded border border-slate-200 px-2.5 py-1 text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+              className="inline-flex items-center gap-1 rounded border border-slate-200 px-2.5 py-1 text-slate-700 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               <ChevronLeft className="w-3.5 h-3.5" />
               Anterior
             </button>
-            <span className="text-slate-600">
+            <span className="text-slate-600 dark:text-slate-300">
               Página <strong>{safePage}</strong> de <strong>{totalPages}</strong>
             </span>
             <button
               type="button"
               disabled={safePage >= totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              className="inline-flex items-center gap-1 rounded border border-slate-200 px-2.5 py-1 text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+              className="inline-flex items-center gap-1 rounded border border-slate-200 px-2.5 py-1 text-slate-700 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               Próxima
               <ChevronRight className="w-3.5 h-3.5" />
@@ -826,17 +828,17 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
       {/* Inline A4 Print Preview Modal (Popup-free for iFrame compatibility) */}
       {printHtml && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 dark:bg-slate-950/80 p-4"
           onClick={() => setPrintHtml(null)}
         >
           <div
-            className="w-full max-w-5xl h-[88vh] rounded-xl border border-slate-200 bg-white shadow-2xl flex flex-col overflow-hidden"
+            className="w-full max-w-5xl h-[88vh] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-4 py-3">
               <div>
-                <h3 className="text-sm font-bold text-slate-900">Visualização de Impressão</h3>
-                <p className="text-xs text-slate-500">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Visualização de Impressão</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   Confira a diagramação antes de imprimir ou baixe o HTML standalone.
                 </p>
               </div>
@@ -844,7 +846,7 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
                 <button
                   type="button"
                   onClick={() => printIframeRef.current?.contentWindow?.print()}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 dark:bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 dark:hover:bg-emerald-500"
                 >
                   <Printer className="w-3.5 h-3.5" />
                   Imprimir Agora
@@ -852,7 +854,7 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
                 <button
                   type="button"
                   onClick={() => void runExport('html')}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700"
                 >
                   <Download className="w-3.5 h-3.5" />
                   Baixar HTML
@@ -860,7 +862,7 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
                 <button
                   type="button"
                   onClick={() => setPrintHtml(null)}
-                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
+                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-white dark:text-slate-400"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -869,8 +871,8 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
             <iframe
               ref={printIframeRef}
               title="Visualização de Impressão"
-              srcDoc={printHtml}
-              className="flex-1 w-full border-0 bg-slate-100"
+              srcDoc={applyThemeToHtmlDocument(printHtml, theme)}
+              className="flex-1 w-full border-0 bg-slate-100 dark:bg-slate-950"
             />
           </div>
         </div>

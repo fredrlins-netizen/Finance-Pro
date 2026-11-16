@@ -7487,6 +7487,25 @@ async function startServer() {
   registerDataHubRoutes(app, { broadcast });
   registerMigrationRoutes(app, { broadcast });
 
+  // Garante resposta JSON em qualquer rota /api inexistente ou erro de middleware (nunca HTML <!doctype>)
+  app.use('/api', (_req, res) => {
+    res.status(404).json({ error: 'Rota de API não encontrada.' });
+  });
+
+  app.use((err: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (req.path.startsWith('/api')) {
+      if (res.headersSent) return next(err);
+      const status =
+        typeof err === 'object' && err !== null && 'status' in err && typeof (err as { status?: number }).status === 'number'
+          ? (err as { status: number }).status
+          : 500;
+      const message = err instanceof Error ? err.message : 'Erro interno no servidor API.';
+      console.error(`API Error [${req.method} ${req.path}]:`, err);
+      return res.status(status).json({ error: message });
+    }
+    return next(err);
+  });
+
   // Non-blocking seed & FEBRABAN catalog sync on startup
   ensureCommonCadastrosSeed()
     .then(() => syncFebrabanBanksFromBrasilApi())

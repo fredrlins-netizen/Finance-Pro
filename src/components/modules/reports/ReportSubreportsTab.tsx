@@ -106,18 +106,18 @@ export const ReportSubreportsTab: React.FC<ReportSubreportsTabProps> = ({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
       {/* List */}
-      <div className="lg:col-span-4 rounded-xl border border-slate-200 bg-white p-3.5 space-y-3">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+      <div className="lg:col-span-4 rounded-xl border border-slate-200 bg-white p-3.5 space-y-3 dark:border-slate-700 dark:bg-slate-900">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-2 dark:border-slate-800">
           <div className="flex items-center gap-2">
-            <Layers className="w-4 h-4 text-blue-600" />
-            <h4 className="text-xs font-bold uppercase tracking-wide text-slate-800">
+            <Layers className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            <h4 className="text-xs font-bold uppercase tracking-wide text-slate-800 dark:text-slate-100">
               Sub-relatórios ({subreports.length})
             </h4>
           </div>
           <button
             type="button"
             onClick={addSubreport}
-            className="inline-flex items-center gap-1 rounded-md bg-slate-900 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-slate-800"
+            className="inline-flex items-center gap-1 rounded-md bg-slate-900 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
           >
             <Plus className="w-3.5 h-3.5" />
             Adicionar
@@ -125,7 +125,7 @@ export const ReportSubreportsTab: React.FC<ReportSubreportsTabProps> = ({
         </div>
 
         {subreports.length === 0 ? (
-          <p className="text-xs text-slate-500 py-4 text-center">
+          <p className="text-xs text-slate-500 py-4 text-center dark:text-slate-400">
             Adicione tabelas de resumo agrupado ou consultas SQL auxiliares ao final do relatório.
           </p>
         ) : (
@@ -136,13 +136,13 @@ export const ReportSubreportsTab: React.FC<ReportSubreportsTabProps> = ({
                 onClick={() => setSelectedId(s.id)}
                 className={`flex items-center justify-between gap-2 rounded-lg border px-3 py-2 cursor-pointer ${
                   activeSub?.id === s.id
-                    ? 'border-blue-500 bg-blue-50/50 text-slate-900'
-                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    ? 'border-blue-500 bg-blue-50/50 text-slate-900 dark:bg-blue-950/50 dark:text-slate-100'
+                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
                 }`}
               >
                 <div className="min-w-0">
                   <div className="text-xs font-semibold truncate">{s.title || `Sub-relatório ${idx + 1}`}</div>
-                  <div className="text-[11px] text-slate-500">
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">
                     {s.type === 'summary' ? 'Resumo dos Dados Principais' : 'Consulta SQL Independente'}
                   </div>
                 </div>
@@ -152,7 +152,7 @@ export const ReportSubreportsTab: React.FC<ReportSubreportsTabProps> = ({
                     e.stopPropagation();
                     removeSub(s.id);
                   }}
-                  className="p-1 text-slate-400 hover:text-red-600"
+                  className="p-1 text-slate-400 hover:text-red-600 dark:text-slate-400"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -165,30 +165,30 @@ export const ReportSubreportsTab: React.FC<ReportSubreportsTabProps> = ({
       {/* Config */}
       <div className="lg:col-span-8 space-y-4">
         {!activeSub ? (
-          <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-xs text-slate-500">
+          <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
             Selecione ou crie um sub-relatório à esquerda.
           </div>
         ) : (
           <>
-            <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
+            <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4 dark:border-slate-700 dark:bg-slate-900">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">
                     Título do Sub-relatório
                   </label>
                   <input
                     type="text"
                     value={activeSub.title}
                     onChange={(e) => updateSub(activeSub.id, { title: e.target.value })}
-                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs"
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Origem</label>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">Origem</label>
                   <select
                     value={activeSub.type}
                     onChange={(e) => updateSub(activeSub.id, { type: e.target.value as any })}
-                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs"
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   >
                     <option value="summary">Resumo Agrupado (sobre dados principais)</option>
                     <option value="query">Consulta SQL Própria</option>
@@ -197,9 +197,9 @@ export const ReportSubreportsTab: React.FC<ReportSubreportsTabProps> = ({
               </div>
 
               {activeSub.type === 'summary' ? (
-                <div className="space-y-3 border-t border-slate-100 pt-3">
+                <div className="space-y-3 border-t border-slate-100 pt-3 dark:border-slate-800">
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1 dark:text-slate-300">
                       Agrupar por Campo
                     </label>
                     <select
@@ -212,7 +212,7 @@ export const ReportSubreportsTab: React.FC<ReportSubreportsTabProps> = ({
                           },
                         })
                       }
-                      className="w-full md:w-72 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-mono"
+                      className="w-full md:w-72 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-mono dark:border-slate-700"
                     >
                       <option value="">Selecione...</option>
                       {availableColumns.map((col) => (
@@ -225,7 +225,7 @@ export const ReportSubreportsTab: React.FC<ReportSubreportsTabProps> = ({
 
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold uppercase tracking-wide text-slate-700">
+                      <span className="text-[11px] font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">
                         Operações Agregadas
                       </span>
                       <button
@@ -240,7 +240,7 @@ export const ReportSubreportsTab: React.FC<ReportSubreportsTabProps> = ({
                             },
                           });
                         }}
-                        className="inline-flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
+                        className="inline-flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-200 dark:hover:bg-slate-800"
                       >
                         <Plus className="w-3 h-3" />
                         Operação
@@ -259,7 +259,7 @@ export const ReportSubreportsTab: React.FC<ReportSubreportsTabProps> = ({
                               summary_config: { ...activeSub.summary_config!, operations: ops },
                             });
                           }}
-                          className="md:col-span-4 rounded border border-slate-200 px-2 py-1 text-xs font-mono"
+                          className="md:col-span-4 rounded border border-slate-200 px-2 py-1 text-xs font-mono dark:border-slate-700"
                         >
                           <option value="">Campo...</option>
                           {availableColumns.map((c) => (
@@ -280,7 +280,7 @@ export const ReportSubreportsTab: React.FC<ReportSubreportsTabProps> = ({
                             });
                           }}
                           placeholder="Rótulo"
-                          className="md:col-span-4 rounded border border-slate-200 px-2 py-1 text-xs"
+                          className="md:col-span-4 rounded border border-slate-200 px-2 py-1 text-xs dark:border-slate-700"
                         />
                         <select
                           value={op.operation}
@@ -292,7 +292,7 @@ export const ReportSubreportsTab: React.FC<ReportSubreportsTabProps> = ({
                               summary_config: { ...activeSub.summary_config!, operations: ops },
                             });
                           }}
-                          className="md:col-span-3 rounded border border-slate-200 px-2 py-1 text-xs"
+                          className="md:col-span-3 rounded border border-slate-200 px-2 py-1 text-xs dark:border-slate-700"
                         >
                           {SUBREPORT_OPERATION_OPTIONS.map((opt) => (
                             <option key={opt.value} value={opt.value}>
@@ -308,7 +308,7 @@ export const ReportSubreportsTab: React.FC<ReportSubreportsTabProps> = ({
                               summary_config: { ...activeSub.summary_config!, operations: ops },
                             });
                           }}
-                          className="md:col-span-1 p-1 text-slate-400 hover:text-red-600"
+                          className="md:col-span-1 p-1 text-slate-400 hover:text-red-600 dark:text-slate-400"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -317,16 +317,16 @@ export const ReportSubreportsTab: React.FC<ReportSubreportsTabProps> = ({
                   </div>
                 </div>
               ) : (
-                <div className="space-y-2 border-t border-slate-100 pt-3">
+                <div className="space-y-2 border-t border-slate-100 pt-3 dark:border-slate-800">
                   <div className="flex items-center justify-between">
-                    <label className="text-[11px] font-semibold text-slate-600">
+                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
                       SQL SELECT do Sub-relatório
                     </label>
                     <button
                       type="button"
                       disabled={testingSubId === activeSub.id}
                       onClick={() => void testSubreportQuery(activeSub)}
-                      className="inline-flex items-center gap-1 rounded-md bg-slate-900 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                      className="inline-flex items-center gap-1 rounded-md bg-slate-900 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
                     >
                       {testingSubId === activeSub.id ? (
                         <RefreshCw className="w-3 h-3 animate-spin" />
@@ -341,10 +341,10 @@ export const ReportSubreportsTab: React.FC<ReportSubreportsTabProps> = ({
                     value={activeSub.sql_query || ''}
                     onChange={(e) => updateSub(activeSub.id, { sql_query: e.target.value })}
                     placeholder="SELECT status, COUNT(*) AS total FROM ..."
-                    className="w-full rounded-lg border border-slate-300 bg-slate-950 p-2.5 font-mono text-xs text-emerald-300"
+                    className="w-full rounded-lg border border-slate-300 bg-slate-950 p-2.5 font-mono text-xs text-emerald-300 dark:border-slate-600"
                   />
                   {subError && (
-                    <div className="flex items-center gap-1.5 text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2.5 py-1.5">
+                    <div className="flex items-center gap-1.5 text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2.5 py-1.5 dark:text-red-300 dark:bg-red-950/50 dark:border-red-800/70">
                       <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                       {subError}
                     </div>
@@ -353,9 +353,9 @@ export const ReportSubreportsTab: React.FC<ReportSubreportsTabProps> = ({
               )}
 
               {/* Columns configuration */}
-              <div className="border-t border-slate-100 pt-3 space-y-2">
+              <div className="border-t border-slate-100 pt-3 space-y-2 dark:border-slate-800">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold uppercase tracking-wide text-slate-700">
+                  <span className="text-[11px] font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">
                     Colunas Exibidas no Sub-relatório
                   </span>
                   <button
@@ -368,7 +368,7 @@ export const ReportSubreportsTab: React.FC<ReportSubreportsTabProps> = ({
                         ],
                       })
                     }
-                    className="inline-flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
+                    className="inline-flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-200 dark:hover:bg-slate-800"
                   >
                     <Plus className="w-3 h-3" />
                     Coluna
@@ -390,7 +390,7 @@ export const ReportSubreportsTab: React.FC<ReportSubreportsTabProps> = ({
                           updateSub(activeSub.id, { columns: cols });
                         }}
                         placeholder="Campo (ex: status ou total_sum)"
-                        className="md:col-span-3 rounded border border-slate-200 px-2 py-1 text-xs font-mono"
+                        className="md:col-span-3 rounded border border-slate-200 px-2 py-1 text-xs font-mono dark:border-slate-700"
                       />
                       <input
                         type="text"
@@ -402,7 +402,7 @@ export const ReportSubreportsTab: React.FC<ReportSubreportsTabProps> = ({
                           updateSub(activeSub.id, { columns: cols });
                         }}
                         placeholder="Rótulo"
-                        className="md:col-span-3 rounded border border-slate-200 px-2 py-1 text-xs"
+                        className="md:col-span-3 rounded border border-slate-200 px-2 py-1 text-xs dark:border-slate-700"
                       />
                       <select
                         value={sc.format}
@@ -412,7 +412,7 @@ export const ReportSubreportsTab: React.FC<ReportSubreportsTabProps> = ({
                           );
                           updateSub(activeSub.id, { columns: cols });
                         }}
-                        className="md:col-span-2 rounded border border-slate-200 px-1.5 py-1 text-xs"
+                        className="md:col-span-2 rounded border border-slate-200 px-1.5 py-1 text-xs dark:border-slate-700"
                       >
                         {SUBREPORT_FORMAT_OPTIONS.map((f) => (
                           <option key={f.value} value={f.value}>
@@ -428,7 +428,7 @@ export const ReportSubreportsTab: React.FC<ReportSubreportsTabProps> = ({
                           );
                           updateSub(activeSub.id, { columns: cols });
                         }}
-                        className="md:col-span-1 rounded border border-slate-200 px-1 py-1 text-xs"
+                        className="md:col-span-1 rounded border border-slate-200 px-1 py-1 text-xs dark:border-slate-700"
                       >
                         <option value="left">Esq</option>
                         <option value="center">Cen</option>
@@ -443,7 +443,7 @@ export const ReportSubreportsTab: React.FC<ReportSubreportsTabProps> = ({
                             totalizers: val === 'none' ? rest : [...rest, { field: sc.field, operation: val }],
                           });
                         }}
-                        className="md:col-span-2 rounded border border-slate-200 px-1.5 py-1 text-xs"
+                        className="md:col-span-2 rounded border border-slate-200 px-1.5 py-1 text-xs dark:border-slate-700"
                         title="Totalizador da Coluna"
                       >
                         {SUBREPORT_OPERATION_OPTIONS.map((o) => (
@@ -459,7 +459,7 @@ export const ReportSubreportsTab: React.FC<ReportSubreportsTabProps> = ({
                             columns: activeSub.columns.filter((_, i) => i !== cIdx),
                           })
                         }
-                        className="md:col-span-1 p-1 text-slate-400 hover:text-red-600"
+                        className="md:col-span-1 p-1 text-slate-400 hover:text-red-600 dark:text-slate-400"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -470,12 +470,12 @@ export const ReportSubreportsTab: React.FC<ReportSubreportsTabProps> = ({
             </div>
 
             {/* Live Preview */}
-            <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-              <div className="border-b border-slate-200 bg-slate-50 px-4 py-2 text-xs font-bold text-slate-800">
+            <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
+              <div className="border-b border-slate-200 bg-slate-50 px-4 py-2 text-xs font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-100">
                 Preview do Sub-relatório ({activePreviewRows.length} linha(s))
               </div>
               {activePreviewRows.length === 0 ? (
-                <div className="p-6 text-center text-xs text-slate-500">
+                <div className="p-6 text-center text-xs text-slate-500 dark:text-slate-400">
                   {activeSub.type === 'summary'
                     ? 'Execute o preview principal na aba Fonte de Dados e selecione o campo de agrupamento para ver o resumo calculado.'
                     : 'Clique em Testar SQL acima para visualizar o resultado deste sub-relatório.'}
@@ -483,7 +483,7 @@ export const ReportSubreportsTab: React.FC<ReportSubreportsTabProps> = ({
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse text-xs tabular-nums">
-                    <thead className="bg-slate-100 text-slate-700 border-b border-slate-200">
+                    <thead className="bg-slate-100 text-slate-700 border-b border-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700">
                       <tr>
                         {(activeSub.columns.length > 0
                           ? activeSub.columns
@@ -500,7 +500,7 @@ export const ReportSubreportsTab: React.FC<ReportSubreportsTabProps> = ({
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {activePreviewRows.slice(0, 20).map((row, idx) => (
                         <tr key={idx}>
                           {(activeSub.columns.length > 0
@@ -512,7 +512,7 @@ export const ReportSubreportsTab: React.FC<ReportSubreportsTabProps> = ({
                                 align: 'left' as const,
                               }))
                           ).map((col) => (
-                            <td key={col.field} style={{ textAlign: col.align }} className="px-3 py-1.5 text-slate-700">
+                            <td key={col.field} style={{ textAlign: col.align }} className="px-3 py-1.5 text-slate-700 dark:text-slate-200">
                               {formatReportValue(row[col.field], col.format || 'text')}
                             </td>
                           ))}
@@ -520,7 +520,7 @@ export const ReportSubreportsTab: React.FC<ReportSubreportsTabProps> = ({
                       ))}
                     </tbody>
                     {activeSub.totalizers.some((t) => t.operation !== 'none') && (
-                      <tfoot className="bg-slate-50 border-t border-slate-200 font-bold">
+                      <tfoot className="bg-slate-50 border-t border-slate-200 font-bold dark:bg-slate-800/70 dark:border-slate-700">
                         <tr>
                           {(activeSub.columns.length > 0
                             ? activeSub.columns
@@ -545,7 +545,7 @@ export const ReportSubreportsTab: React.FC<ReportSubreportsTabProps> = ({
                               ? 'Total'
                               : '';
                             return (
-                              <td key={col.field} style={{ textAlign: col.align }} className="px-3 py-2 text-slate-900">
+                              <td key={col.field} style={{ textAlign: col.align }} className="px-3 py-2 text-slate-900 dark:text-slate-100">
                                 {v}
                               </td>
                             );

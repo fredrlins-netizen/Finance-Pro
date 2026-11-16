@@ -39,10 +39,15 @@ import type {
 } from '../../../types.ts';
 import { getAuthToken } from '../../../lib/api.ts';
 import {
-  openPrintWindow,
+  buildPrintableHtmlDocument,
   replaceTemplateVariables,
   sanitizeTemplateHtml,
 } from '../../../lib/formTemplateRenderer.ts';
+import { applyThemeToHtmlDocument, useTheme } from '../../../lib/theme.tsx';
+import {
+  DossierDocumentPreviewModal,
+  FullFreeAreaDocumentShell,
+} from '../../DossierDocumentViewer.tsx';
 import { useFormTemplates } from '../../FormTemplateButton.tsx';
 import {
   getCachedLogoNeedsDarkBackdrop,
@@ -275,6 +280,14 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
     setPreviewHtml(merged);
   };
 
+  const { theme } = useTheme();
+  const [tplPreviewModal, setTplPreviewModal] = useState<{ title: string; html: string } | null>(null);
+  const tplPreviewIframeRef = useRef<HTMLIFrameElement | null>(null);
+  const [previewAtt, setPreviewAtt] = useState<{
+    att: CompanyProcessAttachment;
+    blobUrl: string;
+  } | null>(null);
+
   const handlePrintSelectedTemplate = () => {
     if (!selectedTplObj || !previewHtml) return;
     const ctx = buildCompanyLegalMergeContext(
@@ -284,7 +297,7 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
       currentUser.name
     );
     const branding = getCachedPortalBranding();
-    openPrintWindow({
+    const htmlDoc = buildPrintableHtmlDocument({
       title: selectedTplObj.name,
       headerHtml: sanitizeTemplateHtml(replaceTemplateVariables(selectedTplObj.header || '', ctx)),
       bodyHtml: sanitizeTemplateHtml(replaceTemplateVariables(selectedTplObj.content || '', ctx)),
@@ -293,6 +306,7 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
       companyName: branding?.companyName,
       logoDarkBackdrop: getCachedLogoNeedsDarkBackdrop(),
     });
+    setTplPreviewModal({ title: selectedTplObj.name, html: htmlDoc });
   };
 
   const handleLocalFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -326,13 +340,7 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
 
   const handleViewAttachment = async (att: CompanyProcessAttachment) => {
     if (att.fileData) {
-      const win = window.open('', '_blank', 'noopener,noreferrer');
-      if (win) {
-        win.document.write(
-          `<!doctype html><html><head><title>${att.title}</title></head><body style="margin:0;height:100vh;"><iframe src="${att.fileData}" style="border:0;width:100%;height:100%;"></iframe></body></html>`
-        );
-        win.document.close();
-      }
+      setPreviewAtt({ att, blobUrl: att.fileData });
       return;
     }
     if (att.fileUrl) {
@@ -343,8 +351,10 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
       if (!resp.ok) return;
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
-      window.open(url, '_blank', 'noopener,noreferrer');
-      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      setPreviewAtt((prev) => {
+        if (prev?.blobUrl && prev.blobUrl.startsWith('blob:')) URL.revokeObjectURL(prev.blobUrl);
+        return { att, blobUrl: url };
+      });
     }
   };
 
@@ -427,29 +437,29 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-2 sm:p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-2 sm:p-4 dark:bg-slate-950/80"
       role="dialog"
       aria-modal="true"
       aria-label={isEditing ? 'Editar Processo' : 'Novo Processo'}
     >
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-6xl h-[92vh] rounded-2xl border border-slate-200 bg-white shadow-2xl flex flex-col overflow-hidden"
+        className="w-full max-w-6xl h-[92vh] rounded-2xl border border-slate-200 bg-white shadow-2xl flex flex-col overflow-hidden dark:border-slate-700 dark:bg-slate-900"
       >
         {/* Top Header */}
-        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between gap-3 bg-slate-50 shrink-0">
+        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between gap-3 bg-slate-50 shrink-0 dark:border-slate-700 dark:bg-slate-800/70">
           <div>
-            <h3 className="font-display text-base font-bold text-slate-900">
+            <h3 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
               {isEditing ? `Editar Processo · ${process?.processNumber}` : 'Novo Processo'}
             </h3>
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
               Cadastro jurídico da empresa com histórico auditável e anexos protegidos
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-700"
             aria-label="Fechar"
           >
             <X className="w-4 h-4" />
@@ -457,7 +467,7 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
         </div>
 
         {/* 5 Tabs */}
-        <div className="px-5 pt-2 border-b border-slate-200 bg-white flex items-center gap-1 overflow-x-auto shrink-0">
+        <div className="px-5 pt-2 border-b border-slate-200 bg-white flex items-center gap-1 overflow-x-auto shrink-0 dark:border-slate-700 dark:bg-slate-900">
           {TABS.map((t) => {
             const active = activeTab === t.id;
             return (
@@ -470,13 +480,13 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
                 }}
                 className={`px-3.5 py-2 text-xs font-semibold border-b-2 whitespace-nowrap transition-colors flex items-center gap-1.5 ${
                   active
-                    ? 'border-slate-900 text-slate-900'
-                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                    ? 'border-slate-900 text-slate-900 dark:border-emerald-500 dark:text-slate-100'
+                    : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'
                 }`}
               >
                 <span>{t.label}</span>
                 {typeof t.count === 'number' && t.count > 0 && (
-                  <span className="rounded-full bg-slate-200 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-800">
+                  <span className="rounded-full bg-slate-200 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-800 dark:bg-slate-700 dark:text-slate-100">
                     {t.count}
                   </span>
                 )}
@@ -486,7 +496,7 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
         </div>
 
         {formError && (
-          <div className="mx-5 mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 shrink-0">
+          <div className="mx-5 mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 shrink-0 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
             {formError}
           </div>
         )}
@@ -497,44 +507,44 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
           {activeTab === 'GERAL' && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
               <div className="space-y-1">
-                <label className="font-semibold text-slate-700">Nº do Processo (CNJ) *</label>
+                <label className="font-semibold text-slate-700 dark:text-slate-200">Nº do Processo (CNJ) *</label>
                 <input
                   type="text"
                   value={processNumber}
                   onChange={(e) => setProcessNumber(e.target.value)}
                   placeholder="0000000-00.0000.0.00.0000"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono focus:border-blue-600 focus:outline-none"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono focus:border-blue-600 focus:outline-none dark:border-slate-600"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="font-semibold text-slate-700">Vara</label>
+                <label className="font-semibold text-slate-700 dark:text-slate-200">Vara</label>
                 <input
                   type="text"
                   value={court}
                   onChange={(e) => setCourt(e.target.value)}
                   placeholder="Ex: 3ª Vara Cível"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-blue-600 focus:outline-none"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-blue-600 focus:outline-none dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="font-semibold text-slate-700">Comarca / Jurisdição</label>
+                <label className="font-semibold text-slate-700 dark:text-slate-200">Comarca / Jurisdição</label>
                 <input
                   type="text"
                   value={jurisdiction}
                   onChange={(e) => setJurisdiction(e.target.value)}
                   placeholder="Ex: São Paulo / SP"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-blue-600 focus:outline-none"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-blue-600 focus:outline-none dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="font-semibold text-slate-700">Tipo</label>
+                <label className="font-semibold text-slate-700 dark:text-slate-200">Tipo</label>
                 <select
                   value={type}
                   onChange={(e) => setType(e.target.value as CompanyProcessType)}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 focus:border-blue-600 focus:outline-none"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 focus:border-blue-600 focus:outline-none dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                 >
                   {PROCESS_TYPES.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -545,11 +555,11 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
               </div>
 
               <div className="space-y-1">
-                <label className="font-semibold text-slate-700">Status</label>
+                <label className="font-semibold text-slate-700 dark:text-slate-200">Status</label>
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value as CompanyProcessStatus)}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 focus:border-blue-600 focus:outline-none"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 focus:border-blue-600 focus:outline-none dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                 >
                   {PROCESS_STATUSES.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -560,11 +570,11 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
               </div>
 
               <div className="space-y-1">
-                <label className="font-semibold text-slate-700">Unidade</label>
+                <label className="font-semibold text-slate-700 dark:text-slate-200">Unidade</label>
                 <select
                   value={unitId}
                   onChange={(e) => setUnitId(e.target.value ? Number(e.target.value) : '')}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 focus:border-blue-600 focus:outline-none"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 focus:border-blue-600 focus:outline-none dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                 >
                   <option value="">Selecione...</option>
                   {units.map((u) => (
@@ -576,23 +586,23 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
               </div>
 
               <div className="md:col-span-2 space-y-1">
-                <label className="font-semibold text-slate-700">Assunto</label>
+                <label className="font-semibold text-slate-700 dark:text-slate-200">Assunto</label>
                 <input
                   type="text"
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
                   placeholder="Objeto principal da ação judicial..."
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-blue-600 focus:outline-none"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-blue-600 focus:outline-none dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="font-semibold text-slate-700">Data de Distribuição</label>
+                <label className="font-semibold text-slate-700 dark:text-slate-200">Data de Distribuição</label>
                 <input
                   type="date"
                   value={distributionDate}
                   onChange={(e) => setDistributionDate(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-blue-600 focus:outline-none"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-blue-600 focus:outline-none dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
             </div>
@@ -602,7 +612,7 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
           {activeTab === 'PARTES' && (
             <div className="space-y-5 text-xs">
               <div className="space-y-2">
-                <label className="font-semibold text-slate-700 block">Papel da Empresa</label>
+                <label className="font-semibold text-slate-700 block dark:text-slate-200">Papel da Empresa</label>
                 <div className="flex flex-wrap gap-3">
                   {[
                     { value: 'AUTOR', label: 'Autor' },
@@ -613,8 +623,8 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
                       key={r.value}
                       className={`inline-flex items-center gap-2 rounded-lg border px-3.5 py-2 cursor-pointer font-semibold ${
                         role === r.value
-                          ? 'border-slate-900 bg-slate-900 text-white'
-                          : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                          ? 'border-slate-900 bg-slate-900 text-white dark:border-emerald-500 dark:bg-emerald-600'
+                          : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
                       }`}
                     >
                       <input
@@ -633,57 +643,57 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="font-semibold text-slate-700">Nome da Parte Adversa</label>
+                  <label className="font-semibold text-slate-700 dark:text-slate-200">Nome da Parte Adversa</label>
                   <input
                     type="text"
                     value={opposingParty}
                     onChange={(e) => setOpposingParty(e.target.value)}
                     placeholder="Nome completo ou Razão Social"
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-blue-600 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-blue-600 focus:outline-none dark:border-slate-600"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="font-semibold text-slate-700">Documento (CPF/CNPJ)</label>
+                  <label className="font-semibold text-slate-700 dark:text-slate-200">Documento (CPF/CNPJ)</label>
                   <input
                     type="text"
                     value={opposingPartyDocument}
                     onChange={(e) => setOpposingPartyDocument(e.target.value)}
                     placeholder="000.000.000-00 ou 00.000.000/0000-00"
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono focus:border-blue-600 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono focus:border-blue-600 focus:outline-none dark:border-slate-600"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="font-semibold text-slate-700">Nome do Advogado da Parte Adversa</label>
+                  <label className="font-semibold text-slate-700 dark:text-slate-200">Nome do Advogado da Parte Adversa</label>
                   <input
                     type="text"
                     value={opposingPartyLawyer}
                     onChange={(e) => setOpposingPartyLawyer(e.target.value)}
                     placeholder="Dr(a). ..."
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-blue-600 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-blue-600 focus:outline-none dark:border-slate-600"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="font-semibold text-slate-700">OAB da Parte Adversa</label>
+                  <label className="font-semibold text-slate-700 dark:text-slate-200">OAB da Parte Adversa</label>
                   <input
                     type="text"
                     value={opposingPartyLawyerOAB}
                     onChange={(e) => setOpposingPartyLawyerOAB(e.target.value)}
                     placeholder="Ex: SP 123456"
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono focus:border-blue-600 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono focus:border-blue-600 focus:outline-none dark:border-slate-600"
                   />
                 </div>
               </div>
 
               {/* Parceiro Vinculado */}
               <div ref={partnerPickerRef} className="space-y-2 relative">
-                <label className="font-semibold text-slate-700 block">
+                <label className="font-semibold text-slate-700 block dark:text-slate-200">
                   Parceiro / Cliente Vinculado (Opcional)
                 </label>
                 <div className="relative">
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5 dark:text-slate-400" />
                   <input
                     type="text"
                     value={partnerSearch}
@@ -697,7 +707,7 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
                       }
                     }}
                     placeholder="Buscar cliente/parceiro por nome, CPF/CNPJ ou telefone..."
-                    className="w-full rounded-lg border border-slate-300 pl-9 pr-8 py-2 focus:border-blue-600 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-300 pl-9 pr-8 py-2 focus:border-blue-600 focus:outline-none dark:border-slate-600"
                   />
                   {(partnerSearch || partnerId) && (
                     <button
@@ -706,7 +716,7 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
                         setPartnerId(null);
                         setPartnerSearch('');
                       }}
-                      className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-700"
+                      className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
                       title="Desvincular parceiro"
                     >
                       <X className="w-4 h-4" />
@@ -715,9 +725,9 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
                 </div>
 
                 {partnerDropdownOpen && (
-                  <div className="absolute z-20 mt-1 w-full rounded-xl border border-slate-200 bg-white shadow-xl max-h-56 overflow-y-auto divide-y divide-slate-100">
+                  <div className="absolute z-20 mt-1 w-full rounded-xl border border-slate-200 bg-white shadow-xl max-h-56 overflow-y-auto divide-y divide-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:divide-slate-800">
                     {filteredPartners.length === 0 ? (
-                      <div className="px-3 py-3 text-slate-400">Nenhum parceiro encontrado</div>
+                      <div className="px-3 py-3 text-slate-400 dark:text-slate-400">Nenhum parceiro encontrado</div>
                     ) : (
                       filteredPartners.map((c) => (
                         <button
@@ -728,16 +738,16 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
                             setPartnerSearch(c.fullName);
                             setPartnerDropdownOpen(false);
                           }}
-                          className="w-full px-3 py-2 text-left hover:bg-slate-50 flex items-center justify-between gap-2"
+                          className="w-full px-3 py-2 text-left hover:bg-slate-50 flex items-center justify-between gap-2 dark:hover:bg-slate-800"
                         >
                           <div>
-                            <div className="font-semibold text-slate-800">{c.fullName}</div>
-                            <div className="text-[11px] text-slate-500">
+                            <div className="font-semibold text-slate-800 dark:text-slate-100">{c.fullName}</div>
+                            <div className="text-[11px] text-slate-500 dark:text-slate-400">
                               {c.cpfCnpj} {c.phone ? `· ${c.phone}` : ''}
                             </div>
                           </div>
                           {partnerId === c.id && (
-                            <span className="text-[10px] font-bold text-emerald-600">Selecionado</span>
+                            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">Selecionado</span>
                           )}
                         </button>
                       ))
@@ -746,13 +756,13 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
                 )}
 
                 {selectedPartnerObj && (
-                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-3.5 py-2.5 flex items-center gap-3">
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-3.5 py-2.5 flex items-center gap-3 dark:border-emerald-800/70 dark:bg-emerald-950/50">
                     <div className="w-8 h-8 rounded-full bg-emerald-700 text-white font-bold flex items-center justify-center shrink-0">
                       {selectedPartnerObj.fullName.charAt(0).toUpperCase()}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="font-bold text-slate-900 truncate">{selectedPartnerObj.fullName}</div>
-                      <div className="text-[11px] text-slate-600">
+                      <div className="font-bold text-slate-900 truncate dark:text-slate-100">{selectedPartnerObj.fullName}</div>
+                      <div className="text-[11px] text-slate-600 dark:text-slate-300">
                         {selectedPartnerObj.cpfCnpj} · {selectedPartnerObj.phone || 'Sem telefone'}
                       </div>
                     </div>
@@ -763,11 +773,11 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
               {/* Advogado Responsável */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="font-semibold text-slate-700">Advogado Responsável</label>
+                  <label className="font-semibold text-slate-700 dark:text-slate-200">Advogado Responsável</label>
                   <select
                     value={responsibleLawyer}
                     onChange={(e) => setResponsibleLawyer(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 focus:border-blue-600 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 focus:border-blue-600 focus:outline-none dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                   >
                     <option value="">Selecione o advogado responsável...</option>
                     {responsibleLawyer &&
@@ -781,20 +791,20 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
                     ))}
                   </select>
                   {lawyerCollaborators.length === 0 && (
-                    <p className="text-[11px] text-amber-700">
+                    <p className="text-[11px] text-amber-700 dark:text-amber-300">
                       Nenhum colaborador com cargo &quot;Advogado Invicta&quot; encontrado em Cadastros Comuns.
                     </p>
                   )}
                 </div>
 
                 <div className="space-y-1">
-                  <label className="font-semibold text-slate-700">OAB do Responsável</label>
+                  <label className="font-semibold text-slate-700 dark:text-slate-200">OAB do Responsável</label>
                   <input
                     type="text"
                     value={responsibleLawyerOAB}
                     onChange={(e) => setResponsibleLawyerOAB(e.target.value)}
                     placeholder="Ex: PE 45678"
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono focus:border-blue-600 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono focus:border-blue-600 focus:outline-none dark:border-slate-600"
                   />
                 </div>
               </div>
@@ -806,29 +816,29 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
             <div className="space-y-5 text-xs max-w-3xl">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="font-semibold text-slate-700">Valor da Causa (R$)</label>
+                  <label className="font-semibold text-slate-700 dark:text-slate-200">Valor da Causa (R$)</label>
                   <input
                     type="text"
                     value={causeValue}
                     onChange={(e) => setCauseValue(e.target.value)}
                     placeholder="Ex: 50.000,00"
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono focus:border-blue-600 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono focus:border-blue-600 focus:outline-none dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="font-semibold text-slate-700">Valor Provisionado (R$)</label>
+                  <label className="font-semibold text-slate-700 dark:text-slate-200">Valor Provisionado (R$)</label>
                   <input
                     type="text"
                     value={provisionValue}
                     onChange={(e) => setProvisionValue(e.target.value)}
                     placeholder="Ex: 15.000,00"
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono focus:border-blue-600 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono focus:border-blue-600 focus:outline-none dark:border-slate-600"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="font-semibold text-slate-700 block">Nível de Risco</label>
+                <label className="font-semibold text-slate-700 block dark:text-slate-200">Nível de Risco</label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {RISK_LEVELS.map((lvl) => {
                     const selected = riskLevel === lvl.value;
@@ -841,7 +851,7 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
                         className={`rounded-xl border px-3 py-3 text-center font-bold transition-all ${
                           selected
                             ? meta.activeBoxClass
-                            : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                            : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
                         }`}
                       >
                         {lvl.label}
@@ -857,7 +867,7 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
           {activeTab === 'NOTAS' && (
             <div className="space-y-3 text-xs">
               {/* Top Controls: Sections + Print Template Selector */}
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2.5 dark:border-slate-700 dark:bg-slate-800/70">
                 <div className="flex flex-wrap items-center gap-1.5">
                   {!showHeader && (
                     <button
@@ -866,7 +876,7 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
                         setShowHeader(true);
                         setActiveSection('HEADER');
                       }}
-                      className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 font-semibold text-blue-700 hover:bg-blue-100"
+                      className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 font-semibold text-blue-700 hover:bg-blue-100 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300 dark:hover:bg-blue-900/60"
                     >
                       <Plus className="w-3.5 h-3.5" /> Cabeçalho
                     </button>
@@ -878,7 +888,7 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
                         setShowFooter(true);
                         setActiveSection('FOOTER');
                       }}
-                      className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 font-semibold text-amber-800 hover:bg-amber-100"
+                      className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 font-semibold text-amber-800 hover:bg-amber-100 dark:border-amber-800/70 dark:bg-amber-950/50 dark:text-amber-300 dark:hover:bg-amber-900/60"
                     >
                       <Plus className="w-3.5 h-3.5" /> Rodapé
                     </button>
@@ -891,8 +901,8 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
                     }}
                     className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 font-semibold ${
                       htmlSourceMode
-                        ? 'border-slate-900 bg-slate-900 text-white'
-                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
+                        ? 'border-slate-900 bg-slate-900 text-white dark:border-emerald-500 dark:bg-emerald-600'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
                     }`}
                   >
                     <Code2 className="w-3.5 h-3.5" /> {htmlSourceMode ? 'Modo Visual' : 'Código HTML'}
@@ -902,11 +912,11 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
                 {/* Formulário de Impressão (contexto modal) */}
                 {modalTemplates.length > 0 && (
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <FileText className="w-3.5 h-3.5 text-slate-500" />
+                    <FileText className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                     <select
                       value={selectedTplId}
                       onChange={(e) => handleSelectPrintTemplate(e.target.value)}
-                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs"
+                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                     >
                       <option value="">Selecione um formulário...</option>
                       {modalTemplates.map((tpl) => (
@@ -931,7 +941,7 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
                             setSelectedTplObj(null);
                             setPreviewHtml('');
                           }}
-                          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-600 hover:bg-slate-100"
+                          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
                         >
                           Limpar
                         </button>
@@ -943,18 +953,18 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
 
               {/* Formatting Toolbar */}
               {!htmlSourceMode && (
-                <div className="flex flex-wrap items-center gap-1 rounded-xl border border-slate-200 bg-white p-1.5">
-                  <button type="button" onClick={() => execEditorCmd('undo')} title="Desfazer" className="p-1.5 rounded hover:bg-slate-100">
+                <div className="flex flex-wrap items-center gap-1 rounded-xl border border-slate-200 bg-white p-1.5 dark:border-slate-700 dark:bg-slate-900">
+                  <button type="button" onClick={() => execEditorCmd('undo')} title="Desfazer" className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800">
                     <Undo2 className="w-3.5 h-3.5" />
                   </button>
-                  <button type="button" onClick={() => execEditorCmd('redo')} title="Refazer" className="p-1.5 rounded hover:bg-slate-100">
+                  <button type="button" onClick={() => execEditorCmd('redo')} title="Refazer" className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800">
                     <Redo2 className="w-3.5 h-3.5" />
                   </button>
-                  <span className="h-4 w-px bg-slate-200 mx-1" />
+                  <span className="h-4 w-px bg-slate-200 mx-1 dark:bg-slate-700" />
                   <select
                     onChange={(e) => e.target.value && execEditorCmd('fontName', e.target.value)}
                     defaultValue="Times New Roman"
-                    className="rounded border border-slate-200 px-2 py-1 text-[11px]"
+                    className="rounded border border-slate-200 px-2 py-1 text-[11px] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   >
                     <option value="Times New Roman">Times New Roman</option>
                     <option value="Arial">Arial</option>
@@ -964,7 +974,7 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
                   <select
                     onChange={(e) => e.target.value && execEditorCmd('fontSize', e.target.value)}
                     defaultValue="3"
-                    className="rounded border border-slate-200 px-2 py-1 text-[11px]"
+                    className="rounded border border-slate-200 px-2 py-1 text-[11px] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   >
                     <option value="2">10pt</option>
                     <option value="3">12pt</option>
@@ -972,61 +982,61 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
                     <option value="5">18pt</option>
                     <option value="6">24pt</option>
                   </select>
-                  <span className="h-4 w-px bg-slate-200 mx-1" />
-                  <button type="button" onClick={() => execEditorCmd('bold')} title="Negrito" className="p-1.5 rounded hover:bg-slate-100">
+                  <span className="h-4 w-px bg-slate-200 mx-1 dark:bg-slate-700" />
+                  <button type="button" onClick={() => execEditorCmd('bold')} title="Negrito" className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800">
                     <Bold className="w-3.5 h-3.5" />
                   </button>
-                  <button type="button" onClick={() => execEditorCmd('italic')} title="Itálico" className="p-1.5 rounded hover:bg-slate-100">
+                  <button type="button" onClick={() => execEditorCmd('italic')} title="Itálico" className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800">
                     <Italic className="w-3.5 h-3.5" />
                   </button>
-                  <button type="button" onClick={() => execEditorCmd('underline')} title="Sublinhado" className="p-1.5 rounded hover:bg-slate-100">
+                  <button type="button" onClick={() => execEditorCmd('underline')} title="Sublinhado" className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800">
                     <Underline className="w-3.5 h-3.5" />
                   </button>
-                  <button type="button" onClick={() => execEditorCmd('strikeThrough')} title="Tachado" className="p-1.5 rounded hover:bg-slate-100">
+                  <button type="button" onClick={() => execEditorCmd('strikeThrough')} title="Tachado" className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800">
                     <Strikethrough className="w-3.5 h-3.5" />
                   </button>
-                  <span className="h-4 w-px bg-slate-200 mx-1" />
-                  <button type="button" onClick={() => execEditorCmd('justifyLeft')} title="Alinhar à esquerda" className="p-1.5 rounded hover:bg-slate-100">
+                  <span className="h-4 w-px bg-slate-200 mx-1 dark:bg-slate-700" />
+                  <button type="button" onClick={() => execEditorCmd('justifyLeft')} title="Alinhar à esquerda" className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800">
                     <AlignLeft className="w-3.5 h-3.5" />
                   </button>
-                  <button type="button" onClick={() => execEditorCmd('justifyCenter')} title="Centralizar" className="p-1.5 rounded hover:bg-slate-100">
+                  <button type="button" onClick={() => execEditorCmd('justifyCenter')} title="Centralizar" className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800">
                     <AlignCenter className="w-3.5 h-3.5" />
                   </button>
-                  <button type="button" onClick={() => execEditorCmd('justifyRight')} title="Alinhar à direita" className="p-1.5 rounded hover:bg-slate-100">
+                  <button type="button" onClick={() => execEditorCmd('justifyRight')} title="Alinhar à direita" className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800">
                     <AlignRight className="w-3.5 h-3.5" />
                   </button>
-                  <button type="button" onClick={() => execEditorCmd('justifyFull')} title="Justificar" className="p-1.5 rounded hover:bg-slate-100">
+                  <button type="button" onClick={() => execEditorCmd('justifyFull')} title="Justificar" className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800">
                     <AlignJustify className="w-3.5 h-3.5" />
                   </button>
-                  <span className="h-4 w-px bg-slate-200 mx-1" />
-                  <button type="button" onClick={() => execEditorCmd('insertUnorderedList')} title="Lista" className="p-1.5 rounded hover:bg-slate-100">
+                  <span className="h-4 w-px bg-slate-200 mx-1 dark:bg-slate-700" />
+                  <button type="button" onClick={() => execEditorCmd('insertUnorderedList')} title="Lista" className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800">
                     <List className="w-3.5 h-3.5" />
                   </button>
-                  <button type="button" onClick={() => execEditorCmd('insertOrderedList')} title="Lista numerada" className="p-1.5 rounded hover:bg-slate-100">
+                  <button type="button" onClick={() => execEditorCmd('insertOrderedList')} title="Lista numerada" className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800">
                     <ListOrdered className="w-3.5 h-3.5" />
                   </button>
-                  <button type="button" onClick={() => execEditorCmd('indent')} title="Aumentar recuo" className="p-1.5 rounded hover:bg-slate-100">
+                  <button type="button" onClick={() => execEditorCmd('indent')} title="Aumentar recuo" className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800">
                     <Indent className="w-3.5 h-3.5" />
                   </button>
-                  <button type="button" onClick={() => execEditorCmd('outdent')} title="Diminuir recuo" className="p-1.5 rounded hover:bg-slate-100">
+                  <button type="button" onClick={() => execEditorCmd('outdent')} title="Diminuir recuo" className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800">
                     <Outdent className="w-3.5 h-3.5" />
                   </button>
                 </div>
               )}
 
               {/* A4 Visual Page */}
-              <div className="bg-slate-100 rounded-xl p-4 flex justify-center">
-                <div className="w-full max-w-[210mm] bg-white border border-slate-300 shadow-sm rounded-lg overflow-hidden space-y-2 p-4">
+              <div className="bg-slate-100 rounded-xl p-4 flex justify-center dark:bg-slate-800">
+                <div className="w-full max-w-[210mm] bg-white border border-slate-300 shadow-sm rounded-lg overflow-hidden space-y-2 p-4 dark:bg-slate-900 dark:border-slate-600">
                   {/* Header Section (Blue) */}
                   {showHeader && (
                     <div
                       className={`rounded-lg border p-2.5 transition-colors ${
-                        activeSection === 'HEADER' ? 'border-blue-500 ring-2 ring-blue-100' : 'border-blue-200'
+                        activeSection === 'HEADER' ? 'border-blue-500 ring-2 ring-blue-100' : 'border-blue-200 dark:border-blue-800/70'
                       }`}
                       onClick={() => setActiveSection('HEADER')}
                     >
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-[10px] font-bold uppercase text-blue-700">Cabeçalho</span>
+                        <span className="text-[10px] font-bold uppercase text-blue-700 dark:text-blue-300">Cabeçalho</span>
                         <button
                           type="button"
                           onClick={(e) => {
@@ -1034,7 +1044,7 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
                             setShowHeader(false);
                             setActiveSection('BODY');
                           }}
-                          className="text-slate-400 hover:text-slate-700"
+                          className="text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
                           title="Ocultar cabeçalho"
                         >
                           <X className="w-3.5 h-3.5" />
@@ -1045,7 +1055,7 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
                           rows={4}
                           value={notesHeader}
                           onChange={(e) => setNotesHeader(e.target.value)}
-                          className="w-full font-mono text-xs border border-slate-200 rounded p-2"
+                          className="w-full font-mono text-xs border border-slate-200 rounded p-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                         />
                       ) : (
                         <div
@@ -1054,7 +1064,7 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
                           suppressContentEditableWarning
                           onInput={() => headerEditorRef.current && setNotesHeader(headerEditorRef.current.innerHTML)}
                           style={{ fontFamily: '"Times New Roman", serif', minHeight: '100px' }}
-                          className="outline-none text-sm text-slate-900 leading-relaxed"
+                          className="outline-none text-sm text-slate-900 leading-relaxed dark:text-slate-100"
                         />
                       )}
                     </div>
@@ -1063,11 +1073,11 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
                   {/* Body Section (Emerald) */}
                   <div
                     className={`rounded-lg border p-3 transition-colors ${
-                      activeSection === 'BODY' ? 'border-emerald-500 ring-2 ring-emerald-100' : 'border-emerald-200'
+                      activeSection === 'BODY' ? 'border-emerald-500 ring-2 ring-emerald-100' : 'border-emerald-200 dark:border-emerald-800/70'
                     }`}
                     onClick={() => setActiveSection('BODY')}
                   >
-                    <div className="mb-1 text-[10px] font-bold uppercase text-emerald-700">
+                    <div className="mb-1 text-[10px] font-bold uppercase text-emerald-700 dark:text-emerald-300">
                       Corpo das Notas / Parecer
                     </div>
                     {htmlSourceMode ? (
@@ -1075,7 +1085,7 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
                         rows={16}
                         value={notesBody}
                         onChange={(e) => setNotesBody(e.target.value)}
-                        className="w-full font-mono text-xs border border-slate-200 rounded p-2"
+                        className="w-full font-mono text-xs border border-slate-200 rounded p-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                       />
                     ) : (
                       <div
@@ -1084,7 +1094,7 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
                         suppressContentEditableWarning
                         onInput={() => bodyEditorRef.current && setNotesBody(bodyEditorRef.current.innerHTML)}
                         style={{ fontFamily: '"Times New Roman", serif', minHeight: '360px' }}
-                        className="outline-none text-sm text-slate-900 leading-relaxed"
+                        className="outline-none text-sm text-slate-900 leading-relaxed dark:text-slate-100"
                       />
                     )}
                   </div>
@@ -1093,12 +1103,12 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
                   {showFooter && (
                     <div
                       className={`rounded-lg border p-2.5 transition-colors ${
-                        activeSection === 'FOOTER' ? 'border-amber-500 ring-2 ring-amber-100' : 'border-amber-200'
+                        activeSection === 'FOOTER' ? 'border-amber-500 ring-2 ring-amber-100' : 'border-amber-200 dark:border-amber-800/70'
                       }`}
                       onClick={() => setActiveSection('FOOTER')}
                     >
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-[10px] font-bold uppercase text-amber-800">Rodapé</span>
+                        <span className="text-[10px] font-bold uppercase text-amber-800 dark:text-amber-300">Rodapé</span>
                         <button
                           type="button"
                           onClick={(e) => {
@@ -1106,7 +1116,7 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
                             setShowFooter(false);
                             setActiveSection('BODY');
                           }}
-                          className="text-slate-400 hover:text-slate-700"
+                          className="text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
                           title="Ocultar rodapé"
                         >
                           <X className="w-3.5 h-3.5" />
@@ -1117,7 +1127,7 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
                           rows={3}
                           value={notesFooter}
                           onChange={(e) => setNotesFooter(e.target.value)}
-                          className="w-full font-mono text-xs border border-slate-200 rounded p-2"
+                          className="w-full font-mono text-xs border border-slate-200 rounded p-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                         />
                       ) : (
                         <div
@@ -1126,7 +1136,7 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
                           suppressContentEditableWarning
                           onInput={() => footerEditorRef.current && setNotesFooter(footerEditorRef.current.innerHTML)}
                           style={{ fontFamily: '"Times New Roman", serif', minHeight: '90px' }}
-                          className="outline-none text-sm text-slate-900 leading-relaxed"
+                          className="outline-none text-sm text-slate-900 leading-relaxed dark:text-slate-100"
                         />
                       )}
                     </div>
@@ -1149,14 +1159,14 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
               )}
 
               {/* Local Process Attachments */}
-              <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 text-xs">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 text-xs dark:border-slate-700 dark:bg-slate-900">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
-                      <Paperclip className="w-4 h-4 text-blue-600" />
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5 dark:text-slate-100">
+                      <Paperclip className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                       Adicionar Documento ao Processo
                     </h4>
-                    <p className="text-[11px] text-slate-500">
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
                       Arquivos salvos de forma criptografada no Bucket da Invicta (máx. 5MB por arquivo)
                     </p>
                   </div>
@@ -1168,7 +1178,7 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
                     value={attTitleInput}
                     onChange={(e) => setAttTitleInput(e.target.value)}
                     placeholder="Ex: Petição Inicial, Contestação, Procuração..."
-                    className="flex-1 min-w-[220px] rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-600 focus:outline-none"
+                    className="flex-1 min-w-[220px] rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-blue-600 focus:outline-none dark:border-slate-600"
                   />
                   <input
                     ref={fileInputRef}
@@ -1180,25 +1190,25 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 font-semibold text-white hover:bg-slate-800"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
                   >
                     <Upload className="w-3.5 h-3.5" /> Selecionar Arquivo
                   </button>
                 </div>
 
-                <div className="overflow-x-auto rounded-lg border border-slate-200">
+                <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
                   <table className="w-full text-xs">
                     <thead>
-                      <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] font-semibold text-slate-500">
+                      <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-400">
                         <th className="px-3 py-2">Título</th>
                         <th className="px-3 py-2">Arquivo</th>
                         <th className="px-3 py-2 text-right">Ações</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {attachments.length === 0 ? (
                         <tr>
-                          <td colSpan={3} className="px-3 py-6 text-center text-slate-400">
+                          <td colSpan={3} className="px-3 py-6 text-center text-slate-400 dark:text-slate-400">
                             Nenhum documento anexado
                           </td>
                         </tr>
@@ -1207,15 +1217,15 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
                           <tr
                             key={String(att.id)}
                             onDoubleClick={() => void handleViewAttachment(att)}
-                            className="hover:bg-slate-50 cursor-pointer"
+                            className="hover:bg-slate-50 cursor-pointer dark:hover:bg-slate-800"
                           >
-                            <td className="px-3 py-2 font-semibold text-slate-800">{att.title}</td>
-                            <td className="px-3 py-2 text-slate-600">{att.fileName}</td>
+                            <td className="px-3 py-2 font-semibold text-slate-800 dark:text-slate-100">{att.title}</td>
+                            <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{att.fileName}</td>
                             <td className="px-3 py-2 text-right whitespace-nowrap space-x-1">
                               <button
                                 type="button"
                                 onClick={() => void handleViewAttachment(att)}
-                                className="inline-flex items-center gap-1 rounded border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100"
+                                className="inline-flex items-center gap-1 rounded border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                               >
                                 <Eye className="w-3 h-3" /> Visualizar
                               </button>
@@ -1224,7 +1234,7 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
                                 onClick={() =>
                                   setAttachments((prev) => prev.filter((item) => item.id !== att.id))
                                 }
-                                className="inline-flex items-center gap-1 rounded border border-red-200 px-2 py-1 text-[11px] font-medium text-red-700 hover:bg-red-50"
+                                className="inline-flex items-center gap-1 rounded border border-red-200 px-2 py-1 text-[11px] font-medium text-red-700 hover:bg-red-50 dark:border-red-800/70 dark:text-red-300 dark:hover:bg-red-950/60"
                               >
                                 <Trash2 className="w-3 h-3" /> Excluir
                               </button>
@@ -1241,24 +1251,64 @@ export const CompanyLegalProcessForm: React.FC<CompanyLegalProcessFormProps> = (
         </div>
 
         {/* Fixed Footer */}
-        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2 shrink-0">
+        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2 shrink-0 dark:border-slate-700 dark:bg-slate-800/70">
           <button
             type="button"
             disabled={saving}
             onClick={onClose}
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             Cancelar
           </button>
           <button
             type="submit"
             disabled={saving}
-            className="rounded-lg bg-slate-900 px-5 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+            className="rounded-lg bg-slate-900 px-5 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
           >
             {saving ? 'Salvando...' : isEditing ? 'Salvar Alterações' : 'Cadastrar Processo'}
           </button>
         </div>
       </form>
+
+      <DossierDocumentPreviewModal
+        open={Boolean(previewAtt)}
+        title={previewAtt?.att.title || previewAtt?.att.fileName || ''}
+        subtitle={previewAtt?.att.fileName}
+        mimeType={previewAtt?.att.mimeType || ''}
+        blobUrl={previewAtt?.blobUrl || ''}
+        onClose={() => {
+          if (previewAtt?.blobUrl && previewAtt.blobUrl.startsWith('blob:')) {
+            URL.revokeObjectURL(previewAtt.blobUrl);
+          }
+          setPreviewAtt(null);
+        }}
+      />
+
+      <FullFreeAreaDocumentShell
+        open={Boolean(tplPreviewModal)}
+        title={tplPreviewModal?.title || ''}
+        subtitle="Modelo / Peça Jurídica A4"
+        onClose={() => setTplPreviewModal(null)}
+        toolbarExtras={
+          <button
+            type="button"
+            onClick={() => tplPreviewIframeRef.current?.contentWindow?.print()}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 dark:bg-emerald-600 px-3.5 py-1.5 text-[11px] font-semibold text-white hover:bg-slate-800 dark:hover:bg-emerald-500"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            Imprimir Agora
+          </button>
+        }
+      >
+        {tplPreviewModal && (
+          <iframe
+            ref={tplPreviewIframeRef}
+            title={tplPreviewModal.title}
+            srcDoc={applyThemeToHtmlDocument(tplPreviewModal.html, theme)}
+            className="w-full h-full border-0 bg-white dark:bg-slate-950"
+          />
+        )}
+      </FullFreeAreaDocumentShell>
     </div>
   );
 };

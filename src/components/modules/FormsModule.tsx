@@ -48,12 +48,40 @@ export const FormsModule: React.FC<{
   navIntent?: NavigationIntent | null;
   onClearIntent?: () => void;
   onNavigate?: (module: ModuleId, intent?: NavigationIntent) => void;
+  onGoBack?: () => void;
+  previousScreenLabel?: string;
   branding?: PortalBrandingConfig | null;
-}> = ({ wsTick, onNavigate, branding }) => {
+}> = ({ wsTick, onNavigate, onGoBack, previousScreenLabel, branding }) => {
   const [data, setData] = useState<FormsBootstrapPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [isExpanded, setIsExpanded] = useState(false);
   const [subTab, setSubTab] = useState<FormsSubTab>('templates');
+  const [subTabHistory, setSubTabHistory] = useState<FormsSubTab[]>([]);
+  const subTabRef = useRef<FormsSubTab>('templates');
+
+  const switchSubTab = useCallback((nextTab: FormsSubTab) => {
+    const curr = subTabRef.current;
+    if (curr !== nextTab) {
+      setSubTabHistory((prev) => [...prev.slice(-15), curr]);
+      subTabRef.current = nextTab;
+    }
+    setSubTab(nextTab);
+  }, []);
+
+  const handleHeaderGoBack = useCallback(() => {
+    if (subTabHistory.length > 0) {
+      const prevTab = subTabHistory[subTabHistory.length - 1];
+      setSubTabHistory((prev) => prev.slice(0, -1));
+      subTabRef.current = prevTab;
+      setSubTab(prevTab);
+      return;
+    }
+    if (onGoBack) {
+      onGoBack();
+    } else if (onNavigate) {
+      onNavigate('overview');
+    }
+  }, [subTabHistory, onGoBack, onNavigate]);
   const [docTemplatesCount, setDocTemplatesCount] = useState<number>(5);
   const [editingForm, setEditingForm] = useState<CustomFormItem | null>(null);
   const [runningForm, setRunningForm] = useState<CustomFormItem | null>(null);
@@ -146,7 +174,7 @@ export const FormsModule: React.FC<{
       showToast('Formulário atualizado com sucesso.');
       if (andRun) {
         setRunningForm(res.form);
-        setSubTab('runner');
+        switchSubTab('runner');
       } else {
         setEditingForm(res.form);
       }
@@ -159,10 +187,10 @@ export const FormsModule: React.FC<{
       showToast('Formulário criado e salvo.');
       if (andRun) {
         setRunningForm(res.form);
-        setSubTab('runner');
+        switchSubTab('runner');
       } else {
         setEditingForm(res.form);
-        setSubTab('builder');
+        switchSubTab('builder');
       }
     }
     void loadBootstrap(true);
@@ -188,11 +216,11 @@ export const FormsModule: React.FC<{
     setData((prev) => (prev ? { ...prev, forms: [res.form, ...prev.forms] } : prev));
     if (openInBuilder) {
       setEditingForm(res.form);
-      setSubTab('builder');
+      switchSubTab('builder');
       showToast('Rascunho gerado pela Ivi IA aberto no Construtor.');
     } else {
       setRunningForm(res.form);
-      setSubTab('runner');
+      switchSubTab('runner');
       showToast('Formulário publicado e pronto para preenchimento!');
     }
     void loadBootstrap(true);
@@ -224,7 +252,7 @@ export const FormsModule: React.FC<{
     });
     setData((prev) => (prev ? { ...prev, forms: [res.form, ...prev.forms] } : prev));
     setEditingForm(res.form);
-    setSubTab('builder');
+    switchSubTab('builder');
     showToast(`Cópia "${res.form.title}" criada no Construtor.`);
   };
 
@@ -263,8 +291,8 @@ export const FormsModule: React.FC<{
 
   if (loading && !data) {
     return (
-      <div className="p-8 text-center text-sm text-slate-500 flex items-center justify-center gap-2">
-        <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
+      <div className="p-8 text-center text-sm text-slate-500 flex items-center justify-center gap-2 dark:text-slate-400">
+        <RefreshCw className="w-4 h-4 animate-spin text-blue-600 dark:text-blue-400" />
         Carregando Análises &amp; Consultas · Formulários...
       </div>
     );
@@ -274,28 +302,33 @@ export const FormsModule: React.FC<{
     <div
       className={
         isExpanded
-          ? 'fixed inset-0 z-40 bg-slate-50 overflow-y-auto p-4 sm:p-6 space-y-5'
+          ? 'fixed inset-0 z-40 bg-slate-50 overflow-y-auto p-4 sm:p-6 space-y-5 dark:bg-slate-800/70'
           : 'space-y-5'
       }
     >
       {/* Header */}
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
         <div className="flex items-center gap-3 min-w-0">
-          {onNavigate && (
+          {(onGoBack || onNavigate || subTabHistory.length > 0) && (
             <button
               type="button"
-              onClick={() => onNavigate('overview')}
-              className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-100 shrink-0"
-              title="Voltar para Visão Geral"
+              onClick={handleHeaderGoBack}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 shrink-0 transition-colors"
+              title={
+                subTabHistory.length > 0
+                  ? 'Voltar para a aba anterior'
+                  : `Voltar para a tela anterior${previousScreenLabel ? ` (${previousScreenLabel})` : ''}`
+              }
             >
               <ArrowLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">Voltar</span>
             </button>
           )}
           <div className="min-w-0">
-            <h1 className="font-display text-lg font-bold text-slate-900 truncate">
+            <h1 className="font-display text-lg font-bold text-slate-900 truncate dark:text-slate-100">
               Análises &amp; Consultas · Formulários
             </h1>
-            <p className="text-xs text-slate-500 truncate">
+            <p className="text-xs text-slate-500 truncate dark:text-slate-400">
               Modelos corporativos, criação assistida pela Ivi IA por modelo/prompt e consulta analítica de respostas
             </p>
           </div>
@@ -307,8 +340,8 @@ export const FormsModule: React.FC<{
             <div
               className={`inline-flex items-center justify-center rounded-xl border px-3.5 py-1.5 ${
                 darkBackdrop
-                  ? 'bg-slate-900 border-slate-800'
-                  : 'bg-white border-slate-200'
+                  ? 'bg-slate-900 border-slate-800 dark:bg-slate-950 dark:border-slate-700'
+                  : 'bg-white border-slate-200 dark:bg-slate-900 dark:border-slate-700'
               }`}
             >
               <img
@@ -320,8 +353,8 @@ export const FormsModule: React.FC<{
               />
             </div>
           ) : (
-            <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700">
-              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+            <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-200">
+              <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               <span>{activeBranding?.companyName?.trim() || 'FinancePro'}</span>
             </div>
           )}
@@ -331,7 +364,7 @@ export const FormsModule: React.FC<{
           <button
             type="button"
             onClick={() => void loadBootstrap(false)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             Atualizar
@@ -339,7 +372,7 @@ export const FormsModule: React.FC<{
           <button
             type="button"
             onClick={() => setIsExpanded((v) => !v)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             {isExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
             <span className="hidden sm:inline">{isExpanded ? 'Restaurar' : 'Tela Cheia'}</span>
@@ -348,59 +381,59 @@ export const FormsModule: React.FC<{
       </div>
 
       {toastMsg && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-medium text-emerald-800">
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-medium text-emerald-800 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300">
           {toastMsg}
         </div>
       )}
 
       {/* Single-Elevation KPI Strip */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="rounded-xl border border-slate-200 bg-white p-3.5">
-          <div className="text-[11px] font-medium text-slate-500">Modelos A4 &amp; Questionários</div>
-          <div className="font-mono tabular-nums text-xl font-bold text-slate-900 mt-1">
-            {docTemplatesCount} <span className="text-xs font-normal text-slate-400">A4</span> · {kpis?.totalForms || 0} <span className="text-xs font-normal text-slate-400">Coleta</span>
+        <div className="rounded-xl border border-slate-200 bg-white p-3.5 dark:border-slate-700 dark:bg-slate-900">
+          <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Modelos A4 &amp; Questionários</div>
+          <div className="font-mono tabular-nums text-xl font-bold text-slate-900 mt-1 dark:text-slate-100">
+            {docTemplatesCount} <span className="text-xs font-normal text-slate-400 dark:text-slate-400">A4</span> · {kpis?.totalForms || 0} <span className="text-xs font-normal text-slate-400 dark:text-slate-400">Coleta</span>
           </div>
-          <div className="text-[11px] text-slate-500 font-mono tabular-nums mt-0.5">
+          <div className="text-[11px] text-slate-500 font-mono tabular-nums mt-0.5 dark:text-slate-400">
             {kpis?.publishedForms || 0} publicados · 171 variáveis A4
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-3.5">
-          <div className="text-[11px] font-medium text-slate-500">Respostas Protocoladas</div>
-          <div className="font-mono tabular-nums text-xl font-bold text-slate-900 mt-1">
+        <div className="rounded-xl border border-slate-200 bg-white p-3.5 dark:border-slate-700 dark:bg-slate-900">
+          <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Respostas Protocoladas</div>
+          <div className="font-mono tabular-nums text-xl font-bold text-slate-900 mt-1 dark:text-slate-100">
             {kpis?.totalSubmissions || 0}
           </div>
-          <div className="text-[11px] text-slate-500 font-mono tabular-nums mt-0.5">
+          <div className="text-[11px] text-slate-500 font-mono tabular-nums mt-0.5 dark:text-slate-400">
             {kpis?.approvedCount || 0} aprovadas
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-3.5">
-          <div className="text-[11px] font-medium text-slate-500">Aguardando Triagem</div>
-          <div className="font-mono tabular-nums text-xl font-bold text-amber-700 mt-1">
+        <div className="rounded-xl border border-slate-200 bg-white p-3.5 dark:border-slate-700 dark:bg-slate-900">
+          <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Aguardando Triagem</div>
+          <div className="font-mono tabular-nums text-xl font-bold text-amber-700 mt-1 dark:text-amber-300">
             {kpis?.pendingReviewCount || 0}
           </div>
-          <div className="text-[11px] text-slate-500 mt-0.5">Recebidas / em análise</div>
+          <div className="text-[11px] text-slate-500 mt-0.5 dark:text-slate-400">Recebidas / em análise</div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-3.5">
-          <div className="text-[11px] font-medium text-slate-500">Score Médio Apurado</div>
-          <div className="font-mono tabular-nums text-xl font-bold text-emerald-700 mt-1">
+        <div className="rounded-xl border border-slate-200 bg-white p-3.5 dark:border-slate-700 dark:bg-slate-900">
+          <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Score Médio Apurado</div>
+          <div className="font-mono tabular-nums text-xl font-bold text-emerald-700 mt-1 dark:text-emerald-300">
             {kpis?.avgScore !== null && kpis?.avgScore !== undefined ? `${kpis.avgScore}%` : '—'}
           </div>
-          <div className="text-[11px] text-slate-500 mt-0.5">Conformidade / NPS</div>
+          <div className="text-[11px] text-slate-500 mt-0.5 dark:text-slate-400">Conformidade / NPS</div>
         </div>
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex items-center gap-1 border-b border-slate-200 overflow-x-auto">
+      <div className="flex items-center gap-1 border-b border-slate-200 overflow-x-auto dark:border-slate-700">
         <button
           type="button"
-          onClick={() => setSubTab('templates')}
+          onClick={() => switchSubTab('templates')}
           className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap transition-colors ${
             subTab === 'templates'
-              ? 'border-blue-600 text-blue-700 bg-blue-50/40'
-              : 'border-transparent text-slate-600 hover:text-slate-900'
+              ? 'border-blue-600 text-blue-700 bg-blue-50/40 dark:text-blue-300 dark:bg-blue-950/50'
+              : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
           }`}
         >
           <FileText className="w-4 h-4" />
@@ -409,11 +442,11 @@ export const FormsModule: React.FC<{
 
         <button
           type="button"
-          onClick={() => setSubTab('catalog')}
+          onClick={() => switchSubTab('catalog')}
           className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap transition-colors ${
             subTab === 'catalog'
-              ? 'border-blue-600 text-blue-700 bg-blue-50/40'
-              : 'border-transparent text-slate-600 hover:text-slate-900'
+              ? 'border-blue-600 text-blue-700 bg-blue-50/40 dark:text-blue-300 dark:bg-blue-950/50'
+              : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
           }`}
         >
           <ClipboardList className="w-4 h-4" />
@@ -422,11 +455,11 @@ export const FormsModule: React.FC<{
 
         <button
           type="button"
-          onClick={() => setSubTab('ivi_studio')}
+          onClick={() => switchSubTab('ivi_studio')}
           className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap transition-colors ${
             subTab === 'ivi_studio'
-              ? 'border-blue-600 text-blue-700 bg-blue-50/40'
-              : 'border-transparent text-slate-600 hover:text-slate-900'
+              ? 'border-blue-600 text-blue-700 bg-blue-50/40 dark:text-blue-300 dark:bg-blue-950/50'
+              : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
           }`}
         >
           <Sparkles className="w-4 h-4" />
@@ -435,11 +468,11 @@ export const FormsModule: React.FC<{
 
         <button
           type="button"
-          onClick={() => setSubTab('builder')}
+          onClick={() => switchSubTab('builder')}
           className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap transition-colors ${
             subTab === 'builder'
-              ? 'border-blue-600 text-blue-700 bg-blue-50/40'
-              : 'border-transparent text-slate-600 hover:text-slate-900'
+              ? 'border-blue-600 text-blue-700 bg-blue-50/40 dark:text-blue-300 dark:bg-blue-950/50'
+              : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
           }`}
         >
           <Wrench className="w-4 h-4" />
@@ -449,11 +482,11 @@ export const FormsModule: React.FC<{
         {runningForm && (
           <button
             type="button"
-            onClick={() => setSubTab('runner')}
+            onClick={() => switchSubTab('runner')}
             className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap transition-colors ${
               subTab === 'runner'
-                ? 'border-emerald-600 text-emerald-700 bg-emerald-50/40'
-                : 'border-transparent text-slate-600 hover:text-slate-900'
+                ? 'border-emerald-600 text-emerald-700 bg-emerald-50/40 dark:text-emerald-300 dark:bg-emerald-950/50'
+                : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
             }`}
           >
             <FilePlus2 className="w-4 h-4" />
@@ -463,11 +496,11 @@ export const FormsModule: React.FC<{
 
         <button
           type="button"
-          onClick={() => setSubTab('responses')}
+          onClick={() => switchSubTab('responses')}
           className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap transition-colors ${
             subTab === 'responses'
-              ? 'border-blue-600 text-blue-700 bg-blue-50/40'
-              : 'border-transparent text-slate-600 hover:text-slate-900'
+              ? 'border-blue-600 text-blue-700 bg-blue-50/40 dark:text-blue-300 dark:bg-blue-950/50'
+              : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
           }`}
         >
           <Database className="w-4 h-4" />
@@ -490,12 +523,12 @@ export const FormsModule: React.FC<{
           forms={forms}
           onCreateBlank={() => {
             setEditingForm(null);
-            setSubTab('builder');
+            switchSubTab('builder');
           }}
-          onOpenIviStudio={() => setSubTab('ivi_studio')}
+          onOpenIviStudio={() => switchSubTab('ivi_studio')}
           onEditForm={(fm) => {
             setEditingForm(fm);
-            setSubTab('builder');
+            switchSubTab('builder');
           }}
           onRunForm={(fm) => {
             const mode = fm.settingsJson?.displayMode;
@@ -503,12 +536,12 @@ export const FormsModule: React.FC<{
               setModalRunnerForm(fm);
             } else {
               setRunningForm(fm);
-              setSubTab('runner');
+              switchSubTab('runner');
             }
           }}
           onViewResponses={(formId) => {
             setResponsesFormFilter(String(formId));
-            setSubTab('responses');
+            switchSubTab('responses');
           }}
           onDuplicateForm={handleDuplicateForm}
           onDeleteForm={(fm) => setDeleteTarget(fm)}
@@ -525,7 +558,7 @@ export const FormsModule: React.FC<{
         <FormBuilderContainer
           form={editingForm}
           onSaveForm={handleSaveForm}
-          onCancel={() => setSubTab('catalog')}
+          onCancel={() => switchSubTab('catalog')}
         />
       )}
 
@@ -553,7 +586,7 @@ export const FormsModule: React.FC<{
             );
             void loadBootstrap(true);
           }}
-          onBackToCatalog={() => setSubTab('catalog')}
+          onBackToCatalog={() => switchSubTab('catalog')}
         />
       )}
 
@@ -592,27 +625,27 @@ export const FormsModule: React.FC<{
           <div
             className={
               modalRunnerForm.settingsJson?.displayMode === 'drawer'
-                ? 'h-full w-full max-w-2xl bg-slate-50 shadow-2xl flex flex-col overflow-hidden border-l border-slate-200'
-                : 'w-full max-w-4xl max-h-[90vh] rounded-2xl bg-slate-50 shadow-2xl flex flex-col overflow-hidden border border-slate-200'
+                ? 'h-full w-full max-w-2xl bg-slate-50 shadow-2xl flex flex-col overflow-hidden border-l border-slate-200 dark:bg-slate-800/70 dark:border-slate-700'
+                : 'w-full max-w-4xl max-h-[90vh] rounded-2xl bg-slate-50 shadow-2xl flex flex-col overflow-hidden border border-slate-200 dark:bg-slate-800/70 dark:border-slate-700'
             }
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-3">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-3 dark:border-slate-700 dark:bg-slate-900">
               <div>
-                <div className="text-[10px] font-mono text-blue-700 uppercase">
+                <div className="text-[10px] font-mono text-blue-700 uppercase dark:text-blue-300">
                   {modalRunnerForm.settingsJson?.displayMode === 'drawer'
                     ? 'Apresentação em Painel Lateral'
                     : 'Apresentação em Modal Central'}{' '}
                   · {modalRunnerForm.code}
                 </div>
-                <h3 className="font-display text-sm font-bold text-slate-900">
+                <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                   {modalRunnerForm.title}
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setModalRunnerForm(null)}
-                className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100"
+                className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
               >
                 <X className="w-4 h-4" />
               </button>

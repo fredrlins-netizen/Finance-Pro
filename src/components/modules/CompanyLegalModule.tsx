@@ -189,14 +189,14 @@ export const CompanyLegalModule: React.FC<CompanyLegalModuleProps> = ({
   return (
     <div className="space-y-4">
       {/* Sub-navigation strip aligned with sidebar */}
-      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 flex flex-wrap items-center justify-between gap-3 dark:border-slate-700 dark:bg-slate-900">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-slate-900 text-emerald-400 flex items-center justify-center shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-slate-900 text-emerald-400 flex items-center justify-center shrink-0 dark:bg-slate-950 dark:border-slate-700">
             <Scale className="w-4 h-4" />
           </div>
           <div>
-            <h1 className="font-display text-sm font-bold text-slate-900">Acompanhamento Jurídico</h1>
-            <p className="text-[11px] text-slate-500">
+            <h1 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">Acompanhamento Jurídico</h1>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
               Governança · Gestão de Processos Judiciais da Empresa
             </p>
           </div>
@@ -208,8 +208,8 @@ export const CompanyLegalModule: React.FC<CompanyLegalModuleProps> = ({
             onClick={() => onNavigate('jur_dashboard')}
             className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
               resolvedView === 'jur_dashboard'
-                ? 'bg-slate-900 text-white'
-                : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
             }`}
           >
             <LayoutDashboard className="w-3.5 h-3.5" /> Dashboard
@@ -219,8 +219,8 @@ export const CompanyLegalModule: React.FC<CompanyLegalModuleProps> = ({
             onClick={() => onNavigate('jur_processos')}
             className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
               resolvedView === 'jur_processos'
-                ? 'bg-slate-900 text-white'
-                : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
             }`}
           >
             <List className="w-3.5 h-3.5" /> Processos
@@ -230,8 +230,8 @@ export const CompanyLegalModule: React.FC<CompanyLegalModuleProps> = ({
             onClick={() => onNavigate('jur_prazos')}
             className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
               resolvedView === 'jur_prazos'
-                ? 'bg-slate-900 text-white'
-                : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
             }`}
           >
             <CalendarClock className="w-3.5 h-3.5" /> Prazos e Audiências
@@ -240,7 +240,7 @@ export const CompanyLegalModule: React.FC<CompanyLegalModuleProps> = ({
       </div>
 
       {toast && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-semibold text-emerald-800">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-semibold text-emerald-800 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300">
           {toast}
         </div>
       )}

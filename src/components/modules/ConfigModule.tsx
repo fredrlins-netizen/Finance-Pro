@@ -60,6 +60,7 @@ interface ConfigModuleProps {
   onUnitsUpdated: () => void;
   onBrandingUpdated?: (branding: PortalBrandingConfig) => void;
   onGoBack?: () => void;
+  previousScreenLabel?: string;
 }
 
 type ConfigTab =
@@ -104,24 +105,27 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
   onUnitsUpdated,
   onBrandingUpdated,
   onGoBack,
+  previousScreenLabel,
 }) => {
   const isAdmin = currentUser.role === 'admin';
   const [tab, setTab] = useState<ConfigTab>('units');
   const [tabHistory, setTabHistory] = useState<ConfigTab[]>([]);
+  const tabRef = React.useRef<ConfigTab>('units');
 
   const switchTab = useCallback((nextTab: ConfigTab) => {
-    setTab((prev) => {
-      if (prev !== nextTab) {
-        setTabHistory((h) => [...h.slice(-15), prev]);
-      }
-      return nextTab;
-    });
+    const curr = tabRef.current;
+    if (curr !== nextTab) {
+      setTabHistory((h) => [...h.slice(-15), curr]);
+      tabRef.current = nextTab;
+    }
+    setTab(nextTab);
   }, []);
 
   const handleBackClick = useCallback(() => {
     if (tabHistory.length > 0) {
       const prevTab = tabHistory[tabHistory.length - 1];
       setTabHistory((h) => h.slice(0, -1));
+      tabRef.current = prevTab;
       setTab(prevTab);
       return;
     }
@@ -528,12 +532,12 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4 dark:border-slate-700">
         <div>
-          <p className="text-xs font-medium text-slate-500">
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
             Governança Corporativa · Unidades &amp; Custos · Canais Multi-Grupo UaZapi &amp; GoTalk · RBAC · Checklist Condicional · Identidade Visual
           </p>
-          <h1 className="mt-1 font-display text-2xl font-bold text-slate-900">
+          <h1 className="mt-1 font-display text-2xl font-bold text-slate-900 dark:text-slate-100">
             Configurações Corporativas &amp; Segurança
           </h1>
         </div>
@@ -541,10 +545,13 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
           <button
             type="button"
             onClick={handleBackClick}
-            className="inline-flex items-center gap-1.5 self-start sm:self-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 min-h-[38px] shrink-0"
+            className="inline-flex items-center gap-1.5 self-start sm:self-center rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 min-h-[38px] shrink-0"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            Voltar para a tela anterior
+            <span>Voltar para a tela anterior</span>
+            {tabHistory.length === 0 && previousScreenLabel && (
+              <span className="hidden sm:inline text-slate-400 font-normal dark:text-slate-400">({previousScreenLabel})</span>
+            )}
           </button>
         )}
       </div>
@@ -561,8 +568,8 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
               onClick={() => switchTab(t.id)}
               className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 min-h-[38px] ${
                 active
-                  ? 'border-slate-900 bg-slate-900 text-white'
-                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  ? 'border-slate-900 bg-slate-900 text-white dark:border-emerald-500 dark:bg-emerald-600'
+                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
               }`}
             >
               <Icon className="w-3.5 h-3.5" />
@@ -573,12 +580,12 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
       </div>
 
       {toast && (
-        <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-medium text-emerald-900">
+        <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-medium text-emerald-900 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300">
           <span>{toast}</span>
           <button
             type="button"
             onClick={() => setToast('')}
-            className="text-emerald-700 hover:text-emerald-950"
+            className="text-emerald-700 hover:text-emerald-950 dark:text-emerald-300"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -665,12 +672,12 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
       {/* 6. QUADRO DE HORÁRIOS (DATA GRID CRUD) */}
       {tab === 'schedules' && (
         <div className="space-y-4 text-xs">
-          <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4">
+          <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
             <div>
-              <div className="font-display text-sm font-bold text-slate-900">
+              <div className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                 Quadro de Horários &amp; Janelas de Acesso Operacional
               </div>
-              <p className="text-slate-500">
+              <p className="text-slate-500 dark:text-slate-400">
                 Restrição automática de jornada por Unidade, Grupo RBAC ou Colaborador.
               </p>
             </div>
@@ -687,7 +694,7 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
                   setSchedActive(true);
                   setSchedModalOpen(true);
                 }}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 font-semibold text-white hover:bg-slate-800 whitespace-nowrap shrink-0"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 font-semibold text-white hover:bg-slate-800 whitespace-nowrap shrink-0 dark:bg-emerald-600 dark:hover:bg-emerald-500"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Nova Janela de Horário
@@ -695,10 +702,10 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
             )}
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
             <div className="overflow-x-auto overflow-y-auto max-h-[55vh] scroll-rulers">
               <table className="w-full min-w-[640px] text-left text-xs">
-                <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600">
+                <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
                   <tr>
                     <th className="px-4 py-2.5">Descrição / Turno</th>
                     <th className="px-4 py-2.5 whitespace-nowrap">Escopo</th>
@@ -708,19 +715,19 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
                     <th className="px-4 py-2.5 text-right whitespace-nowrap">Ações</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {schedules.map((s) => (
                     <tr key={s.id} className="hover:bg-slate-50/80">
-                      <td className="px-4 py-2.5 font-semibold text-slate-900">{s.targetLabel}</td>
-                      <td className="px-4 py-2.5 uppercase text-[11px] text-slate-600">{s.targetType}</td>
-                      <td className="px-4 py-2.5 font-mono font-semibold text-slate-900 tabular-nums">
+                      <td className="px-4 py-2.5 font-semibold text-slate-900 dark:text-slate-100">{s.targetLabel}</td>
+                      <td className="px-4 py-2.5 uppercase text-[11px] text-slate-600 dark:text-slate-300">{s.targetType}</td>
+                      <td className="px-4 py-2.5 font-mono font-semibold text-slate-900 tabular-nums dark:text-slate-100">
                         {s.startTime} às {s.endTime}
                       </td>
-                      <td className="px-4 py-2.5 text-slate-600">
+                      <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">
                         {(s.allowedDays || []).map((d) => dayNames[d] || d).join(' · ')}
                       </td>
                       <td className="px-4 py-2.5">
-                        <span className={s.active ? 'font-semibold text-emerald-700' : 'text-slate-400'}>
+                        <span className={s.active ? 'font-semibold text-emerald-700 dark:text-emerald-300' : 'text-slate-400 dark:text-slate-400'}>
                           {s.active ? 'Ativa' : 'Inativa'}
                         </span>
                       </td>
@@ -739,14 +746,14 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
                                 setSchedActive(s.active !== false);
                                 setSchedModalOpen(true);
                               }}
-                              className="rounded-md p-1.5 text-slate-600 hover:bg-slate-100"
+                              className="rounded-md p-1.5 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
                             >
                               <Edit3 className="w-3.5 h-3.5" />
                             </button>
                             <button
                               type="button"
                               onClick={() => setDeleteSchedId(s.id)}
-                              className="rounded-md p-1.5 text-red-600 hover:bg-red-50"
+                              className="rounded-md p-1.5 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/60"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -761,19 +768,19 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
           </div>
 
           {schedModalOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80">
               <form
                 onSubmit={handleSaveSchedule}
-                className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs"
+                className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs dark:border-slate-700 dark:bg-slate-900"
               >
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <h3 className="font-display text-sm font-bold text-slate-900">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
+                  <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                     {editSchedId ? 'Editar Regra de Horário' : 'Nova Regra de Horário'}
                   </h3>
                   <button
                     type="button"
                     onClick={() => setSchedModalOpen(false)}
-                    className="text-slate-400 hover:text-slate-700"
+                    className="text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -781,11 +788,11 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
 
                 <div className="space-y-3">
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Alvo</label>
+                    <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Alvo</label>
                     <select
                       value={schedTargetType}
                       onChange={(e) => setSchedTargetType(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                     >
                       <option value="unit">Unidade</option>
                       <option value="group">Grupo RBAC</option>
@@ -793,38 +800,38 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
                     </select>
                   </div>
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Descrição *</label>
+                    <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Descrição *</label>
                     <input
                       type="text"
                       required
                       value={schedTargetLabel}
                       onChange={(e) => setSchedTargetLabel(e.target.value)}
                       placeholder="Ex: Turno Comercial Matriz"
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700"
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-2.5">
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Início</label>
+                      <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Início</label>
                       <input
                         type="time"
                         value={schedStart}
                         onChange={(e) => setSchedStart(e.target.value)}
-                        className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                       />
                     </div>
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Fim</label>
+                      <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Fim</label>
                       <input
                         type="time"
                         value={schedEnd}
                         onChange={(e) => setSchedEnd(e.target.value)}
-                        className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                       />
                     </div>
                   </div>
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Dias Liberados</label>
+                    <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Dias Liberados</label>
                     <div className="flex flex-wrap gap-2">
                       {[1, 2, 3, 4, 5, 6, 0].map((d) => (
                         <label key={d} className="flex items-center gap-1 cursor-pointer">
@@ -842,7 +849,7 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
                       ))}
                     </div>
                   </div>
-                  <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-800">
+                  <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-800 dark:text-slate-100">
                     <input
                       type="checkbox"
                       checked={schedActive}
@@ -852,18 +859,18 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
                   </label>
                 </div>
 
-                <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
+                <div className="flex justify-end gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
                   <button
                     type="button"
                     onClick={() => setSchedModalOpen(false)}
-                    className="rounded-lg border border-slate-200 px-3.5 py-2 font-semibold text-slate-700"
+                    className="rounded-lg border border-slate-200 px-3.5 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
                     disabled={busy}
-                    className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800"
+                    className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
                   >
                     Salvar
                   </button>
@@ -892,8 +899,8 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
       {tab === 'fields_categories' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 text-xs">
           {/* Campos Dinâmicos */}
-          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
-            <div className="font-display text-sm font-bold text-slate-900">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4 dark:border-slate-700 dark:bg-slate-900">
+            <div className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
               Campos Dinâmicos por Módulo
             </div>
 
@@ -902,7 +909,7 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
                 <select
                   value={fieldModule}
                   onChange={(e) => setFieldModule(e.target.value)}
-                  className="rounded-lg border border-slate-200 px-2.5 py-2"
+                  className="rounded-lg border border-slate-200 px-2.5 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 >
                   <option value="admission">Admissão / Contrato</option>
                   <option value="client">Cadastro do Cliente</option>
@@ -911,7 +918,7 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
                 <select
                   value={fieldType}
                   onChange={(e) => setFieldType(e.target.value)}
-                  className="rounded-lg border border-slate-200 px-2.5 py-2"
+                  className="rounded-lg border border-slate-200 px-2.5 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 >
                   <option value="text">Texto</option>
                   <option value="number">Número</option>
@@ -921,13 +928,13 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
                   value={fieldKey}
                   onChange={(e) => setFieldKey(e.target.value)}
                   placeholder="Chave técnica (ex: chassi_extra)"
-                  className="rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                  className="rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
                 <input
                   value={fieldLabel}
                   onChange={(e) => setFieldLabel(e.target.value)}
                   placeholder="Rótulo visível"
-                  className="rounded-lg border border-slate-200 px-3 py-2"
+                  className="rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
                 <div className="sm:col-span-2 flex justify-end gap-2">
                   {editFieldId && (
@@ -938,7 +945,7 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
                         setFieldKey('');
                         setFieldLabel('');
                       }}
-                      className="rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-600"
+                      className="rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-600 dark:border-slate-700 dark:text-slate-300"
                     >
                       Cancelar Edição
                     </button>
@@ -946,7 +953,7 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
                   <button
                     type="submit"
                     disabled={busy}
-                    className="rounded-lg bg-slate-900 px-3.5 py-1.5 font-semibold text-white hover:bg-slate-800"
+                    className="rounded-lg bg-slate-900 px-3.5 py-1.5 font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
                   >
                     {editFieldId ? 'Atualizar Campo' : 'Adicionar Campo'}
                   </button>
@@ -954,12 +961,12 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
               </form>
             )}
 
-            <div className="divide-y divide-slate-100 border-t border-slate-100 pt-2">
+            <div className="divide-y divide-slate-100 border-t border-slate-100 pt-2 dark:divide-slate-800 dark:border-slate-800">
               {customFields.map((f) => (
                 <div key={f.id} className="py-2.5 flex items-center justify-between gap-2">
                   <div>
-                    <div className="font-semibold text-slate-900">{f.label}</div>
-                    <div className="font-mono text-[11px] text-slate-500">
+                    <div className="font-semibold text-slate-900 dark:text-slate-100">{f.label}</div>
+                    <div className="font-mono text-[11px] text-slate-500 dark:text-slate-400">
                       {f.module} · {f.fieldKey} ({f.fieldType})
                     </div>
                   </div>
@@ -974,14 +981,14 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
                           setFieldLabel(f.label);
                           setFieldType(f.fieldType || 'text');
                         }}
-                        className="rounded p-1.5 text-slate-600 hover:bg-slate-100"
+                        className="rounded p-1.5 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                       </button>
                       <button
                         type="button"
                         onClick={() => setDeleteFieldId(f.id)}
-                        className="rounded p-1.5 text-red-600 hover:bg-red-50"
+                        className="rounded p-1.5 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/60"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -993,8 +1000,8 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
           </div>
 
           {/* Categorias de Pagamento */}
-          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
-            <div className="font-display text-sm font-bold text-slate-900">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4 dark:border-slate-700 dark:bg-slate-900">
+            <div className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
               Categorias de Pagamento &amp; Recebimento
             </div>
 
@@ -1004,13 +1011,13 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
                   value={catName}
                   onChange={(e) => setCatName(e.target.value)}
                   placeholder="Nome da categoria..."
-                  className="sm:col-span-2 rounded-lg border border-slate-200 px-3 py-2"
+                  className="sm:col-span-2 rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
                 <input
                   value={catProvider}
                   onChange={(e) => setCatProvider(e.target.value)}
                   placeholder="Provedor (santander/pix)"
-                  className="rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                  className="rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
                 <div className="sm:col-span-3 flex justify-end gap-2">
                   {editCatId && (
@@ -1021,7 +1028,7 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
                         setCatName('');
                         setCatProvider('custom');
                       }}
-                      className="rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-600"
+                      className="rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-600 dark:border-slate-700 dark:text-slate-300"
                     >
                       Cancelar
                     </button>
@@ -1029,7 +1036,7 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
                   <button
                     type="submit"
                     disabled={busy}
-                    className="rounded-lg bg-slate-900 px-3.5 py-1.5 font-semibold text-white hover:bg-slate-800"
+                    className="rounded-lg bg-slate-900 px-3.5 py-1.5 font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
                   >
                     {editCatId ? 'Atualizar Categoria' : 'Adicionar Categoria'}
                   </button>
@@ -1037,12 +1044,12 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
               </form>
             )}
 
-            <div className="divide-y divide-slate-100 border-t border-slate-100 pt-2">
+            <div className="divide-y divide-slate-100 border-t border-slate-100 pt-2 dark:divide-slate-800 dark:border-slate-800">
               {paymentCategories.map((c) => (
                 <div key={c.id} className="py-2.5 flex items-center justify-between gap-2">
                   <div>
-                    <span className="font-semibold text-slate-900">{c.name}</span>
-                    <span className="font-mono text-[11px] text-slate-500 ml-2">· {c.providerCode}</span>
+                    <span className="font-semibold text-slate-900 dark:text-slate-100">{c.name}</span>
+                    <span className="font-mono text-[11px] text-slate-500 ml-2 dark:text-slate-400">· {c.providerCode}</span>
                   </div>
                   {isAdmin && (
                     <div className="inline-flex gap-1">
@@ -1053,7 +1060,7 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
                           setCatName(c.name);
                           setCatProvider(c.providerCode);
                         }}
-                        className="rounded p-1.5 text-slate-600 hover:bg-slate-100"
+                        className="rounded p-1.5 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                       </button>
@@ -1063,7 +1070,7 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
                           setDeleteCatErr('');
                           setDeleteCatId(c.id);
                         }}
-                        className="rounded p-1.5 text-red-600 hover:bg-red-50"
+                        className="rounded p-1.5 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/60"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -1135,27 +1142,27 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
       {/* 10. CADEIA IA IVI & PARÂMETROS DA RÉGUA */}
       {tab === 'ai_regua' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
-            <h3 className="font-display text-sm font-bold text-slate-900">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 dark:border-slate-700 dark:bg-slate-900">
+            <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
               Cadeia de Fallback IA — Agente Ivi
             </h3>
-            <p className="text-slate-600">
+            <p className="text-slate-600 dark:text-slate-300">
               Ordem executiva configurada: <strong>Claude Code → OpenAI → Gemini → DeepSeek</strong>. O servidor tenta cada provedor em sequência e armazena o aprendizado na base de conhecimento.
             </p>
             <div className="space-y-2">
               {['claude_code', 'openai', 'gemini', 'deepseek'].map((prov, idx) => (
                 <div
                   key={prov}
-                  className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-3 py-2"
+                  className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-800/70"
                 >
-                  <span className="font-mono font-bold text-slate-800">
+                  <span className="font-mono font-bold text-slate-800 dark:text-slate-100">
                     {idx + 1}º · {prov.toUpperCase()}
                   </span>
                   <span
                     className={
                       iviConfig?.configuredProviders?.[prov]
-                        ? 'text-emerald-700 font-semibold'
-                        : 'text-amber-700'
+                        ? 'text-emerald-700 font-semibold dark:text-emerald-300'
+                        : 'text-amber-700 dark:text-amber-300'
                     }
                   >
                     {iviConfig?.configuredProviders?.[prov]
@@ -1167,11 +1174,11 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
-            <h3 className="font-display text-sm font-bold text-slate-900">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 dark:border-slate-700 dark:bg-slate-900">
+            <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
               Parâmetros da Régua de Cobrança Ivi &amp; Escavador
             </h3>
-            <pre className="rounded-lg bg-slate-900 text-slate-100 p-3 font-mono text-[11px] overflow-x-auto max-h-64">
+            <pre className="rounded-lg bg-slate-900 text-slate-100 p-3 font-mono text-[11px] overflow-x-auto max-h-64 dark:bg-slate-950 dark:border-slate-700">
               {JSON.stringify(settings, null, 2)}
             </pre>
           </div>
@@ -1189,24 +1196,24 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
           legacyCsvSection={
             <div className="space-y-4">
               <div className="space-y-3 text-xs">
-                <div className="font-bold text-slate-900">
+                <div className="font-bold text-slate-900 dark:text-slate-100">
                   Importação em Lote CSV com Pré-Validação &amp; Desambiguação
                 </div>
-                <p className="text-slate-500">
+                <p className="text-slate-500 dark:text-slate-400">
                   Formato CSV (;): Nome Completo;CPF/CNPJ;Telefone;Email;Cidade;UF;Unidade. Execute a pré-validação antes de gravar no Cloud SQL.
                 </p>
                 <textarea
                   rows={5}
                   value={importCsvText}
                   onChange={(e) => setImportCsvText(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 font-mono text-xs"
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 font-mono text-xs dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-100"
                 />
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
                     disabled={busy}
                     onClick={handlePreviewImport}
-                    className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-800 hover:bg-slate-50"
+                    className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
                   >
                     1. Pré-Validar Lote (Dry-Run)
                   </button>
@@ -1221,20 +1228,20 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
                 </div>
 
                 {importPreview && (
-                  <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
-                    <div className="font-semibold text-slate-800">
+                  <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2 dark:border-slate-700 dark:bg-slate-800/70">
+                    <div className="font-semibold text-slate-800 dark:text-slate-100">
                       Pré-validação: {importPreview.validCount} válida(s) · {importPreview.conflictCount} conflito(s)/aviso(s)
                     </div>
                     {importPreview.rows.map((r) => (
                       <div
                         key={r.rowNumber}
-                        className="flex flex-wrap items-center justify-between gap-2 bg-white rounded border border-slate-100 px-3 py-2"
+                        className="flex flex-wrap items-center justify-between gap-2 bg-white rounded border border-slate-100 px-3 py-2 dark:bg-slate-900 dark:border-slate-800"
                       >
                         <span className="font-mono">
                           Linha #{r.rowNumber}: {r.fullName} ({r.cpfCnpj})
                         </span>
                         <span
-                          className={r.valid ? 'text-emerald-700 font-semibold' : 'text-amber-700 font-semibold'}
+                          className={r.valid ? 'text-emerald-700 font-semibold dark:text-emerald-300' : 'text-amber-700 font-semibold dark:text-amber-300'}
                         >
                           {r.valid ? `OK (Unidade #${r.resolvedUnitId})` : r.issues.join(' | ')}
                         </span>
@@ -1244,15 +1251,15 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
                 )}
               </div>
 
-              <div className="border-t border-slate-100 pt-4 space-y-3 text-xs">
-                <div className="font-bold text-slate-900">
+              <div className="border-t border-slate-100 pt-4 space-y-3 text-xs dark:border-slate-800">
+                <div className="font-bold text-slate-900 dark:text-slate-100">
                   Exportação Operacional Parcial CSV
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <select
                     value={exportTable}
                     onChange={(e) => setExportTable(e.target.value)}
-                    className="rounded-lg border border-slate-200 px-3 py-2 font-semibold text-slate-800"
+                    className="rounded-lg border border-slate-200 px-3 py-2 font-semibold text-slate-800 dark:border-slate-700 dark:text-slate-100 dark:bg-slate-950"
                   >
                     <option value="clients">Clientes (Unidade Ativa)</option>
                     <option value="admissions">Admissões / Contratos</option>
@@ -1262,7 +1269,7 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
                   <button
                     type="button"
                     onClick={handleExportScoped}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
                   >
                     <Download className="w-3.5 h-3.5" />
                     Exportar CSV (UTF-8 Excel)
@@ -1281,13 +1288,13 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
 
       {/* 12. ADMIN POSTGRESQL SQL CONSOLE */}
       {tab === 'sql' && isAdmin && (
-        <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4 dark:border-slate-700 dark:bg-slate-900">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
-              <h2 className="font-display text-base font-bold text-slate-900">
+              <h2 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
                 Console Interativo PostgreSQL (Cloud SQL Administrador)
               </h2>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Consulte tabelas, faça auditoria direta de dados ou atualizações controladas. Comandos DROP/TRUNCATE são bloqueados.
               </p>
             </div>
@@ -1299,7 +1306,7 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
                     "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name;"
                   )
                 }
-                className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50"
+                className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
               >
                 Listar Tabelas
               </button>
@@ -1310,7 +1317,7 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
                     'SELECT id, label, uazapi_instance_id, unit_id, allowed_group_ids, allowed_modules, is_connected FROM unit_whatsapp_credentials ORDER BY id;'
                   )
                 }
-                className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50"
+                className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
               >
                 Instâncias UaZapi
               </button>
@@ -1321,7 +1328,7 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
                     'SELECT sort_order, title, modality_condition, active FROM audit_checklist_items ORDER BY sort_order;'
                   )
                 }
-                className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50"
+                className="rounded-md border border-slate-200 px-2.5 py-1 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
               >
                 Checklist Auditoria
               </button>
@@ -1333,7 +1340,7 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
               rows={4}
               value={sqlText}
               onChange={(e) => setSqlText(e.target.value)}
-              className="w-full rounded-xl border border-slate-300 bg-slate-900 text-emerald-300 p-3.5 font-mono text-xs focus:outline-none"
+              className="w-full rounded-xl border border-slate-300 bg-slate-900 text-emerald-300 p-3.5 font-mono text-xs focus:outline-none dark:border-slate-600 dark:bg-emerald-600 dark:text-slate-100"
             />
             <button
               type="submit"
@@ -1346,19 +1353,19 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
           </form>
 
           {sqlError && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs font-mono text-red-700">
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs font-mono text-red-700 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
               {sqlError}
             </div>
           )}
 
           {sqlResult && (
             <div className="space-y-2">
-              <div className="text-[11px] font-mono text-slate-500 tabular-nums">
+              <div className="text-[11px] font-mono text-slate-500 tabular-nums dark:text-slate-400">
                 {sqlResult.rows.length} linha(s) retornada(s) · {sqlResult.durationMs}ms
               </div>
-              <div className="overflow-x-auto overflow-y-auto max-h-[55vh] scroll-rulers rounded-lg border border-slate-200">
+              <div className="overflow-x-auto overflow-y-auto max-h-[55vh] scroll-rulers rounded-lg border border-slate-200 dark:border-slate-700">
                 <table className="w-full text-left text-xs font-mono">
-                  <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] text-slate-600 border-b border-slate-200">
+                  <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] text-slate-600 border-b border-slate-200 dark:bg-slate-800/70 dark:text-slate-300 dark:border-slate-700">
                     <tr>
                       {sqlResult.columns.map((col) => (
                         <th key={col} className="px-3 py-2 whitespace-nowrap">
@@ -1367,11 +1374,11 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {sqlResult.rows.map((row, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50">
+                      <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800">
                         {sqlResult.columns.map((col) => (
-                          <td key={col} className="px-3 py-2 whitespace-nowrap text-slate-800">
+                          <td key={col} className="px-3 py-2 whitespace-nowrap text-slate-800 dark:text-slate-100">
                             {row[col] === null || row[col] === undefined
                               ? 'NULL'
                               : typeof row[col] === 'object'

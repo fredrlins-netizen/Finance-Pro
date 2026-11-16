@@ -47,6 +47,7 @@ interface CadastrosComunsModuleProps {
   currentUser: AuthUser;
   onNavigate: (mod: ModuleId, intent?: NavigationIntent) => void;
   onGoBack?: () => void;
+  previousScreenLabel?: string;
   onCatalogUpdated?: () => void;
 }
 
@@ -57,6 +58,7 @@ export const CadastrosComunsModule: React.FC<CadastrosComunsModuleProps> = ({
   currentUser,
   onNavigate,
   onGoBack,
+  previousScreenLabel,
   onCatalogUpdated,
 }) => {
   const [bootstrap, setBootstrap] = useState<CadastrosBootstrapPayload>({
@@ -108,10 +110,13 @@ export const CadastrosComunsModule: React.FC<CadastrosComunsModuleProps> = ({
           <button
             type="button"
             onClick={onGoBack}
-            className="inline-flex items-center gap-1.5 self-start rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 min-h-[38px] shrink-0"
+            className="inline-flex items-center gap-1.5 self-start rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 min-h-[38px] shrink-0"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            Voltar para a tela anterior
+            <span>Voltar para a tela anterior</span>
+            {previousScreenLabel && (
+              <span className="hidden sm:inline text-slate-400 font-normal dark:text-slate-400">({previousScreenLabel})</span>
+            )}
           </button>
         )}
 
@@ -125,8 +130,8 @@ export const CadastrosComunsModule: React.FC<CadastrosComunsModuleProps> = ({
                 onClick={() => onNavigate(sub.id)}
                 className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap shrink-0 min-h-[36px] transition-colors ${
                   active
-                    ? 'border-slate-900 bg-slate-900 text-white'
-                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    ? 'border-slate-900 bg-slate-900 text-white dark:border-emerald-500 dark:bg-emerald-600'
+                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
                 }`}
               >
                 {sub.label}
@@ -137,13 +142,13 @@ export const CadastrosComunsModule: React.FC<CadastrosComunsModuleProps> = ({
       </div>
 
       {err && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium text-red-700">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium text-red-700 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
           {err}
         </div>
       )}
 
       {loading ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-xs text-slate-500">
+        <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
           Carregando base corporativa de Cadastros Comuns...
         </div>
       ) : (

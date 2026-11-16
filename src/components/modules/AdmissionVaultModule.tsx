@@ -43,6 +43,10 @@ import { apiFetch, formatBRL, formatBytes, formatDateBR, formatDateTimeBR, getAu
 import type { FormMergeContext } from '../../lib/formTemplateRenderer.ts';
 import { FormTemplateButton } from '../FormTemplateButton.tsx';
 import {
+  DossierDocumentPreviewModal,
+  FullFreeAreaDocumentShell,
+} from '../DossierDocumentViewer.tsx';
+import {
   Admission,
   AdmissionScenarioCol,
   AuditCritiqueRound,
@@ -61,6 +65,7 @@ interface AdmissionVaultModuleProps {
   navIntent?: NavigationIntent | null;
   onClearIntent?: () => void;
   onNavigate?: (mod: ModuleId, intent?: NavigationIntent) => void;
+  onGoBack?: () => void;
   cadastrosRefreshKey?: number;
 }
 
@@ -279,6 +284,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
   navIntent,
   onClearIntent,
   onNavigate,
+  onGoBack,
   cadastrosRefreshKey,
 }) => {
   // Core datasets
@@ -292,10 +298,39 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
   const [banksCatalog, setBanksCatalog] = useState<Array<{ code: number; name: string }>>([]);
   const [cadastrosData, setCadastrosData] = useState<CadastrosBootstrapPayload | null>(null);
 
-  // View Navigation: Lista | Formulário | Cofre Global
+  // View Navigation: Lista | Formulário | Cofre Global (com pilha para retornar à tela exata)
   const [viewMode, setViewMode] = useState<'list' | 'form' | 'vault'>('list');
+  const [viewHistory, setViewHistory] = useState<Array<'list' | 'form' | 'vault'>>([]);
+  const viewModeRef = useRef<'list' | 'form' | 'vault'>('list');
+  const enteredViaIntentRef = useRef(false);
   const [formTab, setFormTab] = useState<'formulario' | 'whatsapp' | 'atendimentos' | 'documentos'>('formulario');
   const [editingAdmissionId, setEditingAdmissionId] = useState<number | null>(null);
+
+  const navigateViewMode = (nextMode: 'list' | 'form' | 'vault', pushHistory = true) => {
+    const curr = viewModeRef.current;
+    if (pushHistory && curr !== nextMode) {
+      setViewHistory((prev) => [...prev.slice(-10), curr]);
+    }
+    viewModeRef.current = nextMode;
+    setViewMode(nextMode);
+  };
+
+  const handleBackFromSubView = () => {
+    if (viewHistory.length > 0) {
+      const prevMode = viewHistory[viewHistory.length - 1];
+      setViewHistory((prev) => prev.slice(0, -1));
+      viewModeRef.current = prevMode;
+      setViewMode(prevMode);
+      return;
+    }
+    if (enteredViaIntentRef.current && onGoBack) {
+      enteredViaIntentRef.current = false;
+      onGoBack();
+      return;
+    }
+    viewModeRef.current = 'list';
+    setViewMode('list');
+  };
 
   // List Search, Filters, Sorting, Pagination (50 rows/page per Guide Sec 2)
   const [quickSearchInput, setQuickSearchInput] = useState('');
@@ -482,6 +517,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
 
   useEffect(() => {
     if (!navIntent) return;
+    enteredViaIntentRef.current = true;
     if (navIntent.triggerNew) {
       openNewForm();
     } else if (navIntent.admissionId) {
@@ -491,7 +527,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
       const target = admissions.find((a) => a.clientId === navIntent.clientId);
       if (target) openEditForm(target);
     }
-    if (navIntent.tab === 'vault') setViewMode('vault');
+    if (navIntent.tab === 'vault') navigateViewMode('vault', false);
     onClearIntent?.();
   }, [navIntent, admissions.length]);
 
@@ -754,7 +790,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
     const savedDefaultSeries = localStorage.getItem(SERIES_DEFAULT_STORAGE_KEY) || 'ADM';
     const targetUnit = units.find((u) => u.id === activeUnitId) || units[0];
     setEditingAdmissionId(null);
-    setViewMode('form');
+    navigateViewMode('form');
     setFormTab('formulario');
     setClientRoleSelected('responsavel');
     setUnitId(targetUnit?.id || 1);
@@ -802,7 +838,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
 
   const openEditForm = (adm: Admission, initialTab: typeof formTab = 'formulario') => {
     setEditingAdmissionId(adm.id);
-    setViewMode('form');
+    navigateViewMode('form');
     setFormTab(initialTab);
     setClientRoleSelected(
       adm.clientRoleSelected === 'titular' || Boolean(adm.assetOwnerId) ? 'titular' : 'responsavel'
@@ -1172,7 +1208,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
         setFeedback(`Ficha ${savedAdm.contractNumber} salva com sucesso.`);
       } else {
         setFeedback(`Processo ${savedAdm.contractNumber} salvo com sucesso (${LIST_STATUS_LABELS[savedAdm.status]?.label || savedAdm.status}).`);
-        setViewMode('list');
+        navigateViewMode('list', false);
       }
       return savedAdm;
     } catch (err) {
@@ -1617,17 +1653,17 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
     <div className="space-y-4">
       {/* Feedback & Errors */}
       {feedback && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-medium text-emerald-900 flex items-center justify-between">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-medium text-emerald-900 flex items-center justify-between dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300">
           <span>{feedback}</span>
-          <button type="button" onClick={() => setFeedback('')} className="text-emerald-700 hover:text-emerald-900">
+          <button type="button" onClick={() => setFeedback('')} className="text-emerald-700 hover:text-emerald-900 dark:text-emerald-300 dark:hover:text-emerald-200">
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
       )}
       {errorMsg && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-700 flex items-center justify-between">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-700 flex items-center justify-between dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">
           <span>{errorMsg}</span>
-          <button type="button" onClick={() => setErrorMsg('')} className="text-red-700 hover:text-red-900">
+          <button type="button" onClick={() => setErrorMsg('')} className="text-red-700 hover:text-red-900 dark:text-red-300 dark:hover:text-red-200">
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -1638,20 +1674,20 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
          =================================================================== */}
       {viewMode === 'list' && (
         <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4 dark:border-slate-700">
             <div>
-              <p className="text-xs font-medium text-slate-500">
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
                 Atendimento &gt; Comercial &gt; Admissão
               </p>
-              <h1 className="mt-1 font-display text-2xl font-bold text-slate-900">
+              <h1 className="mt-1 font-display text-2xl font-bold text-slate-900 dark:text-slate-100">
                 Admissão · Fichas de Processo
               </h1>
             </div>
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => setViewMode('vault')}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap"
+                onClick={() => navigateViewMode('vault')}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 whitespace-nowrap"
               >
                 <FolderOpen className="w-3.5 h-3.5" />
                 Cofre bucketdainvicta ({documents.length})
@@ -1668,22 +1704,22 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
           </div>
 
           {/* Search & Collapsible Advanced Filters */}
-          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 dark:border-slate-700 dark:bg-slate-900">
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
               <div className="relative flex-1">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5 dark:text-slate-400" />
                 <input
                   type="text"
                   value={quickSearchInput}
                   onChange={(e) => setQuickSearchInput(e.target.value)}
                   placeholder="Pesquisa rápida por cliente, nº contrato, CPF/CNPJ ou telefone..."
-                  className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-2 text-xs"
+                  className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-2 text-xs dark:border-slate-700"
                 />
               </div>
               <button
                 type="button"
                 onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap"
+                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 <Filter className="w-3.5 h-3.5" />
                 Filtros Avançados
@@ -1692,9 +1728,9 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
             </div>
 
             {showAdvancedFilters && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2.5 pt-2 border-t border-slate-100 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2.5 pt-2 border-t border-slate-100 text-xs dark:border-slate-800">
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">Filtrar Cliente</label>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">Filtrar Cliente</label>
                   <input
                     type="text"
                     value={filterClientName}
@@ -1703,18 +1739,18 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                       setPage(1);
                     }}
                     placeholder="Nome do cliente..."
-                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs"
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs dark:border-slate-700"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">Banco Credor</label>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">Banco Credor</label>
                   <select
                     value={filterBank}
                     onChange={(e) => {
                       setFilterBank(e.target.value);
                       setPage(1);
                     }}
-                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs"
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   >
                     <option value="all">Todos</option>
                     {uniqueBanksInList.map((b) => (
@@ -1723,14 +1759,14 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">Status do Processo</label>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">Status do Processo</label>
                   <select
                     value={filterStatus}
                     onChange={(e) => {
                       setFilterStatus(e.target.value);
                       setPage(1);
                     }}
-                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs"
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   >
                     <option value="all">Todos</option>
                     <option value="pendente">Pendente</option>
@@ -1746,14 +1782,14 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">Consultor</label>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">Consultor</label>
                   <select
                     value={filterConsultant}
                     onChange={(e) => {
                       setFilterConsultant(e.target.value);
                       setPage(1);
                     }}
-                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs"
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs dark:border-slate-700"
                   >
                     <option value="all">Todos</option>
                     {consultants.map((c) => (
@@ -1762,7 +1798,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">Data Inicial</label>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">Data Inicial</label>
                   <input
                     type="date"
                     value={filterDateFrom}
@@ -1770,11 +1806,11 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                       setFilterDateFrom(e.target.value);
                       setPage(1);
                     }}
-                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-mono"
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-mono dark:border-slate-700"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">Data Final</label>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">Data Final</label>
                   <input
                     type="date"
                     value={filterDateTo}
@@ -1782,7 +1818,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                       setFilterDateTo(e.target.value);
                       setPage(1);
                     }}
-                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-mono"
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-mono dark:border-slate-700"
                   />
                 </div>
               </div>
@@ -1790,16 +1826,16 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
           </div>
 
           {/* Admissions List Table (Columns matching Guide Sec 2) */}
-          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600">
+                  <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
                     <th className="py-3 px-4">
                       <button
                         type="button"
                         onClick={() => toggleSort('date')}
-                        className="inline-flex items-center gap-1 hover:text-slate-900"
+                        className="inline-flex items-center gap-1 hover:text-slate-900 dark:hover:text-white"
                       >
                         Data <ArrowDownUp className="w-3 h-3" />
                       </button>
@@ -1808,7 +1844,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                       <button
                         type="button"
                         onClick={() => toggleSort('contract')}
-                        className="inline-flex items-center gap-1 hover:text-slate-900"
+                        className="inline-flex items-center gap-1 hover:text-slate-900 dark:hover:text-white"
                       >
                         Contrato <ArrowDownUp className="w-3 h-3" />
                       </button>
@@ -1817,7 +1853,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                       <button
                         type="button"
                         onClick={() => toggleSort('client')}
-                        className="inline-flex items-center gap-1 hover:text-slate-900"
+                        className="inline-flex items-center gap-1 hover:text-slate-900 dark:hover:text-white"
                       >
                         Cliente <ArrowDownUp className="w-3 h-3" />
                       </button>
@@ -1828,10 +1864,10 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                     <th className="py-3 px-4 text-right">Ações</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {pagedList.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-8 text-center text-slate-500">
+                      <td colSpan={7} className="py-8 text-center text-slate-500 dark:text-slate-400">
                         Nenhuma ficha de admissão localizada nos critérios atuais.
                       </td>
                     </tr>
@@ -1847,33 +1883,33 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                       };
                       const canDelete = !['aprovada', 'auditada', 'em_andamento', 'finalizada', 'concluido'].includes(adm.status);
                       return (
-                        <tr key={adm.id} className="hover:bg-slate-50/70">
-                          <td className="py-3 px-4 font-mono text-slate-600 tabular-nums whitespace-nowrap">
+                        <tr key={adm.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800">
+                          <td className="py-3 px-4 font-mono text-slate-600 tabular-nums whitespace-nowrap dark:text-slate-300">
                             {formatDateBR(adm.createdAt)}
                           </td>
                           <td className="py-3 px-4 whitespace-nowrap">
-                            <div className="font-mono font-bold text-slate-900">
+                            <div className="font-mono font-bold text-slate-900 dark:text-slate-100">
                               {adm.series || 'ADM'} · {adm.contractNumber}
                             </div>
-                            <div className="text-[11px] text-slate-500 truncate max-w-[180px]">
+                            <div className="text-[11px] text-slate-500 truncate max-w-[180px] dark:text-slate-400">
                               {adm.bankName}
                             </div>
                           </td>
                           <td className="py-3 px-4">
-                            <div className="flex items-center gap-1.5 font-semibold text-slate-900">
+                            <div className="flex items-center gap-1.5 font-semibold text-slate-900 dark:text-slate-100">
                               <span>{cl?.fullName || 'Cliente'}</span>
                               {hasGoTalk && (
-                                <span title="Possui histórico WhatsApp / GoTalk" className="text-emerald-600">
+                                <span title="Possui histórico WhatsApp / GoTalk" className="text-emerald-600 dark:text-emerald-400">
                                   <MessageSquare className="w-3.5 h-3.5" />
                                 </span>
                               )}
                             </div>
-                            <div className="font-mono text-[11px] text-slate-500">{cl?.cpfCnpj || '—'}</div>
+                            <div className="font-mono text-[11px] text-slate-500 dark:text-slate-400">{cl?.cpfCnpj || '—'}</div>
                           </td>
-                          <td className="py-3 px-4 text-slate-600 capitalize">
+                          <td className="py-3 px-4 text-slate-600 capitalize dark:text-slate-300">
                             {adm.origin || '—'}
                           </td>
-                          <td className="py-3 px-4 text-slate-700 whitespace-nowrap">
+                          <td className="py-3 px-4 text-slate-700 whitespace-nowrap dark:text-slate-200">
                             {un?.name || `Unidade ${adm.unitId}`}
                           </td>
                           <td className="py-3 px-4 whitespace-nowrap">
@@ -1888,7 +1924,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                                   const res = await apiFetch<{ logs: AuditLogEntry[] }>(`/api/admissions/${adm.id}/history`);
                                   setHistoryModal({ admission: adm, logs: res.logs || [] });
                                 }}
-                                className="rounded-md border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-100"
+                                className="rounded-md border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                               >
                                 <History className="w-3.5 h-3.5" />
                               </button>
@@ -1896,7 +1932,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                                 type="button"
                                 title="Editar Ficha"
                                 onClick={() => openEditForm(adm)}
-                                className="rounded-md border border-slate-200 p-1.5 text-blue-700 hover:bg-blue-50"
+                                className="rounded-md border border-slate-200 p-1.5 text-blue-700 hover:bg-blue-50 dark:border-slate-700 dark:text-blue-300 dark:hover:bg-blue-950/60"
                               >
                                 <Pencil className="w-3.5 h-3.5" />
                               </button>
@@ -1907,7 +1943,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                                   openEditForm(adm);
                                   setPreviewOpen(true);
                                 }}
-                                className="rounded-md border border-slate-200 p-1.5 text-slate-700 hover:bg-slate-100"
+                                className="rounded-md border border-slate-200 p-1.5 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                               >
                                 <Eye className="w-3.5 h-3.5" />
                               </button>
@@ -1924,7 +1960,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                                       setErrorMsg(err instanceof Error ? err.message : 'Erro ao excluir ficha.');
                                     }
                                   }}
-                                  className="rounded-md border border-red-200 p-1.5 text-red-600 hover:bg-red-50"
+                                  className="rounded-md border border-red-200 p-1.5 text-red-600 hover:bg-red-50 dark:border-red-800/70 dark:text-red-400 dark:hover:bg-red-950/60"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
@@ -1940,7 +1976,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
             </div>
 
             {/* 50-row Pagination */}
-            <div className="px-4 py-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
+            <div className="px-4 py-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600 dark:border-slate-800 dark:text-slate-300">
               <span>
                 Exibindo {pagedList.length} de {filteredAndSortedList.length} admissões (página {page} de {totalPages})
               </span>
@@ -1949,7 +1985,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                   type="button"
                   disabled={page <= 1}
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2.5 py-1 disabled:opacity-40"
+                  className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2.5 py-1 disabled:opacity-40 dark:border-slate-700"
                 >
                   <ChevronLeft className="w-3.5 h-3.5" /> Anterior
                 </button>
@@ -1957,7 +1993,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                   type="button"
                   disabled={page >= totalPages}
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2.5 py-1 disabled:opacity-40"
+                  className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2.5 py-1 disabled:opacity-40 dark:border-slate-700"
                 >
                   Próxima <ChevronRight className="w-3.5 h-3.5" />
                 </button>
@@ -1973,7 +2009,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
       {viewMode === 'form' && (
         <div className="space-y-4">
           {/* Sub-abas da Ficha (PNG: Formulário | WhatsApp | Atendimentos | Documentos (n)) */}
-          <div className="flex flex-wrap items-center gap-1 border-b border-slate-200 bg-white rounded-t-xl px-4 pt-2">
+          <div className="flex flex-wrap items-center gap-1 border-b border-slate-200 bg-white rounded-t-xl px-4 pt-2 dark:border-slate-700 dark:bg-slate-900">
             {[
               { id: 'formulario', label: 'Formulário', icon: FileText },
               { id: 'whatsapp', label: 'WhatsApp', icon: MessageSquare },
@@ -1989,8 +2025,8 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                   onClick={() => setFormTab(t.id as typeof formTab)}
                   className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors whitespace-nowrap ${
                     active
-                      ? 'border-slate-900 text-slate-900'
-                      : 'border-transparent text-slate-500 hover:text-slate-800'
+                      ? 'border-slate-900 text-slate-900 dark:border-emerald-500 dark:text-slate-100'
+                      : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'
                   }`}
                 >
                   <Icon className="w-3.5 h-3.5" />
@@ -2003,10 +2039,10 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
           {/* Cabeçalho da Ficha (PNG: NOVA/EDITAR ADMISSÃO | Voltar para Lista | Toolbar Template/Visualizar/Imprimir/Exportar Word | Box Nº Contrato) */}
           <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 px-1">
             <div>
-              <h1 className="font-display text-2xl font-extrabold italic tracking-tight text-slate-900">
+              <h1 className="font-display text-2xl font-extrabold italic tracking-tight text-slate-900 dark:text-slate-100">
                 {editingAdmissionId ? 'EDITAR ADMISSÃO' : 'NOVA ADMISSÃO'}
               </h1>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="text-xs text-slate-500 mt-0.5 dark:text-slate-400">
                 Preencha os dados do processo financeiro.
               </p>
             </div>
@@ -2014,17 +2050,20 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
             <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
-                onClick={() => setViewMode('list')}
-                className="text-xs font-semibold text-slate-600 hover:text-slate-900 whitespace-nowrap"
+                onClick={handleBackFromSubView}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white whitespace-nowrap"
               >
-                Voltar para Lista
+                <ArrowLeft className="w-3.5 h-3.5" />
+                {viewHistory.length > 0 && viewHistory[viewHistory.length - 1] === 'vault'
+                  ? 'Voltar ao Cofre'
+                  : 'Voltar para Lista'}
               </button>
 
-              <div className="inline-flex flex-wrap items-center rounded-xl border border-slate-200 bg-white shadow-xs divide-x divide-slate-200">
+              <div className="inline-flex flex-wrap items-center rounded-xl border border-slate-200 bg-white shadow-xs divide-x divide-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:divide-slate-700">
                 <select
                   value={previewTemplate}
                   onChange={(e) => setPreviewTemplate(e.target.value as typeof previewTemplate)}
-                  className="bg-transparent px-3 py-2 text-xs font-medium text-slate-700 focus:outline-none"
+                  className="bg-transparent px-3 py-2 text-xs font-medium text-slate-700 focus:outline-none dark:text-slate-200"
                 >
                   <option value="padrao">Ficha Padrão</option>
                   <option value="procuracao">Procuração Ad Judicia</option>
@@ -2033,7 +2072,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                 <button
                   type="button"
                   onClick={() => setPreviewOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-800 hover:bg-slate-50 whitespace-nowrap"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-800 hover:bg-slate-50 whitespace-nowrap dark:text-slate-100 dark:hover:bg-slate-800"
                 >
                   <Eye className="w-3.5 h-3.5" />
                   VISUALIZAR
@@ -2041,7 +2080,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                 <button
                   type="button"
                   onClick={handlePrintAction}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-800 hover:bg-slate-50 whitespace-nowrap"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-800 hover:bg-slate-50 whitespace-nowrap dark:text-slate-100 dark:hover:bg-slate-800"
                 >
                   <Printer className="w-3.5 h-3.5" />
                   IMPRIMIR
@@ -2049,7 +2088,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                 <button
                   type="button"
                   onClick={() => setWordModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-blue-700 hover:bg-blue-50 whitespace-nowrap"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-blue-700 hover:bg-blue-50 whitespace-nowrap dark:text-blue-300 dark:hover:bg-blue-950/60"
                 >
                   <FileSpreadsheet className="w-3.5 h-3.5" />
                   EXPORTAR WORD
@@ -2063,11 +2102,11 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                 onError={(msg) => setErrorMsg(msg)}
               />
 
-              <div className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-right shadow-xs min-w-[140px]">
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+              <div className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-right shadow-xs min-w-[140px] dark:border-slate-700 dark:bg-slate-900">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-400">
                   Nº CONTRATO
                 </div>
-                <div className="font-mono text-sm font-extrabold text-slate-900">
+                <div className="font-mono text-sm font-extrabold text-slate-900 dark:text-slate-100">
                   {displayContractNumber}
                 </div>
               </div>
@@ -2076,16 +2115,16 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
 
           {/* Somente leitura aviso quando Aprovada */}
           {isApprovedLocked && (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-900 flex items-center justify-between gap-2">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-900 flex items-center justify-between gap-2 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300">
               <div className="flex items-center gap-2 font-semibold">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 dark:text-emerald-400" />
                 Ficha aprovada em modo somente leitura. Para corrigir dados, a Auditoria deve devolvê-la.
               </div>
               {onNavigate && (
                 <button
                   type="button"
                   onClick={() => onNavigate('audit', { admissionId: editingAdmissionId || undefined })}
-                  className="font-bold text-blue-700 hover:underline whitespace-nowrap"
+                  className="font-bold text-blue-700 hover:underline whitespace-nowrap dark:text-blue-300"
                 >
                   Abrir na Auditoria →
                 </button>
@@ -2095,21 +2134,21 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
 
           {/* Críticas da Auditoria (Histórico de Rodadas + Resposta Obrigatória do Comercial) */}
           {auditCritiques.length > 0 && formTab === 'formulario' && (
-            <div className="rounded-xl border border-red-200 bg-red-50/70 p-4 space-y-3 text-xs">
-              <div className="flex items-center gap-2 font-bold text-red-800">
+            <div className="rounded-xl border border-red-200 bg-red-50/70 p-4 space-y-3 text-xs dark:border-red-800/70 dark:bg-red-950/50">
+              <div className="flex items-center gap-2 font-bold text-red-800 dark:text-red-300">
                 <ShieldAlert className="w-4 h-4" />
                 Críticas da Auditoria ({auditCritiques.length} rodada{auditCritiques.length > 1 ? 's' : ''})
               </div>
               <div className="space-y-2">
                 {auditCritiques.map((c) => (
-                  <div key={c.id} className="rounded-lg border border-red-200 bg-white p-3 space-y-1">
-                    <div className="flex items-center justify-between text-[11px] text-slate-500">
-                      <span>Rodada #{c.round} · Auditor: <strong className="text-slate-800">{c.author}</strong></span>
+                  <div key={c.id} className="rounded-lg border border-red-200 bg-white p-3 space-y-1 dark:border-red-800/70 dark:bg-slate-900">
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                      <span>Rodada #{c.round} · Auditor: <strong className="text-slate-800 dark:text-slate-100">{c.author}</strong></span>
                       <span className="font-mono">{formatDateBR(c.createdAt)}</span>
                     </div>
-                    <div className="text-red-700 font-medium">{c.reason}</div>
+                    <div className="text-red-700 font-medium dark:text-red-300">{c.reason}</div>
                     {c.commercialResponse && (
-                      <div className="mt-1 rounded bg-emerald-50 px-2.5 py-1.5 text-emerald-900">
+                      <div className="mt-1 rounded bg-emerald-50 px-2.5 py-1.5 text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300">
                         <strong>Resposta Comercial ({c.respondedBy}):</strong> {c.commercialResponse}
                       </div>
                     )}
@@ -2123,7 +2162,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                     value={commercialCritiqueReply}
                     onChange={(e) => setCommercialCritiqueReply(e.target.value)}
                     placeholder="Escreva a resposta do Comercial para a crítica aberta..."
-                    className="flex-1 rounded-lg border border-red-300 bg-white px-3 py-2 text-xs"
+                    className="flex-1 rounded-lg border border-red-300 bg-white px-3 py-2 text-xs dark:border-red-800/70 dark:bg-slate-900"
                   />
                   <button
                     type="button"
@@ -2167,13 +2206,13 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
               className="space-y-5"
             >
               {/* SEÇÃO 01. DADOS DO CLIENTE (Idêntico ao PNG) */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 space-y-5">
-                <h2 className="text-xs font-extrabold tracking-widest text-slate-900">
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 space-y-5 dark:border-slate-700 dark:bg-slate-900">
+                <h2 className="text-xs font-extrabold tracking-widest text-slate-900 dark:text-slate-100">
                   01. DADOS DO CLIENTE
                 </h2>
 
                 {/* Tipo do Cliente: Responsável / Titular */}
-                <div className="flex items-center gap-6 text-xs font-medium text-slate-800">
+                <div className="flex items-center gap-6 text-xs font-medium text-slate-800 dark:text-slate-100">
                   <label className="inline-flex items-center gap-2 cursor-pointer">
                     <input
                       type="radio"
@@ -2199,14 +2238,14 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                 {/* Linha 1: UNIDADE * | STATUS | ORIGEM | NOME OU RAZÃO SOCIAL */}
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 items-start">
                   <div className="md:col-span-3">
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">
                       UNIDADE <span className="text-red-500">*</span>
                     </label>
                     <select
                       disabled={isApprovedLocked}
                       value={unitId}
                       onChange={(e) => handleSelectUnit(Number(e.target.value))}
-                      className="w-full rounded-lg border border-emerald-400 bg-emerald-50/40 px-3 py-2 text-xs font-bold text-emerald-900"
+                      className="w-full rounded-lg border border-emerald-400 bg-emerald-50/40 px-3 py-2 text-xs font-bold text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300 dark:text-slate-100"
                     >
                       {units.map((u) => (
                         <option key={u.id} value={u.id}>
@@ -2217,12 +2256,12 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">STATUS</label>
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">STATUS</label>
                     <select
                       disabled={isApprovedLocked}
                       value={status}
                       onChange={(e) => setStatus(e.target.value)}
-                      className="w-full rounded-lg border border-sky-300 bg-sky-50/50 px-3 py-2 text-xs font-bold text-blue-700"
+                      className="w-full rounded-lg border border-sky-300 bg-sky-50/50 px-3 py-2 text-xs font-bold text-blue-700 dark:border-sky-800/70 dark:bg-sky-950/50 dark:text-blue-300"
                     >
                       {FORM_STATUS_OPTIONS.map((opt) => (
                         <option key={opt.value} value={opt.value}>
@@ -2230,16 +2269,16 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                         </option>
                       ))}
                     </select>
-                    <div className="mt-1 text-[10px] font-bold text-blue-600">* MUDA APÓS IMPRIMIR.</div>
+                    <div className="mt-1 text-[10px] font-bold text-blue-600 dark:text-blue-400">* MUDA APÓS IMPRIMIR.</div>
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">ORIGEM</label>
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">ORIGEM</label>
                     <select
                       disabled={isApprovedLocked}
                       value={origin}
                       onChange={(e) => setOrigin(e.target.value)}
-                      className="w-full rounded-lg border border-purple-300 bg-purple-50/40 px-3 py-2 text-xs font-bold text-purple-700"
+                      className="w-full rounded-lg border border-purple-300 bg-purple-50/40 px-3 py-2 text-xs font-bold text-purple-700 dark:border-purple-800/70 dark:bg-purple-950/50 dark:text-purple-300"
                     >
                       <option value="">SELECIONE...</option>
                       <option value="prospeccao">PROSPECÇÃO</option>
@@ -2249,7 +2288,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                   </div>
 
                   <div className="md:col-span-5 relative">
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">
                       NOME OU RAZÃO SOCIAL <span className="text-red-500">*</span>
                     </label>
                     <div className="flex items-center gap-1.5">
@@ -2269,14 +2308,14 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                             setRespSearch(e.target.value);
                           }}
                           placeholder="Pesquisar cliente (mín. 3 letras)..."
-                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-900"
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-900 dark:border-slate-700 dark:text-slate-100"
                         />
                         {respDropdownOpen && !isApprovedLocked && (
-                          <div className="absolute z-30 left-0 right-0 mt-1 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg text-xs">
+                          <div className="absolute z-30 left-0 right-0 mt-1 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg text-xs dark:border-slate-700 dark:bg-slate-900">
                             {respSearchErr ? (
-                              <div className="p-3 text-red-600">{respSearchErr}</div>
+                              <div className="p-3 text-red-600 dark:text-red-400">{respSearchErr}</div>
                             ) : respRemoteResults.length === 0 ? (
-                              <div className="p-3 text-slate-500">Nenhum cliente encontrado.</div>
+                              <div className="p-3 text-slate-500 dark:text-slate-400">Nenhum cliente encontrado.</div>
                             ) : (
                               <>
                                 {respRemoteResults.map((c) => (
@@ -2288,10 +2327,10 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                                       setRespSearch(c.fullName);
                                       setRespDropdownOpen(false);
                                     }}
-                                    className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center justify-between border-b border-slate-50"
+                                    className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center justify-between border-b border-slate-50 dark:hover:bg-slate-800"
                                   >
-                                    <span className="font-semibold text-slate-900 truncate">{c.fullName}</span>
-                                    <span className="font-mono text-[11px] text-slate-500 shrink-0">{c.cpfCnpj}</span>
+                                    <span className="font-semibold text-slate-900 truncate dark:text-slate-100">{c.fullName}</span>
+                                    <span className="font-mono text-[11px] text-slate-500 shrink-0 dark:text-slate-400">{c.cpfCnpj}</span>
                                   </button>
                                 ))}
                                 {respHasMore && (
@@ -2304,7 +2343,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                                       setRespRemoteResults((prev) => [...prev, ...res.clients]);
                                       setRespHasMore(res.hasMore);
                                     }}
-                                    className="w-full py-2 text-center font-semibold text-blue-700 hover:bg-blue-50"
+                                    className="w-full py-2 text-center font-semibold text-blue-700 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-950/60"
                                   >
                                     Próximos resultados
                                   </button>
@@ -2314,7 +2353,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                             <button
                               type="button"
                               onClick={() => setRespDropdownOpen(false)}
-                              className="w-full py-1.5 text-center text-[11px] text-slate-400 border-t border-slate-100"
+                              className="w-full py-1.5 text-center text-[11px] text-slate-400 border-t border-slate-100 dark:text-slate-400 dark:border-slate-800"
                             >
                               Fechar lista
                             </button>
@@ -2326,7 +2365,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                         disabled={isApprovedLocked || !respClient}
                         title="Editar cadastro do cliente"
                         onClick={() => respClient && openPersonModal('responsavel', 'edit', respClient)}
-                        className="rounded-lg border border-slate-200 p-2 text-amber-600 hover:bg-amber-50 disabled:opacity-40"
+                        className="rounded-lg border border-slate-200 p-2 text-amber-600 hover:bg-amber-50 disabled:opacity-40 dark:border-slate-700 dark:text-amber-400 dark:hover:bg-amber-950/60"
                       >
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
@@ -2335,7 +2374,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                         disabled={isApprovedLocked}
                         title="Cadastrar novo cliente"
                         onClick={() => openPersonModal('responsavel', 'create')}
-                        className="rounded-lg border border-slate-200 p-2 text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                        className="rounded-lg border border-slate-200 p-2 text-slate-700 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                       >
                         <Plus className="w-3.5 h-3.5" />
                       </button>
@@ -2346,7 +2385,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                 {/* Linha condicional: TITULAR */}
                 {showTitularField && (
                   <div className="max-w-lg relative">
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">TITULAR</label>
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">TITULAR</label>
                     <div className="flex items-center gap-1.5">
                       <div className="relative flex-1">
                         <input
@@ -2364,10 +2403,10 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                             setTitSearch(e.target.value);
                           }}
                           placeholder="Buscar titular (mín. 3 letras)..."
-                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-900"
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-900 dark:border-slate-700 dark:text-slate-100"
                         />
                         {titDropdownOpen && !isApprovedLocked && (
-                          <div className="absolute z-30 left-0 right-0 mt-1 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg text-xs">
+                          <div className="absolute z-30 left-0 right-0 mt-1 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg text-xs dark:border-slate-700 dark:bg-slate-900">
                             {titRemoteResults.map((c) => (
                               <button
                                 key={c.id}
@@ -2377,10 +2416,10 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                                   setTitSearch(c.fullName);
                                   setTitDropdownOpen(false);
                                 }}
-                                className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center justify-between border-b border-slate-50"
+                                className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center justify-between border-b border-slate-50 dark:hover:bg-slate-800"
                               >
-                                <span className="font-semibold text-slate-900 truncate">{c.fullName}</span>
-                                <span className="font-mono text-[11px] text-slate-500 shrink-0">{c.cpfCnpj}</span>
+                                <span className="font-semibold text-slate-900 truncate dark:text-slate-100">{c.fullName}</span>
+                                <span className="font-mono text-[11px] text-slate-500 shrink-0 dark:text-slate-400">{c.cpfCnpj}</span>
                               </button>
                             ))}
                             {titHasMore && (
@@ -2393,7 +2432,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                                   setTitRemoteResults((prev) => [...prev, ...res.clients]);
                                   setTitHasMore(res.hasMore);
                                 }}
-                                className="w-full py-2 text-center font-semibold text-blue-700 hover:bg-blue-50"
+                                className="w-full py-2 text-center font-semibold text-blue-700 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-950/60"
                               >
                                 Próximos resultados
                               </button>
@@ -2401,7 +2440,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                             <button
                               type="button"
                               onClick={() => setTitDropdownOpen(false)}
-                              className="w-full py-1.5 text-center text-[11px] text-slate-400 border-t border-slate-100"
+                              className="w-full py-1.5 text-center text-[11px] text-slate-400 border-t border-slate-100 dark:text-slate-400 dark:border-slate-800"
                             >
                               Fechar lista
                             </button>
@@ -2413,7 +2452,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                         disabled={isApprovedLocked || !titClient}
                         title="Editar cadastro do titular"
                         onClick={() => titClient && openPersonModal('titular', 'edit', titClient)}
-                        className="rounded-lg border border-slate-200 p-2 text-amber-600 hover:bg-amber-50 disabled:opacity-40"
+                        className="rounded-lg border border-slate-200 p-2 text-amber-600 hover:bg-amber-50 disabled:opacity-40 dark:border-slate-700 dark:text-amber-400 dark:hover:bg-amber-950/60"
                       >
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
@@ -2422,7 +2461,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                         disabled={isApprovedLocked}
                         title="Cadastrar novo titular"
                         onClick={() => openPersonModal('titular', 'create')}
-                        className="rounded-lg border border-slate-200 p-2 text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                        className="rounded-lg border border-slate-200 p-2 text-slate-700 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                       >
                         <Plus className="w-3.5 h-3.5" />
                       </button>
@@ -2433,14 +2472,14 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                 {/* Resumo Somente Leitura Responsável / Titular (exibido somente com Titular vinculado, igual ao PNG) */}
                 {respClient && titClient && (
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">
                       NOME (RESPONSÁVEL / TITULAR)
                     </label>
                     <input
                       type="text"
                       readOnly
                       value={`${respClient.fullName.toUpperCase()} / ${titClient.fullName.toUpperCase()}`}
-                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-800"
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-100"
                     />
                   </div>
                 )}
@@ -2448,92 +2487,92 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                 {/* Campos Cadastrais Somente Leitura (corrigíveis via Editar cliente) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">CPF / CNPJ</label>
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">CPF / CNPJ</label>
                     <input
                       type="text"
                       readOnly
                       value={combineProfileValues(respClient?.cpfCnpj, titClient?.cpfCnpj)}
-                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-mono font-bold text-slate-800"
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-mono font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-100"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">RG</label>
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">RG</label>
                     <input
                       type="text"
                       readOnly
                       value={combineProfileValues(respClient?.rg, titClient?.rg)}
-                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-mono font-bold text-slate-800"
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-mono font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-100"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">TELEFONE</label>
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">TELEFONE</label>
                     <input
                       type="text"
                       readOnly
                       value={combineProfileValues(respClient?.phone, titClient?.phone)}
-                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-800"
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-100"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">PROFISSÃO</label>
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">PROFISSÃO</label>
                     <input
                       type="text"
                       readOnly
                       value={combineProfileValues(respClient?.profession, titClient?.profession).toUpperCase()}
-                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-800"
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-100"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3.5">
                   <div className="lg:col-span-3">
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">ESTADO CIVIL</label>
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">ESTADO CIVIL</label>
                     <input
                       type="text"
                       readOnly
                       value={combineProfileValues(respClient?.maritalStatus, titClient?.maritalStatus).toUpperCase()}
-                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-800"
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-100"
                     />
                   </div>
                   <div className="lg:col-span-2">
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">DATA DE NASC.</label>
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">DATA DE NASC.</label>
                     <input
                       type="text"
                       readOnly
                       value={respClient?.birthDate || '—'}
-                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-mono font-bold text-slate-800"
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-mono font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-100"
                     />
                   </div>
                   <div className="lg:col-span-7">
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">ENDEREÇO</label>
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">ENDEREÇO</label>
                     <input
                       type="text"
                       readOnly
                       value={combineProfileValues(formatClientAddress(respClient), formatClientAddress(titClient)).toUpperCase()}
-                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-800"
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-100"
                     />
                   </div>
                 </div>
 
                 <div className="max-w-lg">
-                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">E-MAIL</label>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">E-MAIL</label>
                   <input
                     type="text"
                     readOnly
                     value={combineProfileValues(respClient?.email, titClient?.email)}
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-800"
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-100"
                   />
                 </div>
               </div>
 
               {/* SEÇÃO 02. INFORMAÇÕES DA NEGOCIAÇÃO */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 space-y-4">
-                <h2 className="text-xs font-extrabold tracking-widest text-slate-900">
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 space-y-4 dark:border-slate-700 dark:bg-slate-900">
+                <h2 className="text-xs font-extrabold tracking-widest text-slate-900 dark:text-slate-100">
                   02. INFORMAÇÕES DA NEGOCIAÇÃO
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5">
                   <div className="md:col-span-4">
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">
                       BANCO <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -2543,7 +2582,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                       value={bankName}
                       onChange={(e) => handleSelectBank(e.target.value)}
                       placeholder="Buscar banco credor (Cadastros Comuns / FEBRABAN)..."
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-900"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-900 dark:border-slate-700 dark:text-slate-100"
                     />
                     <datalist id="febraban-banks-catalog">
                       {dynamicBankNames.map((bName) => (
@@ -2553,7 +2592,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                   </div>
 
                   <div className="md:col-span-3">
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">CONSULTOR</label>
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">CONSULTOR</label>
                     <select
                       disabled={isApprovedLocked}
                       value={consultantName || ''}
@@ -2563,7 +2602,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                         setConsultantName(chosenName);
                         setConsultantId(opt?.userId || null);
                       }}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-800"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-800 dark:border-slate-700 dark:text-slate-100"
                     >
                       <option value="">Selecione...</option>
                       {dynamicConsultantOptions.map((c) => (
@@ -2575,12 +2614,12 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                   </div>
 
                   <div className="md:col-span-3">
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">MODALIDADE</label>
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">MODALIDADE</label>
                     <select
                       disabled={isApprovedLocked}
                       value={modality}
                       onChange={(e) => setModality(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-800"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-800 dark:border-slate-700 dark:text-slate-100 dark:bg-slate-950"
                     >
                       {dynamicModalities.map((m) => (
                         <option key={m.value} value={m.value}>
@@ -2594,7 +2633,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">
                       SÉRIE <span className="text-red-500">*</span>
                     </label>
                     <div className="flex items-center gap-2">
@@ -2606,7 +2645,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                           setSeries(s);
                           setIsSeriesDefault((localStorage.getItem(SERIES_DEFAULT_STORAGE_KEY) || 'ADM') === s);
                         }}
-                        className="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-xs font-mono font-bold text-slate-900"
+                        className="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-xs font-mono font-bold text-slate-900 dark:border-slate-700 dark:text-slate-100"
                       >
                         {dynamicSeriesOptions.map((s) => (
                           <option key={s.sigla} value={s.sigla}>
@@ -2614,7 +2653,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                           </option>
                         ))}
                       </select>
-                      <label className="inline-flex items-center gap-1 text-[11px] text-slate-600 whitespace-nowrap cursor-pointer">
+                      <label className="inline-flex items-center gap-1 text-[11px] text-slate-600 whitespace-nowrap cursor-pointer dark:text-slate-300">
                         <input
                           type="checkbox"
                           checked={isSeriesDefault}
@@ -2634,14 +2673,14 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
 
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5">
                   <div className="md:col-span-4">
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">
                       INDICAÇÃO / CAPTAÇÃO
                     </label>
                     <select
                       disabled={isApprovedLocked}
                       value={indicationSource}
                       onChange={(e) => setIndicationSource(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-800"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-800 dark:border-slate-700 dark:text-slate-100 dark:bg-slate-950"
                     >
                       <option value="">Selecione...</option>
                       <option value="indicacao">Indicação</option>
@@ -2651,14 +2690,14 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                   </div>
                   {indicationSource === 'outro' && (
                     <div className="md:col-span-4">
-                      <label className="block text-[11px] font-semibold text-slate-500 mb-1">QUAL?</label>
+                      <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">QUAL?</label>
                       <input
                         type="text"
                         disabled={isApprovedLocked}
                         value={indicationOther}
                         onChange={(e) => setIndicationOther(e.target.value.toUpperCase())}
                         placeholder="ESPECIFIQUE A CAPTAÇÃO..."
-                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs uppercase font-semibold"
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs uppercase font-semibold dark:border-slate-700"
                       />
                     </div>
                   )}
@@ -2667,84 +2706,84 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
 
               {/* SEÇÃO 03. INFORMAÇÕES DO VEÍCULO (Condicional por "veículo"/"veiculo" na Modalidade — Guide Sec 5) */}
               {showVehicleSection && (
-                <div className="rounded-2xl border border-slate-200 bg-white p-6 space-y-4">
-                  <h2 className="text-xs font-extrabold tracking-widest text-slate-900">
+                <div className="rounded-2xl border border-slate-200 bg-white p-6 space-y-4 dark:border-slate-700 dark:bg-slate-900">
+                  <h2 className="text-xs font-extrabold tracking-widest text-slate-900 dark:text-slate-100">
                     03. INFORMAÇÕES DO VEÍCULO
                   </h2>
                   <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-500 mb-1">MARCA</label>
+                      <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">MARCA</label>
                       <input
                         type="text"
                         disabled={isApprovedLocked}
                         value={vehicleBrand}
                         onChange={(e) => setVehicleBrand(e.target.value.toUpperCase())}
                         placeholder="FIAT"
-                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs uppercase font-semibold"
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs uppercase font-semibold dark:border-slate-700"
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-500 mb-1">MODELO</label>
+                      <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">MODELO</label>
                       <input
                         type="text"
                         disabled={isApprovedLocked}
                         value={vehicleModel}
                         onChange={(e) => setVehicleModel(e.target.value.toUpperCase())}
                         placeholder="ARGO"
-                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs uppercase font-semibold"
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs uppercase font-semibold dark:border-slate-700"
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-500 mb-1">COR</label>
+                      <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">COR</label>
                       <input
                         type="text"
                         disabled={isApprovedLocked}
                         value={vehicleColor}
                         onChange={(e) => setVehicleColor(e.target.value.toUpperCase())}
                         placeholder="BRANCA"
-                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs uppercase font-semibold"
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs uppercase font-semibold dark:border-slate-700"
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-500 mb-1">ANO</label>
+                      <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">ANO</label>
                       <input
                         type="text"
                         disabled={isApprovedLocked}
                         value={vehicleYear}
                         onChange={(e) => setVehicleYear(e.target.value)}
                         placeholder="2023"
-                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono"
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono dark:border-slate-700"
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-500 mb-1">PLACA</label>
+                      <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">PLACA</label>
                       <input
                         type="text"
                         disabled={isApprovedLocked}
                         value={vehiclePlate}
                         onChange={(e) => setVehiclePlate(e.target.value.toUpperCase())}
                         placeholder="ABC1D23"
-                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs uppercase font-mono font-bold"
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs uppercase font-mono font-bold dark:border-slate-700"
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-500 mb-1">CHASSI</label>
+                      <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">CHASSI</label>
                       <input
                         type="text"
                         disabled={isApprovedLocked}
                         value={vehicleChassis}
                         onChange={(e) => setVehicleChassis(e.target.value.toUpperCase())}
-                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs uppercase font-mono"
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs uppercase font-mono dark:border-slate-700"
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-500 mb-1">RENAVAM</label>
+                      <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">RENAVAM</label>
                       <input
                         type="text"
                         disabled={isApprovedLocked}
                         value={vehicleRenavam}
                         onChange={(e) => setVehicleRenavam(e.target.value)}
-                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono"
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono dark:border-slate-700"
                       />
                     </div>
                   </div>
@@ -2752,63 +2791,63 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
               )}
 
               {/* SEÇÃO 04. DÍVIDA ATUAL (Guide Sec 6) */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 space-y-4">
-                <h2 className="text-xs font-extrabold tracking-widest text-slate-900">
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 space-y-4 dark:border-slate-700 dark:bg-slate-900">
+                <h2 className="text-xs font-extrabold tracking-widest text-slate-900 dark:text-slate-100">
                   04. DÍVIDA ATUAL
                 </h2>
                 <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">PARCELAS TOTAIS</label>
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">PARCELAS TOTAIS</label>
                     <input
                       type="number"
                       disabled={isApprovedLocked}
                       value={debtTotalInstallments}
                       onChange={(e) => setDebtTotalInstallments(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono dark:border-slate-700"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">PARCELAS PAGAS</label>
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">PARCELAS PAGAS</label>
                     <input
                       type="number"
                       disabled={isApprovedLocked}
                       value={debtPaidInstallments}
                       onChange={(e) => setDebtPaidInstallments(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono dark:border-slate-700"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">EM ATRASO</label>
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">EM ATRASO</label>
                     <input
                       type="number"
                       disabled={isApprovedLocked}
                       value={debtOverdueInstallments}
                       onChange={(e) => setDebtOverdueInstallments(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono dark:border-slate-700"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">VALOR FINANCIADO (R$)</label>
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">VALOR FINANCIADO (R$)</label>
                     <input
                       type="text"
                       disabled={isApprovedLocked}
                       value={financedAmountReais}
                       onChange={(e) => setFinancedAmountReais(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono font-bold"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono font-bold dark:border-slate-700"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">VALOR DA PARCELA (R$)</label>
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">VALOR DA PARCELA (R$)</label>
                     <input
                       type="text"
                       disabled={isApprovedLocked}
                       value={currentInstallmentReais}
                       onChange={(e) => setCurrentInstallmentReais(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono font-bold"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono font-bold dark:border-slate-700"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">DIA VENCIMENTO</label>
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">DIA VENCIMENTO</label>
                     <input
                       type="number"
                       min={1}
@@ -2816,16 +2855,16 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                       disabled={isApprovedLocked}
                       value={debtDueDay}
                       onChange={(e) => setDebtDueDay(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-mono dark:border-slate-700"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">TIPO PAGAMENTO</label>
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">TIPO PAGAMENTO</label>
                     <select
                       disabled={isApprovedLocked}
                       value={paymentType}
                       onChange={(e) => setPaymentType(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                     >
                       <option value="boleto">Boleto</option>
                       <option value="debito">Débito Automático</option>
@@ -2837,9 +2876,9 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
               </div>
 
               {/* SEÇÃO 05. INFORMAÇÕES DO RECÁLCULO & PLANEJAMENTO DE QUITAÇÃO (Guide Sec 7) */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 space-y-5">
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 space-y-5 dark:border-slate-700 dark:bg-slate-900">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h2 className="text-xs font-extrabold tracking-widest text-slate-900">
+                  <h2 className="text-xs font-extrabold tracking-widest text-slate-900 dark:text-slate-100">
                     05. INFORMAÇÕES DO RECÁLCULO &amp; PLANEJAMENTO DE QUITAÇÃO
                   </h2>
                   <div className="flex items-center gap-2">
@@ -2856,7 +2895,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                         setScenarios(calculateAllScenarios(synced));
                         setFeedback('Cenários recalculados com base na dívida original e percentuais.');
                       }}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                     >
                       <Calculator className="w-3.5 h-3.5" />
                       Calcular Cenários
@@ -2887,7 +2926,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                           },
                         ]);
                       }}
-                      className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-40"
+                      className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-40 dark:bg-emerald-600 dark:hover:bg-emerald-500"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       Adicionar Cenário
@@ -2897,52 +2936,52 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
 
                 {/* Painel Informações do Recálculo (espelha 1º cenário bidirecionalmente) */}
                 {scenarios[0] && (
-                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-2">
-                    <div className="text-[11px] font-bold text-slate-600 uppercase">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-2 dark:border-slate-700 dark:bg-slate-800/60">
+                    <div className="text-[11px] font-bold text-slate-600 uppercase dark:text-slate-300">
                       Informações do Recálculo (Espelho do 1º Cenário: {scenarios[0].name})
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5 text-xs">
                       <div>
-                        <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Parcelas a Pagar</label>
+                        <label className="block text-[10px] font-semibold text-slate-500 mb-0.5 dark:text-slate-400">Parcelas a Pagar</label>
                         <input
                           type="number"
                           min={1}
                           disabled={isApprovedLocked}
                           value={scenarios[0].installmentsToPay}
                           onChange={(e) => updateScenarioAt(0, { installmentsToPay: Math.max(1, Number(e.target.value || 1)) })}
-                          className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 font-mono"
+                          className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 font-mono dark:border-slate-700 dark:bg-slate-900"
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Dívida Original (R$)</label>
+                        <label className="block text-[10px] font-semibold text-slate-500 mb-0.5 dark:text-slate-400">Dívida Original (R$)</label>
                         <input
                           type="text"
                           disabled={isApprovedLocked}
                           value={formatCentsInput(scenarios[0].originalDebtCents)}
                           onChange={(e) => updateScenarioAt(0, { originalDebtCents: parseReaisToCents(e.target.value) })}
-                          className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 font-mono"
+                          className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 font-mono dark:border-slate-700 dark:bg-slate-900"
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Parc. Recalculada</label>
-                        <div className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 font-mono font-semibold text-slate-800">
+                        <label className="block text-[10px] font-semibold text-slate-500 mb-0.5 dark:text-slate-400">Parc. Recalculada</label>
+                        <div className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 font-mono font-semibold text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
                           {formatBRL(scenarios[0].recalcInstallmentCents)}
                         </div>
                       </div>
                       <div>
-                        <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Dívida Recalculada</label>
-                        <div className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 font-mono font-bold text-blue-700">
+                        <label className="block text-[10px] font-semibold text-slate-500 mb-0.5 dark:text-slate-400">Dívida Recalculada</label>
+                        <div className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 font-mono font-bold text-blue-700 dark:border-slate-700 dark:bg-slate-900 dark:text-blue-300">
                           {formatBRL(scenarios[0].recalcDebtCents)}
                         </div>
                       </div>
                       <div>
-                        <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Economia (R$)</label>
-                        <div className="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 font-mono font-bold text-emerald-700">
+                        <label className="block text-[10px] font-semibold text-slate-500 mb-0.5 dark:text-slate-400">Economia (R$)</label>
+                        <div className="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 font-mono font-bold text-emerald-700 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300">
                           {formatBRL(scenarios[0].savingsCents)}
                         </div>
                       </div>
                       <div>
-                        <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Dia Vencimento</label>
+                        <label className="block text-[10px] font-semibold text-slate-500 mb-0.5 dark:text-slate-400">Dia Vencimento</label>
                         <input
                           type="number"
                           min={1}
@@ -2950,7 +2989,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                           disabled={isApprovedLocked}
                           value={scenarios[0].dueDay}
                           onChange={(e) => updateScenarioAt(0, { dueDay: Math.min(31, Math.max(1, Number(e.target.value || 10))) })}
-                          className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 font-mono"
+                          className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 font-mono dark:border-slate-700 dark:bg-slate-900"
                         />
                       </div>
                     </div>
@@ -2959,25 +2998,25 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
 
                 {/* Tabela Planejamento de Quitação (colunas por cenário) */}
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-xs border border-slate-200">
+                  <table className="w-full text-left border-collapse text-xs border border-slate-200 dark:border-slate-700">
                     <thead>
-                      <tr className="bg-slate-50 border-b border-slate-200">
-                        <th className="py-2.5 px-3 font-semibold text-slate-600 w-44">Planejamento de Quitação</th>
+                      <tr className="bg-slate-50 border-b border-slate-200 dark:bg-slate-800/70 dark:border-slate-700">
+                        <th className="py-2.5 px-3 font-semibold text-slate-600 w-44 dark:text-slate-300">Planejamento de Quitação</th>
                         {scenarios.map((sc, idx) => (
-                          <th key={sc.id} className="py-2 px-3 border-l border-slate-200 min-w-[190px]">
+                          <th key={sc.id} className="py-2 px-3 border-l border-slate-200 min-w-[190px] dark:border-slate-700">
                             <div className="flex items-center justify-between gap-1">
                               <input
                                 type="text"
                                 disabled={isApprovedLocked}
                                 value={sc.name}
                                 onChange={(e) => updateScenarioAt(idx, { name: e.target.value })}
-                                className="w-full rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-900"
+                                className="w-full rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                               />
                               {scenarios.length > 1 && !isApprovedLocked && (
                                 <button
                                   type="button"
                                   onClick={() => setScenarios((prev) => prev.filter((_, i) => i !== idx))}
-                                  className="text-slate-400 hover:text-red-600 px-1"
+                                  className="text-slate-400 hover:text-red-600 px-1 dark:text-slate-400"
                                   title="Remover cenário"
                                 >
                                   ✕
@@ -2988,84 +3027,84 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       <tr>
-                        <td className="py-2 px-3 font-medium text-slate-600">Percentual Serviço (%)</td>
+                        <td className="py-2 px-3 font-medium text-slate-600 dark:text-slate-300">Percentual Serviço (%)</td>
                         {scenarios.map((sc, idx) => (
-                          <td key={sc.id} className="py-2 px-3 border-l border-slate-200">
+                          <td key={sc.id} className="py-2 px-3 border-l border-slate-200 dark:border-slate-700">
                             <input
                               type="number"
                               disabled={isApprovedLocked}
                               value={sc.servicePercent}
                               onChange={(e) => updateScenarioAt(idx, { servicePercent: Number(e.target.value || 0) })}
-                              className="w-full rounded border border-slate-200 px-2 py-1 font-mono"
+                              className="w-full rounded border border-slate-200 px-2 py-1 font-mono dark:border-slate-700"
                             />
                           </td>
                         ))}
                       </tr>
                       <tr>
-                        <td className="py-2 px-3 font-medium text-slate-600">Parcelas a Pagar</td>
+                        <td className="py-2 px-3 font-medium text-slate-600 dark:text-slate-300">Parcelas a Pagar</td>
                         {scenarios.map((sc, idx) => (
-                          <td key={sc.id} className="py-2 px-3 border-l border-slate-200">
+                          <td key={sc.id} className="py-2 px-3 border-l border-slate-200 dark:border-slate-700">
                             <input
                               type="number"
                               min={1}
                               disabled={isApprovedLocked}
                               value={sc.installmentsToPay}
                               onChange={(e) => updateScenarioAt(idx, { installmentsToPay: Math.max(1, Number(e.target.value || 1)) })}
-                              className="w-full rounded border border-slate-200 px-2 py-1 font-mono"
+                              className="w-full rounded border border-slate-200 px-2 py-1 font-mono dark:border-slate-700"
                             />
                           </td>
                         ))}
                       </tr>
                       <tr>
-                        <td className="py-2 px-3 font-medium text-slate-600">Dívida Original (R$)</td>
+                        <td className="py-2 px-3 font-medium text-slate-600 dark:text-slate-300">Dívida Original (R$)</td>
                         {scenarios.map((sc, idx) => (
-                          <td key={sc.id} className="py-2 px-3 border-l border-slate-200">
+                          <td key={sc.id} className="py-2 px-3 border-l border-slate-200 dark:border-slate-700">
                             <input
                               type="text"
                               disabled={isApprovedLocked}
                               value={formatCentsInput(sc.originalDebtCents)}
                               onChange={(e) => updateScenarioAt(idx, { originalDebtCents: parseReaisToCents(e.target.value) })}
-                              className="w-full rounded border border-slate-200 px-2 py-1 font-mono"
+                              className="w-full rounded border border-slate-200 px-2 py-1 font-mono dark:border-slate-700"
                             />
                           </td>
                         ))}
                       </tr>
                       <tr>
-                        <td className="py-2 px-3 font-medium text-slate-600">Parc. Recalculada (R$)</td>
+                        <td className="py-2 px-3 font-medium text-slate-600 dark:text-slate-300">Parc. Recalculada (R$)</td>
                         {scenarios.map((sc) => (
-                          <td key={sc.id} className="py-2 px-3 border-l border-slate-200 font-mono font-semibold text-slate-800 tabular-nums">
+                          <td key={sc.id} className="py-2 px-3 border-l border-slate-200 font-mono font-semibold text-slate-800 tabular-nums dark:border-slate-700 dark:text-slate-100">
                             {formatBRL(sc.recalcInstallmentCents)}
                           </td>
                         ))}
                       </tr>
                       <tr>
-                        <td className="py-2 px-3 font-medium text-slate-600">Dívida Recalculada (R$)</td>
+                        <td className="py-2 px-3 font-medium text-slate-600 dark:text-slate-300">Dívida Recalculada (R$)</td>
                         {scenarios.map((sc, idx) => (
-                          <td key={sc.id} className="py-2 px-3 border-l border-slate-200">
+                          <td key={sc.id} className="py-2 px-3 border-l border-slate-200 dark:border-slate-700">
                             <input
                               type="text"
                               disabled={isApprovedLocked}
                               value={formatCentsInput(sc.recalcDebtCents)}
                               onChange={(e) => updateScenarioAt(idx, { recalcDebtCents: parseReaisToCents(e.target.value) })}
-                              className="w-full rounded border border-slate-200 px-2 py-1 font-mono font-bold text-blue-700"
+                              className="w-full rounded border border-slate-200 px-2 py-1 font-mono font-bold text-blue-700 dark:border-slate-700 dark:text-blue-300"
                             />
                           </td>
                         ))}
                       </tr>
                       <tr>
-                        <td className="py-2 px-3 font-medium text-slate-600">Economia (R$)</td>
+                        <td className="py-2 px-3 font-medium text-slate-600 dark:text-slate-300">Economia (R$)</td>
                         {scenarios.map((sc) => (
-                          <td key={sc.id} className="py-2 px-3 border-l border-slate-200 font-mono font-bold text-emerald-700 tabular-nums">
+                          <td key={sc.id} className="py-2 px-3 border-l border-slate-200 font-mono font-bold text-emerald-700 tabular-nums dark:border-slate-700 dark:text-emerald-300">
                             {formatBRL(sc.savingsCents)}
                           </td>
                         ))}
                       </tr>
                       <tr>
-                        <td className="py-2 px-3 font-medium text-slate-600">Dia Vencimento</td>
+                        <td className="py-2 px-3 font-medium text-slate-600 dark:text-slate-300">Dia Vencimento</td>
                         {scenarios.map((sc, idx) => (
-                          <td key={sc.id} className="py-2 px-3 border-l border-slate-200">
+                          <td key={sc.id} className="py-2 px-3 border-l border-slate-200 dark:border-slate-700">
                             <input
                               type="number"
                               min={1}
@@ -3073,7 +3112,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                               disabled={isApprovedLocked}
                               value={sc.dueDay}
                               onChange={(e) => updateScenarioAt(idx, { dueDay: Math.min(31, Math.max(1, Number(e.target.value || 10))) })}
-                              className="w-full rounded border border-slate-200 px-2 py-1 font-mono"
+                              className="w-full rounded border border-slate-200 px-2 py-1 font-mono dark:border-slate-700"
                             />
                           </td>
                         ))}
@@ -3085,93 +3124,93 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
 
               {/* SEÇÃO 06. TABELA DE SERVIÇOS E OUTRAS INFORMAÇÕES (Guide Sec 8) */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                <div className="lg:col-span-7 rounded-2xl border border-slate-200 bg-white p-6 space-y-4">
-                  <h2 className="text-xs font-extrabold tracking-widest text-slate-900">
+                <div className="lg:col-span-7 rounded-2xl border border-slate-200 bg-white p-6 space-y-4 dark:border-slate-700 dark:bg-slate-900">
+                  <h2 className="text-xs font-extrabold tracking-widest text-slate-900 dark:text-slate-100">
                     06. TABELA DE SERVIÇOS
                   </h2>
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
-                      <tr className="border-b border-slate-200 text-[11px] font-semibold text-slate-500">
+                      <tr className="border-b border-slate-200 text-[11px] font-semibold text-slate-500 dark:border-slate-700 dark:text-slate-400">
                         <th className="py-2">Und</th>
                         <th className="py-2">Serviço / Descrição</th>
                         <th className="py-2 text-right">Valor Unitário (R$)</th>
                         <th className="py-2 text-right">Total</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       <tr>
-                        <td className="py-2.5 font-mono text-slate-500">UN</td>
-                        <td className="py-2.5 font-semibold text-slate-900">Gestão (Parcela 01)</td>
+                        <td className="py-2.5 font-mono text-slate-500 dark:text-slate-400">UN</td>
+                        <td className="py-2.5 font-semibold text-slate-900 dark:text-slate-100">Gestão (Parcela 01)</td>
                         <td className="py-2.5 text-right">
                           <input
                             type="text"
                             disabled={isApprovedLocked}
                             value={serviceMgmtReais}
                             onChange={(e) => setServiceMgmtReais(e.target.value)}
-                            className="w-28 text-right rounded-md border border-slate-200 px-2 py-1 font-mono font-bold"
+                            className="w-28 text-right rounded-md border border-slate-200 px-2 py-1 font-mono font-bold dark:border-slate-700"
                           />
                         </td>
-                        <td className="py-2.5 text-right font-mono font-bold text-slate-900 tabular-nums">
+                        <td className="py-2.5 text-right font-mono font-bold text-slate-900 tabular-nums dark:text-slate-100">
                           {formatBRL(mgmtCents)}
                         </td>
                       </tr>
                       <tr>
-                        <td className="py-2.5 font-mono text-slate-500">UN</td>
-                        <td className="py-2.5 font-semibold text-slate-900">Custos Finais da Economia (20%)</td>
-                        <td className="py-2.5 text-right font-mono text-slate-600">20%</td>
-                        <td className="py-2.5 text-right font-mono font-bold text-emerald-700 tabular-nums">
+                        <td className="py-2.5 font-mono text-slate-500 dark:text-slate-400">UN</td>
+                        <td className="py-2.5 font-semibold text-slate-900 dark:text-slate-100">Custos Finais da Economia (20%)</td>
+                        <td className="py-2.5 text-right font-mono text-slate-600 dark:text-slate-300">20%</td>
+                        <td className="py-2.5 text-right font-mono font-bold text-emerald-700 tabular-nums dark:text-emerald-300">
                           {firstScenarioSavingsCents > 0 ? formatBRL(finalEconomyFeeCents) : 'Variável'}
                         </td>
                       </tr>
                       <tr>
-                        <td className="py-2.5 font-mono text-slate-500">UN</td>
-                        <td className="py-2.5 font-semibold text-slate-900">Custos Iniciais (Parcela 02)</td>
+                        <td className="py-2.5 font-mono text-slate-500 dark:text-slate-400">UN</td>
+                        <td className="py-2.5 font-semibold text-slate-900 dark:text-slate-100">Custos Iniciais (Parcela 02)</td>
                         <td className="py-2.5 text-right">
                           <input
                             type="text"
                             disabled={isApprovedLocked}
                             value={serviceInitialReais}
                             onChange={(e) => setServiceInitialReais(e.target.value)}
-                            className="w-28 text-right rounded-md border border-slate-200 px-2 py-1 font-mono font-bold"
+                            className="w-28 text-right rounded-md border border-slate-200 px-2 py-1 font-mono font-bold dark:border-slate-700"
                           />
                         </td>
-                        <td className="py-2.5 text-right font-mono font-bold text-slate-900 tabular-nums">
+                        <td className="py-2.5 text-right font-mono font-bold text-slate-900 tabular-nums dark:text-slate-100">
                           {formatBRL(initialCostCents)}
                         </td>
                       </tr>
                     </tbody>
                   </table>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-slate-200 text-xs">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-slate-200 text-xs dark:border-slate-700">
                     <div>
-                      <div className="text-[11px] text-slate-500">Subtotal</div>
-                      <div className="font-mono font-bold text-slate-900 tabular-nums mt-1">
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">Subtotal</div>
+                      <div className="font-mono font-bold text-slate-900 tabular-nums mt-1 dark:text-slate-100">
                         {formatBRL(servicesSubtotalCents)}
                       </div>
                     </div>
                     <div>
-                      <label className="block text-[11px] text-slate-500">Desc. R$</label>
+                      <label className="block text-[11px] text-slate-500 dark:text-slate-400">Desc. R$</label>
                       <input
                         type="text"
                         disabled={isApprovedLocked}
                         value={serviceDiscountReais}
                         onChange={(e) => setServiceDiscountReais(e.target.value)}
-                        className="w-full rounded-md border border-slate-200 px-2 py-1 font-mono mt-0.5"
+                        className="w-full rounded-md border border-slate-200 px-2 py-1 font-mono mt-0.5 dark:border-slate-700"
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] text-slate-500">Acres. R$</label>
+                      <label className="block text-[11px] text-slate-500 dark:text-slate-400">Acres. R$</label>
                       <input
                         type="text"
                         disabled={isApprovedLocked}
                         value={serviceAdditionReais}
                         onChange={(e) => setServiceAdditionReais(e.target.value)}
-                        className="w-full rounded-md border border-slate-200 px-2 py-1 font-mono mt-0.5"
+                        className="w-full rounded-md border border-slate-200 px-2 py-1 font-mono mt-0.5 dark:border-slate-700"
                       />
                     </div>
                     <div className="text-right">
-                      <div className="text-[11px] font-bold text-slate-600">TOTAL</div>
-                      <div className="font-mono text-base font-extrabold text-emerald-700 tabular-nums mt-0.5">
+                      <div className="text-[11px] font-bold text-slate-600 dark:text-slate-300">TOTAL</div>
+                      <div className="font-mono text-base font-extrabold text-emerald-700 tabular-nums mt-0.5 dark:text-emerald-300">
                         {formatBRL(servicesTotalCents)}
                       </div>
                     </div>
@@ -3179,24 +3218,24 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                 </div>
 
                 {/* Outras Informações */}
-                <div className="lg:col-span-5 rounded-2xl border border-slate-200 bg-white p-6 space-y-3.5 text-xs">
-                  <h2 className="text-xs font-extrabold tracking-widest text-slate-900">
+                <div className="lg:col-span-5 rounded-2xl border border-slate-200 bg-white p-6 space-y-3.5 text-xs dark:border-slate-700 dark:bg-slate-900">
+                  <h2 className="text-xs font-extrabold tracking-widest text-slate-900 dark:text-slate-100">
                     OUTRAS INFORMAÇÕES
                   </h2>
                   <div className="grid grid-cols-3 gap-2.5">
                     <div>
-                      <label className="block text-[10px] font-semibold text-slate-500 mb-1">
+                      <label className="block text-[10px] font-semibold text-slate-500 mb-1 dark:text-slate-400">
                         TAXA ADMINISTRATIVA (R$)
                       </label>
                       <input
                         type="text"
                         readOnly
                         value={formatBRL(selectedUnit?.minAdmissionCostCents || 0)}
-                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 font-mono font-bold text-slate-700"
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 font-mono font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-200"
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-semibold text-slate-500 mb-1">
+                      <label className="block text-[10px] font-semibold text-slate-500 mb-1 dark:text-slate-400">
                         VALOR PARCELA 01 (R$)
                       </label>
                       <input
@@ -3204,11 +3243,11 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                         disabled={isApprovedLocked}
                         value={serviceMgmtReais}
                         onChange={(e) => setServiceMgmtReais(e.target.value)}
-                        className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-mono font-bold text-slate-900"
+                        className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-mono font-bold text-slate-900 dark:border-slate-700 dark:text-slate-100"
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-semibold text-slate-500 mb-1">
+                      <label className="block text-[10px] font-semibold text-slate-500 mb-1 dark:text-slate-400">
                         VALOR BOLETOS (R$)
                       </label>
                       <input
@@ -3216,33 +3255,35 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                         disabled={isApprovedLocked}
                         value={billingFeeReais}
                         onChange={(e) => setBillingFeeReais(e.target.value)}
-                        className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-mono font-bold text-slate-900"
+                        className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-mono font-bold text-slate-900 dark:border-slate-700 dark:text-slate-100"
                       />
                     </div>
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">ANOTAÇÕES</label>
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">ANOTAÇÕES</label>
                     <textarea
                       rows={4}
                       disabled={isApprovedLocked}
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
                       placeholder="Observações operacionais relevantes da admissão..."
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs dark:border-slate-700"
                     />
                   </div>
                 </div>
               </div>
 
               {/* Barra Final de Ações da Ficha */}
-              <div className="rounded-2xl border border-slate-200 bg-white px-6 py-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="rounded-2xl border border-slate-200 bg-white px-6 py-4 flex flex-wrap items-center justify-between gap-3 dark:border-slate-700 dark:bg-slate-900">
                 <button
                   type="button"
-                  onClick={() => setViewMode('list')}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  onClick={handleBackFromSubView}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
-                  Voltar para Lista / Cancelar
+                  {viewHistory.length > 0 && viewHistory[viewHistory.length - 1] === 'vault'
+                    ? 'Voltar ao Cofre / Cancelar'
+                    : 'Voltar para Lista / Cancelar'}
                 </button>
 
                 {!isApprovedLocked && (
@@ -3251,7 +3292,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                       type="button"
                       disabled={saving}
                       onClick={() => handleSaveProcess({ stayOpenForDocs: true })}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
                     >
                       <Save className="w-3.5 h-3.5" />
                       Salvar admissão e continuar
@@ -3259,7 +3300,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                     <button
                       type="submit"
                       disabled={saving}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
                     >
                       <Save className="w-3.5 h-3.5" />
                       {saving ? 'Salvando...' : 'Salvar Processo'}
@@ -3297,23 +3338,23 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
             const uazapiCount = interactions.threads.filter((t) => t.provider === 'uazapi').length;
 
             return (
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 space-y-4 text-xs">
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 space-y-4 text-xs dark:border-slate-700 dark:bg-slate-900">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-100 pb-3 dark:border-slate-800">
                   <div>
-                    <h2 className="font-display text-sm font-bold text-slate-900">
+                    <h2 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                       Conversas WhatsApp · GoTalk &amp; UaZapi ({respClient?.fullName || 'Cliente'})
                     </h2>
-                    <p className="text-slate-500 mt-0.5">
+                    <p className="text-slate-500 mt-0.5 dark:text-slate-400">
                       Todas as conversas tratadas com este cliente e titular pelos canais GoTalk ({gotalkCount}) e UaZapi ({uazapiCount}).
                       {interactions.matchedPhones.length > 0 && (
-                        <span className="ml-1 font-mono text-[11px] text-slate-600">
+                        <span className="ml-1 font-mono text-[11px] text-slate-600 dark:text-slate-300">
                           Tel(s): {interactions.matchedPhones.join(' · ')}
                         </span>
                       )}
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+                    <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-700 dark:bg-slate-800/70">
                       {[
                         { id: 'all', label: `Todos (${interactions.threads.length})` },
                         { id: 'gotalk', label: `GoTalk (${gotalkCount})` },
@@ -3328,8 +3369,8 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                           }}
                           className={`px-2.5 py-1 rounded-md font-semibold text-[11px] transition-colors ${
                             waProviderFilter === pf.id
-                              ? 'bg-white text-slate-900 shadow-xs'
-                              : 'text-slate-600 hover:text-slate-900'
+                              ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-slate-100'
+                              : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
                           }`}
                         >
                           {pf.label}
@@ -3341,7 +3382,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                         type="button"
                         disabled={interactions.syncing}
                         onClick={handleSyncClientWhatsapp}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                       >
                         <RefreshCw className={`w-3.5 h-3.5 ${interactions.syncing ? 'animate-spin' : ''}`} />
                         {interactions.syncing ? 'Sincronizando...' : 'Sincronizar GoTalk / UaZapi'}
@@ -3351,29 +3392,29 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                 </div>
 
                 {!editingAdmissionId && !responsibleClientId ? (
-                  <div className="py-8 text-center text-slate-500">
+                  <div className="py-8 text-center text-slate-500 dark:text-slate-400">
                     Selecione o Cliente Responsável na aba Formulário para visualizar todas as conversas do GoTalk e UaZapi.
                   </div>
                 ) : interactions.loading ? (
-                  <div className="py-8 text-center text-slate-500">Carregando conversas GoTalk e UaZapi...</div>
+                  <div className="py-8 text-center text-slate-500 dark:text-slate-400">Carregando conversas GoTalk e UaZapi...</div>
                 ) : (
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
                     {/* Coluna Esquerda: Lista de Conversas (GoTalk & UaZapi) */}
-                    <div className="lg:col-span-4 space-y-2 border-r border-slate-100 pr-0 lg:pr-3 max-h-[500px] overflow-y-auto">
+                    <div className="lg:col-span-4 space-y-2 border-r border-slate-100 pr-0 lg:pr-3 max-h-[500px] overflow-y-auto dark:border-slate-800">
                       <button
                         type="button"
                         onClick={() => setWaSelectedThreadId('all')}
                         className={`w-full text-left rounded-xl border p-3 transition-colors ${
                           waSelectedThreadId === 'all'
-                            ? 'border-slate-900 bg-slate-900 text-white'
-                            : 'border-slate-200 bg-slate-50 text-slate-800 hover:bg-slate-100'
+                            ? 'border-slate-900 bg-slate-900 text-white dark:border-emerald-500 dark:bg-emerald-600'
+                            : 'border-slate-200 bg-slate-50 text-slate-800 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-100 dark:hover:bg-slate-800'
                         }`}
                       >
                         <div className="font-bold flex items-center justify-between">
                           <span>Todas as Conversas (Unificado)</span>
                           <span className="font-mono text-[11px]">{visibleThreads.length}</span>
                         </div>
-                        <div className={`text-[11px] mt-0.5 ${waSelectedThreadId === 'all' ? 'text-slate-300' : 'text-slate-500'}`}>
+                        <div className={`text-[11px] mt-0.5 ${waSelectedThreadId === 'all' ? 'text-slate-300' : 'text-slate-500 dark:text-slate-400'}`}>
                           Linha do tempo consolidada GoTalk + UaZapi
                         </div>
                       </button>
@@ -3388,43 +3429,43 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                             onClick={() => setWaSelectedThreadId(th.id)}
                             className={`w-full text-left rounded-xl border p-3 transition-colors space-y-1 ${
                               isSelected
-                                ? 'border-emerald-600 bg-emerald-50'
-                                : 'border-slate-200 bg-white hover:bg-slate-50'
+                                ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/50'
+                                : 'border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800'
                             }`}
                           >
                             <div className="flex items-center justify-between gap-2">
                               <span
                                 className={`inline-flex items-center rounded px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase ${
                                   isUa
-                                    ? 'bg-blue-100 text-blue-800'
-                                    : 'bg-emerald-100 text-emerald-800'
+                                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300'
+                                    : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300'
                                 }`}
                               >
                                 {isUa ? `UaZapi${th.instanceLabel ? ` · ${th.instanceLabel}` : ''}` : 'GoTalk'}
                               </span>
-                              <span className="font-mono text-[10px] text-slate-500">{formatDateBR(th.updatedAt)}</span>
+                              <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400">{formatDateBR(th.updatedAt)}</span>
                             </div>
-                            <div className="font-semibold text-slate-900 truncate flex items-center justify-between">
+                            <div className="font-semibold text-slate-900 truncate flex items-center justify-between dark:text-slate-100">
                               <span className="truncate">{th.contactName}</span>
                               {th.ownerRole === 'titular' && (
-                                <span className="text-[10px] font-mono bg-amber-100 text-amber-800 px-1.5 rounded">Titular</span>
+                                <span className="text-[10px] font-mono bg-amber-100 text-amber-800 px-1.5 rounded dark:bg-amber-900/50 dark:text-amber-300">Titular</span>
                               )}
                             </div>
-                            <div className="font-mono text-[11px] text-slate-500">
+                            <div className="font-mono text-[11px] text-slate-500 dark:text-slate-400">
                               {th.contactPhone} {th.operatorName ? `· Op: ${th.operatorName}` : ''}
                             </div>
-                            <div className="text-[11px] text-slate-600 truncate">{th.lastMessagePreview}</div>
+                            <div className="text-[11px] text-slate-600 truncate dark:text-slate-300">{th.lastMessagePreview}</div>
                           </button>
                         );
                       })}
 
                       {responsibleClientId && (
-                        <div className="pt-2 border-t border-slate-100 flex flex-wrap gap-1.5">
+                        <div className="pt-2 border-t border-slate-100 flex flex-wrap gap-1.5 dark:border-slate-800">
                           {gotalkCount === 0 && (
                             <button
                               type="button"
                               onClick={() => handleStartWhatsappThread('gotalk')}
-                              className="flex-1 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100"
+                              className="flex-1 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
                             >
                               + Abrir GoTalk
                             </button>
@@ -3433,7 +3474,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                             <button
                               type="button"
                               onClick={() => handleStartWhatsappThread('uazapi')}
-                              className="flex-1 rounded-lg border border-blue-300 bg-blue-50 px-2.5 py-1.5 text-[11px] font-semibold text-blue-800 hover:bg-blue-100"
+                              className="flex-1 rounded-lg border border-blue-300 bg-blue-50 px-2.5 py-1.5 text-[11px] font-semibold text-blue-800 hover:bg-blue-100 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300 dark:hover:bg-blue-900/60"
                             >
                               + Abrir UaZapi
                             </button>
@@ -3444,9 +3485,9 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
 
                     {/* Coluna Direita: Mensagens e Resposta Rápida */}
                     <div className="lg:col-span-8 flex flex-col justify-between space-y-3">
-                      <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1 bg-slate-50/60 rounded-xl border border-slate-100 p-3">
+                      <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1 bg-slate-50/60 rounded-xl border border-slate-100 p-3 dark:bg-slate-800/60 dark:border-slate-800">
                         {visibleMessages.length === 0 ? (
-                          <div className="py-10 text-center text-slate-500 space-y-2">
+                          <div className="py-10 text-center text-slate-500 space-y-2 dark:text-slate-400">
                             <p>Nenhuma mensagem registrada ainda para os telefones deste cliente no GoTalk ou UaZapi.</p>
                             <p className="text-[11px]">
                               Clique em <strong>Sincronizar GoTalk / UaZapi</strong> acima para importar o histórico ao vivo ou abra um canal à esquerda.
@@ -3461,51 +3502,51 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                                 key={m.id}
                                 className={`rounded-xl border p-3 ${
                                   isOutbound
-                                    ? 'border-emerald-200 bg-emerald-50/80 ml-8'
-                                    : 'border-slate-200 bg-white mr-8'
+                                    ? 'border-emerald-200 bg-emerald-50/80 ml-8 dark:border-emerald-800/70 dark:bg-emerald-950/50'
+                                    : 'border-slate-200 bg-white mr-8 dark:border-slate-700 dark:bg-slate-900'
                                 }`}
                               >
-                                <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500 mb-1">
+                                <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500 mb-1 dark:text-slate-400">
                                   <div className="flex items-center gap-1.5">
                                     <span
                                       className={`rounded px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase ${
-                                        isUa ? 'bg-blue-100 text-blue-800' : 'bg-emerald-100 text-emerald-800'
+                                        isUa ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300'
                                       }`}
                                     >
                                       {isUa ? 'UaZapi' : 'GoTalk'}
                                     </span>
-                                    <span className="font-semibold text-slate-800">{m.senderName}</span>
+                                    <span className="font-semibold text-slate-800 dark:text-slate-100">{m.senderName}</span>
                                     {m.operatorName && m.operatorName !== m.senderName && (
-                                      <span className="text-slate-400">({m.operatorName})</span>
+                                      <span className="text-slate-400 dark:text-slate-400">({m.operatorName})</span>
                                     )}
                                   </div>
                                   <span className="font-mono flex items-center gap-1">
                                     {formatDateTimeBR(m.createdAt)}
-                                    {isOutbound && m.ackStatus === 1 && <Check className="w-3 h-3 text-slate-400" />}
-                                    {isOutbound && m.ackStatus === 2 && <CheckCheck className="w-3 h-3 text-slate-500" />}
-                                    {isOutbound && m.ackStatus === 3 && <CheckCheck className="w-3 h-3 text-blue-600" />}
+                                    {isOutbound && m.ackStatus === 1 && <Check className="w-3 h-3 text-slate-400 dark:text-slate-400" />}
+                                    {isOutbound && m.ackStatus === 2 && <CheckCheck className="w-3 h-3 text-slate-500 dark:text-slate-400" />}
+                                    {isOutbound && m.ackStatus === 3 && <CheckCheck className="w-3 h-3 text-blue-600 dark:text-blue-400" />}
                                   </span>
                                 </div>
 
                                 {m.deletedInOrigin && (
-                                  <div className="mb-1 text-[10px] font-semibold text-amber-700">
+                                  <div className="mb-1 text-[10px] font-semibold text-amber-700 dark:text-amber-300">
                                     Apagada na origem (preservada no histórico de auditoria)
                                   </div>
                                 )}
 
-                                <div className="text-slate-800 whitespace-pre-wrap leading-relaxed">{m.body}</div>
+                                <div className="text-slate-800 whitespace-pre-wrap leading-relaxed dark:text-slate-100">{m.body}</div>
 
                                 {m.attachmentName && (
-                                  <div className="mt-2 flex items-center justify-between rounded-lg border border-slate-200 bg-white/80 px-2.5 py-1.5 text-[11px]">
-                                    <span className="flex items-center gap-1.5 font-medium text-slate-700 truncate">
-                                      <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                  <div className="mt-2 flex items-center justify-between rounded-lg border border-slate-200 bg-white/80 px-2.5 py-1.5 text-[11px] dark:border-slate-700 dark:bg-slate-900/95">
+                                    <span className="flex items-center gap-1.5 font-medium text-slate-700 truncate dark:text-slate-200">
+                                      <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0 dark:text-blue-400" />
                                       <span className="truncate">{m.attachmentName}</span>
                                     </span>
                                     {m.attachmentUrl && (
                                       <button
                                         type="button"
                                         onClick={() => handleDownloadUrl(m.attachmentUrl!, m.attachmentName!)}
-                                        className="inline-flex items-center gap-1 font-semibold text-blue-700 hover:underline shrink-0 ml-2"
+                                        className="inline-flex items-center gap-1 font-semibold text-blue-700 hover:underline shrink-0 ml-2 dark:text-blue-300"
                                       >
                                         <Download className="w-3 h-3" /> Baixar (Bucket)
                                       </button>
@@ -3516,8 +3557,8 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                                 {m.contentType === 'audio' && (
                                   <div className="mt-2 pt-2 border-t border-slate-200/70">
                                     {m.iviAudioTranscript ? (
-                                      <div className="rounded-lg bg-blue-50 border border-blue-100 p-2 text-[11px] text-blue-950">
-                                        <div className="flex items-center gap-1 font-semibold text-blue-800 mb-0.5">
+                                      <div className="rounded-lg bg-blue-50 border border-blue-100 p-2 text-[11px] text-blue-950 dark:bg-blue-950/50 dark:border-blue-800/70 dark:text-blue-300">
+                                        <div className="flex items-center gap-1 font-semibold text-blue-800 mb-0.5 dark:text-blue-300">
                                           <Sparkles className="w-3 h-3" /> Transcrição Ivi
                                         </div>
                                         {m.iviAudioTranscript}
@@ -3526,7 +3567,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                                       <button
                                         type="button"
                                         onClick={() => handleTranscribeWhatsappAudio(m.id)}
-                                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 hover:underline"
+                                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 hover:underline dark:text-blue-300"
                                       >
                                         <Headphones className="w-3 h-3" /> Transcrever áudio com Ivi
                                       </button>
@@ -3543,7 +3584,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                         <form onSubmit={handleSendWhatsappReply} className="flex items-center gap-2">
                           <label
                             title="Enviar anexo (salvo no bucket bucketdainvicta)"
-                            className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-700 hover:bg-slate-100 cursor-pointer"
+                            className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-700 hover:bg-slate-100 cursor-pointer dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-200 dark:hover:bg-slate-800"
                           >
                             <Paperclip className="w-4 h-4" />
                             <input type="file" className="hidden" disabled={waSending} onChange={handleSendWhatsappFile} />
@@ -3553,7 +3594,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                             value={waDraft}
                             onChange={(e) => setWaDraft(e.target.value)}
                             placeholder={`Responder via ${activeThreadObj.provider.toUpperCase()} para ${activeThreadObj.contactPhone}...`}
-                            className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-xs"
+                            className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-xs dark:border-slate-700"
                           />
                           <button
                             type="submit"
@@ -3566,7 +3607,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                         </form>
                       ) : (
                         interactions.threads.length > 0 && (
-                          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
+                          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-500 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-400">
                             Selecione uma conversa específica à esquerda (GoTalk ou UaZapi) para responder ou enviar anexos.
                           </div>
                         )
@@ -3580,32 +3621,32 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
 
           {/* ABA 3: ATENDIMENTOS (Histórico GoTalk / Prospecção do Cliente) */}
           {formTab === 'atendimentos' && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 space-y-4 text-xs">
-              <div className="border-b border-slate-100 pb-3">
-                <h2 className="font-display text-sm font-bold text-slate-900">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 space-y-4 text-xs dark:border-slate-700 dark:bg-slate-900">
+              <div className="border-b border-slate-100 pb-3 dark:border-slate-800">
+                <h2 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
                   Histórico de Atendimentos Comerciais ({respClient?.fullName || 'Cliente'})
                 </h2>
-                <p className="text-slate-500">
+                <p className="text-slate-500 dark:text-slate-400">
                   Registros reais de pré-atendimento e prospecção vinculados ao contato do cliente.
                 </p>
               </div>
               {!editingAdmissionId && !responsibleClientId ? (
-                <div className="py-6 text-center text-slate-500">Selecione o cliente para consultar atendimentos vinculados.</div>
+                <div className="py-6 text-center text-slate-500 dark:text-slate-400">Selecione o cliente para consultar atendimentos vinculados.</div>
               ) : interactions.loading ? (
-                <div className="py-6 text-center text-slate-500">Consultando atendimentos...</div>
+                <div className="py-6 text-center text-slate-500 dark:text-slate-400">Consultando atendimentos...</div>
               ) : interactions.atendimentos.length === 0 ? (
-                <div className="py-6 text-center text-slate-500">Nenhum atendimento prévio localizado para este telefone.</div>
+                <div className="py-6 text-center text-slate-500 dark:text-slate-400">Nenhum atendimento prévio localizado para este telefone.</div>
               ) : (
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-slate-100 dark:divide-slate-800">
                   {interactions.atendimentos.map((at) => (
                     <div key={at.id} className="py-3 flex items-center justify-between gap-2">
                       <div>
-                        <div className="font-semibold text-slate-900">{at.name}</div>
-                        <div className="font-mono text-[11px] text-slate-500">
+                        <div className="font-semibold text-slate-900 dark:text-slate-100">{at.name}</div>
+                        <div className="font-mono text-[11px] text-slate-500 dark:text-slate-400">
                           Canal: {at.channel} · Tel: {at.phone} · Etapa: {at.stage}
                         </div>
                       </div>
-                      <span className="font-mono text-[11px] text-slate-500">{formatDateBR(at.lastMessageAt)}</span>
+                      <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400">{formatDateBR(at.lastMessageAt)}</span>
                     </div>
                   ))}
                 </div>
@@ -3655,24 +3696,24 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
             return (
               <div className="space-y-4 text-xs">
                 {/* Cabeçalho do Dossiê + Segurança do Bucket */}
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
-                  <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-4 border-b border-slate-100 pb-4">
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4 dark:border-slate-700 dark:bg-slate-900">
+                  <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-4 border-b border-slate-100 pb-4 dark:border-slate-800">
                     <div className="space-y-1.5">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h2 className="font-display text-base font-bold text-slate-900">
+                        <h2 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
                           Dossiê Digital da Ficha &amp; Acervo do Cliente
                         </h2>
-                        <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 border border-emerald-200 px-2 py-0.5 font-mono text-[10px] font-bold text-emerald-800">
+                        <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 border border-emerald-200 px-2 py-0.5 font-mono text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/50 dark:border-emerald-800/70 dark:text-emerald-300">
                           <ShieldCheck className="w-3 h-3" />
                           {isR2
                             ? `Cloudflare R2: ${bucketStats?.bucketName}`
                             : `Bucket Criptografado: ${bucketStats?.bucketName || 'bucketdainvicta'}`}
                         </span>
-                        <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 font-mono text-[10px] text-slate-700">
+                        <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 font-mono text-[10px] text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                           <Lock className="w-3 h-3" /> AES-256-GCM · SHA-256 CAS
                         </span>
                       </div>
-                      <p className="text-slate-600">
+                      <p className="text-slate-600 dark:text-slate-300">
                         <strong>Contrato:</strong> {displayContractNumber} · <strong>Banco:</strong> {bankName || '—'} ·{' '}
                         <strong>Responsável:</strong> {respClient?.fullName || 'Não selecionado'}{' '}
                         {respClient?.cpfCnpj ? `(${respClient.cpfCnpj})` : ''}
@@ -3682,8 +3723,8 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                           </>
                         )}
                       </p>
-                      <p className="text-[11px] text-slate-500 flex items-center gap-1.5">
-                        <HardDrive className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <p className="text-[11px] text-slate-500 flex items-center gap-1.5 dark:text-slate-400">
+                        <HardDrive className="w-3.5 h-3.5 text-slate-400 shrink-0 dark:text-slate-400" />
                         Todos os anexos ficam armazenados exclusivamente no bucket (fora das tabelas SQL); o PostgreSQL mantém apenas índices SHA-256 e ACL ({activeAdmissionDocs.length} anexo(s) · {formatBytes(totalBytes)}).
                       </p>
                     </div>
@@ -3703,7 +3744,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
 
                   {/* Vínculos de Bens / Titular do Dossiê (quando houver) */}
                   {activeClientAssetLinks.length > 0 && (
-                    <div className="rounded-xl border border-amber-200 bg-amber-50/60 px-3.5 py-2.5 flex flex-wrap items-center gap-3 text-[11px] text-amber-900">
+                    <div className="rounded-xl border border-amber-200 bg-amber-50/60 px-3.5 py-2.5 flex flex-wrap items-center gap-3 text-[11px] text-amber-900 dark:border-amber-800/70 dark:bg-amber-950/50 dark:text-amber-300">
                       <span className="font-bold">Vínculo de Bem no Dossiê:</span>
                       {activeClientAssetLinks.map((lk) => (
                         <span key={lk.id} className="font-mono">
@@ -3715,7 +3756,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
 
                   {/* Checklist Completa do Dossiê */}
                   <div>
-                    <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 dark:text-slate-400">
                       Checklist Obrigatória do Dossiê (Auditoria)
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -3727,10 +3768,10 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                             key={item.key}
                             className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-semibold ${
                               inThisFicha
-                                ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                                ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300'
                                 : inClientBucket
-                                ? 'border-blue-300 bg-blue-50 text-blue-800'
-                                : 'border-slate-200 bg-slate-50 text-slate-500'
+                                ? 'border-blue-300 bg-blue-50 text-blue-800 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300'
+                                : 'border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-400'
                             }`}
                           >
                             <CheckCircle2 className="w-3.5 h-3.5" />
@@ -3744,16 +3785,16 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                 </div>
 
                 {/* Área Principal: Escopo + Upload + Lista do Dossiê */}
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4 dark:border-slate-700 dark:bg-slate-900">
                   {!responsibleClientId ? (
-                    <div className="py-8 text-center text-slate-500 space-y-2">
+                    <div className="py-8 text-center text-slate-500 space-y-2 dark:text-slate-400">
                       <p>Selecione ou cadastre o Cliente Responsável na aba Formulário para acessar o Dossiê e enviar anexos ao bucket.</p>
                     </div>
                   ) : (
                     <>
                       {/* Barra de Escopo + Upload Direto para Bucket */}
-                      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 border-b border-slate-100 pb-3">
-                        <div className="inline-flex flex-wrap rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+                      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 border-b border-slate-100 pb-3 dark:border-slate-800">
+                        <div className="inline-flex flex-wrap rounded-lg border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-700 dark:bg-slate-800/70">
                           {[
                             { id: 'todos', label: `Todos (${activeAdmissionDocs.length})` },
                             { id: 'ficha', label: `Desta Ficha (${activeAdmissionOnlyDocs.length})` },
@@ -3766,8 +3807,8 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                               onClick={() => setDocScopeTab(tab.id as typeof docScopeTab)}
                               className={`px-3 py-1.5 rounded-md font-semibold text-[11px] transition-colors ${
                                 docScopeTab === tab.id
-                                  ? 'bg-white text-slate-900 shadow-xs'
-                                  : 'text-slate-600 hover:text-slate-900'
+                                  ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-slate-100'
+                                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
                               }`}
                             >
                               {tab.label}
@@ -3781,7 +3822,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                               <select
                                 value={docOwnerTarget}
                                 onChange={(e) => setDocOwnerTarget(e.target.value as 'responsavel' | 'titular')}
-                                className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium"
+                                className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                               >
                                 <option value="responsavel">Pertence ao Responsável</option>
                                 <option value="titular">Pertence ao Titular</option>
@@ -3790,7 +3831,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                             <select
                               value={docCategory}
                               onChange={(e) => setDocCategory(e.target.value)}
-                              className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium"
+                              className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                             >
                               <option value="ficha_admissao">Ficha de Admissão</option>
                               <option value="contrato">Contrato Assinado</option>
@@ -3821,19 +3862,19 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                       {/* Filtros da Lista de Documentos */}
                       <div className="flex flex-col sm:flex-row gap-2">
                         <div className="relative flex-1">
-                          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5 dark:text-slate-400" />
                           <input
                             type="text"
                             value={docSearchFilter}
                             onChange={(e) => setDocSearchFilter(e.target.value)}
                             placeholder="Filtrar documentos por nome, categoria ou caminho no bucket..."
-                            className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-1.5 text-xs"
+                            className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-1.5 text-xs dark:border-slate-700"
                           />
                         </div>
                         <select
                           value={docCategoryFilter}
                           onChange={(e) => setDocCategoryFilter(e.target.value)}
-                          className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs"
+                          className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                         >
                           <option value="all">Todas as categorias</option>
                           <option value="ficha_admissao">Ficha de Admissão</option>
@@ -3850,9 +3891,9 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                       </div>
 
                       {/* Lista de Documentos */}
-                      <div className="divide-y divide-slate-100">
+                      <div className="divide-y divide-slate-100 dark:divide-slate-800">
                         {filteredDocs.length === 0 ? (
-                          <p className="py-6 text-center text-slate-500">
+                          <p className="py-6 text-center text-slate-500 dark:text-slate-400">
                             {docScopeTab === 'lixeira'
                               ? 'Nenhum documento na lixeira deste cliente/ficha.'
                               : 'Nenhum documento encontrado neste filtro. Use "Anexar ao Bucket" para enviar arquivos.'}
@@ -3867,14 +3908,14 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                             return (
                               <div key={doc.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                 <div className="min-w-0 space-y-1">
-                                  <div className="flex flex-wrap items-center gap-2 font-semibold text-slate-900">
-                                    <FileText className="w-4 h-4 text-blue-700 shrink-0" />
+                                  <div className="flex flex-wrap items-center gap-2 font-semibold text-slate-900 dark:text-slate-100">
+                                    <FileText className="w-4 h-4 text-blue-700 shrink-0 dark:text-blue-300" />
                                     <span className="truncate">{doc.fileName}</span>
                                     <span
                                       className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-bold ${
                                         isFromThisFicha
-                                          ? 'bg-emerald-100 text-emerald-800'
-                                          : 'bg-slate-100 text-slate-700'
+                                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300'
+                                          : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200'
                                       }`}
                                     >
                                       {isFromThisFicha
@@ -3887,15 +3928,15 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                                       <span
                                         className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
                                           isTitularDoc
-                                            ? 'bg-amber-100 text-amber-800'
-                                            : 'bg-blue-50 text-blue-700'
+                                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300'
+                                            : 'bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300'
                                         }`}
                                       >
                                         {isTitularDoc ? 'Titular' : 'Responsável'}: {ownerClient.fullName.split(' ')[0]}
                                       </span>
                                     )}
                                   </div>
-                                  <div className="font-mono text-[11px] text-slate-500 truncate">
+                                  <div className="font-mono text-[11px] text-slate-500 truncate dark:text-slate-400">
                                     {doc.docCategory} · {formatBytes(doc.sizeBytes)} · SHA256:{doc.sha256Hash.slice(0, 12)} ·{' '}
                                     {doc.folderPath} · {formatDateBR(doc.createdAt)} · Por {doc.uploadedBy}
                                   </div>
@@ -3911,7 +3952,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                                           setFeedback(`Arquivo "${doc.fileName}" restaurado para o dossiê.`);
                                           await load();
                                         }}
-                                        className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-700 hover:bg-emerald-100"
+                                        className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
                                       >
                                         <RotateCcw className="w-3.5 h-3.5" /> Restaurar
                                       </button>
@@ -3923,7 +3964,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                                             setFeedback(`Referência "${doc.fileName}" removida permanentemente.`);
                                             await load();
                                           }}
-                                          className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2.5 py-1 font-semibold text-red-600 hover:bg-red-50"
+                                          className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2.5 py-1 font-semibold text-red-600 hover:bg-red-50 dark:border-red-800/70 dark:text-red-400 dark:hover:bg-red-950/60"
                                         >
                                           <Trash2 className="w-3.5 h-3.5" /> Excluir
                                         </button>
@@ -3934,14 +3975,14 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                                       <button
                                         type="button"
                                         onClick={() => handlePreviewDoc(doc)}
-                                        className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2.5 py-1 font-medium text-slate-700 hover:bg-slate-50"
+                                        className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2.5 py-1 font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                                       >
                                         <Eye className="w-3.5 h-3.5" /> Visualizar
                                       </button>
                                       <button
                                         type="button"
                                         onClick={() => handleDownloadDoc(doc)}
-                                        className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2.5 py-1 font-medium text-slate-700 hover:bg-slate-50"
+                                        className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2.5 py-1 font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                                       >
                                         <Download className="w-3.5 h-3.5" /> Baixar
                                       </button>
@@ -3950,7 +3991,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                                           type="button"
                                           title="Vincular ao dossiê desta ficha sem duplicar arquivo no bucket"
                                           onClick={() => handleLinkExistingDocToAdmission(doc)}
-                                          className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 font-semibold text-blue-700 hover:bg-blue-100"
+                                          className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 font-semibold text-blue-700 hover:bg-blue-100 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300 dark:hover:bg-blue-900/60"
                                         >
                                           <Link2 className="w-3.5 h-3.5" /> Vincular à Ficha
                                         </button>
@@ -3964,7 +4005,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                                             setFeedback(`Arquivo "${doc.fileName}" movido para a lixeira segura.`);
                                             await load();
                                           }}
-                                          className="inline-flex items-center rounded-md border border-red-200 px-2 py-1 text-red-600 hover:bg-red-50"
+                                          className="inline-flex items-center rounded-md border border-red-200 px-2 py-1 text-red-600 hover:bg-red-50 dark:border-red-800/70 dark:text-red-400 dark:hover:bg-red-950/60"
                                         >
                                           <Trash2 className="w-3.5 h-3.5" />
                                         </button>
@@ -3990,25 +4031,26 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
           MODO 3: COFRE GLOBAL BUCKETDAINVICTA & LIXEIRA
          =================================================================== */}
       {viewMode === 'vault' && (
-        <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4 dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 dark:border-slate-800">
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => setViewMode('list')}
-                className="rounded-lg border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-50"
+                onClick={handleBackFromSubView}
+                title="Voltar para a tela anterior"
+                className="rounded-lg border border-slate-200 dark:border-slate-700 p-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
               >
                 <ArrowLeft className="w-4 h-4" />
               </button>
-              <FolderOpen className="w-4 h-4 text-blue-700" />
-              <h2 className="font-display text-base font-bold text-slate-900">
+              <FolderOpen className="w-4 h-4 text-blue-700 dark:text-blue-300" />
+              <h2 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
                 {showTrash ? 'Lixeira Segura bucketdainvicta' : 'Índice Global bucketdainvicta (ACL por Unidade)'}
               </h2>
             </div>
             <button
               type="button"
               onClick={() => setShowTrash(!showTrash)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               <Trash2 className="w-3.5 h-3.5" />
               {showTrash ? `Ativos (${documents.length})` : `Lixeira (${trashedDocuments.length})`}
@@ -4018,7 +4060,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-500">
+                <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-400">
                   <th className="py-2.5 px-3">Caminho do Bucket</th>
                   <th className="py-2.5 px-3">Arquivo</th>
                   <th className="py-2.5 px-3">Categoria</th>
@@ -4027,14 +4069,14 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                   <th className="py-2.5 px-3 text-right">Acesso</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {(showTrash ? trashedDocuments : documents).map((doc) => (
-                  <tr key={doc.id} className="hover:bg-slate-50">
-                    <td className="py-2.5 px-3 font-mono text-[11px] text-slate-600">{doc.folderPath}</td>
-                    <td className="py-2.5 px-3 font-semibold text-slate-900">{doc.fileName}</td>
-                    <td className="py-2.5 px-3 text-slate-700">{doc.docCategory}</td>
+                  <tr key={doc.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
+                    <td className="py-2.5 px-3 font-mono text-[11px] text-slate-600 dark:text-slate-300">{doc.folderPath}</td>
+                    <td className="py-2.5 px-3 font-semibold text-slate-900 dark:text-slate-100">{doc.fileName}</td>
+                    <td className="py-2.5 px-3 text-slate-700 dark:text-slate-200">{doc.docCategory}</td>
                     <td className="py-2.5 px-3 font-mono tabular-nums">{formatBytes(doc.sizeBytes)}</td>
-                    <td className="py-2.5 px-3 font-mono text-slate-500">{formatDateBR(doc.createdAt)}</td>
+                    <td className="py-2.5 px-3 font-mono text-slate-500 dark:text-slate-400">{formatDateBR(doc.createdAt)}</td>
                     <td className="py-2.5 px-3 text-right">
                       {showTrash ? (
                         <button
@@ -4044,7 +4086,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                             setFeedback(`Arquivo "${doc.fileName}" restaurado com sucesso.`);
                             await load();
                           }}
-                          className="inline-flex items-center gap-1 text-emerald-700 font-semibold hover:underline"
+                          className="inline-flex items-center gap-1 text-emerald-700 font-semibold hover:underline dark:text-emerald-300"
                         >
                           <RotateCcw className="w-3 h-3" /> Restaurar
                         </button>
@@ -4052,7 +4094,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                         <button
                           type="button"
                           onClick={() => handleDownloadDoc(doc)}
-                          className="text-blue-700 font-semibold hover:underline"
+                          className="text-blue-700 font-semibold hover:underline dark:text-blue-300"
                         >
                           Baixar
                         </button>
@@ -4070,20 +4112,20 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
           MODAL: CADASTRO / EDIÇÃO DE CLIENTE & TITULAR (14 campos do Guia Sec 11)
          =================================================================== */}
       {personModal?.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80">
           <form
             onSubmit={handleSavePersonModal}
-            className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl space-y-4 text-xs max-h-[90vh] overflow-y-auto"
+            className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl space-y-4 text-xs max-h-[90vh] overflow-y-auto dark:bg-slate-900"
           >
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-              <h3 className="font-display text-base font-bold text-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3 dark:border-slate-700">
+              <h3 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
                 {personModal.mode === 'create' ? 'Novo cadastro' : 'Editar cadastro'} ·{' '}
                 {personModal.targetRole === 'titular' ? 'Titular' : 'Cliente Responsável'}
               </h3>
               <button
                 type="button"
                 onClick={() => setPersonModal(null)}
-                className="text-slate-500 hover:text-slate-900"
+                className="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -4091,66 +4133,66 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="sm:col-span-2">
-                <label className="block font-semibold text-slate-700 mb-1">Nome / Razão social *</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Nome / Razão social *</label>
                 <input
                   type="text"
                   required
                   value={pName}
                   onChange={(e) => setPName(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">CPF / CNPJ</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">CPF / CNPJ</label>
                 <input
                   type="text"
                   value={pCpf}
                   onChange={(e) => setPCpf(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">RG</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">RG</label>
                 <input
                   type="text"
                   value={pRg}
                   onChange={(e) => setPRg(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Telefone</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Telefone</label>
                 <input
                   type="text"
                   value={pPhone}
                   onChange={(e) => setPPhone(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">E-mail</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">E-mail</label>
                 <input
                   type="email"
                   value={pEmail}
                   onChange={(e) => setPEmail(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Profissão</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Profissão</label>
                 <input
                   type="text"
                   value={pProfession}
                   onChange={(e) => setPProfession(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Estado civil</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Estado civil</label>
                 <select
                   value={pMaritalStatus}
                   onChange={(e) => setPMaritalStatus(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 >
                   <option value="">Selecione...</option>
                   {(cadastrosData?.maritalStatuses || ['Solteiro(a)', 'Casado(a)', 'Divorciado(a)', 'Viúvo(a)', 'União Estável']).map((ms) => (
@@ -4161,23 +4203,23 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                 </select>
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Data de nascimento</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Data de nascimento</label>
                 <input
                   type="date"
                   value={pBirthDate}
                   onChange={(e) => setPBirthDate(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">CEP</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">CEP</label>
                 <div className="flex gap-1">
                   <input
                     type="text"
                     value={pZipCode}
                     onChange={(e) => setPZipCode(e.target.value)}
                     placeholder="50000-000"
-                    className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-mono"
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   />
                   <button
                     type="button"
@@ -4194,67 +4236,67 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                         setErrorMsg(err instanceof Error ? err.message : 'CEP não encontrado.');
                       }
                     }}
-                    className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 font-semibold text-slate-700 hover:bg-slate-100 whitespace-nowrap"
+                    className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 font-semibold text-slate-700 hover:bg-slate-100 whitespace-nowrap dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-200 dark:hover:bg-slate-800"
                   >
                     Buscar
                   </button>
                 </div>
               </div>
               <div className="sm:col-span-2">
-                <label className="block font-semibold text-slate-700 mb-1">Logradouro</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Logradouro</label>
                 <input
                   type="text"
                   value={pAddress}
                   onChange={(e) => setPAddress(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Número</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Número</label>
                 <input
                   type="text"
                   value={pNumber}
                   onChange={(e) => setPNumber(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Bairro</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Bairro</label>
                 <input
                   type="text"
                   value={pNeighborhood}
                   onChange={(e) => setPNeighborhood(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <div className="col-span-2">
-                  <label className="block font-semibold text-slate-700 mb-1">Cidade</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Cidade</label>
                   <input
                     type="text"
                     value={pCity}
                     onChange={(e) => setPCity(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 px-2.5 py-2"
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">UF</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">UF</label>
                   <input
                     type="text"
                     maxLength={2}
                     value={pState}
                     onChange={(e) => setPState(e.target.value.toUpperCase())}
-                    className="w-full rounded-lg border border-slate-200 px-2.5 py-2 uppercase font-mono"
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-2 uppercase font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   />
                 </div>
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
               <button
                 type="button"
                 onClick={() => setPersonModal(null)}
-                className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700"
+                className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
               >
                 Cancelar
               </button>
@@ -4270,120 +4312,109 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
       )}
 
       {/* ===================================================================
-          MODAL: VISUALIZAR DOCUMENTO / FICHA DE ADMISSÃO
+          VISUALIZAÇÃO EM TELA LIVRE: DOCUMENTO / FICHA / DOSSIÊ COMPLETO
          =================================================================== */}
-      {previewOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-          <div className="w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl space-y-4 text-xs max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-              <h3 className="font-display text-base font-bold text-slate-900">
-                Visualização ({previewTemplate.toUpperCase()}) · {displayContractNumber}
-              </h3>
-              <button
-                type="button"
-                onClick={() => setPreviewOpen(false)}
-                className="text-slate-500 hover:text-slate-900 font-semibold"
-              >
-                Fechar
-              </button>
+      <FullFreeAreaDocumentShell
+        open={previewOpen}
+        title={`Visualização (${previewTemplate.toUpperCase()}) · ${displayContractNumber}`}
+        subtitle={`Unidade: ${selectedUnit?.name || 'Matriz'} · Status: ${(LIST_STATUS_LABELS[status]?.label || status).toUpperCase()}`}
+        onClose={() => setPreviewOpen(false)}
+        toolbarExtras={
+          <button
+            type="button"
+            onClick={handlePrintAction}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 dark:bg-emerald-600 px-3.5 py-1.5 text-[11px] font-semibold text-white hover:bg-slate-800 dark:hover:bg-emerald-500"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            Imprimir / PDF
+          </button>
+        }
+      >
+        <div className="w-full h-full overflow-y-auto p-4 sm:p-8 bg-slate-100 dark:bg-slate-950 flex justify-center items-start">
+          <div className="w-full max-w-4xl rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 sm:p-10 shadow-sm space-y-4 text-xs leading-relaxed text-slate-800 dark:text-slate-100">
+            <div className="text-center font-bold text-sm uppercase text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-700 pb-3">
+              FINANCEPRO ASSESSORIA ·{' '}
+              {previewTemplate === 'procuracao'
+                ? 'PROCURAÇÃO AD JUDICIA ET EXTRA'
+                : previewTemplate === 'completo'
+                ? 'DOSSIÊ COMPLETO DE ADMISSÃO E PLANEJAMENTO'
+                : 'FICHA PADRÃO DE ADMISSÃO COMERCIAL'}
             </div>
-
-            <div className="rounded-xl border border-slate-200 p-6 space-y-3 leading-relaxed text-slate-800">
-              <div className="text-center font-bold text-sm uppercase">
-                FINANCEPRO ASSESSORIA ·{' '}
-                {previewTemplate === 'procuracao'
-                  ? 'PROCURAÇÃO AD JUDICIA ET EXTRA'
-                  : previewTemplate === 'completo'
-                  ? 'DOSSIÊ COMPLETO DE ADMISSÃO E PLANEJAMENTO'
-                  : 'FICHA PADRÃO DE ADMISSÃO COMERCIAL'}
-              </div>
+            <p>
+              <strong>CONTRATO / SÉRIE:</strong> {displayContractNumber} · <strong>UNIDADE:</strong>{' '}
+              {selectedUnit?.name || 'Matriz'} · <strong>STATUS:</strong>{' '}
+              {(LIST_STATUS_LABELS[status]?.label || status).toUpperCase()}
+            </p>
+            <p>
+              <strong>CLIENTE RESPONSÁVEL:</strong> {respClient?.fullName || '—'}, CPF/CNPJ{' '}
+              <span className="font-mono">{respClient?.cpfCnpj || '—'}</span>, RG{' '}
+              <span className="font-mono">{respClient?.rg || '—'}</span>, Tel. {respClient?.phone || '—'}, Endereço:{' '}
+              {formatClientAddress(respClient) || '—'}.
+            </p>
+            {titClient && (
               <p>
-                <strong>CONTRATO / SÉRIE:</strong> {displayContractNumber} · <strong>UNIDADE:</strong>{' '}
-                {selectedUnit?.name || 'Matriz'} · <strong>STATUS:</strong>{' '}
-                {(LIST_STATUS_LABELS[status]?.label || status).toUpperCase()}
+                <strong>TITULAR VINCULADO:</strong> {titClient.fullName}, CPF/CNPJ{' '}
+                <span className="font-mono">{titClient.cpfCnpj}</span>, Tel. {titClient.phone || '—'}.
               </p>
+            )}
+            <p>
+              <strong>NEGOCIAÇÃO:</strong> Banco Credor {bankName || '—'} · Modalidade {modality} · Consultor{' '}
+              {consultantName || '—'}.
+            </p>
+            {showVehicleSection && (
               <p>
-                <strong>CLIENTE RESPONSÁVEL:</strong> {respClient?.fullName || '—'}, CPF/CNPJ{' '}
-                <span className="font-mono">{respClient?.cpfCnpj || '—'}</span>, RG{' '}
-                <span className="font-mono">{respClient?.rg || '—'}</span>, Tel. {respClient?.phone || '—'}, Endereço:{' '}
-                {formatClientAddress(respClient) || '—'}.
+                <strong>VEÍCULO OBJETO:</strong> {vehicleBrand} {vehicleModel} · Cor {vehicleColor || '—'} · Ano{' '}
+                {vehicleYear || '—'} · Placa <span className="font-mono">{vehiclePlate || '—'}</span> · Chassi{' '}
+                <span className="font-mono">{vehicleChassis || '—'}</span> · Renavam{' '}
+                <span className="font-mono">{vehicleRenavam || '—'}</span>.
               </p>
-              {titClient && (
-                <p>
-                  <strong>TITULAR VINCULADO:</strong> {titClient.fullName}, CPF/CNPJ{' '}
-                  <span className="font-mono">{titClient.cpfCnpj}</span>, Tel. {titClient.phone || '—'}.
-                </p>
+            )}
+            <p>
+              <strong>DÍVIDA ATUAL &amp; RECÁLCULO:</strong> Valor Financiado {formatBRL(parseReaisToCents(financedAmountReais))} · Parcela Atual{' '}
+              {formatBRL(parseReaisToCents(currentInstallmentReais))} · {debtTotalInstallments}x ({debtPaidInstallments} pagas / {debtOverdueInstallments} em atraso).
+              {scenarios[0] && (
+                <>
+                  {' '}Cenário 1 ({scenarios[0].name}): Nova dívida {formatBRL(scenarios[0].recalcDebtCents)} com economia estimada de{' '}
+                  <strong>{formatBRL(scenarios[0].savingsCents)}</strong>.
+                </>
               )}
+            </p>
+            <p>
+              <strong>SERVIÇOS:</strong> Gestão (Parcela 01) {formatBRL(mgmtCents)} · Custos Iniciais (Parcela 02){' '}
+              {formatBRL(initialCostCents)} · Total dos Serviços <strong>{formatBRL(servicesTotalCents)}</strong>.
+            </p>
+            {notes && (
               <p>
-                <strong>NEGOCIAÇÃO:</strong> Banco Credor {bankName || '—'} · Modalidade {modality} · Consultor{' '}
-                {consultantName || '—'}.
+                <strong>ANOTAÇÕES:</strong> {notes}
               </p>
-              {showVehicleSection && (
-                <p>
-                  <strong>VEÍCULO OBJETO:</strong> {vehicleBrand} {vehicleModel} · Cor {vehicleColor || '—'} · Ano{' '}
-                  {vehicleYear || '—'} · Placa <span className="font-mono">{vehiclePlate || '—'}</span> · Chassi{' '}
-                  <span className="font-mono">{vehicleChassis || '—'}</span> · Renavam{' '}
-                  <span className="font-mono">{vehicleRenavam || '—'}</span>.
-                </p>
-              )}
-              <p>
-                <strong>DÍVIDA ATUAL &amp; RECÁLCULO:</strong> Valor Financiado {formatBRL(parseReaisToCents(financedAmountReais))} · Parcela Atual{' '}
-                {formatBRL(parseReaisToCents(currentInstallmentReais))} · {debtTotalInstallments}x ({debtPaidInstallments} pagas / {debtOverdueInstallments} em atraso).
-                {scenarios[0] && (
-                  <>
-                    {' '}Cenário 1 ({scenarios[0].name}): Nova dívida {formatBRL(scenarios[0].recalcDebtCents)} com economia estimada de{' '}
-                    <strong>{formatBRL(scenarios[0].savingsCents)}</strong>.
-                  </>
-                )}
-              </p>
-              <p>
-                <strong>SERVIÇOS:</strong> Gestão (Parcela 01) {formatBRL(mgmtCents)} · Custos Iniciais (Parcela 02){' '}
-                {formatBRL(initialCostCents)} · Total dos Serviços <strong>{formatBRL(servicesTotalCents)}</strong>.
-              </p>
-              {notes && (
-                <p>
-                  <strong>ANOTAÇÕES:</strong> {notes}
-                </p>
-              )}
-              <div className="pt-8 grid grid-cols-2 gap-8 text-center">
-                <div className="border-t border-slate-400 pt-1">Assinatura do Cliente / Titular</div>
-                <div className="border-t border-slate-400 pt-1">Conferência FinancePro Assessoria</div>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={handlePrintAction}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                Imprimir / PDF
-              </button>
+            )}
+            <div className="pt-10 grid grid-cols-2 gap-8 text-center">
+              <div className="border-t border-slate-400 dark:border-slate-600 pt-1">Assinatura do Cliente / Titular</div>
+              <div className="border-t border-slate-400 dark:border-slate-600 pt-1">Conferência FinancePro Assessoria</div>
             </div>
           </div>
         </div>
-      )}
+      </FullFreeAreaDocumentShell>
 
       {/* ===================================================================
           MODAL: EXPORTAR WORD (.docx) COM TEMPLATE OPCIONAL
          =================================================================== */}
       {wordModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl space-y-4 text-xs">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-              <h3 className="font-display text-base font-bold text-slate-900">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 dark:bg-slate-950/80 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-2xl space-y-4 text-xs">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-3">
+              <h3 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
                 Exportar Documento Word (.docx)
               </h3>
               <button
                 type="button"
                 onClick={() => setWordModalOpen(false)}
-                className="text-slate-500 hover:text-slate-900"
+                className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-slate-600 leading-relaxed">
+            <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
               Gere o arquivo <strong>.docx</strong> padrão preenchido com os dados desta ficha ou envie um template <strong>.docx</strong> com variáveis (<span className="font-mono">{'{cliente_nome}'}, {'{cliente_cpf}'}, {'{contrato}'}, {'{banco}'}, {'{economia}'}</span>). Arquivos <span className="font-mono">.doc</span> não são suportados.
             </p>
             <div className="space-y-2.5">
@@ -4395,7 +4426,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                 <Download className="w-4 h-4" />
                 Baixar Ficha Padrão (.docx)
               </button>
-              <label className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-slate-50 px-4 py-2.5 font-semibold text-slate-800 hover:bg-slate-100 cursor-pointer">
+              <label className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 font-semibold text-slate-800 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer">
                 <Upload className="w-4 h-4" />
                 Enviar Template .docx e Preencher
                 <input
@@ -4417,31 +4448,31 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
           MODAL: HISTÓRICO DE AUDITORIA DA ADMISSÃO
          =================================================================== */}
       {historyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl space-y-4 text-xs">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-              <h3 className="font-display text-base font-bold text-slate-900">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 dark:bg-slate-950/80 p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-2xl space-y-4 text-xs">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-3">
+              <h3 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
                 Histórico · {historyModal.admission.contractNumber}
               </h3>
               <button
                 type="button"
                 onClick={() => setHistoryModal(null)}
-                className="text-slate-500 hover:text-slate-900"
+                className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto">
+            <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-80 overflow-y-auto">
               {historyModal.logs.length === 0 ? (
-                <p className="py-4 text-slate-500">Nenhum evento registrado para esta admissão.</p>
+                <p className="py-4 text-slate-500 dark:text-slate-400">Nenhum evento registrado para esta admissão.</p>
               ) : (
                 historyModal.logs.map((log) => (
                   <div key={log.id} className="py-2.5">
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-slate-900">{log.action}</span>
-                      <span className="font-mono text-[11px] text-slate-500">{formatDateBR(log.createdAt)}</span>
+                      <span className="font-bold text-slate-900 dark:text-slate-100">{log.action}</span>
+                      <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400">{formatDateBR(log.createdAt)}</span>
                     </div>
-                    <div className="text-slate-600 mt-0.5">Usuário: {log.userName}</div>
+                    <div className="text-slate-600 dark:text-slate-300 mt-0.5">Usuário: {log.userName}</div>
                   </div>
                 ))
               )}
@@ -4449,77 +4480,29 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
           </div>
         </div>
       )}
-      {/* ===================================================================
-          MODAL: PRÉ-VISUALIZAÇÃO SEGURA DE DOCUMENTO DO BUCKET
-         =================================================================== */}
-      {previewDocModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4">
-          <div className="w-full max-w-4xl rounded-2xl bg-white p-5 shadow-2xl space-y-3 text-xs max-h-[92vh] flex flex-col">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-              <div className="min-w-0">
-                <h3 className="font-display text-sm font-bold text-slate-900 truncate">
-                  {previewDocModal.doc.fileName}
-                </h3>
-                <p className="font-mono text-[11px] text-slate-500 truncate">
-                  {previewDocModal.doc.storageUri} · SHA256:{previewDocModal.doc.sha256Hash}
-                </p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => handleDownloadDoc(previewDocModal.doc)}
-                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                  <Download className="w-3.5 h-3.5" /> Baixar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (previewDocModal.blobUrl) URL.revokeObjectURL(previewDocModal.blobUrl);
-                    setPreviewDocModal(null);
-                  }}
-                  className="rounded-lg border border-slate-200 p-1.5 text-slate-500 hover:text-slate-900"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
 
-            <div className="flex-1 min-h-[420px] rounded-xl border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center">
-              {previewDocModal.loading ? (
-                <div className="text-slate-500">Descriptografando objeto do bucket...</div>
-              ) : previewDocModal.doc.mimeType.startsWith('image/') ? (
-                <img
-                  src={previewDocModal.blobUrl}
-                  alt={previewDocModal.doc.fileName}
-                  className="max-h-[70vh] max-w-full object-contain"
-                />
-              ) : previewDocModal.doc.mimeType.startsWith('audio/') ? (
-                <audio controls src={previewDocModal.blobUrl} className="w-full max-w-md" />
-              ) : previewDocModal.doc.mimeType === 'application/pdf' || previewDocModal.doc.mimeType.startsWith('text/') ? (
-                <iframe
-                  title={previewDocModal.doc.fileName}
-                  src={previewDocModal.blobUrl}
-                  className="w-full h-[70vh] border-0"
-                />
-              ) : (
-                <div className="p-6 text-center space-y-3 text-slate-600">
-                  <p>
-                    Pré-visualização inline indisponível para <span className="font-mono">{previewDocModal.doc.mimeType}</span>.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => handleDownloadDoc(previewDocModal.doc)}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white"
-                  >
-                    <Download className="w-4 h-4" /> Baixar do Bucket
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ===================================================================
+          MODAL: PRÉ-VISUALIZAÇÃO SEGURA DE DOCUMENTO DO BUCKET (TEMA DARK/WHITE)
+         =================================================================== */}
+      <DossierDocumentPreviewModal
+        open={Boolean(previewDocModal)}
+        title={previewDocModal?.doc.fileName || ''}
+        subtitle={
+          previewDocModal
+            ? `${previewDocModal.doc.storageUri} · SHA256:${previewDocModal.doc.sha256Hash}`
+            : ''
+        }
+        mimeType={previewDocModal?.doc.mimeType || ''}
+        blobUrl={previewDocModal?.blobUrl || ''}
+        loading={Boolean(previewDocModal?.loading)}
+        onDownload={
+          previewDocModal ? () => handleDownloadDoc(previewDocModal.doc) : undefined
+        }
+        onClose={() => {
+          if (previewDocModal?.blobUrl) URL.revokeObjectURL(previewDocModal.blobUrl);
+          setPreviewDocModal(null);
+        }}
+      />
     </div>
   );
 };

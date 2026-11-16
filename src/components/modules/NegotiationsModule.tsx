@@ -41,19 +41,47 @@ import { CommercialPipelineContainer } from './negotiations/CommercialPipelineCo
 import { NewNegotiationModalContainer } from './negotiations/NewNegotiationModalContainer.tsx';
 import { NegotiationDetailModal } from './negotiations/NegotiationDetailModal.tsx';
 
+type NegotiationsMainTab = 'negociacoes' | 'dashboard_cliente' | 'performance' | 'pipeline';
+
 export const NegotiationsModule: React.FC<{
   units?: Unit[];
   wsTick?: number;
   navIntent?: NavigationIntent | null;
   onClearIntent?: () => void;
   onNavigate?: (module: ModuleId, intent?: NavigationIntent) => void;
-}> = ({ wsTick, navIntent, onClearIntent, onNavigate }) => {
+  onGoBack?: () => void;
+  previousScreenLabel?: string;
+}> = ({ wsTick, navIntent, onClearIntent, onNavigate, onGoBack, previousScreenLabel }) => {
   const [data, setData] = useState<NegotiationsBootstrapPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [isExpanded, setIsExpanded] = useState(false);
-  const [mainTab, setMainTab] = useState<
-    'negociacoes' | 'dashboard_cliente' | 'performance' | 'pipeline'
-  >('negociacoes');
+  const [mainTab, setMainTab] = useState<NegotiationsMainTab>('negociacoes');
+  const [tabHistory, setTabHistory] = useState<NegotiationsMainTab[]>([]);
+  const mainTabRef = useRef<NegotiationsMainTab>('negociacoes');
+
+  const switchMainTab = useCallback((nextTab: NegotiationsMainTab) => {
+    const curr = mainTabRef.current;
+    if (curr !== nextTab) {
+      setTabHistory((prev) => [...prev.slice(-15), curr]);
+      mainTabRef.current = nextTab;
+    }
+    setMainTab(nextTab);
+  }, []);
+
+  const handleHeaderGoBack = useCallback(() => {
+    if (tabHistory.length > 0) {
+      const prevTab = tabHistory[tabHistory.length - 1];
+      setTabHistory((prev) => prev.slice(0, -1));
+      mainTabRef.current = prevTab;
+      setMainTab(prevTab);
+      return;
+    }
+    if (onGoBack) {
+      onGoBack();
+    } else if (onNavigate) {
+      onNavigate('overview');
+    }
+  }, [tabHistory, onGoBack, onNavigate]);
 
   // Grid & Filter State
   const [showSummaryAndFilters, setShowSummaryAndFilters] = useState(false);
@@ -476,8 +504,8 @@ export const NegotiationsModule: React.FC<{
 
   if (loading && !data) {
     return (
-      <div className="p-8 text-center text-sm text-slate-500 flex items-center justify-center gap-2">
-        <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
+      <div className="p-8 text-center text-sm text-slate-500 flex items-center justify-center gap-2 dark:text-slate-400">
+        <RefreshCw className="w-4 h-4 animate-spin text-blue-600 dark:text-blue-400" />
         Carregando Negociações Bancárias...
       </div>
     );
@@ -490,28 +518,33 @@ export const NegotiationsModule: React.FC<{
     <div
       className={
         isExpanded
-          ? 'fixed inset-0 z-40 bg-slate-50 overflow-y-auto p-4 sm:p-6 space-y-5'
+          ? 'fixed inset-0 z-40 bg-slate-50 overflow-y-auto p-4 sm:p-6 space-y-5 dark:bg-slate-800/70'
           : 'space-y-5'
       }
     >
       {/* Top Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          {onNavigate && (
+          {(onGoBack || onNavigate || tabHistory.length > 0) && (
             <button
               type="button"
-              onClick={() => onNavigate('overview')}
-              className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-100"
-              title="Voltar para Visão Geral"
+              onClick={handleHeaderGoBack}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+              title={
+                tabHistory.length > 0
+                  ? 'Voltar para a aba anterior'
+                  : `Voltar para a tela anterior${previousScreenLabel ? ` (${previousScreenLabel})` : ''}`
+              }
             >
               <ArrowLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">Voltar</span>
             </button>
           )}
           <div>
-            <h1 className="font-display text-xl font-bold text-slate-900">
+            <h1 className="font-display text-xl font-bold text-slate-900 dark:text-slate-100">
               Negociações Bancárias
             </h1>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               Mesa de acordos, contatos vinculados aos bancos, canais de WhatsApp e Assessora Ivi IA
             </p>
           </div>
@@ -521,7 +554,7 @@ export const NegotiationsModule: React.FC<{
           <button
             type="button"
             onClick={() => void loadBootstrap({ force: true })}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             Atualizar
@@ -529,7 +562,7 @@ export const NegotiationsModule: React.FC<{
           <button
             type="button"
             onClick={() => setIsExpanded((prev) => !prev)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             {isExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
             <span className="hidden sm:inline">{isExpanded ? 'Restaurar' : 'Tela Cheia'}</span>
@@ -538,14 +571,14 @@ export const NegotiationsModule: React.FC<{
       </div>
 
       {/* Main Module Navigation Tabs */}
-      <div className="flex items-center gap-1 border-b border-slate-200 overflow-x-auto">
+      <div className="flex items-center gap-1 border-b border-slate-200 dark:border-slate-700 overflow-x-auto">
         <button
           type="button"
-          onClick={() => setMainTab('negociacoes')}
+          onClick={() => switchMainTab('negociacoes')}
           className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors whitespace-nowrap ${
             mainTab === 'negociacoes'
-              ? 'border-blue-600 text-blue-700 bg-blue-50/40'
-              : 'border-transparent text-slate-600 hover:text-slate-900'
+              ? 'border-blue-600 text-blue-700 dark:text-blue-400 bg-blue-50/40 dark:bg-blue-950/40'
+              : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
           }`}
         >
           <FileText className="w-4 h-4" />
@@ -554,11 +587,11 @@ export const NegotiationsModule: React.FC<{
 
         <button
           type="button"
-          onClick={() => setMainTab('dashboard_cliente')}
+          onClick={() => switchMainTab('dashboard_cliente')}
           className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors whitespace-nowrap ${
             mainTab === 'dashboard_cliente'
-              ? 'border-blue-600 text-blue-700 bg-blue-50/40'
-              : 'border-transparent text-slate-600 hover:text-slate-900'
+              ? 'border-blue-600 text-blue-700 dark:text-blue-400 bg-blue-50/40 dark:bg-blue-950/40'
+              : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
           }`}
         >
           <Users className="w-4 h-4" />
@@ -567,11 +600,11 @@ export const NegotiationsModule: React.FC<{
 
         <button
           type="button"
-          onClick={() => setMainTab('performance')}
+          onClick={() => switchMainTab('performance')}
           className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors whitespace-nowrap ${
             mainTab === 'performance'
-              ? 'border-blue-600 text-blue-700 bg-blue-50/40'
-              : 'border-transparent text-slate-600 hover:text-slate-900'
+              ? 'border-blue-600 text-blue-700 dark:text-blue-400 bg-blue-50/40 dark:bg-blue-950/40'
+              : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
           }`}
         >
           <BarChart3 className="w-4 h-4" />
@@ -580,11 +613,11 @@ export const NegotiationsModule: React.FC<{
 
         <button
           type="button"
-          onClick={() => setMainTab('pipeline')}
+          onClick={() => switchMainTab('pipeline')}
           className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors whitespace-nowrap ${
             mainTab === 'pipeline'
-              ? 'border-blue-600 text-blue-700 bg-blue-50/40'
-              : 'border-transparent text-slate-600 hover:text-slate-900'
+              ? 'border-blue-600 text-blue-700 dark:text-blue-400 bg-blue-50/40 dark:bg-blue-950/40'
+              : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
           }`}
         >
           <Kanban className="w-4 h-4" />
