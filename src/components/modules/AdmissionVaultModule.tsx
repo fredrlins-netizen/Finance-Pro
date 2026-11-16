@@ -40,6 +40,8 @@ import {
   X,
 } from 'lucide-react';
 import { apiFetch, formatBRL, formatBytes, formatDateBR, formatDateTimeBR, getAuthToken } from '../../lib/api.ts';
+import type { FormMergeContext } from '../../lib/formTemplateRenderer.ts';
+import { FormTemplateButton } from '../FormTemplateButton.tsx';
 import {
   Admission,
   AdmissionScenarioCol,
@@ -1202,6 +1204,68 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
     setTimeout(() => window.print(), 250);
   };
 
+  const getAdmissionFormContext = (): FormMergeContext => {
+    const unitObj = units.find((u) => u.id === unitId) || units[0] || null;
+    const colOpt = consultants.find((c) => c.id === consultantId) || null;
+    const cadCol =
+      cadastrosData?.collaborators?.find(
+        (c) => (colOpt && c.name.toLowerCase() === colOpt.name.toLowerCase()) || (consultantName && c.name.toLowerCase() === consultantName.toLowerCase())
+      ) || null;
+    const bankObj =
+      banksCatalog.find((b) => b.name.toLowerCase() === bankName.trim().toLowerCase()) ||
+      cadastrosData?.banks?.find((b) => b.name.toLowerCase() === bankName.trim().toLowerCase()) ||
+      null;
+    const sc0 = scenarios[0] || null;
+    return {
+      client: respClient || null,
+      titular: titClient || respClient || null,
+      collaborator: cadCol
+        ? { ...cadCol }
+        : colOpt
+        ? { id: colOpt.id, name: colOpt.name, role: colOpt.role }
+        : consultantName
+        ? { name: consultantName }
+        : null,
+      bank: bankObj ? { ...bankObj } : { name: bankName },
+      company: unitObj,
+      admission: {
+        id: editingAdmissionId || 0,
+        contractNumber: displayContractNumber,
+        protocolCode: displayContractNumber,
+        bankName,
+        modality,
+        series,
+        origin,
+        indicationSource,
+        status,
+        clientRoleSelected,
+        debtTotalInstallments: Number(debtTotalInstallments) || 0,
+        debtPaidInstallments: Number(debtPaidInstallments) || 0,
+        debtOverdueInstallments: Number(debtOverdueInstallments) || 0,
+        financedAmountCents: parseReaisToCents(financedAmountReais),
+        currentInstallmentCents: parseReaisToCents(currentInstallmentReais),
+        debtDueDay: Number(debtDueDay) || 10,
+        paymentType,
+        serviceFeeCents: parseReaisToCents(serviceMgmtReais),
+        serviceInitialCents: parseReaisToCents(serviceInitialReais),
+        serviceAdditionCents: parseReaisToCents(serviceAdditionReais),
+        billingFeeCents: parseReaisToCents(billingFeeReais),
+        notes,
+        vehicleBrand,
+        vehicleModel,
+        vehicleColor,
+        vehicleYear,
+        vehiclePlate,
+        vehicleChassis,
+        vehicleRenavam,
+        scenariosJson: scenarios,
+      },
+      recalc: sc0 || undefined,
+      modality: { description: modality, type: showVehicleSection ? 'Veículo' : 'Financeiro' },
+      series: { acronym: series, description: series },
+    };
+  };
+
   // Export Word .docx (direct or custom .docx template)
   const handleExportDocx = async (templateFile?: File) => {
     setErrorMsg('');
@@ -1991,6 +2055,13 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                   EXPORTAR WORD
                 </button>
               </div>
+
+              <FormTemplateButton
+                menuId="com_admissao"
+                label="Modelos A4"
+                getContext={getAdmissionFormContext}
+                onError={(msg) => setErrorMsg(msg)}
+              />
 
               <div className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-right shadow-xs min-w-[140px]">
                 <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">

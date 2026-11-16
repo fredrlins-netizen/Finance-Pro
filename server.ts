@@ -58,7 +58,13 @@ import { registerFinancialRoutes } from './src/routes/financialRoutes.ts';
 import { registerAuditRoutes } from './src/routes/auditRoutes.ts';
 import { registerCollectionRoutes } from './src/routes/collectionRoutes.ts';
 import { registerCollectionTasksRoutes } from './src/routes/collectionTasksRoutes.ts';
+import { registerNegotiationsRoutes } from './src/routes/negotiationsRoutes.ts';
 import { registerManagerialRoutes } from './src/routes/managerialRoutes.ts';
+import { registerFormsRoutes } from './src/routes/formsRoutes.ts';
+import { registerReportsRoutes } from './src/routes/reportsRoutes.ts';
+import { registerCompanyLegalRoutes } from './src/routes/companyLegalRoutes.ts';
+import { registerDataHubRoutes } from './src/routes/dataHubRoutes.ts';
+import { registerMigrationRoutes } from './src/routes/migrationRoutes.ts';
 import { syncClientLegalAndEscavadorStatus } from './src/services/legalSync.ts';
 import {
   AuthRequest,
@@ -3323,97 +3329,12 @@ async function startServer() {
   });
 
   // ---------------------------------------------------------------------------
-  // 5. NEGOCIAÇÕES
+  // 5. NEGOCIAÇÕES BANCÁRIAS (MÓDULO COMPLETO + IVI IA + WHATSAPP DUPLO + KANBAN)
   // ---------------------------------------------------------------------------
-  app.get('/api/negotiations', requireAuth, async (_req: AuthRequest, res) => {
-    try {
-      await ensureInitialSeed();
-      const [list, allClients, allUsers] = await Promise.all([
-        db.select().from(negotiations).orderBy(desc(negotiations.updatedAt)),
-        db.select().from(clients),
-        db.select({ id: users.id, name: users.name, role: users.role }).from(users),
-      ]);
-      res.json({ negotiations: list, clients: allClients, negotiators: allUsers });
-    } catch (error) {
-      console.error('Negotiations get error:', error);
-      res.status(500).json({ error: 'Erro ao carregar negociações.' });
-    }
-  });
-
-  app.patch('/api/negotiations/:id', requireAuth, async (req: AuthRequest, res) => {
-    try {
-      const id = Number(req.params.id);
-      const { currentReductionPct, chatNote, chatChannel } = req.body as {
-        currentReductionPct?: number;
-        chatNote?: string;
-        chatChannel?: string;
-      };
-      const rows = await db.select().from(negotiations).where(eq(negotiations.id, id)).limit(1);
-      const neg = rows[0];
-      if (!neg) return res.status(404).json({ error: 'Negociação não encontrada.' });
-
-      const pct = typeof currentReductionPct === 'number' ? currentReductionPct : neg.currentReductionPct;
-      const savings = Math.round((Number(neg.originalDebtCents) * pct) / 100);
-      const nextStatus =
-        pct >= neg.targetReductionPct
-          ? 'meta_alcancada'
-          : neg.targetReductionPct - pct <= 10
-          ? 'proxima_meta'
-          : 'em_negociacao';
-
-      const nextLogs = [...(Array.isArray(neg.chatLogs) ? neg.chatLogs : [])];
-      if (chatNote) {
-        nextLogs.unshift({
-          channel: chatChannel || 'gotalk',
-          note: chatNote,
-          author: req.authUser!.name,
-          timestamp: new Date().toISOString(),
-        });
-      }
-
-      const [updated] = await db
-        .update(negotiations)
-        .set({
-          currentReductionPct: pct,
-          estimatedSavingsCents: savings,
-          status: nextStatus,
-          chatLogs: nextLogs,
-          updatedAt: new Date(),
-        })
-        .where(eq(negotiations.id, id))
-        .returning();
-
-      res.json({ negotiation: updated });
-    } catch (error) {
-      console.error('Negotiation update error:', error);
-      res.status(500).json({ error: 'Erro ao atualizar negociação.' });
-    }
-  });
-
-  app.post('/api/negotiations/mass-email', requireAuth, async (req: AuthRequest, res) => {
-    try {
-      const { negotiationIds } = req.body as { negotiationIds: number[] };
-      if (!negotiationIds?.length) return res.status(400).json({ error: 'Selecione ao menos um contrato.' });
-      await db
-        .update(negotiations)
-        .set({ lastMassEmailAt: new Date(), updatedAt: new Date() })
-        .where(inArray(negotiations.id, negotiationIds));
-
-      await db.insert(auditLogs).values({
-        userId: req.authUser!.id,
-        userName: req.authUser!.name,
-        action: 'MASS_EMAIL_NEGOTIATION',
-        entityType: 'negotiation',
-        entityId: negotiationIds.join(','),
-        details: { count: negotiationIds.length },
-        unitId: req.activeUnitId,
-      });
-
-      res.json({ ok: true, sentCount: negotiationIds.length });
-    } catch (error) {
-      console.error('Mass email error:', error);
-      res.status(500).json({ error: 'Erro ao disparar e-mails em massa.' });
-    }
+  registerNegotiationsRoutes(app, {
+    broadcast,
+    resolveUazapiCredentials,
+    mirrorCommunicationToProspection,
   });
 
   // ---------------------------------------------------------------------------
@@ -7560,6 +7481,11 @@ async function startServer() {
   registerFinancialRoutes(app, { broadcast });
   registerAuditRoutes(app, { broadcast });
   registerManagerialRoutes(app);
+  registerFormsRoutes(app, { broadcast });
+  registerReportsRoutes(app, { broadcast });
+  registerCompanyLegalRoutes(app, { broadcast });
+  registerDataHubRoutes(app, { broadcast });
+  registerMigrationRoutes(app, { broadcast });
 
   // Non-blocking seed & FEBRABAN catalog sync on startup
   ensureCommonCadastrosSeed()

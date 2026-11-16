@@ -1433,6 +1433,8 @@ export function registerConfigRoutes(app: Express) {
               negotiations: false,
               finance: false,
               collection: false,
+              forms: false,
+              reports: false,
               config: false,
             },
             fieldPermissions: body.fieldPermissions || {},

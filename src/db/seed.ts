@@ -93,31 +93,31 @@ async function runSeedInternal(): Promise<void> {
       {
         name: 'Administradores',
         description: 'Acesso irrestrito, Console SQL, configurações de unidades e auditoria.',
-        modulePermissions: { overview: true, prospection: true, admission: true, audit: true, legal: true, negotiations: true, finance: true, collection: true, config: true, sql_console: true },
+        modulePermissions: { overview: true, prospection: true, admission: true, audit: true, legal: true, negotiations: true, finance: true, collection: true, managerial: true, forms: true, reports: true, config: true, sql_console: true },
         fieldPermissions: { admissions: { debtAmountCents: 'edit', serviceFeeCents: 'edit', cpfCnpj: 'edit' }, financial_titles: { amountCents: 'edit', status: 'edit' } },
       },
       {
         name: 'Consultores Comerciais',
         description: 'Atendimento agendado, prospecção e preenchimento da ficha de admissão.',
-        modulePermissions: { overview: true, prospection: true, admission: true, audit: false, legal: false, negotiations: false, finance: false, collection: false, config: false, sql_console: false },
+        modulePermissions: { overview: true, prospection: true, admission: true, audit: false, legal: false, negotiations: false, finance: false, collection: false, managerial: false, forms: false, reports: false, config: false, sql_console: false },
         fieldPermissions: { admissions: { debtAmountCents: 'edit', serviceFeeCents: 'edit', cpfCnpj: 'edit' }, financial_titles: { amountCents: 'read', status: 'read' } },
       },
       {
         name: 'Auditoria & Compliance',
         description: 'Conferência documental, geração de 2 boletos iniciais e consulta Escavador.',
-        modulePermissions: { overview: true, prospection: false, admission: true, audit: true, legal: true, negotiations: false, finance: true, collection: false, config: false, sql_console: false },
+        modulePermissions: { overview: true, prospection: false, admission: true, audit: true, legal: true, negotiations: false, finance: true, collection: false, managerial: true, forms: true, reports: true, config: false, sql_console: false },
         fieldPermissions: { admissions: { debtAmountCents: 'read', serviceFeeCents: 'read', cpfCnpj: 'read' }, financial_titles: { amountCents: 'edit', status: 'edit' } },
       },
       {
         name: 'Jurídico & Negociações',
         description: 'Acompanhamento processual Escavador, tradução Ivi e redução bancária.',
-        modulePermissions: { overview: true, prospection: false, admission: true, audit: false, legal: true, negotiations: true, finance: false, collection: false, config: false, sql_console: false },
+        modulePermissions: { overview: true, prospection: false, admission: true, audit: false, legal: true, negotiations: true, finance: false, collection: false, managerial: false, forms: true, reports: true, config: false, sql_console: false },
         fieldPermissions: { admissions: { debtAmountCents: 'read', serviceFeeCents: 'hidden', cpfCnpj: 'read' }, financial_titles: { amountCents: 'read', status: 'read' } },
       },
       {
         name: 'Financeiro & Cobrança',
         description: 'Conciliação 07h, régua de cobrança Ivi, baixas e WhatsApp fixo.',
-        modulePermissions: { overview: true, prospection: false, admission: false, audit: false, legal: false, negotiations: true, finance: true, collection: true, config: false, sql_console: false },
+        modulePermissions: { overview: true, prospection: false, admission: false, audit: false, legal: false, negotiations: true, finance: true, collection: true, managerial: true, forms: true, reports: true, config: false, sql_console: false },
         fieldPermissions: { admissions: { debtAmountCents: 'read', serviceFeeCents: 'edit', cpfCnpj: 'read' }, financial_titles: { amountCents: 'edit', status: 'edit' } },
       },
     ])

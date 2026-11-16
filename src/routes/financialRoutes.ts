@@ -304,7 +304,10 @@ export function registerFinancialRoutes(
         else nextStatus = existingUpper === 'PARCIAL' ? 'PARCIAL' : 'ABERTO';
       }
 
-      const nextAmountCents = b.amountCents && Number(b.amountCents) > 0 ? Math.round(Number(b.amountCents)) : existing.amountCents;
+      const nextAmountCents =
+        b.amountCents !== undefined && !Number.isNaN(Number(b.amountCents)) && Number(b.amountCents) >= 0
+          ? Math.round(Number(b.amountCents))
+          : existing.amountCents;
       const settledRows = await db.select().from(titleSettlements).where(eq(titleSettlements.titleId, id));
       const settledSum = settledRows.reduce((acc, s) => acc + Number(s.amountCents || 0), 0);
       const nextOriginalCents = existing.originalValueCents > 0 ? existing.originalValueCents : existing.amountCents;
@@ -1124,10 +1127,15 @@ export function registerFinancialRoutes(
           .set({ status: 'cancelado', updatedAt: new Date() })
           .where(and(eq(collectionCases.titleId, t.id), ne(collectionCases.status, 'pago')));
 
+        await db
+          .update(negotiations)
+          .set({ status: 'suspensa', negotiationStatus: 'CANCELADA', updatedAt: new Date() })
+          .where(eq(negotiations.titleId, t.id));
+
         if (t.admissionId) {
           await db
             .update(negotiations)
-            .set({ status: 'suspensa', updatedAt: new Date() })
+            .set({ status: 'suspensa', negotiationStatus: 'CANCELADA', updatedAt: new Date() })
             .where(eq(negotiations.admissionId, t.admissionId));
         }
 

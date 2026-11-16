@@ -13,10 +13,13 @@ import {
   Bot,
   Briefcase,
   Building2,
+  CalendarClock,
   CalendarDays,
   ChevronDown,
   ChevronRight,
   ClipboardCheck,
+  ClipboardList,
+  FileBarChart2,
   FileStack,
   FileText,
   FolderKanban,
@@ -25,6 +28,7 @@ import {
   Landmark,
   Layers,
   LayoutDashboard,
+  List,
   LogOut,
   Menu,
   MessageSquare,
@@ -45,6 +49,7 @@ import {
 } from 'lucide-react';
 import { auth } from './lib/firebase.ts';
 import { apiFetch, setActiveUnitHeader, setAuthToken } from './lib/api.ts';
+import { setCachedPortalBranding } from './lib/portalBrandingCache.ts';
 import iviAvatarImg from './assets/images/ivi_avatar_1794682376813.jpg';
 import {
   AuthUser,
@@ -69,15 +74,18 @@ import { LegalModule } from './components/modules/LegalModule.tsx';
 import { NegotiationsModule } from './components/modules/NegotiationsModule.tsx';
 import { FinanceModule } from './components/modules/FinanceModule.tsx';
 import { CollectionModule } from './components/modules/CollectionModule.tsx';
+import { FormsModule } from './components/modules/FormsModule.tsx';
+import { ReportsModule } from './components/modules/ReportsModule.tsx';
 import { ConfigModule } from './components/modules/ConfigModule.tsx';
 import { ManagerialDashboardModule } from './components/modules/ManagerialDashboardModule.tsx';
+import { CompanyLegalModule } from './components/modules/CompanyLegalModule.tsx';
 import { sanitizeHelpHtml } from './components/modules/config/ConfigGovernanceViews.tsx';
 
 interface NavItem {
   id: ModuleId;
   label: string;
   shortLabel: string;
-  group: 'entrada' | 'operacao' | 'gestao';
+  group: 'entrada' | 'operacao' | 'gestao' | 'analises' | 'governanca';
   icon: React.FC<{ className?: string }>;
 }
 
@@ -122,6 +130,12 @@ const COLLECTION_SUBMENUS: Array<{ id: ModuleId; label: string; icon: React.FC<{
   { id: 'collection_operacional', label: 'Operacional', icon: Briefcase },
 ];
 
+const ACOMP_JURIDICO_SUBMENUS: Array<{ id: ModuleId; label: string; icon: React.FC<{ className?: string }> }> = [
+  { id: 'jur_dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'jur_processos', label: 'Processos', icon: List },
+  { id: 'jur_prazos', label: 'Prazos e Audiências', icon: CalendarClock },
+];
+
 const NAV_ITEMS: NavItem[] = [
   { id: 'overview', label: 'Visão Executiva', shortLabel: 'Início', group: 'entrada', icon: LayoutDashboard },
   { id: 'managerial_dashboard', label: 'Dashboard Gerencial', shortLabel: 'Gerencial', group: 'entrada', icon: BarChart3 },
@@ -130,13 +144,18 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'legal', label: 'Jurídico & Escavador', shortLabel: 'Jurídico', group: 'operacao', icon: Scale },
   { id: 'negotiations', label: 'Negociações Bancárias', shortLabel: 'Negociar', group: 'operacao', icon: TrendingDown },
   { id: 'collection', label: 'Cobrança & Ranking', shortLabel: 'Cobrança', group: 'gestao', icon: Briefcase },
-  { id: 'config', label: 'Configurações & SQL', shortLabel: 'Config', group: 'gestao', icon: Settings },
+  { id: 'forms', label: 'Formulários', shortLabel: 'Forms', group: 'analises', icon: ClipboardList },
+  { id: 'reports', label: 'Relatórios Gerais', shortLabel: 'Relatórios', group: 'analises', icon: FileBarChart2 },
+  { id: 'acomp_juridico', label: 'Acompanhamento Jurídico', shortLabel: 'Acomp. Jur.', group: 'governanca', icon: Scale },
+  { id: 'config', label: 'Configurações & SQL', shortLabel: 'Config', group: 'governanca', icon: Settings },
 ];
 
 const NAV_GROUPS: Array<{ key: NavItem['group']; title: string }> = [
   { key: 'entrada', title: 'Entrada & Atendimento' },
   { key: 'operacao', title: 'Operação & Tratativa' },
-  { key: 'gestao', title: 'Receita & Governança' },
+  { key: 'gestao', title: 'Receita' },
+  { key: 'analises', title: 'Formulários & Relatórios' },
+  { key: 'governanca', title: 'Governança' },
 ];
 
 export default function App() {
@@ -157,6 +176,7 @@ export default function App() {
   const [contaCorrenteExpanded, setContaCorrenteExpanded] = useState(false);
   const [contaCorrenteCadastroExpanded, setContaCorrenteCadastroExpanded] = useState(false);
   const [collectionExpanded, setCollectionExpanded] = useState(false);
+  const [acompJuridicoExpanded, setAcompJuridicoExpanded] = useState(false);
   const [cadastrosVersion, setCadastrosVersion] = useState(0);
 
   // Live Nav Badges (real pending counts from /api/overview)
@@ -198,7 +218,10 @@ export default function App() {
     fetch('/api/public/portal-branding')
       .then((r) => (r.ok ? r.json() : null))
       .then((d: { branding?: PortalBrandingConfig } | null) => {
-        if (d?.branding) setPortalBranding(d.branding);
+        if (d?.branding) {
+          setPortalBranding(d.branding);
+          setCachedPortalBranding(d.branding);
+        }
       })
       .catch(() => {});
   }, []);
@@ -409,6 +432,9 @@ export default function App() {
       if (mod === 'collection' || mod.startsWith('collection_')) {
         setCollectionExpanded(true);
       }
+      if (mod === 'acomp_juridico' || mod.startsWith('jur_')) {
+        setAcompJuridicoExpanded(true);
+      }
       setMobileNavOpen(false);
     },
     []
@@ -444,6 +470,9 @@ export default function App() {
       }
       if (target.mod === 'collection' || target.mod.startsWith('collection_')) {
         setCollectionExpanded(true);
+      }
+      if (target.mod === 'acomp_juridico' || target.mod.startsWith('jur_')) {
+        setAcompJuridicoExpanded(true);
       }
       return nextStack;
     });
@@ -549,7 +578,15 @@ export default function App() {
     activeModule === 'finance_movimento' ||
     activeModule === 'finance_conciliacao';
 
+  const visibleAcompJuridicoSubmenus = ACOMP_JURIDICO_SUBMENUS.filter((sub) => {
+    if (currentUser.role === 'admin') return true;
+    if (!group?.modulePermissions) return true;
+    if (group.modulePermissions.acomp_juridico === false) return false;
+    return group.modulePermissions[sub.id] !== false;
+  });
+
   const isCollectionActive = activeModule === 'collection' || activeModule.startsWith('collection_');
+  const isAcompJuridicoActive = activeModule === 'acomp_juridico' || activeModule.startsWith('jur_');
   const selectableUnits = units.length > 0 ? units : allUnits;
   const cadastrosAnchorId: ModuleId = visibleNavItems.some((i) => i.id === 'appointments')
     ? 'appointments'
@@ -557,12 +594,15 @@ export default function App() {
   const activeCadMeta = CADASTROS_SUBMENUS.find((s) => s.id === activeModule);
   const activeFinanceMeta = FINANCE_ALL_SUBMENUS.find((s) => s.id === activeModule);
   const activeCollectionMeta = COLLECTION_SUBMENUS.find((s) => s.id === activeModule);
+  const activeAcompJuridicoMeta = ACOMP_JURIDICO_SUBMENUS.find((s) => s.id === activeModule);
   const activeNavMeta = activeCadMeta
     ? { id: activeCadMeta.id, label: `Cadastros Comuns · ${activeCadMeta.label}` }
     : activeFinanceMeta
     ? { id: activeFinanceMeta.id, label: `Administração Financeira · ${activeFinanceMeta.label}` }
     : activeCollectionMeta
     ? { id: activeCollectionMeta.id, label: `Cobrança & Ranking · ${activeCollectionMeta.label}` }
+    : activeAcompJuridicoMeta
+    ? { id: activeAcompJuridicoMeta.id, label: `Acompanhamento Jurídico · ${activeAcompJuridicoMeta.label}` }
     : NAV_ITEMS.find((i) => i.id === activeModule);
   const previousModMeta = (() => {
     const prevMod = navHistory.length > 0 ? navHistory[navHistory.length - 1].mod : 'overview';
@@ -572,6 +612,8 @@ export default function App() {
     if (fin) return `Administração Financeira · ${fin.label}`;
     const col = COLLECTION_SUBMENUS.find((s) => s.id === prevMod);
     if (col) return `Cobrança & Ranking · ${col.label}`;
+    const jur = ACOMP_JURIDICO_SUBMENUS.find((s) => s.id === prevMod);
+    if (jur) return `Acompanhamento Jurídico · ${jur.label}`;
     return NAV_ITEMS.find((i) => i.id === prevMod)?.label || 'Visão Executiva';
   })();
 
@@ -738,7 +780,7 @@ export default function App() {
                     {grp.title}
                   </div>
 
-                  {/* Administração Financeira (no grupo Receita & Governança) */}
+                  {/* Administração Financeira (no grupo Receita) */}
                   {showFinanceBlock && (
                     <div className="space-y-0.5">
                       <button
@@ -1092,6 +1134,74 @@ export default function App() {
                                 const subActive =
                                   activeModule === sub.id ||
                                   (activeModule === 'collection' && sub.id === 'collection_operacional');
+                                return (
+                                  <button
+                                    key={sub.id}
+                                    type="button"
+                                    onClick={() => navigateTo(sub.id)}
+                                    className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors text-left ${
+                                      subActive
+                                        ? 'bg-slate-900 text-white'
+                                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                                    }`}
+                                  >
+                                    <SubIcon
+                                      className={`w-3.5 h-3.5 shrink-0 ${
+                                        subActive ? 'text-emerald-400' : 'text-slate-400'
+                                      }`}
+                                    />
+                                    <span className="truncate">{sub.label}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+
+                    if (item.id === 'acomp_juridico') {
+                      if (visibleAcompJuridicoSubmenus.length === 0) return null;
+                      return (
+                        <div key={item.id} className="space-y-0.5">
+                          <button
+                            type="button"
+                            aria-expanded={acompJuridicoExpanded}
+                            onClick={() => setAcompJuridicoExpanded((prev) => !prev)}
+                            className={`w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors text-left ${
+                              isAcompJuridicoActive && !acompJuridicoExpanded
+                                ? 'bg-slate-900 text-white'
+                                : isAcompJuridicoActive
+                                ? 'bg-slate-100 text-slate-900'
+                                : 'text-slate-700 hover:bg-slate-100'
+                            }`}
+                          >
+                            <span className="flex items-center gap-2.5 min-w-0">
+                              <Icon
+                                className={`w-4 h-4 shrink-0 ${
+                                  isAcompJuridicoActive && !acompJuridicoExpanded
+                                    ? 'text-emerald-400'
+                                    : isAcompJuridicoActive
+                                    ? 'text-emerald-600'
+                                    : 'text-slate-500'
+                                }`}
+                              />
+                              <span className="truncate">{item.label}</span>
+                            </span>
+                            {acompJuridicoExpanded ? (
+                              <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                            ) : (
+                              <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                            )}
+                          </button>
+
+                          {acompJuridicoExpanded && (
+                            <div className="ml-4 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5">
+                              {visibleAcompJuridicoSubmenus.map((sub) => {
+                                const SubIcon = sub.icon;
+                                const subActive =
+                                  activeModule === sub.id ||
+                                  (activeModule === 'acomp_juridico' && sub.id === 'jur_dashboard');
                                 return (
                                   <button
                                     key={sub.id}
@@ -1610,6 +1720,55 @@ export default function App() {
                             );
                           }
 
+                          if (item.id === 'acomp_juridico') {
+                            if (visibleAcompJuridicoSubmenus.length === 0) return null;
+                            return (
+                              <div key={item.id} className="space-y-0.5">
+                                <button
+                                  type="button"
+                                  aria-expanded={acompJuridicoExpanded}
+                                  onClick={() => setAcompJuridicoExpanded((prev) => !prev)}
+                                  className={`w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold min-h-[44px] ${
+                                    isAcompJuridicoActive ? 'bg-slate-100 text-slate-900' : 'text-slate-700 hover:bg-slate-100'
+                                  }`}
+                                >
+                                  <span className="flex items-center gap-2.5">
+                                    <Icon className="w-4 h-4 shrink-0 text-slate-500" />
+                                    <span>{item.label}</span>
+                                  </span>
+                                  {acompJuridicoExpanded ? (
+                                    <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                                  ) : (
+                                    <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                                  )}
+                                </button>
+                                {acompJuridicoExpanded && (
+                                  <div className="ml-4 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5">
+                                    {visibleAcompJuridicoSubmenus.map((sub) => {
+                                      const SubIcon = sub.icon;
+                                      const subActive =
+                                        activeModule === sub.id ||
+                                        (activeModule === 'acomp_juridico' && sub.id === 'jur_dashboard');
+                                      return (
+                                        <button
+                                          key={sub.id}
+                                          type="button"
+                                          onClick={() => navigateTo(sub.id)}
+                                          className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold min-h-[40px] ${
+                                            subActive ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+                                          }`}
+                                        >
+                                          <SubIcon className="w-3.5 h-3.5 shrink-0" />
+                                          <span>{sub.label}</span>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          }
+
                           return (
                             <React.Fragment key={item.id}>
                               <button
@@ -1867,11 +2026,42 @@ export default function App() {
                 onNavigate={navigateTo}
               />
             )}
+            {activeModule === 'forms' && (
+              <FormsModule
+                units={allUnits}
+                wsTick={wsTick}
+                navIntent={navIntent}
+                onClearIntent={clearIntent}
+                onNavigate={navigateTo}
+                branding={portalBranding}
+              />
+            )}
+            {activeModule === 'reports' && (
+              <ReportsModule
+                currentUser={currentUser}
+                units={allUnits}
+                wsTick={wsTick}
+                branding={portalBranding}
+              />
+            )}
+            {(activeModule === 'acomp_juridico' || activeModule.startsWith('jur_')) && (
+              <CompanyLegalModule
+                activeSubmenu={activeModule}
+                currentUser={currentUser}
+                units={allUnits}
+                wsTick={wsTick}
+                onNavigate={navigateTo}
+              />
+            )}
             {activeModule === 'config' && (
               <ConfigModule
                 currentUser={currentUser}
+                wsTick={wsTick}
                 onUnitsUpdated={loadProfile}
-                onBrandingUpdated={setPortalBranding}
+                onBrandingUpdated={(nextBranding) => {
+                  setPortalBranding(nextBranding);
+                  setCachedPortalBranding(nextBranding);
+                }}
                 onGoBack={handleGoBack}
               />
             )}

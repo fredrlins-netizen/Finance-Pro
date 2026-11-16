@@ -72,6 +72,8 @@ const MODULE_KEY_ALIASES: Record<string, string[]> = {
   negotiations: ['negotiations', 'negociacoes'],
   finance: ['finance', 'financeiro'],
   collection: ['collection', 'cobranca'],
+  forms: ['forms', 'formularios', 'analises'],
+  reports: ['reports', 'relatorios', 'relatorios_gerais'],
   config: ['config', 'administracao'],
 };
 

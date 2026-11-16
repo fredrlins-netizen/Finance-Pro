@@ -1,9 +1,10 @@
 import type { Express } from 'express';
 import multer from 'multer';
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
-import { db } from '../db/index.ts';
+import { db, pool } from '../db/index.ts';
 import {
   admissions,
+  appointments,
   auditLogs,
   banks,
   bankServices,
@@ -17,6 +18,7 @@ import {
   gotalkChannels,
   gotalkHsmTemplates,
   gotalkOperators,
+  internalMessages,
   legalMovements,
   legalProcesses,
   modalities,
@@ -27,10 +29,13 @@ import {
   systemSettings,
   titleSettlements,
   units,
+  userGroups,
   users,
   whatsappMessages,
   whatsappThreads,
   type CollectionCancelRequestInfo,
+  type CollectionDebtSnapshot,
+  type CollectionNoteAttachment,
 } from '../db/schema.ts';
 import { ensureCommonCadastrosSeed, ensureInitialSeed } from '../db/seed.ts';
 import { AuthRequest, requireAuth } from '../middleware/auth.ts';
@@ -74,40 +79,224 @@ function normStatusUpper(raw: string | null | undefined): string {
   return s;
 }
 
+let collectionNotesColumnsEnsured = false;
+async function ensureCollectionNotesColumns(): Promise<void> {
+  if (collectionNotesColumnsEnsured) return;
+  try {
+    await pool.query(`
+      ALTER TABLE collection_notes ADD COLUMN IF NOT EXISTS other_status_detail text NOT NULL DEFAULT '';
+      ALTER TABLE collection_notes ADD COLUMN IF NOT EXISTS next_contact_date text NOT NULL DEFAULT '';
+      ALTER TABLE collection_notes ADD COLUMN IF NOT EXISTS debt_snapshot_json jsonb DEFAULT NULL;
+      ALTER TABLE collection_notes ADD COLUMN IF NOT EXISTS attachments_json jsonb NOT NULL DEFAULT '[]'::jsonb;
+    `);
+    collectionNotesColumnsEnsured = true;
+  } catch (err) {
+    console.error('ensureCollectionNotesColumns warning:', err);
+  }
+}
+
 export function registerCollectionRoutes(
   app: Express,
   deps: { broadcast: (event: string, payload: unknown) => void }
 ) {
   // ---------------------------------------------------------------------------
-  // 1. OPERACIONAL: Carregar carteira de casos + títulos vencidos + notas DB
+  // 1. OPERACIONAL: Carga certificada com paridade total Coordenação & Gerencial
   // ---------------------------------------------------------------------------
   app.get('/api/collection', requireAuth, async (_req: AuthRequest, res) => {
     try {
+      await ensureCollectionNotesColumns();
       await ensureInitialSeed();
       await ensureCommonCadastrosSeed();
 
-      const [cases, titles, settlements, allClients, cats, allUsers, docs, collabs, notes] = await Promise.all([
+      const [
+        cases,
+        receberTitles,
+        settlements,
+        allClients,
+        cats,
+        allUsers,
+        allGroups,
+        docs,
+        collabs,
+        notes,
+        allAdmissions,
+        allUnits,
+        allBanks,
+        allBankServices,
+        allModalities,
+        allSeries,
+        allProcesses,
+        allScenarios,
+        allNegotiations,
+        threads,
+        messages,
+        channels,
+        operators,
+        hsmTemplates,
+        gotalkCfgRows,
+      ] = await Promise.all([
         db.select().from(collectionCases).orderBy(desc(collectionCases.priorityValueCents)),
-        db.select().from(financialTitles).orderBy(asc(financialTitles.dueDate), asc(financialTitles.id)),
+        db
+          .select()
+          .from(financialTitles)
+          .where(eq(financialTitles.scope, 'RECEBER'))
+          .orderBy(asc(financialTitles.dueDate), asc(financialTitles.id)),
         db.select().from(titleSettlements).orderBy(desc(titleSettlements.settlementDate), desc(titleSettlements.id)),
-        db.select().from(clients),
+        db.select().from(clients).orderBy(asc(clients.fullName)),
         db.select().from(paymentCategories),
-        db.select({ id: users.id, name: users.name, role: users.role, points: users.points }).from(users),
+        db
+          .select({
+            id: users.id,
+            name: users.name,
+            email: users.email,
+            role: users.role,
+            groupId: users.groupId,
+            points: users.points,
+            whatsappPhone: users.whatsappPhone,
+          })
+          .from(users),
+        db.select().from(userGroups),
         db.select().from(documentObjects).where(isNull(documentObjects.deletedAt)),
         db.select().from(collaborators).orderBy(asc(collaborators.name)),
         db.select().from(collectionNotes).orderBy(desc(collectionNotes.createdAt)),
+        db.select().from(admissions).orderBy(desc(admissions.createdAt)),
+        db.select().from(units).orderBy(asc(units.id)),
+        db.select().from(banks).orderBy(asc(banks.name)),
+        db.select().from(bankServices).orderBy(asc(bankServices.name)),
+        db.select().from(modalities).orderBy(asc(modalities.description)),
+        db.select().from(seriesCatalog).orderBy(asc(seriesCatalog.sigla)),
+        db.select().from(legalProcesses).orderBy(desc(legalProcesses.lastMovementAt)),
+        db.select().from(recalcScenarios),
+        db.select().from(negotiations).orderBy(desc(negotiations.id)),
+        db.select().from(whatsappThreads).orderBy(desc(whatsappThreads.updatedAt)),
+        db.select().from(whatsappMessages).orderBy(asc(whatsappMessages.createdAt)),
+        db
+          .select({
+            id: gotalkChannels.id,
+            name: gotalkChannels.name,
+            phoneNumber: gotalkChannels.phoneNumber,
+            unitId: gotalkChannels.unitId,
+            notes: gotalkChannels.notes,
+            isPrimary: gotalkChannels.isPrimary,
+            isActive: gotalkChannels.isActive,
+          })
+          .from(gotalkChannels)
+          .orderBy(asc(gotalkChannels.id)),
+        db.select().from(gotalkOperators).orderBy(asc(gotalkOperators.id)),
+        db.select().from(gotalkHsmTemplates).orderBy(asc(gotalkHsmTemplates.templateName)),
+        db.select().from(systemSettings).where(eq(systemSettings.key, 'gotalk_config')).limit(1),
       ]);
+
+      const portfolioTitles = receberTitles.filter((t) => {
+        const type = String(t.titleType || 'PADRAO').toUpperCase();
+        const st = normStatusUpper(t.status);
+        return type === 'PADRAO' && !EXCLUDED_PORTFOLIO_STATUSES.has(st);
+      });
+
+      const paidTitles = receberTitles.filter((t) => {
+        const type = String(t.titleType || 'PADRAO').toUpperCase();
+        const st = String(t.status || '').trim().toUpperCase();
+        return type === 'PADRAO' && st === 'PAGO';
+      });
+
+      const gridTitles = receberTitles.filter((t) => {
+        const type = String(t.titleType || 'PADRAO').toUpperCase();
+        if (type !== 'PADRAO') return false;
+        const st = normStatusUpper(t.status);
+        if (st === 'PAGO') return true;
+        return !EXCLUDED_PORTFOLIO_STATUSES.has(st);
+      });
+
+      const eligibleAdmIdsByClient = new Map<number, number[]>();
+      for (const adm of allAdmissions) {
+        const st = String(adm.status || '').toLowerCase();
+        if (!ELIGIBLE_ADMISSION_STATUSES.has(st)) continue;
+        const list = eligibleAdmIdsByClient.get(adm.clientId) || [];
+        list.push(adm.id);
+        eligibleAdmIdsByClient.set(adm.clientId, list);
+      }
+
+      const addendumsByAdmission = new Map<number, { count: number; latestDate: string | null }>();
+      for (const doc of docs) {
+        if (!doc.admissionId || doc.docCategory !== 'aditivo') continue;
+        const prev = addendumsByAdmission.get(doc.admissionId) || { count: 0, latestDate: null };
+        const createdIso = doc.createdAt ? new Date(doc.createdAt).toISOString() : null;
+        prev.count += 1;
+        if (createdIso && (!prev.latestDate || createdIso > prev.latestDate)) {
+          prev.latestDate = createdIso;
+        }
+        addendumsByAdmission.set(doc.admissionId, prev);
+      }
+
+      const admissionSummaryByClient: Record<
+        number,
+        { fichas: number; aditivos: number; latestAddendumDate: string | null }
+      > = {};
+      for (const [cId, admIds] of eligibleAdmIdsByClient.entries()) {
+        let aditivos = 0;
+        let latest: string | null = null;
+        for (const admId of admIds) {
+          const info = addendumsByAdmission.get(admId);
+          if (info) {
+            aditivos += info.count;
+            if (info.latestDate && (!latest || info.latestDate > latest)) {
+              latest = info.latestDate;
+            }
+          }
+        }
+        admissionSummaryByClient[cId] = {
+          fichas: admIds.length,
+          aditivos,
+          latestAddendumDate: latest,
+        };
+      }
+
+      const banksWithServices = allBanks.map((b) => ({
+        ...b,
+        services: allBankServices.filter((s) => s.bankId === b.id),
+      }));
+
+      const gotalkConfig = gotalkCfgRows[0]?.value || {};
+      const gotalkEnabled = Boolean(
+        process.env.GOTALK_TOKEN ||
+          (gotalkConfig as Record<string, unknown>).enabled ||
+          channels.some((c) => c.isActive) ||
+          threads.length > 0
+      );
 
       res.json({
         cases,
-        titles,
+        titles: receberTitles,
+        portfolioTitles,
+        paidTitles,
+        gridTitles,
+        allReceberTitles: receberTitles,
         settlements,
+        titleSettlements: settlements,
         clients: allClients,
         categories: cats,
         operators: allUsers,
+        users: allUsers,
+        userGroups: allGroups,
         collaborators: collabs,
+        admissions: allAdmissions,
         documents: docs,
+        units: allUnits,
+        banks: banksWithServices,
+        modalities: allModalities,
+        series: allSeries,
         notes,
+        collectionNotes: notes,
+        legalProcesses: allProcesses,
+        recalcScenarios: allScenarios,
+        negotiations: allNegotiations,
+        admissionSummaryByClient,
+        gotalkEnabled,
+        whatsappThreads: threads,
+        whatsappMessages: messages,
+        gotalkChannels: channels,
+        gotalkOperators: operators,
+        gotalkHsmTemplates: hsmTemplates,
       });
     } catch (error) {
       console.error('Collection get error:', error);
@@ -120,6 +309,7 @@ export function registerCollectionRoutes(
   // ---------------------------------------------------------------------------
   app.get('/api/collection/coordinator', requireAuth, async (_req: AuthRequest, res) => {
     try {
+      await ensureCollectionNotesColumns();
       await ensureInitialSeed();
       await ensureCommonCadastrosSeed();
 
@@ -497,23 +687,98 @@ export function registerCollectionRoutes(
       const colCase = rows[0];
       if (!colCase) return res.status(404).json({ error: 'Caso de cobrança não encontrado.' });
 
+      const [titleRow] = await db
+        .select()
+        .from(financialTitles)
+        .where(eq(financialTitles.id, colCase.titleId))
+        .limit(1);
+      if (!titleRow) return res.status(404).json({ error: 'Título vinculado não encontrado.' });
+
+      const existingSettlements = await db
+        .select()
+        .from(titleSettlements)
+        .where(eq(titleSettlements.titleId, titleRow.id));
+      const alreadySettledCents = existingSettlements.reduce(
+        (sum, s) => sum + Number(s.amountCents || 0),
+        0
+      );
+      const remainingBalanceCents = Math.max(
+        0,
+        Number(
+          titleRow.currentBalanceCents ??
+            Math.max(0, Number(titleRow.amountCents || 0) - alreadySettledCents)
+        )
+      );
+
+      let categoryLabel = 'BOLETO';
+      if (categoryId) {
+        const [catRow] = await db
+          .select()
+          .from(paymentCategories)
+          .where(eq(paymentCategories.id, Number(categoryId)))
+          .limit(1);
+        if (catRow?.name) categoryLabel = catRow.name;
+      }
+
+      const now = new Date();
       await db
         .update(financialTitles)
         .set({
-          status: 'pago',
+          status: 'PAGO',
           currentBalanceCents: 0,
-          paidAt: new Date(),
+          paidAt: now,
           ...(categoryId ? { categoryId } : {}),
           ...(receiptDocId ? { receiptDocId } : {}),
           collectorId: req.authUser!.id,
-          updatedAt: new Date(),
+          updatedAt: now,
         })
         .where(eq(financialTitles.id, colCase.titleId));
+
+      if (remainingBalanceCents > 0) {
+        const origCents = Number(titleRow.originalValueCents || titleRow.amountCents || remainingBalanceCents);
+        await db.insert(titleSettlements).values({
+          titleId: titleRow.id,
+          settlementDate: now,
+          principalCents: Math.min(remainingBalanceCents, origCents),
+          interestCents: Number(titleRow.interestCents || 0),
+          fineCents: Number(titleRow.fineCents || 0),
+          discountCents: Number(titleRow.discountCents || 0),
+          amountCents: remainingBalanceCents,
+          origin: 'COBRANCA_OPERACIONAL',
+          paymentMethod: categoryLabel,
+          history: `Baixa operacional registrada por ${req.authUser!.name}`,
+          createdByName: req.authUser!.name,
+        });
+      }
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'SETTLE_COLLECTION',
+        entityType: 'CONTA_RECEBER',
+        entityId: String(titleRow.id),
+        details: {
+          changes: [
+            {
+              field: 'Baixa em Cobrança Operacional',
+              from: titleRow.status || 'ABERTO',
+              to: `PAGO (${(remainingBalanceCents / 100).toLocaleString('pt-BR', {
+                style: 'currency',
+                currency: 'BRL',
+              })})`,
+            },
+          ],
+          caseId,
+          settledAmountCents: remainingBalanceCents,
+          paymentMethod: categoryLabel,
+        },
+        unitId: titleRow.unitId,
+      });
 
       const points = 25;
       const [updatedCase] = await db
         .update(collectionCases)
-        .set({ status: 'pago', pointsAwarded: colCase.pointsAwarded + points, updatedAt: new Date() })
+        .set({ status: 'pago', pointsAwarded: colCase.pointsAwarded + points, updatedAt: now })
         .where(eq(collectionCases.id, caseId))
         .returning();
 
@@ -522,8 +787,13 @@ export function registerCollectionRoutes(
         .set({ points: sql`${users.points} + ${points}` })
         .where(eq(users.id, req.authUser!.id));
 
-      deps.broadcast('collection:payment', { caseId, operator: req.authUser!.name, points });
-      res.json({ case: updatedCase, pointsAwarded: points });
+      deps.broadcast('collection:payment', {
+        caseId,
+        titleId: titleRow.id,
+        operator: req.authUser!.name,
+        points,
+      });
+      res.json({ case: updatedCase, pointsAwarded: points, settledAmountCents: remainingBalanceCents });
     } catch (error) {
       console.error('Settle collection error:', error);
       res.status(500).json({ error: 'Erro ao baixar título em cobrança.' });
@@ -637,6 +907,7 @@ export function registerCollectionRoutes(
   // ---------------------------------------------------------------------------
   app.get('/api/collection-notes', requireAuth, async (req: AuthRequest, res) => {
     try {
+      await ensureCollectionNotesColumns();
       const clientId = req.query.clientId ? Number(req.query.clientId) : null;
       const collaboratorId = req.query.collaboratorId ? Number(req.query.collaboratorId) : null;
       const titleId = req.query.titleId ? Number(req.query.titleId) : null;
@@ -666,6 +937,7 @@ export function registerCollectionRoutes(
 
   app.post('/api/collection-notes', requireAuth, async (req: AuthRequest, res) => {
     try {
+      await ensureCollectionNotesColumns();
       const b = req.body as {
         titleId?: number | null;
         clientId?: number;
@@ -675,7 +947,11 @@ export function registerCollectionRoutes(
         contactTime?: string;
         channel?: string;
         negotiationStatus?: string;
+        otherStatusDetail?: string;
+        nextContactDate?: string;
         note?: string;
+        debtSnapshotJson?: CollectionDebtSnapshot | null;
+        attachmentsJson?: CollectionNoteAttachment[];
         cancelRequest?: CollectionCancelRequestInfo | null;
       };
 
@@ -688,13 +964,19 @@ export function registerCollectionRoutes(
       if (!clientRow) return res.status(404).json({ error: 'Cliente não encontrado.' });
 
       let resolvedCollabName = String(b.collaboratorName || '').trim() || req.authUser?.name || 'Equipe';
-      if (b.collaboratorId) {
+      let resolvedCollabUserId: number | null = req.authUser?.id ?? null;
+      const numericCollabId = b.collaboratorId ? Number(b.collaboratorId) : null;
+
+      if (numericCollabId) {
         const [collabRow] = await db
           .select()
           .from(collaborators)
-          .where(eq(collaborators.id, Number(b.collaboratorId)))
+          .where(eq(collaborators.id, numericCollabId))
           .limit(1);
-        if (collabRow) resolvedCollabName = collabRow.name;
+        if (collabRow) {
+          resolvedCollabName = collabRow.name;
+          if (collabRow.userId) resolvedCollabUserId = collabRow.userId;
+        }
       }
 
       const validNegotiations = new Set([
@@ -709,7 +991,23 @@ export function registerCollectionRoutes(
         ? String(b.negotiationStatus)
         : 'AGUARDANDO_CONTATO';
 
-      const todayIso = new Date().toISOString().slice(0, 10);
+      const otherStatusDetail =
+        negotiationStatus === 'OUTROS' ? String(b.otherStatusDetail || '').trim() : '';
+      if (negotiationStatus === 'OUTROS' && !otherStatusDetail) {
+        return res.status(400).json({ error: 'Especifique o detalhe quando o status for "Outros".' });
+      }
+
+      const rawNextDate = String(b.nextContactDate || '').trim();
+      const nextContactDate = /^\d{4}-\d{2}-\d{2}$/.test(rawNextDate) ? rawNextDate : '';
+
+      const nowLocal = new Date();
+      const todayIso = `${nowLocal.getFullYear()}-${String(nowLocal.getMonth() + 1).padStart(2, '0')}-${String(
+        nowLocal.getDate()
+      ).padStart(2, '0')}`;
+      const currentTime = `${String(nowLocal.getHours()).padStart(2, '0')}:${String(
+        nowLocal.getMinutes()
+      ).padStart(2, '0')}`;
+
       const cancelRequestPayload: CollectionCancelRequestInfo | null =
         negotiationStatus === 'SOLICITA_CANCELAMENTO'
           ? {
@@ -720,26 +1018,237 @@ export function registerCollectionRoutes(
             }
           : b.cancelRequest || null;
 
+      const sanitizedAttachments: CollectionNoteAttachment[] = Array.isArray(b.attachmentsJson)
+        ? b.attachmentsJson
+            .filter((att) => att && typeof att === 'object' && att.name)
+            .map((att, idx) => ({
+              id: String(att.id || `att-${Date.now()}-${idx}`),
+              name: String(att.name),
+              mimeType: String(att.mimeType || 'application/octet-stream'),
+              ...(att.sizeBytes !== undefined ? { sizeBytes: Number(att.sizeBytes) } : {}),
+              ...(att.documentId !== undefined ? { documentId: att.documentId ? Number(att.documentId) : null } : {}),
+              ...(att.storageUri ? { storageUri: String(att.storageUri) } : {}),
+              ...(att.dataUrl ? { dataUrl: String(att.dataUrl) } : {}),
+            }))
+        : [];
+
+      const debtSnapshot: CollectionDebtSnapshot | null =
+        b.debtSnapshotJson && typeof b.debtSnapshotJson === 'object'
+          ? {
+              originalCents: Math.round(Number(b.debtSnapshotJson.originalCents || 0)),
+              interestCents: Math.round(Number(b.debtSnapshotJson.interestCents || 0)),
+              fineCents: Math.round(Number(b.debtSnapshotJson.fineCents || 0)),
+              discountCents: Math.round(Number(b.debtSnapshotJson.discountCents || 0)),
+              balanceCents: Math.round(Number(b.debtSnapshotJson.balanceCents || 0)),
+            }
+          : null;
+
+      const targetUnitId = clientRow.unitId || req.activeUnitId || 1;
+      const numericTitleId = b.titleId ? Number(b.titleId) : null;
+      const channelUpper = String(b.channel || 'TELEFONE').toUpperCase();
+
       const [created] = await db
         .insert(collectionNotes)
         .values({
-          titleId: b.titleId ? Number(b.titleId) : null,
+          titleId: numericTitleId,
           clientId,
-          collaboratorId: b.collaboratorId ? Number(b.collaboratorId) : null,
+          collaboratorId: numericCollabId,
           collaboratorName: resolvedCollabName,
           userId: req.authUser?.id ?? null,
-          unitId: clientRow.unitId || req.activeUnitId || 1,
+          unitId: targetUnitId,
           contactDate: b.contactDate || todayIso,
-          contactTime: b.contactTime || '00:00',
-          channel: String(b.channel || 'TELEFONE'),
+          contactTime: b.contactTime || currentTime,
+          channel: channelUpper,
           negotiationStatus,
+          otherStatusDetail,
+          nextContactDate: negotiationStatus === 'SOLICITA_CANCELAMENTO' ? '' : nextContactDate,
           note: noteText,
+          debtSnapshotJson: debtSnapshot,
+          attachmentsJson: sanitizedAttachments,
           cancelRequest: cancelRequestPayload,
         })
         .returning();
 
+      // Auditoria vinculada ao título (para aparecer em Histórico de Movimentações)
+      await db.insert(auditLogs).values({
+        userId: req.authUser?.id ?? null,
+        userName: req.authUser?.name || resolvedCollabName,
+        action:
+          negotiationStatus === 'SOLICITA_CANCELAMENTO'
+            ? 'CANCEL_REQUEST_COLLECTION'
+            : 'COLLECTION_NOTE_CREATED',
+        entityType: numericTitleId ? 'CONTA_RECEBER' : 'NOTA_COBRANCA',
+        entityId: String(numericTitleId || created.id),
+        details: {
+          changes: [
+            {
+              field:
+                negotiationStatus === 'SOLICITA_CANCELAMENTO'
+                  ? 'Solicitação de Cancelamento'
+                  : 'Contato de Cobrança',
+              from: '—',
+              to: `${channelUpper} · ${negotiationStatus}${
+                otherStatusDetail ? ` (${otherStatusDetail})` : ''
+              }${nextContactDate ? ` · Próx: ${nextContactDate}` : ''} — ${noteText.slice(0, 140)}`,
+            },
+          ],
+          noteId: created.id,
+          clientId,
+          channel: channelUpper,
+          negotiationStatus,
+          nextContactDate,
+        },
+        unitId: targetUnitId,
+      });
+
+      // Integrações reais: Notificações internas + Agendamento de Retorno
+      let appointmentCreated = false;
+      let appointmentId: number | null = null;
+      let appointmentError: string | null = null;
+      let notificationsSentCount = 0;
+
+      if (negotiationStatus === 'SOLICITA_CANCELAMENTO') {
+        try {
+          const [allUsersRows, allGroupsRows] = await Promise.all([
+            db.select({ id: users.id, role: users.role, groupId: users.groupId, active: users.active }).from(users),
+            db.select().from(userGroups),
+          ]);
+          const groupMap = new Map(allGroupsRows.map((g) => [g.id, g]));
+          const targetUserIds = allUsersRows
+            .filter((u) => {
+              if (!u.active || u.id === req.authUser?.id) return false;
+              const roleLower = String(u.role || '').toLowerCase();
+              if (roleLower === 'admin' || roleLower === 'coordinator' || roleLower === 'manager') {
+                return true;
+              }
+              const grp = u.groupId ? groupMap.get(u.groupId) : undefined;
+              const perms = grp?.modulePermissions || {};
+              return Boolean(
+                perms.collection_coordenacao ||
+                  perms.managerial ||
+                  perms.fin_cobranca_coord_visualizar ||
+                  perms.collection
+              );
+            })
+            .map((u) => u.id);
+
+          const contractRef = cancelRequestPayload?.admissionContract
+            ? ` (Ficha/Contrato ${cancelRequestPayload.admissionContract})`
+            : '';
+          const msgSubject = `Solicitação de Cancelamento — ${clientRow.fullName}`;
+          const msgBody = `${resolvedCollabName} registrou solicitação de cancelamento para ${clientRow.fullName}${contractRef}. Data: ${
+            cancelRequestPayload?.requestDate || todayIso
+          }. Observações: ${cancelRequestPayload?.notes || noteText}`;
+
+          if (targetUserIds.length > 0) {
+            for (const recipientId of targetUserIds) {
+              await db.insert(internalMessages).values({
+                senderId: req.authUser?.id ?? null,
+                senderName: req.authUser?.name || resolvedCollabName,
+                recipientId,
+                targetSector: 'cobranca_coordenacao',
+                subject: msgSubject,
+                body: msgBody,
+              });
+              notificationsSentCount += 1;
+            }
+          } else {
+            await db.insert(internalMessages).values({
+              senderId: req.authUser?.id ?? null,
+              senderName: req.authUser?.name || resolvedCollabName,
+              recipientId: null,
+              targetSector: 'cobranca_coordenacao',
+              subject: msgSubject,
+              body: msgBody,
+            });
+            notificationsSentCount = 1;
+          }
+          deps.broadcast('internal:message', {
+            sector: 'cobranca_coordenacao',
+            subject: msgSubject,
+          });
+        } catch (notifErr) {
+          console.error('Cancel request notification warning:', notifErr);
+        }
+      } else if (nextContactDate) {
+        try {
+          let consultantUserId = resolvedCollabUserId;
+          if (!consultantUserId) {
+            const [fallbackUser] = await db
+              .select({ id: users.id })
+              .from(users)
+              .orderBy(asc(users.id))
+              .limit(1);
+            consultantUserId = fallbackUser?.id ?? null;
+          }
+          if (!consultantUserId) {
+            appointmentError = 'Nenhum usuário consultor vinculado para criar o agendamento.';
+          } else {
+            const scheduledStart = new Date(`${nextContactDate}T12:00:00`);
+            const scheduledEnd = new Date(scheduledStart.getTime() + 30 * 60_000);
+            const modalityVal =
+              channelUpper === 'TELEFONE'
+                ? 'telefone'
+                : channelUpper === 'PRESENCIAL'
+                ? 'presencial'
+                : 'online';
+
+            const [appt] = await db
+              .insert(appointments)
+              .values({
+                clientId,
+                clientName: clientRow.fullName,
+                clientPhone: clientRow.whatsapp || clientRow.phone || '0000000000',
+                unitId: targetUnitId,
+                attendantId: req.authUser?.id ?? consultantUserId,
+                consultantId: consultantUserId,
+                collaboratorId: numericCollabId,
+                serviceId: null,
+                serviceName: 'Retorno de Cobrança',
+                modality: modalityVal,
+                scheduledFor: scheduledStart,
+                endAt: scheduledEnd,
+                status: 'agendado',
+                notes: `[Cobrança] ${noteText} — Canal: ${channelUpper}`,
+                createdByName: req.authUser?.name || resolvedCollabName,
+                updatedByName: req.authUser?.name || resolvedCollabName,
+              })
+              .returning();
+
+            appointmentCreated = true;
+            appointmentId = appt.id;
+            deps.broadcast('appointments:update', { action: 'created', appointmentId: appt.id });
+
+            const brDate = nextContactDate.split('-').reverse().join('/');
+            await db.insert(internalMessages).values({
+              senderId: req.authUser?.id ?? null,
+              senderName: req.authUser?.name || resolvedCollabName,
+              recipientId: consultantUserId,
+              targetSector: 'cobranca',
+              subject: `Cobrança — ${clientRow.fullName}`,
+              body: `Retorno de cobrança agendado para ${brDate} (${channelUpper}): ${noteText}`,
+            });
+            notificationsSentCount += 1;
+            deps.broadcast('internal:message', {
+              sector: 'cobranca',
+              recipientId: consultantUserId,
+            });
+          }
+        } catch (apptErr) {
+          console.error('Collection nextContactDate appointment error:', apptErr);
+          appointmentError =
+            apptErr instanceof Error ? apptErr.message : 'Falha ao criar agendamento automático.';
+        }
+      }
+
       deps.broadcast('collection:note', { action: 'created', note: created });
-      res.status(201).json({ note: created });
+      res.status(201).json({
+        note: created,
+        appointmentCreated,
+        appointmentId,
+        appointmentError,
+        notificationsSentCount,
+      });
     } catch (error) {
       console.error('POST /api/collection-notes error:', error);
       res.status(500).json({ error: 'Erro ao salvar nota de cobrança.' });
@@ -748,31 +1257,75 @@ export function registerCollectionRoutes(
 
   app.put('/api/collection-notes/:id', requireAuth, async (req: AuthRequest, res) => {
     try {
+      await ensureCollectionNotesColumns();
       const id = Number(req.params.id);
       const [existing] = await db.select().from(collectionNotes).where(eq(collectionNotes.id, id)).limit(1);
       if (!existing) return res.status(404).json({ error: 'Nota não encontrada.' });
 
       const b = req.body as Partial<{
         negotiationStatus: string;
+        otherStatusDetail: string;
+        nextContactDate: string;
         note: string;
         channel: string;
+        debtSnapshotJson: CollectionDebtSnapshot | null;
+        attachmentsJson: CollectionNoteAttachment[];
         cancelRequest: CollectionCancelRequestInfo | null;
       }>;
       if (b.note !== undefined && !String(b.note).trim()) {
         return res.status(400).json({ error: 'O texto da nota não pode ser vazio.' });
+      }
+      const nextNegStatus = b.negotiationStatus || existing.negotiationStatus;
+      const nextOtherDetail =
+        nextNegStatus === 'OUTROS'
+          ? b.otherStatusDetail !== undefined
+            ? String(b.otherStatusDetail).trim()
+            : existing.otherStatusDetail
+          : '';
+      if (nextNegStatus === 'OUTROS' && !nextOtherDetail) {
+        return res.status(400).json({ error: 'Especifique o detalhe quando o status for "Outros".' });
       }
 
       const [updated] = await db
         .update(collectionNotes)
         .set({
           ...(b.negotiationStatus ? { negotiationStatus: b.negotiationStatus } : {}),
+          otherStatusDetail: nextOtherDetail,
+          ...(b.nextContactDate !== undefined
+            ? {
+                nextContactDate: /^\d{4}-\d{2}-\d{2}$/.test(String(b.nextContactDate || '').trim())
+                  ? String(b.nextContactDate).trim()
+                  : '',
+              }
+            : {}),
           ...(b.note !== undefined ? { note: String(b.note).trim() } : {}),
-          ...(b.channel ? { channel: b.channel } : {}),
+          ...(b.channel ? { channel: String(b.channel).toUpperCase() } : {}),
+          ...(b.debtSnapshotJson !== undefined ? { debtSnapshotJson: b.debtSnapshotJson } : {}),
+          ...(b.attachmentsJson !== undefined ? { attachmentsJson: b.attachmentsJson } : {}),
           ...(b.cancelRequest !== undefined ? { cancelRequest: b.cancelRequest } : {}),
           updatedAt: new Date(),
         })
         .where(eq(collectionNotes.id, id))
         .returning();
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser?.id ?? null,
+        userName: req.authUser?.name || 'Sistema',
+        action: 'COLLECTION_NOTE_UPDATED',
+        entityType: existing.titleId ? 'CONTA_RECEBER' : 'NOTA_COBRANCA',
+        entityId: String(existing.titleId || existing.id),
+        details: {
+          changes: [
+            {
+              field: 'Edição de Nota de Cobrança',
+              from: `${existing.channel} · ${existing.negotiationStatus} — ${existing.note.slice(0, 100)}`,
+              to: `${updated.channel} · ${updated.negotiationStatus} — ${updated.note.slice(0, 100)}`,
+            },
+          ],
+          noteId: updated.id,
+        },
+        unitId: existing.unitId || req.activeUnitId || 1,
+      });
 
       deps.broadcast('collection:note', { action: 'updated', note: updated });
       res.json({ note: updated });
@@ -784,11 +1337,32 @@ export function registerCollectionRoutes(
 
   app.delete('/api/collection-notes/:id', requireAuth, async (req: AuthRequest, res) => {
     try {
+      await ensureCollectionNotesColumns();
       const id = Number(req.params.id);
       const [existing] = await db.select().from(collectionNotes).where(eq(collectionNotes.id, id)).limit(1);
       if (!existing) return res.status(404).json({ error: 'Nota não encontrada.' });
 
       await db.delete(collectionNotes).where(eq(collectionNotes.id, id));
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser?.id ?? null,
+        userName: req.authUser?.name || 'Sistema',
+        action: 'COLLECTION_NOTE_DELETED',
+        entityType: existing.titleId ? 'CONTA_RECEBER' : 'NOTA_COBRANCA',
+        entityId: String(existing.titleId || existing.id),
+        details: {
+          changes: [
+            {
+              field: 'Exclusão de Nota de Cobrança',
+              from: `${existing.channel} · ${existing.negotiationStatus} — ${existing.note.slice(0, 100)}`,
+              to: 'REMOVIDA',
+            },
+          ],
+          noteId: existing.id,
+        },
+        unitId: existing.unitId || req.activeUnitId || 1,
+      });
+
       deps.broadcast('collection:note', { action: 'deleted', id });
       res.json({ ok: true });
     } catch (error) {

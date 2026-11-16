@@ -5,6 +5,7 @@ import {
   Building2,
   ClipboardCheck,
   Clock,
+  CloudUpload,
   Database,
   Download,
   Edit3,
@@ -50,9 +51,12 @@ import {
   ConfigHelpCenterView,
   ConfigPortalBrandingView,
 } from './config/ConfigGovernanceViews.tsx';
+import { ConfigDataHubView } from './config/ConfigDataHubView.tsx';
+import { ConfigR2MigrationView } from './config/ConfigR2MigrationView.tsx';
 
 interface ConfigModuleProps {
   currentUser: AuthUser;
+  wsTick?: number;
   onUnitsUpdated: () => void;
   onBrandingUpdated?: (branding: PortalBrandingConfig) => void;
   onGoBack?: () => void;
@@ -70,6 +74,7 @@ type ConfigTab =
   | 'branding'
   | 'ai_regua'
   | 'import'
+  | 'r2_migration'
   | 'sql';
 
 const DEFAULT_PORTAL_BRANDING_FALLBACK: PortalBrandingConfig = {
@@ -95,6 +100,7 @@ const DEFAULT_PORTAL_BRANDING_FALLBACK: PortalBrandingConfig = {
 
 export const ConfigModule: React.FC<ConfigModuleProps> = ({
   currentUser,
+  wsTick,
   onUnitsUpdated,
   onBrandingUpdated,
   onGoBack,
@@ -505,7 +511,8 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
     { id: 'help_center', label: 'Central de Ajuda', icon: BookOpen },
     { id: 'branding', label: 'Portal & Identidade', icon: Palette },
     { id: 'ai_regua', label: 'IA Ivi & Régua', icon: KeyRound },
-    { id: 'import', label: 'Importação & CSV', icon: FileSpreadsheet },
+    { id: 'import', label: 'Modelos & Importação Excel', icon: FileSpreadsheet },
+    ...(isAdmin ? [{ id: 'r2_migration' as ConfigTab, label: 'Migração R2 (64 GB)', icon: CloudUpload }] : []),
     ...(isAdmin ? [{ id: 'sql' as ConfigTab, label: 'Console SQL Admin', icon: Database }] : []),
   ];
 
@@ -1171,94 +1178,105 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
         </div>
       )}
 
-      {/* 11. IMPORTAÇÃO EM LOTE & EXPORTAÇÃO CSV */}
+      {/* 11. HUB SIMÉTRICO DE MODELOS EXCEL & IMPORTAÇÃO POR PRECEDÊNCIA */}
       {tab === 'import' && (
-        <div className="space-y-4">
-          <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3 text-xs">
-            <div className="font-bold text-slate-900">
-              Importação em Lote com Pré-Validação &amp; Desambiguação
-            </div>
-            <p className="text-slate-500">
-              Formato CSV (;): Nome Completo;CPF/CNPJ;Telefone;Email;Cidade;UF;Unidade. Execute a pré-validação antes de gravar no Cloud SQL.
-            </p>
-            <textarea
-              rows={5}
-              value={importCsvText}
-              onChange={(e) => setImportCsvText(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 font-mono text-xs"
-            />
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={handlePreviewImport}
-                className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-800 hover:bg-slate-50"
-              >
-                1. Pré-Validar Lote (Dry-Run)
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={handleImportCsv}
-                className="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white hover:bg-emerald-700"
-              >
-                2. Confirmar Importação
-              </button>
-            </div>
-
-            {importPreview && (
-              <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
-                <div className="font-semibold text-slate-800">
-                  Pré-validação: {importPreview.validCount} válida(s) · {importPreview.conflictCount} conflito(s)/aviso(s)
+        <ConfigDataHubView
+          onToast={showToast}
+          onDataImported={async () => {
+            await loadAll();
+            onUnitsUpdated();
+          }}
+          legacyCsvSection={
+            <div className="space-y-4">
+              <div className="space-y-3 text-xs">
+                <div className="font-bold text-slate-900">
+                  Importação em Lote CSV com Pré-Validação &amp; Desambiguação
                 </div>
-                {importPreview.rows.map((r) => (
-                  <div
-                    key={r.rowNumber}
-                    className="flex flex-wrap items-center justify-between gap-2 bg-white rounded border border-slate-100 px-3 py-2"
+                <p className="text-slate-500">
+                  Formato CSV (;): Nome Completo;CPF/CNPJ;Telefone;Email;Cidade;UF;Unidade. Execute a pré-validação antes de gravar no Cloud SQL.
+                </p>
+                <textarea
+                  rows={5}
+                  value={importCsvText}
+                  onChange={(e) => setImportCsvText(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 font-mono text-xs"
+                />
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={handlePreviewImport}
+                    className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-800 hover:bg-slate-50"
                   >
-                    <span className="font-mono">
-                      Linha #{r.rowNumber}: {r.fullName} ({r.cpfCnpj})
-                    </span>
-                    <span
-                      className={r.valid ? 'text-emerald-700 font-semibold' : 'text-amber-700 font-semibold'}
-                    >
-                      {r.valid ? `OK (Unidade #${r.resolvedUnitId})` : r.issues.join(' | ')}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+                    1. Pré-Validar Lote (Dry-Run)
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={handleImportCsv}
+                    className="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white hover:bg-emerald-700"
+                  >
+                    2. Confirmar Importação
+                  </button>
+                </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3 text-xs">
-            <div className="font-bold text-slate-900">
-              Exportação Operacional Parcial Compatível com Excel
+                {importPreview && (
+                  <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
+                    <div className="font-semibold text-slate-800">
+                      Pré-validação: {importPreview.validCount} válida(s) · {importPreview.conflictCount} conflito(s)/aviso(s)
+                    </div>
+                    {importPreview.rows.map((r) => (
+                      <div
+                        key={r.rowNumber}
+                        className="flex flex-wrap items-center justify-between gap-2 bg-white rounded border border-slate-100 px-3 py-2"
+                      >
+                        <span className="font-mono">
+                          Linha #{r.rowNumber}: {r.fullName} ({r.cpfCnpj})
+                        </span>
+                        <span
+                          className={r.valid ? 'text-emerald-700 font-semibold' : 'text-amber-700 font-semibold'}
+                        >
+                          {r.valid ? `OK (Unidade #${r.resolvedUnitId})` : r.issues.join(' | ')}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="border-t border-slate-100 pt-4 space-y-3 text-xs">
+                <div className="font-bold text-slate-900">
+                  Exportação Operacional Parcial CSV
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <select
+                    value={exportTable}
+                    onChange={(e) => setExportTable(e.target.value)}
+                    className="rounded-lg border border-slate-200 px-3 py-2 font-semibold text-slate-800"
+                  >
+                    <option value="clients">Clientes (Unidade Ativa)</option>
+                    <option value="admissions">Admissões / Contratos</option>
+                    <option value="financial_titles">Títulos Financeiros</option>
+                    <option value="legal_processes">Processos Jurídicos</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleExportScoped}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Exportar CSV (UTF-8 Excel)
+                  </button>
+                </div>
+              </div>
             </div>
-            <p className="text-slate-500">
-              Escopo estritamente filtrado pela unidade ativa e registrado em trilha de auditoria.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <select
-                value={exportTable}
-                onChange={(e) => setExportTable(e.target.value)}
-                className="rounded-lg border border-slate-200 px-3 py-2 font-semibold text-slate-800"
-              >
-                <option value="clients">Clientes (Unidade Ativa)</option>
-                <option value="admissions">Admissões / Contratos</option>
-                <option value="financial_titles">Títulos Financeiros</option>
-                <option value="legal_processes">Processos Jurídicos</option>
-              </select>
-              <button
-                type="button"
-                onClick={handleExportScoped}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800"
-              >
-                <Download className="w-3.5 h-3.5" />
-                Exportar CSV (UTF-8 Excel)
-              </button>
-            </div>
-          </div>
-        </div>
+          }
+        />
+      )}
+
+      {/* 11B. MIGRAÇÃO R2 (64 GB) & CÓDIGO SEGURO INTEGRATIVO */}
+      {tab === 'r2_migration' && isAdmin && (
+        <ConfigR2MigrationView wsTick={wsTick} onToast={showToast} />
       )}
 
       {/* 12. ADMIN POSTGRESQL SQL CONSOLE */}

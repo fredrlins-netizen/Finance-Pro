@@ -61,7 +61,12 @@ const RBAC_MODULE_LIST: Array<{ key: string; label: string }> = [
   { key: 'negotiations', label: 'Negociações Bancárias' },
   { key: 'finance', label: 'Financeiro & Régua' },
   { key: 'collection', label: 'Cobrança & Ranking' },
-  { key: 'config', label: 'Configurações & Segurança' },
+  { key: 'forms', label: 'Formulários & Relatórios · Formulários' },
+  { key: 'reports', label: 'Formulários & Relatórios · Relatórios Gerais' },
+  { key: 'jur_dashboard', label: 'Governança · Acomp. Jurídico (Dashboard)' },
+  { key: 'jur_processos', label: 'Governança · Acomp. Jurídico (Processos)' },
+  { key: 'jur_prazos', label: 'Governança · Acomp. Jurídico (Prazos e Audiências)' },
+  { key: 'config', label: 'Governança · Configurações & SQL' },
 ];
 
 // =============================================================================
@@ -136,6 +141,8 @@ export const ConfigGroupsAndUsersView: React.FC<{
       negotiations: false,
       finance: false,
       collection: false,
+      forms: true,
+      reports: true,
       config: false,
     });
     setGrpUazapiIds([]);

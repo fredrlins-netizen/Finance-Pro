@@ -2,6 +2,8 @@ import crypto from 'node:crypto';
 import { GoogleGenAI, Type } from '@google/genai';
 import { db } from '../db/index.ts';
 import {
+  CustomFormField,
+  CustomFormSettings,
   IviChecklistVerificationItem,
   iviKnowledgeArticles,
   systemSettings,
@@ -2025,6 +2027,810 @@ export async function iviBuildCollectionReport(input: CollectionReportBuildInput
   };
 }
 
+export interface NegotiationAdvisorContextInput {
+  negotiationId: number;
+  clientName: string;
+  clientCpfCnpj?: string;
+  bankName: string;
+  contractNumber: string;
+  originalDebtCents: number;
+  negotiationStatus: string;
+  targetReductionPct: number;
+  currentReductionPct: number;
+  collaboratorName: string;
+  nextContactDate?: string | null;
+  nextContactDescription?: string | null;
+  notes?: string;
+  bankServices: Array<{
+    name: string;
+    modalityDescription: string;
+    negotiationPercent: string;
+    defaultInstallments: number;
+  }>;
+  bankContacts: Array<{
+    id: number;
+    name: string;
+    sector: string;
+    phone: string;
+    mobile: string;
+    isWhatsapp: boolean;
+    email: string;
+  }>;
+  selectedBankContactName?: string;
+  contacts: Array<{
+    date: string;
+    type: string;
+    result: string;
+    target?: string;
+    bankContactName?: string;
+    description: string;
+    responsible: string;
+  }>;
+  proposals: Array<{
+    date: string;
+    origin: string;
+    proposedValue: string;
+    discountPercentage?: string;
+    installments?: number;
+    status: string;
+    notes?: string;
+  }>;
+  clientWhatsappMessages: Array<{
+    direction: string;
+    senderName: string;
+    body: string;
+    audioTranscript?: string | null;
+    createdAt: string;
+  }>;
+  bankWhatsappMessages: Array<{
+    direction: string;
+    senderName: string;
+    body: string;
+    audioTranscript?: string | null;
+    createdAt: string;
+  }>;
+}
 
+export async function iviAnalyzeNegotiationAdvisor(input: NegotiationAdvisorContextInput) {
+  const fmtBRL = (cents: number) =>
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((cents || 0) / 100);
 
+  const maxServiceCeilingPct = input.bankServices.reduce((acc, s) => {
+    const pct = parseFloat(String(s.negotiationPercent || '0').replace(',', '.'));
+    return Number.isFinite(pct) && pct > acc ? pct : acc;
+  }, 0);
+
+  const recommendedDiscountPct = Math.max(
+    input.targetReductionPct || 50,
+    maxServiceCeilingPct > 0 ? Math.round(maxServiceCeilingPct) : 55
+  );
+  const recommendedTargetValueCents = Math.max(
+    10000,
+    Math.round(input.originalDebtCents * (1 - recommendedDiscountPct / 100))
+  );
+  const recommendedInstallments =
+    input.bankServices[0]?.defaultInstallments && input.bankServices[0].defaultInstallments > 0
+      ? input.bankServices[0].defaultInstallments
+      : 12;
+
+  const primaryBankContact =
+    input.bankContacts.find((c) => c.name === input.selectedBankContactName) ||
+    input.bankContacts[0] ||
+    null;
+
+  const clientMsgCount = input.clientWhatsappMessages.length;
+  const bankMsgCount = input.bankWhatsappMessages.length;
+  const lastClientMsg = input.clientWhatsappMessages[input.clientWhatsappMessages.length - 1];
+  const lastBankMsg = input.bankWhatsappMessages[input.bankWhatsappMessages.length - 1];
+  const latestProposal = input.proposals[input.proposals.length - 1];
+
+  let summaryClient =
+    clientMsgCount > 0
+      ? `Canal WhatsApp Cliente possui ${clientMsgCount} mensagem(ns). Última interação de ${lastClientMsg.senderName}: "${(lastClientMsg.audioTranscript || lastClientMsg.body).slice(0, 140)}". Cliente aguarda posicionamento objetivo sobre desconto e condições de quitação.`
+      : `Sem histórico recente de WhatsApp com ${input.clientName}. Recomenda-se alinhar disponibilidade de recursos à vista ou entrada antes de formalizar contraproposta ao ${input.bankName}.`;
+
+  let summaryBank =
+    bankMsgCount > 0
+      ? `Canal WhatsApp Contato do Banco (${primaryBankContact ? `${primaryBankContact.name} · ${primaryBankContact.sector}` : input.bankName}) registra ${bankMsgCount} mensagem(ns). Último retorno: "${(lastBankMsg.audioTranscript || lastBankMsg.body).slice(0, 140)}".`
+      : primaryBankContact
+      ? `Contato bancário vinculado: ${primaryBankContact.name} (${primaryBankContact.sector} — ${primaryBankContact.mobile || primaryBankContact.phone}). Ainda sem troca de mensagens diretas neste dossiê.`
+      : `Nenhum contato bancário acionado via WhatsApp até o momento para ${input.bankName}.`;
+
+  let strategicDiagnosis = `Dívida original de ${fmtBRL(input.originalDebtCents)} no contrato ${input.contractNumber || 'S/N'} (${input.bankName}). ${
+    maxServiceCeilingPct > 0
+      ? `A política cadastrada para ${input.bankName} permite teto de referência de até ${maxServiceCeilingPct}% de deságio em até ${recommendedInstallments}x.`
+      : `Meta operacional posicionada em ${recommendedDiscountPct}% de redução.`
+  } ${
+    latestProposal
+      ? `Última proposta registrada (${latestProposal.origin}) em R$ ${latestProposal.proposedValue} (${latestProposal.discountPercentage || '0'}% desc.) encontra-se com status ${latestProposal.status}.`
+      : 'Ainda não há propostas formalizadas; abrir negociação com ancoragem técnica.'
+  }`;
+
+  let nextBestActions: string[] = [
+    primaryBankContact
+      ? `Acionar ${primaryBankContact.name} (${primaryBankContact.sector} - ${input.bankName}) apresentando proposta ancorada em ${fmtBRL(recommendedTargetValueCents)} (${recommendedDiscountPct}% de desconto).`
+      : `Vincular um contato da mesa de negociação do ${input.bankName} e formalizar proposta inicial.`,
+    `Confirmar com o cliente ${input.clientName} o limite de liquidez imediata para pagamento à vista (boleto único) ou entrada + ${recommendedInstallments} parcelas.`,
+    input.nextContactDate
+      ? `Cumprir agendamento de próximo contato programado para ${input.nextContactDate}${input.nextContactDescription ? ` (${input.nextContactDescription})` : ''}.`
+      : `Agendar data de próximo follow-up na Ficha da Negociação para não perder janela de fechamento mensal.`,
+  ];
+
+  let suggestedBankWhatsappDraft = `Olá ${primaryBankContact ? primaryBankContact.name : `equipe ${input.bankName}`}, tudo bem? Aqui é ${input.collaboratorName || 'da equipe de Negociação Bancária'}. Referente ao cliente ${input.clientName} (Contrato ${input.contractNumber || 'em análise'}, saldo de ${fmtBRL(input.originalDebtCents)}), temos autorização para fechamento imediato mediante liquidação por ${fmtBRL(recommendedTargetValueCents)} (${recommendedDiscountPct}% de deságio) à vista ou em até ${recommendedInstallments}x. Conseguimos aprovar nessa alçada hoje para emissão do acordo?`;
+
+  let suggestedClientWhatsappDraft = `Olá ${input.clientName}, tudo bem? Aqui é ${input.collaboratorName || 'seu consultor de negociação'}. Estamos avançando nas tratativas do seu contrato junto ao ${input.bankName}. Nossa meta técnica está posicionada na faixa de ${fmtBRL(recommendedTargetValueCents)} (redução aproximada de ${recommendedDiscountPct}%). Assim que a mesa do banco validar a alçada, te envio os detalhes para sua aprovação final!`;
+
+  let riskAlerts: string[] = [];
+  if (!input.nextContactDate) {
+    riskAlerts.push('Negociação sem data de Próximo Contato agendada.');
+  }
+  if (input.proposals.length === 0) {
+    riskAlerts.push('Nenhuma proposta formal registrada no histórico da negociação.');
+  }
+  if (input.contacts.length === 0) {
+    riskAlerts.push('Nenhum acionamento registrado na linha do tempo de contatos.');
+  }
+  if (riskAlerts.length === 0) {
+    riskAlerts.push('Fluxo operacional em dia — manter acompanhamento da resposta da mesa bancária.');
+  }
+
+  let provider = 'knowledge_fallback';
+  const ai = getGeminiClient();
+  if (ai) {
+    try {
+      const promptLines = [
+        `Negociação #${input.negotiationId} | Status: ${input.negotiationStatus}`,
+        `Cliente: ${input.clientName} (${input.clientCpfCnpj || 'CPF/CNPJ não informado'})`,
+        `Banco: ${input.bankName} | Contrato: ${input.contractNumber || 'S/N'}`,
+        `Valor Original da Dívida: ${fmtBRL(input.originalDebtCents)}`,
+        `Negociador Responsável: ${input.collaboratorName}`,
+        `Teto de Serviços Cadastrados no Banco: ${JSON.stringify(input.bankServices)}`,
+        `Contatos do Banco Cadastrados: ${JSON.stringify(input.bankContacts)}`,
+        `Histórico de Contatos Realizados (${input.contacts.length}): ${JSON.stringify(input.contacts.slice(-8))}`,
+        `Histórico de Propostas (${input.proposals.length}): ${JSON.stringify(input.proposals.slice(-6))}`,
+        `Mensagens de WhatsApp com o Cliente (${input.clientWhatsappMessages.length}): ${JSON.stringify(input.clientWhatsappMessages.slice(-10))}`,
+        `Mensagens de WhatsApp com o Contato do Banco (${input.bankWhatsappMessages.length}): ${JSON.stringify(input.bankWhatsappMessages.slice(-10))}`,
+        `Observações Internas: ${input.notes || 'Sem observações'}`,
+      ].join('\n');
+
+      const res = await ai.models.generateContent({
+        model: 'gemini-4-hydrogen',
+        contents: promptLines,
+        config: {
+          systemInstruction:
+            'Você é a Ivi IA, Assessora Sênior de Negociações Bancárias do FinancePro. Analise o dossiê da negociação, os contatos e parâmetros do banco, as propostas e as conversas de WhatsApp tanto do Cliente quanto do Contato do Banco. Retorne em Português do Brasil resumos executivos das conversas (Cliente e Banco), diagnóstico estratégico de alçada, recomendações práticas, alertas de risco e duas minutas prontas de WhatsApp (uma técnica para o contato do banco e uma clara/acolhedora para o cliente).',
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              summaryClient: { type: Type.STRING },
+              summaryBank: { type: Type.STRING },
+              strategicDiagnosis: { type: Type.STRING },
+              recommendedDiscountPct: { type: Type.NUMBER },
+              recommendedInstallments: { type: Type.NUMBER },
+              nextBestActions: { type: Type.ARRAY, items: { type: Type.STRING } },
+              suggestedBankWhatsappDraft: { type: Type.STRING },
+              suggestedClientWhatsappDraft: { type: Type.STRING },
+              riskAlerts: { type: Type.ARRAY, items: { type: Type.STRING } },
+            },
+            required: [
+              'summaryClient',
+              'summaryBank',
+              'strategicDiagnosis',
+              'recommendedDiscountPct',
+              'recommendedInstallments',
+              'nextBestActions',
+              'suggestedBankWhatsappDraft',
+              'suggestedClientWhatsappDraft',
+              'riskAlerts',
+            ],
+          },
+        },
+      });
+
+      const parsed = JSON.parse((res.text || '{}').trim());
+      if (parsed.summaryClient) summaryClient = parsed.summaryClient;
+      if (parsed.summaryBank) summaryBank = parsed.summaryBank;
+      if (parsed.strategicDiagnosis) strategicDiagnosis = parsed.strategicDiagnosis;
+      if (typeof parsed.recommendedDiscountPct === 'number' && parsed.recommendedDiscountPct > 0 && parsed.recommendedDiscountPct <= 95) {
+        // recalculate target value
+        const pct = Math.round(parsed.recommendedDiscountPct);
+        const targetCents = Math.max(10000, Math.round(input.originalDebtCents * (1 - pct / 100)));
+        if (Array.isArray(parsed.nextBestActions) && parsed.nextBestActions.length > 0) {
+          nextBestActions = parsed.nextBestActions.slice(0, 4);
+        }
+        if (parsed.suggestedBankWhatsappDraft) suggestedBankWhatsappDraft = parsed.suggestedBankWhatsappDraft;
+        if (parsed.suggestedClientWhatsappDraft) suggestedClientWhatsappDraft = parsed.suggestedClientWhatsappDraft;
+        if (Array.isArray(parsed.riskAlerts) && parsed.riskAlerts.length > 0) {
+          riskAlerts = parsed.riskAlerts.slice(0, 4);
+        }
+        provider = 'gemini';
+        return {
+          summaryClient,
+          summaryBank,
+          strategicDiagnosis,
+          recommendedDiscountPct: pct,
+          recommendedTargetValueCents: targetCents,
+          recommendedInstallments:
+            typeof parsed.recommendedInstallments === 'number' && parsed.recommendedInstallments > 0
+              ? Math.round(parsed.recommendedInstallments)
+              : recommendedInstallments,
+          nextBestActions,
+          suggestedBankWhatsappDraft,
+          suggestedClientWhatsappDraft,
+          riskAlerts,
+          provider,
+          generatedAt: new Date().toISOString(),
+        };
+      }
+      if (Array.isArray(parsed.nextBestActions) && parsed.nextBestActions.length > 0) {
+        nextBestActions = parsed.nextBestActions.slice(0, 4);
+      }
+      if (parsed.suggestedBankWhatsappDraft) suggestedBankWhatsappDraft = parsed.suggestedBankWhatsappDraft;
+      if (parsed.suggestedClientWhatsappDraft) suggestedClientWhatsappDraft = parsed.suggestedClientWhatsappDraft;
+      if (Array.isArray(parsed.riskAlerts) && parsed.riskAlerts.length > 0) {
+        riskAlerts = parsed.riskAlerts.slice(0, 4);
+      }
+      provider = 'gemini';
+    } catch (err) {
+      console.warn('Gemini iviAnalyzeNegotiationAdvisor fallback:', err);
+    }
+  }
+
+  return {
+    summaryClient,
+    summaryBank,
+    strategicDiagnosis,
+    recommendedDiscountPct,
+    recommendedTargetValueCents,
+    recommendedInstallments,
+    nextBestActions,
+    suggestedBankWhatsappDraft,
+    suggestedClientWhatsappDraft,
+    riskAlerts,
+    provider,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+export async function iviAskNegotiationCopilot(params: {
+  question: string;
+  context: NegotiationAdvisorContextInput;
+}) {
+  const advisor = await iviAnalyzeNegotiationAdvisor(params.context);
+  const ai = getGeminiClient();
+  if (ai) {
+    try {
+      const res = await ai.models.generateContent({
+        model: 'gemini-4-hydrogen',
+        contents: [
+          `Pergunta do Operador: ${params.question}`,
+          `Contexto da Negociação (#${params.context.negotiationId} - ${params.context.clientName} vs ${params.context.bankName}):`,
+          `Diagnóstico: ${advisor.strategicDiagnosis}`,
+          `Resumo Cliente: ${advisor.summaryClient}`,
+          `Resumo Banco: ${advisor.summaryBank}`,
+          `Contatos do Banco: ${JSON.stringify(params.context.bankContacts)}`,
+          `Propostas: ${JSON.stringify(params.context.proposals)}`,
+        ].join('\n'),
+        config: {
+          systemInstruction:
+            'Você é a Ivi IA, Assessora de Negociações Bancárias. Responda diretamente à dúvida do operador com argumentação técnica bancária, cálculo objetivo de deságio/parcelamento e orientação prática de fechamento em Português do Brasil (máximo 2 parágrafos curtos).',
+        },
+      });
+      const text = (res.text || '').trim();
+      if (text) {
+        return {
+          answer: text,
+          provider: 'gemini',
+          generatedAt: new Date().toISOString(),
+        };
+      }
+    } catch (err) {
+      console.warn('Gemini iviAskNegotiationCopilot fallback:', err);
+    }
+  }
+
+  return {
+    answer: `Com base no dossiê de ${params.context.clientName} junto ao ${params.context.bankName}: ${advisor.strategicDiagnosis} Sugiro atuar com desconto-alvo de ${advisor.recommendedDiscountPct}% e acionar o contato bancário com a minuta recomendada.`,
+    provider: 'knowledge_fallback',
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+// =============================================================================
+// ANÁLISES & CONSULTAS -> FORMULÁRIOS: ARQUITETA DE FORMULÁRIOS IVI IA
+// =============================================================================
+
+const ALLOWED_FORM_FIELD_TYPES = new Set<CustomFormField['type']>([
+  'text',
+  'textarea',
+  'number',
+  'currency',
+  'date',
+  'select',
+  'radio',
+  'checkbox_group',
+  'boolean',
+  'rating',
+  'cpf_cnpj',
+  'phone',
+  'email',
+  'file_note',
+  'section_header',
+]);
+
+function sanitizeGeneratedFields(rawFields: unknown[]): CustomFormField[] {
+  if (!Array.isArray(rawFields)) return [];
+  const usedKeys = new Set<string>();
+  return rawFields
+    .map((item, idx): CustomFormField | null => {
+      if (!item || typeof item !== 'object') return null;
+      const obj = item as Record<string, unknown>;
+      const rawType = String(obj.type || 'text').trim() as CustomFormField['type'];
+      const type = ALLOWED_FORM_FIELD_TYPES.has(rawType) ? rawType : 'text';
+      const label = String(obj.label || `Campo ${idx + 1}`).trim().slice(0, 140);
+      if (!label) return null;
+      let baseKey = String(obj.key || label)
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .slice(0, 48);
+      if (!baseKey) baseKey = `campo_${idx + 1}`;
+      let uniqueKey = baseKey;
+      let suffix = 2;
+      while (usedKeys.has(uniqueKey)) {
+        uniqueKey = `${baseKey}_${suffix++}`;
+      }
+      usedKeys.add(uniqueKey);
+
+      const options = Array.isArray(obj.options)
+        ? obj.options
+            .map((o) => String(o || '').trim())
+            .filter(Boolean)
+            .slice(0, 20)
+        : undefined;
+
+      return {
+        id: `fld_${crypto.randomBytes(4).toString('hex')}`,
+        key: uniqueKey,
+        label,
+        type,
+        required: type === 'section_header' ? false : Boolean(obj.required),
+        placeholder: obj.placeholder ? String(obj.placeholder).slice(0, 120) : undefined,
+        helpText: obj.helpText ? String(obj.helpText).slice(0, 240) : undefined,
+        options:
+          options && options.length > 0
+            ? options
+            : type === 'select' || type === 'radio' || type === 'checkbox_group'
+            ? ['Opção 1', 'Opção 2', 'Opção 3']
+            : undefined,
+        width: obj.width === 'half' && type !== 'section_header' && type !== 'textarea' ? 'half' : 'full',
+        maxRating: type === 'rating' ? (Number(obj.maxRating) === 10 ? 10 : 5) : undefined,
+        weight: typeof obj.weight === 'number' ? obj.weight : undefined,
+      };
+    })
+    .filter((f): f is CustomFormField => f !== null);
+}
+
+function buildHeuristicFormFromPrompt(params: {
+  prompt: string;
+  category?: string;
+  linkedEntity?: string;
+  baseTemplate?: { title: string; description?: string; fields: CustomFormField[] } | null;
+}): {
+  title: string;
+  description: string;
+  category: string;
+  linkedEntity: string;
+  fields: CustomFormField[];
+  settings: CustomFormSettings;
+} {
+  const lower = (params.prompt || '').toLowerCase();
+  if (params.baseTemplate && params.baseTemplate.fields.length > 0) {
+    return {
+      title: `${params.baseTemplate.title} (Adaptado Ivi)`,
+      description:
+        params.prompt.trim() ||
+        params.baseTemplate.description ||
+        'Formulário estruturado a partir de modelo corporativo.',
+      category: params.category || 'operacional',
+      linkedEntity: params.linkedEntity || 'cliente',
+      fields: params.baseTemplate.fields.map((f) => ({
+        ...f,
+        id: `fld_${crypto.randomBytes(4).toString('hex')}`,
+      })),
+      settings: {
+        submitLabel: 'Registrar Formulário',
+        successMessage: 'Respostas registradas e disponibilizadas para consulta.',
+        autoScoreEnabled: true,
+        iviAutoAnalyze: true,
+        requiresReview: true,
+      },
+    };
+  }
+
+  const isNps = /nps|satisfa|pesquisa|feedback|atendimento/.test(lower);
+  const isVehicle = /veicul|carro|moto|busca|apreens|fipe|renavam|placa/.test(lower);
+  const isAudit = /auditor|checklist|confer|boleto|protocolo|document/.test(lower);
+
+  const fields: CustomFormField[] = [
+    {
+      id: `fld_${crypto.randomBytes(4).toString('hex')}`,
+      key: 'bloco_identificacao',
+      label: '1. Identificação & Vínculo',
+      type: 'section_header',
+      required: false,
+      width: 'full',
+    },
+    {
+      id: `fld_${crypto.randomBytes(4).toString('hex')}`,
+      key: 'nome_responsavel_preenchimento',
+      label: 'Nome Completo / Solicitante',
+      type: 'text',
+      required: true,
+      width: 'half',
+    },
+    {
+      id: `fld_${crypto.randomBytes(4).toString('hex')}`,
+      key: 'cpf_cnpj_titular',
+      label: 'CPF / CNPJ',
+      type: 'cpf_cnpj',
+      required: false,
+      width: 'half',
+    },
+  ];
+
+  if (isVehicle) {
+    fields.push(
+      {
+        id: `fld_${crypto.randomBytes(4).toString('hex')}`,
+        key: 'bloco_veiculo',
+        label: '2. Dados do Veículo & Risco Processual',
+        type: 'section_header',
+        required: false,
+        width: 'full',
+      },
+      {
+        id: `fld_${crypto.randomBytes(4).toString('hex')}`,
+        key: 'placa_modelo_veiculo',
+        label: 'Placa e Modelo do Veículo',
+        type: 'text',
+        required: true,
+        width: 'half',
+      },
+      {
+        id: `fld_${crypto.randomBytes(4).toString('hex')}`,
+        key: 'saldo_devedor_estimado',
+        label: 'Saldo Devedor Estimado (R$)',
+        type: 'currency',
+        required: true,
+        width: 'half',
+      },
+      {
+        id: `fld_${crypto.randomBytes(4).toString('hex')}`,
+        key: 'risco_busca_apreensao',
+        label: 'Há notificação extrajudicial ou mandado de busca e apreensão?',
+        type: 'radio',
+        options: ['Não há risco imediato', 'Notificação recebida', 'Ação judicial ativa / Urgente'],
+        required: true,
+        width: 'full',
+      }
+    );
+  } else if (isNps) {
+    fields.push(
+      {
+        id: `fld_${crypto.randomBytes(4).toString('hex')}`,
+        key: 'nota_atendimento',
+        label: 'Em uma escala de 0 a 10, qual a probabilidade de recomendar nossa assessoria?',
+        type: 'rating',
+        maxRating: 10,
+        required: true,
+        width: 'full',
+      },
+      {
+        id: `fld_${crypto.randomBytes(4).toString('hex')}`,
+        key: 'clareza_consultor',
+        label: 'O consultor explicou claramente prazos, honorários e metas de desconto?',
+        type: 'boolean',
+        required: true,
+        width: 'half',
+      }
+    );
+  } else if (isAudit) {
+    fields.push(
+      {
+        id: `fld_${crypto.randomBytes(4).toString('hex')}`,
+        key: 'documentos_conferidos',
+        label: 'Documentos Obrigatórios Validados',
+        type: 'checkbox_group',
+        options: [
+          'Contrato de Prestação de Serviços assinado',
+          'Procuração Ad Judicia válida',
+          'Cédula de Crédito Bancário (CCB) legível',
+          'Comprovante de pagamento da entrada',
+        ],
+        required: true,
+        width: 'full',
+      },
+      {
+        id: `fld_${crypto.randomBytes(4).toString('hex')}`,
+        key: 'parecer_conformidade',
+        label: 'Parecer Final de Conformidade',
+        type: 'select',
+        options: ['Aprovado sem ressalvas', 'Aprovado com ressalva', 'Devolvido para correção'],
+        required: true,
+        width: 'half',
+      }
+    );
+  } else {
+    fields.push(
+      {
+        id: `fld_${crypto.randomBytes(4).toString('hex')}`,
+        key: 'valor_referencia',
+        label: 'Valor Envolvido / Orçamento (R$)',
+        type: 'currency',
+        required: false,
+        width: 'half',
+      },
+      {
+        id: `fld_${crypto.randomBytes(4).toString('hex')}`,
+        key: 'prioridade_tratativa',
+        label: 'Prioridade da Análise',
+        type: 'select',
+        options: ['Normal', 'Alta', 'Crítica / Urgente'],
+        required: true,
+        width: 'half',
+      }
+    );
+  }
+
+  fields.push({
+    id: `fld_${crypto.randomBytes(4).toString('hex')}`,
+    key: 'observacoes_complementares',
+    label: 'Observações & Encaminhamentos',
+    type: 'textarea',
+    required: false,
+    placeholder: 'Detalhe pontos relevantes para consulta e análise posterior...',
+    width: 'full',
+  });
+
+  return {
+    title: isVehicle
+      ? 'Formulário de Triagem Veicular & Risco'
+      : isNps
+      ? 'Pesquisa de Satisfação & NPS'
+      : isAudit
+      ? 'Checklist Estruturado de Auditoria'
+      : 'Formulário Personalizado de Análise',
+    description: params.prompt.trim().slice(0, 240) || 'Formulário corporativo criado com apoio da Ivi IA.',
+    category: params.category || (isNps ? 'nps' : isAudit ? 'auditoria' : 'operacional'),
+    linkedEntity: params.linkedEntity || 'cliente',
+    fields,
+    settings: {
+      submitLabel: 'Enviar Resposta',
+      successMessage: 'Formulário enviado e protocolado com sucesso.',
+      autoScoreEnabled: isNps,
+      iviAutoAnalyze: true,
+      requiresReview: !isNps,
+    },
+  };
+}
+
+export async function iviGenerateFormFromPromptOrModel(params: {
+  prompt: string;
+  category?: string;
+  linkedEntity?: string;
+  baseTemplate?: { title: string; description?: string; fields: CustomFormField[] } | null;
+  referenceFile?: { mimeType: string; buffer: Buffer; fileName: string } | null;
+}): Promise<{
+  title: string;
+  description: string;
+  category: string;
+  linkedEntity: string;
+  fields: CustomFormField[];
+  settings: CustomFormSettings;
+  provider: string;
+}> {
+  const ai = getGeminiClient();
+  const baseTextParts: string[] = [
+    `Solicitação do usuário: ${params.prompt || 'Gerar formulário estruturado corporativo completo.'}`,
+    params.category ? `Categoria sugerida: ${params.category}` : '',
+    params.linkedEntity ? `Entidade de vínculo sugerida: ${params.linkedEntity}` : '',
+    params.baseTemplate
+      ? `Modelo base para adaptar:\nTítulo: ${params.baseTemplate.title}\nCampos atuais: ${JSON.stringify(
+          params.baseTemplate.fields.map((f) => ({ key: f.key, label: f.label, type: f.type, required: f.required, options: f.options }))
+        )}`
+      : '',
+  ].filter(Boolean);
+
+  if (ai) {
+    try {
+      const contentsParts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [];
+
+      if (params.referenceFile) {
+        const mime = params.referenceFile.mimeType.toLowerCase();
+        if (
+          mime.startsWith('image/') ||
+          mime === 'application/pdf'
+        ) {
+          contentsParts.push({
+            inlineData: {
+              mimeType: params.referenceFile.mimeType,
+              data: params.referenceFile.buffer.toString('base64'),
+            },
+          });
+          baseTextParts.push(
+            `Arquivo modelo anexado: "${params.referenceFile.fileName}" (${params.referenceFile.mimeType}). Extraia fielmente todas as seções, perguntas, tipos de campos e regras presentes neste arquivo modelo e combine com o prompt.`
+          );
+        } else {
+          const textExtract = params.referenceFile.buffer.toString('utf8').slice(0, 14000);
+          baseTextParts.push(
+            `Conteúdo do arquivo modelo anexado ("${params.referenceFile.fileName}"):\n---\n${textExtract}\n---`
+          );
+        }
+      }
+
+      contentsParts.push({ text: baseTextParts.join('\n\n') });
+
+      const res = await ai.models.generateContent({
+        model: 'gemini-4-hydrogen',
+        contents: { parts: contentsParts },
+        config: {
+          systemInstruction: [
+            'Você é a Ivi IA, arquiteta especialista em formulários corporativos e processos de assessoria bancária/jurídica do FinancePro.',
+            'Transforme o prompt, modelo base e/ou arquivo anexado em um formulário completo, bem organizado com blocos (section_header), validações reais e rótulos claros em Português do Brasil.',
+            'Tipos de campo permitidos: text, textarea, number, currency, date, select, radio, checkbox_group, boolean, rating, cpf_cnpj, phone, email, file_note, section_header.',
+            'Para select, radio e checkbox_group, sempre preencha options com alternativas realistas.',
+            'Para layout limpo, use width="half" em pares de campos curtos (ex: CPF + Telefone, Data + Valor) e width="full" em section_header, textarea, radio e checkbox_group.',
+          ].join(' '),
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING },
+              description: { type: Type.STRING },
+              category: { type: Type.STRING },
+              linkedEntity: { type: Type.STRING },
+              submitLabel: { type: Type.STRING },
+              autoScoreEnabled: { type: Type.BOOLEAN },
+              requiresReview: { type: Type.BOOLEAN },
+              fields: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    key: { type: Type.STRING },
+                    label: { type: Type.STRING },
+                    type: { type: Type.STRING },
+                    required: { type: Type.BOOLEAN },
+                    placeholder: { type: Type.STRING },
+                    helpText: { type: Type.STRING },
+                    options: {
+                      type: Type.ARRAY,
+                      items: { type: Type.STRING },
+                    },
+                    width: { type: Type.STRING },
+                    maxRating: { type: Type.INTEGER },
+                  },
+                  required: ['label', 'type'],
+                },
+              },
+            },
+            required: ['title', 'fields'],
+          },
+        },
+      });
+
+      const parsed = JSON.parse((res.text || '{}').trim()) as {
+        title?: string;
+        description?: string;
+        category?: string;
+        linkedEntity?: string;
+        submitLabel?: string;
+        autoScoreEnabled?: boolean;
+        requiresReview?: boolean;
+        fields?: unknown[];
+      };
+
+      const fields = sanitizeGeneratedFields(parsed.fields || []);
+      if (fields.length > 0) {
+        return {
+          title: (parsed.title || 'Formulário Estruturado (Ivi IA)').trim().slice(0, 140),
+          description: (parsed.description || params.prompt || '').trim().slice(0, 400),
+          category: params.category || parsed.category || 'operacional',
+          linkedEntity: params.linkedEntity || parsed.linkedEntity || 'cliente',
+          fields,
+          settings: {
+            submitLabel: parsed.submitLabel || 'Enviar Resposta',
+            successMessage: 'Formulário protocolado e disponível para análise.',
+            autoScoreEnabled: Boolean(parsed.autoScoreEnabled),
+            iviAutoAnalyze: true,
+            requiresReview: parsed.requiresReview !== false,
+          },
+          provider: 'gemini',
+        };
+      }
+    } catch (err) {
+      console.warn('Gemini iviGenerateFormFromPromptOrModel fallback:', err);
+    }
+  }
+
+  const fallback = buildHeuristicFormFromPrompt(params);
+  return { ...fallback, provider: 'knowledge_fallback' };
+}
+
+export async function iviAnalyzeFormSubmission(params: {
+  formTitle: string;
+  formCategory: string;
+  clientName?: string;
+  fields: CustomFormField[];
+  answers: Record<string, unknown>;
+}): Promise<{
+  classification: string;
+  summary: string;
+  recommendedAction: string;
+  provider: string;
+}> {
+  const ai = getGeminiClient();
+  const formattedPairs = params.fields
+    .filter((f) => f.type !== 'section_header')
+    .map((f) => `- ${f.label}: ${JSON.stringify(params.answers[f.key] ?? 'Não informado')}`)
+    .join('\n');
+
+  if (ai) {
+    try {
+      const res = await ai.models.generateContent({
+        model: 'gemini-4-hydrogen',
+        contents: `Formulário: ${params.formTitle} (${params.formCategory})\nCliente: ${
+          params.clientName || 'Não vinculado'
+        }\nRespostas:\n${formattedPairs}`,
+        config: {
+          systemInstruction:
+            'Você é Ivi IA, analista de qualidade e governança do FinancePro. Resuma objetivamente as respostas preenchidas, aponte riscos ou pendências e indique a próxima ação recomendada em Português do Brasil.',
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              classification: { type: Type.STRING },
+              summary: { type: Type.STRING },
+              recommendedAction: { type: Type.STRING },
+            },
+            required: ['classification', 'summary'],
+          },
+        },
+      });
+      const parsed = JSON.parse((res.text || '{}').trim()) as {
+        classification?: string;
+        summary?: string;
+        recommendedAction?: string;
+      };
+      if (parsed.summary) {
+        return {
+          classification: parsed.classification || 'Conforme / Analisado',
+          summary: parsed.summary,
+          recommendedAction: parsed.recommendedAction || 'Seguir fluxo padrão de análise.',
+          provider: 'gemini',
+        };
+      }
+    } catch (err) {
+      console.warn('Gemini iviAnalyzeFormSubmission fallback:', err);
+    }
+  }
+
+  const answeredCount = params.fields.filter(
+    (f) => f.type !== 'section_header' && params.answers[f.key] !== undefined && params.answers[f.key] !== ''
+  ).length;
+  const totalCount = Math.max(1, params.fields.filter((f) => f.type !== 'section_header').length);
+
+  return {
+    classification: answeredCount === totalCount ? 'Completo' : 'Parcialmente Preenchido',
+    summary: `Preenchidos ${answeredCount} de ${totalCount} campos no formulário "${params.formTitle}"${
+      params.clientName ? ` para ${params.clientName}` : ''
+    }.`,
+    recommendedAction: 'Validar evidências anexadas e definir status da triagem.',
+    provider: 'knowledge_fallback',
+  };
+}
 

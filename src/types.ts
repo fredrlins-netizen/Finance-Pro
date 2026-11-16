@@ -31,6 +31,12 @@ export type ModuleId =
   | 'collection_coordenacao'
   | 'collection_operacional'
   | 'managerial_dashboard'
+  | 'forms'
+  | 'reports'
+  | 'acomp_juridico'
+  | 'jur_dashboard'
+  | 'jur_processos'
+  | 'jur_prazos'
   | 'config';
 
 export interface NavigationIntent {
@@ -587,21 +593,166 @@ export interface LegalMovement {
   createdAt: string;
 }
 
+export type NegotiationStatusType =
+  | 'ABERTA'
+  | 'EM_ANDAMENTO'
+  | 'ACORDO_FECHADO'
+  | 'ACORDO_QUEBRADO'
+  | 'CANCELADA'
+  | 'ENCERRADA';
+
+export type NegotiationContactType =
+  | 'LIGACAO_REALIZADA'
+  | 'LIGACAO_RECEBIDA'
+  | 'WHATSAPP'
+  | 'EMAIL'
+  | 'PRESENCIAL'
+  | 'REUNIAO'
+  | 'OUTROS';
+
+export type NegotiationContactResult =
+  | 'PROPOSTA_APRESENTADA'
+  | 'RECUSA'
+  | 'SEM_RESPOSTA'
+  | 'PROMESSA_RETORNO'
+  | 'ACORDO'
+  | 'OUTROS';
+
+export type NegotiationProposalOrigin =
+  | 'NOSSA_PROPOSTA'
+  | 'PROPOSTA_BANCO'
+  | 'CONTRA_PROPOSTA_NOSSA'
+  | 'CONTRA_PROPOSTA_BANCO';
+
+export type NegotiationProposalStatus =
+  | 'AGUARDANDO'
+  | 'ACEITA'
+  | 'RECUSADA'
+  | 'CONTRA_PROPOSTA'
+  | 'EXPIRADA';
+
+export interface NegotiationContactItem {
+  id: number;
+  date: string;
+  type: NegotiationContactType | string;
+  result: NegotiationContactResult | string;
+  target?: 'CLIENTE' | 'BANCO';
+  bankContactId?: number | null;
+  bankContactName?: string;
+  description: string;
+  responsible: string;
+}
+
+export interface NegotiationProposalItem {
+  id: number;
+  date: string;
+  origin: NegotiationProposalOrigin | string;
+  proposedValue: string;
+  proposedValueCents?: number;
+  discountPercentage?: string;
+  installments?: number;
+  installmentValue?: string;
+  entryValue?: string;
+  status: NegotiationProposalStatus | string;
+  bankContactId?: number | null;
+  bankContactName?: string;
+  notes?: string;
+}
+
+export interface NegotiationIviAdvisorPayload {
+  summaryClient: string;
+  summaryBank: string;
+  strategicDiagnosis: string;
+  recommendedDiscountPct: number;
+  recommendedTargetValueCents: number;
+  recommendedInstallments: number;
+  nextBestActions: string[];
+  suggestedBankWhatsappDraft: string;
+  suggestedClientWhatsappDraft: string;
+  riskAlerts: string[];
+  provider: string;
+  generatedAt: string;
+}
+
 export interface Negotiation {
   id: number;
-  admissionId: number;
+  admissionId: number | null;
   clientId: number;
+  clientName?: string;
   unitId: number;
   negotiatorId: number | null;
+  collaboratorId?: number | null;
+  collaboratorName?: string;
+  bankId?: number | null;
   bankName: string;
+  titleId?: number | null;
+  contractNumber?: string;
+  openDate?: string;
   originalDebtCents: number;
+  debtValue?: string;
+  debtValueText?: string;
   targetReductionPct: number;
   currentReductionPct: number;
   estimatedSavingsCents: number;
   targetDeadline: string;
   status: string;
+  negotiationStatus?: NegotiationStatusType | string;
+  contacts?: NegotiationContactItem[];
+  proposals?: NegotiationProposalItem[];
+  nextContactDate?: string | null;
+  nextContactDescription?: string | null;
+  notes?: string;
+  closedDate?: string | null;
+  closedValueCents?: number | null;
+  closedValue?: string | null;
+  closedValueText?: string | null;
+  closedInstallments?: number | null;
+  selectedBankContactId?: number | null;
+  iviInsightsJson?: NegotiationIviAdvisorPayload | null;
   lastMassEmailAt: string | null;
   chatLogs: Array<{ channel: string; note: string; author: string; timestamp: string }>;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface NegotiationGoal {
+  id: number;
+  collaboratorId: number | null;
+  collaboratorName: string;
+  unitId?: number | null;
+  month: number;
+  year: number;
+  targetCount: number;
+  targetSavingsCents: number;
+  targetValue: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type CommercialStage = 'TRIAGEM' | 'PROPOSTA' | 'AGUARDANDO_BANCO' | 'FECHADO' | 'PERDIDO';
+
+export interface CommercialDeal {
+  id: number;
+  clientId: number;
+  clientName: string;
+  admissionId: number | null;
+  titleId: number | null;
+  bankId: number | null;
+  bankName: string;
+  collaboratorId: number | null;
+  collaboratorName: string;
+  unitId?: number | null;
+  stage: CommercialStage | string;
+  debtValueCents: number;
+  debtValue: string;
+  proposedValueCents?: number | null;
+  proposedValue?: string | null;
+  discountPercentage?: string | null;
+  lossReason?: string | null;
+  notes?: string;
+  convertedNegotiationId?: number | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface FinancialTitle {
@@ -741,6 +892,24 @@ export interface CollectionCancelRequestInfo {
   notes?: string;
 }
 
+export interface CollectionDebtSnapshot {
+  originalCents: number;
+  interestCents: number;
+  fineCents: number;
+  discountCents: number;
+  balanceCents: number;
+}
+
+export interface CollectionNoteAttachment {
+  id: string;
+  name: string;
+  mimeType: string;
+  sizeBytes?: number;
+  documentId?: number | null;
+  storageUri?: string;
+  dataUrl?: string;
+}
+
 export interface CollectionNote {
   id: number;
   titleId: number | null;
@@ -753,7 +922,11 @@ export interface CollectionNote {
   contactTime: string;
   channel: string;
   negotiationStatus: string;
+  otherStatusDetail?: string;
+  nextContactDate?: string;
   note: string;
+  debtSnapshotJson?: CollectionDebtSnapshot | null;
+  attachmentsJson?: CollectionNoteAttachment[];
   cancelRequest: CollectionCancelRequestInfo | null;
   createdAt: string;
   updatedAt: string;
@@ -1533,4 +1706,372 @@ export interface UazapiInstanceOption {
   isConnected: boolean;
   active: boolean;
 }
+
+export type CustomFormFieldType =
+  | 'text'
+  | 'textarea'
+  | 'number'
+  | 'currency'
+  | 'date'
+  | 'select'
+  | 'radio'
+  | 'checkbox_group'
+  | 'boolean'
+  | 'rating'
+  | 'cpf_cnpj'
+  | 'phone'
+  | 'email'
+  | 'file_note'
+  | 'section_header';
+
+export interface CustomFormField {
+  id: string;
+  key: string;
+  label: string;
+  type: CustomFormFieldType;
+  required: boolean;
+  placeholder?: string;
+  helpText?: string;
+  options?: string[];
+  width?: 'full' | 'half';
+  conditionalFieldId?: string;
+  conditionalEquals?: string;
+  maxRating?: number;
+  weight?: number;
+}
+
+export interface CustomFormSettings {
+  submitLabel?: string;
+  successMessage?: string;
+  autoScoreEnabled?: boolean;
+  iviAutoAnalyze?: boolean;
+  requireClientLink?: boolean;
+  requiresReview?: boolean;
+  displayMode?: 'modal' | 'drawer' | 'inline';
+  presentationContexts?: string[];
+}
+
+export interface CustomFormItem {
+  id: number;
+  code: string;
+  title: string;
+  description: string;
+  category: string;
+  status: 'rascunho' | 'publicado' | 'arquivado' | string;
+  linkedEntity: string;
+  isTemplate: boolean;
+  publicSlug: string | null;
+  allowAnonymous: boolean;
+  fieldsJson: CustomFormField[];
+  settingsJson: CustomFormSettings;
+  iviPromptOrigin: string;
+  version: number;
+  unitId: number | null;
+  createdByUserId: number | null;
+  createdByName: string;
+  submissionsCount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CustomFormSubmissionItem {
+  id: number;
+  formId: number;
+  formTitle?: string;
+  formCode?: string;
+  protocolCode: string;
+  unitId: number | null;
+  clientId: number | null;
+  clientName: string;
+  admissionId: number | null;
+  negotiationId: number | null;
+  status: 'recebido' | 'em_analise' | 'aprovado' | 'pendente_ajuste' | 'arquivado' | string;
+  answersJson: Record<string, unknown>;
+  calculatedScore: number | null;
+  iviSummary: string;
+  iviClassification: string;
+  submittedByUserId: number | null;
+  submittedByName: string;
+  sourceChannel: string;
+  reviewedByName: string;
+  reviewedNotes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FormTemplateItem {
+  id: string;
+  name: string;
+  description: string;
+  content: string;
+  header: string;
+  footer: string;
+  menuIds: string[];
+  docxTemplate?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ReportColumnFormat = 'text' | 'number' | 'currency_brl' | 'date' | 'cpf_cnpj' | 'percent';
+export type ReportAggregationOp = 'nenhum' | 'soma' | 'contagem' | 'media' | 'min' | 'max';
+
+export interface ReportColumnDef {
+  field: string;
+  label: string;
+  visible: boolean;
+  width: string;
+  align: 'left' | 'center' | 'right';
+  format: ReportColumnFormat;
+}
+
+export interface ReportTotalizerDef {
+  field: string;
+  operation: ReportAggregationOp;
+}
+
+export interface ReportGroupingConfig {
+  fields: string[];
+  headerTemplate: string;
+  showSubtotals: boolean;
+  totalizers: ReportTotalizerDef[];
+}
+
+export interface ReportLayoutConfig {
+  header: {
+    show: boolean;
+    title: string;
+    subtitle: string;
+    logo: string;
+    alignment: 'left' | 'center' | 'right';
+    showDate: boolean;
+    showLogo: boolean;
+  };
+  columns: ReportColumnDef[];
+  grouping: ReportGroupingConfig | null;
+  footer: {
+    show: boolean;
+    showTotals: boolean;
+    totalizers: ReportTotalizerDef[];
+    showPageNumbers: boolean;
+    showDateTime: boolean;
+    customText: string;
+  };
+  general: {
+    pageSize: 'A4' | 'Letter' | 'Legal';
+    orientation: 'portrait' | 'landscape';
+    fontSize: number;
+    fontFamily: string;
+    zebra: boolean;
+    margins: { top: number; bottom: number; left: number; right: number };
+  };
+}
+
+export interface ReportFilterDef {
+  id: string;
+  placeholder: string;
+  label: string;
+  type: 'text' | 'select' | 'date' | 'number';
+  defaultValue: string;
+  options: string[];
+}
+
+export interface ReportChartSeriesDef {
+  field: string;
+  label?: string;
+  operation: 'direto' | 'soma' | 'contagem' | 'media';
+  color: string;
+  seriesType?: 'bar' | 'line';
+  secondaryAxis?: boolean;
+}
+
+export interface ReportChartDef {
+  id: string;
+  type: 'bar' | 'pie' | 'line' | 'mixed';
+  subType: string;
+  title: string;
+  xField: string;
+  yFields: ReportChartSeriesDef[];
+  colors: string[];
+  palette: 'padrao' | 'pastel' | 'escuro' | 'monocromatico';
+  position: 'before' | 'after' | 'between';
+  width: '100%' | '50%';
+  showLegend: boolean;
+  showDataLabels: boolean;
+  showGrid: boolean;
+}
+
+export interface ReportSubreportColumnDef {
+  field: string;
+  label: string;
+  width: number;
+  format: '' | 'text' | 'number' | 'currency' | 'percent' | 'date' | 'datetime';
+  align: 'left' | 'center' | 'right';
+}
+
+export interface ReportSubreportDef {
+  id: string;
+  type: 'summary' | 'query';
+  title: string;
+  sql_query?: string;
+  summary_config?: {
+    groupField: string;
+    operations: Array<{ field: string; label?: string; operation: 'none' | 'sum' | 'count' | 'avg' | 'min' | 'max'; format?: string }>;
+  };
+  columns: ReportSubreportColumnDef[];
+  totalizers: Array<{ field: string; operation: 'none' | 'sum' | 'count' | 'avg' | 'min' | 'max' }>;
+}
+
+export interface ReportTemplateItem {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  target_layout: 'responsive' | 'web' | 'mobile';
+  content_mode: 'data' | 'charts' | 'both';
+  sql_query: string;
+  layout: ReportLayoutConfig;
+  filters: ReportFilterDef[];
+  subreports: ReportSubreportDef[];
+  charts: ReportChartDef[];
+  allowed_users: number[] | null;
+  allowed_groups: number[] | null;
+  created_by: number | null;
+  created_at: string;
+  updated_at: string;
+  is_active: boolean;
+}
+
+// --- ACOMPANHAMENTO JURÍDICO (Processos Judiciais da Empresa) ---
+
+export type CompanyProcessType =
+  | 'TRABALHISTA'
+  | 'CÍVEL'
+  | 'TRIBUTÁRIO'
+  | 'CONSUMIDOR'
+  | 'CRIMINAL'
+  | 'ADMINISTRATIVO'
+  | 'OUTRO';
+
+export type CompanyProcessRole = 'AUTOR' | 'RÉU' | 'TERCEIRO';
+
+export type CompanyProcessStatus =
+  | 'ATIVO'
+  | 'SUSPENSO'
+  | 'ARQUIVADO'
+  | 'ENCERRADO_PROCEDENTE'
+  | 'ENCERRADO_IMPROCEDENTE'
+  | 'ACORDO';
+
+export type CompanyProcessRiskLevel = 'BAIXO' | 'MEDIO' | 'ALTO' | 'CRITICO';
+
+export type CompanyProcessMovementType =
+  | 'DESPACHO'
+  | 'DECISAO'
+  | 'PETICAO'
+  | 'CERTIDAO'
+  | 'SENTENCA'
+  | 'AUDIENCIA';
+
+export type CompanyDeadlineType =
+  | 'CONTESTAÇÃO'
+  | 'RECURSO'
+  | 'MANIFESTAÇÃO'
+  | 'CUMPRIMENTO'
+  | 'AUDIÊNCIA'
+  | 'OUTRO';
+
+export type CompanyDeadlineStatus = 'PENDENTE' | 'CUMPRIDO' | 'VENCIDO';
+
+export type CompanyHearingType =
+  | 'INICIAL'
+  | 'INSTRUÇÃO'
+  | 'JULGAMENTO'
+  | 'CONCILIAÇÃO'
+  | 'OUTRO';
+
+export type CompanyHearingStatus = 'AGENDADA' | 'REALIZADA' | 'ADIADA' | 'CANCELADA';
+
+export interface CompanyProcessMovement {
+  id: string;
+  date: string;
+  type: CompanyProcessMovementType | string;
+  description: string;
+  source?: string;
+}
+
+export interface CompanyProcessDeadline {
+  id: string;
+  processId: number | string;
+  type: CompanyDeadlineType | string;
+  description: string;
+  dueDate: string;
+  status: CompanyDeadlineStatus | string;
+  responsibleId?: number | string | null;
+  notes?: string;
+}
+
+export interface CompanyProcessHearing {
+  id: string;
+  processId: number | string;
+  type: CompanyHearingType | string;
+  date: string;
+  time: string;
+  location?: string;
+  status: CompanyHearingStatus | string;
+  notes?: string;
+}
+
+export interface CompanyProcessAttachment {
+  id: string;
+  title: string;
+  fileName: string;
+  mimeType?: string;
+  sizeBytes?: number;
+  sha256Hash?: string;
+  storageUri?: string;
+  fileUrl?: string;
+  createdAt?: string;
+  fileData?: string; // Temporary client-side base64 before upload/save
+}
+
+export interface CompanyLegalProcess {
+  id: number;
+  unitId: number | null;
+  processNumber: string;
+  court: string;
+  jurisdiction: string;
+  type: CompanyProcessType | string;
+  role: CompanyProcessRole | string;
+  opposingParty: string;
+  opposingPartyDocument: string;
+  opposingPartyLawyer: string;
+  opposingPartyLawyerOAB: string;
+  partnerId: number | null;
+  clientId?: number | null;
+  admissionId?: number | null;
+  clientName?: string;
+  contractNumber?: string;
+  responsibleLawyer: string;
+  responsibleLawyerOAB: string;
+  status: CompanyProcessStatus | string;
+  subject: string;
+  causeValue: string;
+  provisionValue: string;
+  riskLevel: CompanyProcessRiskLevel | string;
+  distributionDate: string;
+  lastMovementDate: string;
+  notes: string;
+  notesHeader?: string;
+  notesFooter?: string;
+  tags: string[];
+  movements: CompanyProcessMovement[];
+  deadlines: CompanyProcessDeadline[];
+  hearings: CompanyProcessHearing[];
+  attachments: CompanyProcessAttachment[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+
+
 

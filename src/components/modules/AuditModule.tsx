@@ -22,6 +22,8 @@ import {
   X,
 } from 'lucide-react';
 import { apiFetch, formatBRL, formatDateBR, formatDateTimeBR, getAuthToken } from '../../lib/api.ts';
+import type { FormMergeContext } from '../../lib/formTemplateRenderer.ts';
+import { FormTemplateButton } from '../FormTemplateButton.tsx';
 import {
   Admission,
   AuditChecklistItem,
@@ -1426,6 +1428,21 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                       </div>
 
                       <div className="flex flex-wrap items-center gap-2 shrink-0">
+                        <FormTemplateButton
+                          menuId="auditoria"
+                          label="Modelos A4"
+                          getContext={(): FormMergeContext => ({
+                            client: activeClient,
+                            titular: activeTitular || activeClient,
+                            admission: activeAdmission,
+                            company: activeUnit,
+                            bank: { name: activeAdmission.bankName },
+                            collaborator: activeAdmission.consultantName
+                              ? { id: activeAdmission.consultantId, name: activeAdmission.consultantName }
+                              : null,
+                            currentUserName: currentUser?.name,
+                          })}
+                        />
                         <button
                           type="button"
                           onClick={() => setActiveTab('boletos')}

@@ -21,6 +21,8 @@ import {
   X,
 } from 'lucide-react';
 import { apiFetch, formatBRL, formatDateTimeBR } from '../../lib/api.ts';
+import type { FormMergeContext } from '../../lib/formTemplateRenderer.ts';
+import { FormTemplateButton } from '../FormTemplateButton.tsx';
 import {
   Client,
   CollectionCase,
@@ -1241,6 +1243,21 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
               </div>
 
               <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <FormTemplateButton
+                  menuId="jur_processos"
+                  label="Modelos A4"
+                  getContext={(): FormMergeContext => ({
+                    client: timelineClient,
+                    titular: timelineClient,
+                    legalProcess: {
+                      ...analyzedProcess,
+                      responsibleLawyerName: timelineLawyerName,
+                    },
+                    company: units.find((u) => u.id === analyzedProcess.unitId) || units[0] || null,
+                    collaborator: { name: timelineLawyerName, role: 'Advogado Responsável' },
+                  })}
+                  onError={(msg) => setErrorMsg(msg)}
+                />
                 {onNavigate && timelineClient && (
                   <button
                     type="button"

@@ -28,6 +28,13 @@ const BLOCKED_EXTENSIONS = new Set([
   '.vbs',
   '.dll',
   '.so',
+  '.msi',
+  '.com',
+  '.scr',
+  '.pif',
+  '.jar',
+  '.hta',
+  '.cpl',
 ]);
 
 const BLOCKED_MIME_PREFIXES = [
@@ -102,7 +109,7 @@ function hmacSha256(key: Buffer | string, data: string): Buffer {
 }
 
 export function signR2Request(params: {
-  method: 'GET' | 'HEAD' | 'PUT' | 'DELETE';
+  method: 'GET' | 'HEAD' | 'PUT' | 'POST' | 'DELETE';
   endpoint: string;
   path: string;
   query?: Record<string, string>;
@@ -176,6 +183,190 @@ export function signR2Request(params: {
       authorization,
     },
   };
+}
+
+/**
+ * Generates an AWS Signature Version 4 Presigned URL for Cloudflare R2 S3 API
+ * (https://developers.cloudflare.com/r2/api/s3/api/). Expires between 1s and 7 days (604800s).
+ */
+export function createR2PresignedUrl(params: {
+  method: 'GET' | 'HEAD' | 'PUT' | 'POST' | 'DELETE';
+  endpoint: string;
+  bucketName: string;
+  objectKey: string;
+  query?: Record<string, string>;
+  expiresSeconds?: number;
+  accessKeyId: string;
+  secretAccessKey: string;
+  region?: string;
+  now?: Date;
+}): string {
+  const region = params.region || 'auto';
+  const service = 's3';
+  const now = params.now || new Date();
+  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '');
+  const dateStamp = amzDate.slice(0, 8);
+  const expires = Math.max(1, Math.min(604800, Math.floor(params.expiresSeconds ?? 3600)));
+
+  const endpointUrl = new URL(params.endpoint);
+  const basePath = endpointUrl.pathname.replace(/\/+$/, '');
+  const pathSuffix = `/${params.bucketName}/${params.objectKey.replace(/^\/+/, '')}`;
+  const canonicalUri = encodeS3Path(`${basePath}${pathSuffix}`);
+  const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`;
+
+  const allQuery: Record<string, string> = {
+    ...(params.query || {}),
+    'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
+    'X-Amz-Credential': `${params.accessKeyId}/${credentialScope}`,
+    'X-Amz-Date': amzDate,
+    'X-Amz-Expires': String(expires),
+    'X-Amz-SignedHeaders': 'host',
+  };
+
+  const canonicalQueryString = Object.entries(allQuery)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, v]) => `${encodeRfc3986(k)}=${encodeRfc3986(v)}`)
+    .join('&');
+
+  const canonicalHeaders = `host:${endpointUrl.host}\n`;
+  const signedHeaders = 'host';
+  const payloadHash = 'UNSIGNED-PAYLOAD';
+
+  const canonicalRequest = [
+    params.method,
+    canonicalUri,
+    canonicalQueryString,
+    canonicalHeaders,
+    signedHeaders,
+    payloadHash,
+  ].join('\n');
+
+  const canonicalRequestHash = crypto.createHash('sha256').update(canonicalRequest, 'utf8').digest('hex');
+  const stringToSign = ['AWS4-HMAC-SHA256', amzDate, credentialScope, canonicalRequestHash].join('\n');
+
+  const kDate = hmacSha256(`AWS4${params.secretAccessKey}`, dateStamp);
+  const kRegion = hmacSha256(kDate, region);
+  const kService = hmacSha256(kRegion, service);
+  const kSigning = hmacSha256(kService, 'aws4_request');
+  const signature = crypto.createHmac('sha256', kSigning).update(stringToSign, 'utf8').digest('hex');
+
+  return `${endpointUrl.origin}${canonicalUri}?${canonicalQueryString}&X-Amz-Signature=${signature}`;
+}
+
+export async function getActiveR2ConfigForMigration(): Promise<CloudflareR2Config | null> {
+  return resolveActiveR2Bucket();
+}
+
+export async function initiateR2MultipartUpload(
+  cfg: CloudflareR2Config,
+  objectKey: string,
+  meta: { sha256: string; originalName: string; originalMime: string; logicalFolder: string }
+): Promise<string> {
+  const pathSuffix = `/${cfg.bucketName}/${objectKey.replace(/^\/+/, '')}`;
+  const signed = signR2Request({
+    method: 'POST',
+    endpoint: cfg.endpoint,
+    path: pathSuffix,
+    query: { uploads: '' },
+    headers: {
+      'content-type': meta.originalMime || 'application/octet-stream',
+      'x-amz-meta-sha256': meta.sha256,
+      'x-amz-meta-original-name': meta.originalName,
+      'x-amz-meta-logical-folder': meta.logicalFolder,
+    },
+    accessKeyId: cfg.accessKeyId,
+    secretAccessKey: cfg.secretAccessKey,
+    region: 'auto',
+  });
+  const reqHeaders = new Headers();
+  for (const [k, v] of Object.entries(signed.headers)) {
+    if (k !== 'host') reqHeaders.set(k, v);
+  }
+  const res = await fetch(signed.url, {
+    method: 'POST',
+    headers: reqHeaders,
+    signal: AbortSignal.timeout(30000),
+  });
+  const xml = await res.text();
+  if (!res.ok) {
+    throw new Error(`Falha ao iniciar Multipart Upload no R2 (HTTP ${res.status}): ${xml.slice(0, 200)}`);
+  }
+  const match = xml.match(/<UploadId>([^<]+)<\/UploadId>/);
+  if (!match?.[1]) {
+    throw new Error('Resposta Multipart Upload do R2 não retornou UploadId.');
+  }
+  return match[1];
+}
+
+export async function completeR2MultipartUpload(
+  cfg: CloudflareR2Config,
+  objectKey: string,
+  uploadId: string,
+  parts: Array<{ partNumber: number; etag: string }>
+): Promise<void> {
+  const sortedParts = [...parts].sort((a, b) => a.partNumber - b.partNumber);
+  const bodyXml =
+    '<CompleteMultipartUpload>' +
+    sortedParts
+      .map((p) => {
+        const cleanEtag = p.etag.replace(/[<>&]/g, '');
+        return `<Part><PartNumber>${p.partNumber}</PartNumber><ETag>${cleanEtag}</ETag></Part>`;
+      })
+      .join('') +
+    '</CompleteMultipartUpload>';
+  const bodyBuf = Buffer.from(bodyXml, 'utf8');
+  const pathSuffix = `/${cfg.bucketName}/${objectKey.replace(/^\/+/, '')}`;
+  const signed = signR2Request({
+    method: 'POST',
+    endpoint: cfg.endpoint,
+    path: pathSuffix,
+    query: { uploadId },
+    headers: { 'content-type': 'application/xml' },
+    body: bodyBuf,
+    accessKeyId: cfg.accessKeyId,
+    secretAccessKey: cfg.secretAccessKey,
+    region: 'auto',
+  });
+  const reqHeaders = new Headers();
+  for (const [k, v] of Object.entries(signed.headers)) {
+    if (k !== 'host') reqHeaders.set(k, v);
+  }
+  const res = await fetch(signed.url, {
+    method: 'POST',
+    headers: reqHeaders,
+    body: new Uint8Array(bodyBuf),
+    signal: AbortSignal.timeout(60000),
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => '');
+    throw new Error(`Falha ao concluir Multipart Upload no R2 (HTTP ${res.status}): ${txt.slice(0, 200)}`);
+  }
+}
+
+export async function abortR2MultipartUpload(
+  cfg: CloudflareR2Config,
+  objectKey: string,
+  uploadId: string
+): Promise<void> {
+  const pathSuffix = `/${cfg.bucketName}/${objectKey.replace(/^\/+/, '')}`;
+  const signed = signR2Request({
+    method: 'DELETE',
+    endpoint: cfg.endpoint,
+    path: pathSuffix,
+    query: { uploadId },
+    accessKeyId: cfg.accessKeyId,
+    secretAccessKey: cfg.secretAccessKey,
+    region: 'auto',
+  });
+  const reqHeaders = new Headers();
+  for (const [k, v] of Object.entries(signed.headers)) {
+    if (k !== 'host') reqHeaders.set(k, v);
+  }
+  await fetch(signed.url, {
+    method: 'DELETE',
+    headers: reqHeaders,
+    signal: AbortSignal.timeout(15000),
+  }).catch(() => {});
 }
 
 async function fetchR2Signed(
@@ -288,18 +479,23 @@ async function r2DeleteObject(cfg: CloudflareR2Config, bucketName: string, objec
   }
 }
 
-function parseR2Uri(storageUri: string, cleanHash: string, defaultBucket: string): { bucketName: string; objectKey: string } {
-  const raw = storageUri.slice('r2://'.length);
+function parseR2Uri(storageUri: string, cleanHash: string, defaultBucket: string): { bucketName: string; objectKey: string; encrypted: boolean } {
+  const isPlainS3 = storageUri.startsWith('r2-s3://');
+  const raw = storageUri.slice(isPlainS3 ? 'r2-s3://'.length : 'r2://'.length);
   const slashIdx = raw.indexOf('/');
   if (slashIdx > 0) {
     return {
       bucketName: raw.slice(0, slashIdx),
       objectKey: raw.slice(slashIdx + 1),
+      encrypted: !isPlainS3,
     };
   }
   return {
     bucketName: defaultBucket,
-    objectKey: `bucketdainvicta/objects/${cleanHash.slice(0, 2)}/${cleanHash}.enc`,
+    objectKey: isPlainS3
+      ? `bucketdainvicta/objects/${cleanHash.slice(0, 2)}/${cleanHash}.bin`
+      : `bucketdainvicta/objects/${cleanHash.slice(0, 2)}/${cleanHash}.enc`,
+    encrypted: !isPlainS3,
   };
 }
 
@@ -474,14 +670,14 @@ export async function getBucketObjectBuffer(
   const cleanHash = sha256Hash.replace(/[^a-f0-9]/gi, '').toLowerCase();
   if (!cleanHash) return null;
 
-  // 1. Try Cloudflare R2 if storageUri starts with r2://
-  if (storageUri && storageUri.startsWith('r2://')) {
+  // 1. Try Cloudflare R2 if storageUri starts with r2:// or r2-s3://
+  if (storageUri && (storageUri.startsWith('r2://') || storageUri.startsWith('r2-s3://'))) {
     const r2Cfg = getCloudflareR2Config();
     if (r2Cfg) {
-      const { bucketName, objectKey } = parseR2Uri(storageUri, cleanHash, r2Cfg.bucketName);
+      const { bucketName, objectKey, encrypted } = parseR2Uri(storageUri, cleanHash, r2Cfg.bucketName);
       const raw = await r2GetObjectBuffer(r2Cfg, bucketName, objectKey).catch(() => null);
       if (raw) {
-        return decryptBuffer(raw);
+        return encrypted ? decryptBuffer(raw) : raw;
       }
     }
   }
@@ -509,7 +705,7 @@ export async function deletePhysicalBucketObjectIfUnreferenced(
   const cleanHash = sha256Hash.replace(/[^a-f0-9]/gi, '').toLowerCase();
   if (!cleanHash) return;
 
-  if (storageUri && storageUri.startsWith('r2://')) {
+  if (storageUri && (storageUri.startsWith('r2://') || storageUri.startsWith('r2-s3://'))) {
     const r2Cfg = getCloudflareR2Config();
     if (r2Cfg) {
       const { bucketName, objectKey } = parseR2Uri(storageUri, cleanHash, r2Cfg.bucketName);

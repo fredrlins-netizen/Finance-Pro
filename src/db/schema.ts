@@ -7,6 +7,8 @@ import {
   timestamp,
   jsonb,
   bigint,
+  uuid,
+  varchar,
 } from 'drizzle-orm/pg-core';
 
 export const units = pgTable('units', {
@@ -255,6 +257,10 @@ export const admissions = pgTable('admissions', {
   auditedAt: timestamp('audited_at'),
   slaMinutes: integer('sla_minutes'),
   escavadorAlert: boolean('escavador_alert').notNull().default(false),
+  integrativeCode: text('integrative_code'),
+  legacyProtocolCode: text('legacy_protocol_code').notNull().default(''),
+  legacySourcePath: text('legacy_source_path').notNull().default(''),
+  migrationBatchId: integer('migration_batch_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
@@ -271,6 +277,14 @@ export const documentObjects = pgTable('document_objects', {
   storageUri: text('storage_uri').notNull(),
   uploadedBy: text('uploaded_by').notNull().default('Sistema'),
   unitId: integer('unit_id').notNull().default(1),
+  integrativeCode: text('integrative_code'),
+  relativeSubpath: text('relative_subpath').notNull().default(''),
+  legacySourcePath: text('legacy_source_path').notNull().default(''),
+  versionNumber: integer('version_number').notNull().default(1),
+  previousSha256: text('previous_sha256').notNull().default(''),
+  lastSyncedAt: timestamp('last_synced_at'),
+  archivedAt: timestamp('archived_at'),
+  migrationBatchId: integer('migration_batch_id'),
   deletedAt: timestamp('deleted_at'),
   deletedBy: text('deleted_by'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -417,19 +431,82 @@ export const legalMovements = pgTable('legal_movements', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+export interface NegotiationContactItem {
+  id: number;
+  date: string;
+  type: 'LIGACAO_REALIZADA' | 'LIGACAO_RECEBIDA' | 'WHATSAPP' | 'EMAIL' | 'PRESENCIAL' | 'REUNIAO' | 'OUTROS' | string;
+  result: 'PROPOSTA_APRESENTADA' | 'RECUSA' | 'SEM_RESPOSTA' | 'PROMESSA_RETORNO' | 'ACORDO' | 'OUTROS' | string;
+  target?: 'CLIENTE' | 'BANCO';
+  bankContactId?: number | null;
+  bankContactName?: string;
+  description: string;
+  responsible: string;
+}
+
+export interface NegotiationProposalItem {
+  id: number;
+  date: string;
+  origin: 'NOSSA_PROPOSTA' | 'PROPOSTA_BANCO' | 'CONTRA_PROPOSTA_NOSSA' | 'CONTRA_PROPOSTA_BANCO' | string;
+  proposedValue: string;
+  proposedValueCents?: number;
+  discountPercentage?: string;
+  installments?: number;
+  installmentValue?: string;
+  entryValue?: string;
+  status: 'AGUARDANDO' | 'ACEITA' | 'RECUSADA' | 'CONTRA_PROPOSTA' | 'EXPIRADA' | string;
+  bankContactId?: number | null;
+  bankContactName?: string;
+  notes?: string;
+}
+
+export interface NegotiationIviAdvisorPayload {
+  summaryClient: string;
+  summaryBank: string;
+  strategicDiagnosis: string;
+  recommendedDiscountPct: number;
+  recommendedTargetValueCents: number;
+  recommendedInstallments: number;
+  nextBestActions: string[];
+  suggestedBankWhatsappDraft: string;
+  suggestedClientWhatsappDraft: string;
+  riskAlerts: string[];
+  provider: string;
+  generatedAt: string;
+}
+
 export const negotiations = pgTable('negotiations', {
   id: serial('id').primaryKey(),
-  admissionId: integer('admission_id').references(() => admissions.id).notNull(),
+  admissionId: integer('admission_id').references(() => admissions.id, { onDelete: 'set null' }),
   clientId: integer('client_id').references(() => clients.id).notNull(),
+  clientName: text('client_name').notNull().default(''),
   unitId: integer('unit_id').references(() => units.id).notNull(),
   negotiatorId: integer('negotiator_id').references(() => users.id),
+  collaboratorId: integer('collaborator_id'),
+  collaboratorName: text('collaborator_name').notNull().default(''),
+  bankId: integer('bank_id'),
   bankName: text('bank_name').notNull(),
+  titleId: integer('title_id'),
+  contractNumber: text('contract_number').notNull().default(''),
+  openDate: text('open_date').notNull().default(''),
   originalDebtCents: bigint('original_debt_cents', { mode: 'number' }).notNull(),
+  debtValueText: text('debt_value_text').notNull().default('0.00'),
   targetReductionPct: integer('target_reduction_pct').notNull().default(55),
   currentReductionPct: integer('current_reduction_pct').notNull().default(20),
   estimatedSavingsCents: bigint('estimated_savings_cents', { mode: 'number' }).notNull().default(0),
   targetDeadline: timestamp('target_deadline').notNull(),
-  status: text('status').notNull().default('em_negociacao'), // 'em_negociacao' | 'proxima_meta' | 'meta_alcancada' | 'prazo_critico' | 'suspensa'
+  status: text('status').notNull().default('em_negociacao'), // legacy: 'em_negociacao' | 'proxima_meta' | 'meta_alcancada' | 'prazo_critico' | 'suspensa'
+  negotiationStatus: text('negotiation_status').notNull().default('EM_ANDAMENTO'), // 'ABERTA' | 'EM_ANDAMENTO' | 'ACORDO_FECHADO' | 'ACORDO_QUEBRADO' | 'CANCELADA' | 'ENCERRADA'
+  contactsJson: jsonb('contacts_json').$type<NegotiationContactItem[]>().notNull().default([]),
+  proposalsJson: jsonb('proposals_json').$type<NegotiationProposalItem[]>().notNull().default([]),
+  nextContactDate: text('next_contact_date'),
+  nextContactDescription: text('next_contact_description'),
+  notes: text('notes').notNull().default(''),
+  closedDate: text('closed_date'),
+  closedValueCents: bigint('closed_value_cents', { mode: 'number' }),
+  closedValueText: text('closed_value_text'),
+  closedInstallments: integer('closed_installments'),
+  selectedBankContactId: integer('selected_bank_contact_id'),
+  iviInsightsJson: jsonb('ivi_insights_json').$type<NegotiationIviAdvisorPayload | null>().default(null),
   lastMassEmailAt: timestamp('last_mass_email_at'),
   chatLogs: jsonb('chat_logs').$type<Array<{ channel: string; note: string; author: string; timestamp: string }>>().notNull().default([]),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -644,6 +721,8 @@ export const unitWhatsappCredentials = pgTable('unit_whatsapp_credentials', {
 export const whatsappThreads = pgTable('whatsapp_threads', {
   id: serial('id').primaryKey(),
   clientId: integer('client_id').references(() => clients.id),
+  bankId: integer('bank_id'),
+  bankContactId: integer('bank_contact_id'),
   unitId: integer('unit_id').references(() => units.id).notNull(),
   contactName: text('contact_name').notNull(),
   contactPhone: text('contact_phone').notNull(),
@@ -1017,6 +1096,24 @@ export interface CollectionCancelRequestInfo {
   notes?: string;
 }
 
+export interface CollectionDebtSnapshot {
+  originalCents: number;
+  interestCents: number;
+  fineCents: number;
+  discountCents: number;
+  balanceCents: number;
+}
+
+export interface CollectionNoteAttachment {
+  id: string;
+  name: string;
+  mimeType: string;
+  sizeBytes?: number;
+  documentId?: number | null;
+  storageUri?: string;
+  dataUrl?: string;
+}
+
 export const collectionNotes = pgTable('collection_notes', {
   id: serial('id').primaryKey(),
   titleId: integer('title_id').references(() => financialTitles.id, { onDelete: 'set null' }),
@@ -1029,7 +1126,11 @@ export const collectionNotes = pgTable('collection_notes', {
   contactTime: text('contact_time').notNull().default('00:00'),
   channel: text('channel').notNull().default('TELEFONE'),
   negotiationStatus: text('negotiation_status').notNull().default('AGUARDANDO_CONTATO'),
+  otherStatusDetail: text('other_status_detail').notNull().default(''),
+  nextContactDate: text('next_contact_date').notNull().default(''),
   note: text('note').notNull(),
+  debtSnapshotJson: jsonb('debt_snapshot_json').$type<CollectionDebtSnapshot | null>().default(null),
+  attachmentsJson: jsonb('attachments_json').$type<CollectionNoteAttachment[]>().notNull().default([]),
   cancelRequest: jsonb('cancel_request').$type<CollectionCancelRequestInfo | null>().default(null),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -1172,6 +1273,320 @@ export const coordinatorTaskAttachments = pgTable('coordinator_task_attachments'
   addedByName: text('added_by_name').notNull().default('Sistema'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
+
+export const negotiationGoals = pgTable('negotiation_goals', {
+  id: serial('id').primaryKey(),
+  collaboratorId: integer('collaborator_id').references(() => collaborators.id, { onDelete: 'cascade' }),
+  collaboratorName: text('collaborator_name').notNull().default('Geral'),
+  unitId: integer('unit_id').references(() => units.id, { onDelete: 'set null' }),
+  month: integer('month').notNull(),
+  year: integer('year').notNull(),
+  targetCount: integer('target_count').notNull().default(10),
+  targetSavingsCents: bigint('target_savings_cents', { mode: 'number' }).notNull().default(5000000),
+  targetValue: text('target_value').notNull().default('50000.00'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const commercialDeals = pgTable('commercial_deals', {
+  id: serial('id').primaryKey(),
+  clientId: integer('client_id').references(() => clients.id, { onDelete: 'cascade' }).notNull(),
+  clientName: text('client_name').notNull().default(''),
+  admissionId: integer('admission_id').references(() => admissions.id, { onDelete: 'set null' }),
+  titleId: integer('title_id').references(() => financialTitles.id, { onDelete: 'set null' }),
+  bankId: integer('bank_id').references(() => banks.id, { onDelete: 'set null' }),
+  bankName: text('bank_name').notNull().default(''),
+  collaboratorId: integer('collaborator_id').references(() => collaborators.id, { onDelete: 'set null' }),
+  collaboratorName: text('collaborator_name').notNull().default(''),
+  unitId: integer('unit_id').references(() => units.id, { onDelete: 'set null' }),
+  stage: text('stage').notNull().default('TRIAGEM'), // 'TRIAGEM' | 'PROPOSTA' | 'AGUARDANDO_BANCO' | 'FECHADO' | 'PERDIDO'
+  debtValueCents: bigint('debt_value_cents', { mode: 'number' }).notNull().default(0),
+  debtValue: text('debt_value').notNull().default('0.00'),
+  proposedValueCents: bigint('proposed_value_cents', { mode: 'number' }),
+  proposedValue: text('proposed_value'),
+  discountPercentage: text('discount_percentage'),
+  lossReason: text('loss_reason'),
+  notes: text('notes').notNull().default(''),
+  convertedNegotiationId: integer('converted_negotiation_id'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// =============================================================================
+// ANÁLISES & CONSULTAS: FORMULÁRIOS DINÂMICOS & RESPOSTAS COM IVI IA
+// =============================================================================
+
+export interface CustomFormField {
+  id: string;
+  key: string;
+  label: string;
+  type:
+    | 'text'
+    | 'textarea'
+    | 'number'
+    | 'currency'
+    | 'date'
+    | 'select'
+    | 'radio'
+    | 'checkbox_group'
+    | 'boolean'
+    | 'rating'
+    | 'cpf_cnpj'
+    | 'phone'
+    | 'email'
+    | 'file_note'
+    | 'section_header';
+  required: boolean;
+  placeholder?: string;
+  helpText?: string;
+  options?: string[];
+  width?: 'full' | 'half';
+  conditionalFieldId?: string;
+  conditionalEquals?: string;
+  maxRating?: number;
+  weight?: number;
+}
+
+export interface CustomFormSettings {
+  submitLabel?: string;
+  successMessage?: string;
+  autoScoreEnabled?: boolean;
+  iviAutoAnalyze?: boolean;
+  requireClientLink?: boolean;
+  requiresReview?: boolean;
+}
+
+export const customForms = pgTable('custom_forms', {
+  id: serial('id').primaryKey(),
+  code: text('code').notNull().unique(),
+  title: text('title').notNull(),
+  description: text('description').notNull().default(''),
+  category: text('category').notNull().default('operacional'), // 'operacional' | 'triagem' | 'auditoria' | 'negociacao' | 'juridico' | 'cobranca' | 'atendimento' | 'nps'
+  status: text('status').notNull().default('rascunho'), // 'rascunho' | 'publicado' | 'arquivado'
+  linkedEntity: text('linked_entity').notNull().default('geral'), // 'geral' | 'cliente' | 'admissao' | 'negociacao' | 'processo' | 'cobranca'
+  isTemplate: boolean('is_template').notNull().default(false),
+  publicSlug: text('public_slug').unique(),
+  allowAnonymous: boolean('allow_anonymous').notNull().default(false),
+  fieldsJson: jsonb('fields_json').$type<CustomFormField[]>().notNull().default([]),
+  settingsJson: jsonb('settings_json').$type<CustomFormSettings>().notNull().default({}),
+  iviPromptOrigin: text('ivi_prompt_origin').notNull().default(''),
+  version: integer('version').notNull().default(1),
+  unitId: integer('unit_id').references(() => units.id, { onDelete: 'set null' }),
+  createdByUserId: integer('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByName: text('created_by_name').notNull().default('Sistema'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const customFormSubmissions = pgTable('custom_form_submissions', {
+  id: serial('id').primaryKey(),
+  formId: integer('form_id').references(() => customForms.id, { onDelete: 'cascade' }).notNull(),
+  protocolCode: text('protocol_code').notNull().unique(),
+  unitId: integer('unit_id').references(() => units.id, { onDelete: 'set null' }),
+  clientId: integer('client_id').references(() => clients.id, { onDelete: 'set null' }),
+  clientName: text('client_name').notNull().default(''),
+  admissionId: integer('admission_id').references(() => admissions.id, { onDelete: 'set null' }),
+  negotiationId: integer('negotiation_id').references(() => negotiations.id, { onDelete: 'set null' }),
+  status: text('status').notNull().default('recebido'), // 'recebido' | 'em_analise' | 'aprovado' | 'pendente_ajuste' | 'arquivado'
+  answersJson: jsonb('answers_json').$type<Record<string, unknown>>().notNull().default({}),
+  calculatedScore: integer('calculated_score'),
+  iviSummary: text('ivi_summary').notNull().default(''),
+  iviClassification: text('ivi_classification').notNull().default(''),
+  submittedByUserId: integer('submitted_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  submittedByName: text('submitted_by_name').notNull().default('Operador'),
+  sourceChannel: text('source_channel').notNull().default('interno'), // 'interno' | 'link_publico' | 'whatsapp'
+  reviewedByName: text('reviewed_by_name').notNull().default(''),
+  reviewedNotes: text('reviewed_notes').notNull().default(''),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// =============================================================================
+// ANÁLISES & CONSULTAS -> FORMULÁRIOS: MODELOS DE DOCUMENTOS A4 (form_templates)
+// =============================================================================
+
+export const formTemplates = pgTable('form_templates', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: varchar('name', { length: 255 }).notNull(),
+  description: text('description').default(''),
+  content: text('content').default(''),
+  header: text('header').default(''),
+  footer: text('footer').default(''),
+  menuIds: jsonb('menu_ids').$type<string[]>().notNull().default([]),
+  docxTemplate: text('docx_template'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+// =============================================================================
+// ANÁLISES & CONSULTAS -> RELATÓRIOS GERAIS (report_templates)
+// =============================================================================
+
+export const reportTemplates = pgTable('report_templates', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: varchar('name', { length: 255 }).notNull(),
+  description: text('description').default(''),
+  category: varchar('category', { length: 100 }).notNull().default('Outros'),
+  targetLayout: varchar('target_layout', { length: 20 }).notNull().default('responsive'),
+  contentMode: varchar('content_mode', { length: 20 }).notNull().default('both'),
+  sqlQuery: text('sql_query').notNull(),
+  layout: jsonb('layout').$type<Record<string, any>>().notNull().default({}),
+  filters: jsonb('filters').$type<any[]>().notNull().default([]),
+  subreports: jsonb('subreports').$type<any[]>().notNull().default([]),
+  charts: jsonb('charts').$type<any[]>().notNull().default([]),
+  allowedUsers: integer('allowed_users').array(),
+  allowedGroups: integer('allowed_groups').array(),
+  createdBy: integer('created_by'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  isActive: boolean('is_active').notNull().default(true),
+});
+
+// =============================================================================
+// GOVERNANÇA -> ACOMPANHAMENTO JURÍDICO (Processos Judiciais da Empresa)
+// =============================================================================
+
+export const companyLegalProcesses = pgTable('company_legal_processes', {
+  id: serial('id').primaryKey(),
+  unitId: integer('unit_id').references(() => units.id, { onDelete: 'set null' }),
+  processNumber: text('process_number').notNull(),
+  court: text('court').notNull().default(''),
+  jurisdiction: text('jurisdiction').notNull().default(''),
+  type: text('type').notNull().default('CÍVEL'), // 'TRABALHISTA' | 'CÍVEL' | 'TRIBUTÁRIO' | 'CONSUMIDOR' | 'CRIMINAL' | 'ADMINISTRATIVO' | 'OUTRO'
+  role: text('role').notNull().default('RÉU'), // 'AUTOR' | 'RÉU' | 'TERCEIRO'
+  opposingParty: text('opposing_party').notNull().default(''),
+  opposingPartyDocument: text('opposing_party_document').notNull().default(''),
+  opposingPartyLawyer: text('opposing_party_lawyer').notNull().default(''),
+  opposingPartyLawyerOab: text('opposing_party_lawyer_oab').notNull().default(''),
+  partnerId: integer('partner_id').references(() => clients.id, { onDelete: 'set null' }),
+  clientId: integer('client_id').references(() => clients.id, { onDelete: 'set null' }),
+  admissionId: integer('admission_id').references(() => admissions.id, { onDelete: 'set null' }),
+  clientName: text('client_name').notNull().default(''),
+  contractNumber: text('contract_number').notNull().default(''),
+  responsibleLawyer: text('responsible_lawyer').notNull().default(''),
+  responsibleLawyerOab: text('responsible_lawyer_oab').notNull().default(''),
+  status: text('status').notNull().default('ATIVO'), // 'ATIVO' | 'SUSPENSO' | 'ARQUIVADO' | 'ENCERRADO_PROCEDENTE' | 'ENCERRADO_IMPROCEDENTE' | 'ACORDO'
+  subject: text('subject').notNull().default(''),
+  causeValue: text('cause_value').notNull().default(''),
+  provisionValue: text('provision_value').notNull().default(''),
+  riskLevel: text('risk_level').notNull().default('MEDIO'), // 'BAIXO' | 'MEDIO' | 'ALTO' | 'CRITICO'
+  distributionDate: text('distribution_date').notNull().default(''),
+  lastMovementDate: text('last_movement_date').notNull().default(''),
+  notes: text('notes').notNull().default(''),
+  notesHeader: text('notes_header').notNull().default(''),
+  notesFooter: text('notes_footer').notNull().default(''),
+  tags: jsonb('tags').$type<string[]>().notNull().default([]),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const companyLegalProcessMovements = pgTable('company_legal_process_movements', {
+  id: serial('id').primaryKey(),
+  processId: integer('process_id').references(() => companyLegalProcesses.id, { onDelete: 'cascade' }).notNull(),
+  date: text('date').notNull().default(''),
+  type: text('type').notNull().default('DESPACHO'), // 'DESPACHO' | 'DECISAO' | 'PETICAO' | 'CERTIDAO' | 'SENTENCA' | 'AUDIENCIA'
+  description: text('description').notNull().default(''),
+  source: text('source').notNull().default(''),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const companyLegalProcessDeadlines = pgTable('company_legal_process_deadlines', {
+  id: serial('id').primaryKey(),
+  processId: integer('process_id').references(() => companyLegalProcesses.id, { onDelete: 'cascade' }).notNull(),
+  type: text('type').notNull().default('CONTESTAÇÃO'), // 'CONTESTAÇÃO' | 'RECURSO' | 'MANIFESTAÇÃO' | 'CUMPRIMENTO' | 'AUDIÊNCIA' | 'OUTRO'
+  description: text('description').notNull().default(''),
+  dueDate: text('due_date').notNull().default(''),
+  status: text('status').notNull().default('PENDENTE'), // 'PENDENTE' | 'CUMPRIDO' | 'VENCIDO'
+  responsibleId: integer('responsible_id').references(() => collaborators.id, { onDelete: 'set null' }),
+  notes: text('notes').notNull().default(''),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const companyLegalProcessHearings = pgTable('company_legal_process_hearings', {
+  id: serial('id').primaryKey(),
+  processId: integer('process_id').references(() => companyLegalProcesses.id, { onDelete: 'cascade' }).notNull(),
+  type: text('type').notNull().default('INICIAL'), // 'INICIAL' | 'INSTRUÇÃO' | 'JULGAMENTO' | 'CONCILIAÇÃO' | 'OUTRO'
+  date: text('date').notNull().default(''),
+  time: text('time').notNull().default(''),
+  location: text('location').notNull().default(''),
+  status: text('status').notNull().default('AGENDADA'), // 'AGENDADA' | 'REALIZADA' | 'ADIADA' | 'CANCELADA'
+  notes: text('notes').notNull().default(''),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const companyLegalProcessAttachments = pgTable('company_legal_process_attachments', {
+  id: serial('id').primaryKey(),
+  processId: integer('process_id').references(() => companyLegalProcesses.id, { onDelete: 'cascade' }).notNull(),
+  title: text('title').notNull().default(''),
+  fileName: text('file_name').notNull(),
+  mimeType: text('mime_type').notNull().default('application/octet-stream'),
+  sizeBytes: integer('size_bytes').notNull().default(0),
+  sha256Hash: text('sha256_hash').notNull().default(''),
+  storageUri: text('storage_uri').notNull().default(''),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+// =============================================================================
+// GOVERNANÇA -> MIGRAÇÃO 64 GB (CLOUDFLARE R2) & CÓDIGO SEGURO INTEGRATIVO
+// =============================================================================
+
+export const vaultMigrationBatches = pgTable('vault_migration_batches', {
+  id: serial('id').primaryKey(),
+  batchCode: text('batch_code').notNull().unique(),
+  title: text('title').notNull().default('Ingestão Base Local (64 GB)'),
+  sourceRootPath: text('source_root_path').notNull().default(''),
+  syncMode: text('sync_mode').notNull().default('incremental'), // 'incremental' | 'mirror_review'
+  status: text('status').notNull().default('aguardando_agente'), // 'aguardando_agente' | 'em_andamento' | 'pausado' | 'concluido' | 'concluido_com_pendencias' | 'cancelado'
+  agentSessionTokenHash: text('agent_session_token_hash').notNull().default(''),
+  tokenExpiresAt: timestamp('token_expires_at', { withTimezone: true }),
+  targetUnitIds: jsonb('target_unit_ids').$type<number[]>().notNull().default([]),
+  totalFilesScanned: integer('total_files_scanned').notNull().default(0),
+  totalBytesScanned: bigint('total_bytes_scanned', { mode: 'number' }).notNull().default(0),
+  createdCount: integer('created_count').notNull().default(0),
+  updatedContentCount: integer('updated_content_count').notNull().default(0),
+  updatedPathCount: integer('updated_path_count').notNull().default(0),
+  deduplicatedCount: integer('deduplicated_count').notNull().default(0),
+  unmatchedCount: integer('unmatched_count').notNull().default(0),
+  blockedCount: integer('blocked_count').notNull().default(0),
+  failedCount: integer('failed_count').notNull().default(0),
+  uploadedBytes: bigint('uploaded_bytes', { mode: 'number' }).notNull().default(0),
+  savedBytesByDedup: bigint('saved_bytes_by_dedup', { mode: 'number' }).notNull().default(0),
+  integrativeSealedAt: timestamp('integrative_sealed_at', { withTimezone: true }),
+  createdByUserId: integer('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByName: text('created_by_name').notNull().default('Administrador'),
+  lastHeartbeatAt: timestamp('last_heartbeat_at', { withTimezone: true }),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const vaultMigrationItems = pgTable('vault_migration_items', {
+  id: serial('id').primaryKey(),
+  batchId: integer('batch_id').references(() => vaultMigrationBatches.id, { onDelete: 'cascade' }).notNull(),
+  unitFolderName: text('unit_folder_name').notNull().default(''),
+  extractedUnitCode: text('extracted_unit_code').notNull().default(''),
+  unitId: integer('unit_id').references(() => units.id, { onDelete: 'set null' }),
+  contractFolderName: text('contract_folder_name').notNull().default(''),
+  extractedContractNumber: text('extracted_contract_number').notNull().default(''),
+  clientId: integer('client_id').references(() => clients.id, { onDelete: 'set null' }),
+  admissionId: integer('admission_id').references(() => admissions.id, { onDelete: 'set null' }),
+  documentObjectId: integer('document_object_id').references(() => documentObjects.id, { onDelete: 'set null' }),
+  relativeSubpath: text('relative_subpath').notNull(),
+  fileName: text('file_name').notNull(),
+  legacySourcePath: text('legacy_source_path').notNull().default(''),
+  mimeType: text('mime_type').notNull().default('application/octet-stream'),
+  sizeBytes: bigint('size_bytes', { mode: 'number' }).notNull().default(0),
+  sha256Hash: text('sha256_hash').notNull().default(''),
+  storageUri: text('storage_uri').notNull().default(''),
+  action: text('action').notNull().default('pending'), // 'create' | 'update_content' | 'update_path' | 'unchanged' | 'unmatched_unit' | 'unmatched_contract' | 'blocked_ext' | 'error'
+  status: text('status').notNull().default('pending'), // 'pending' | 'awaiting_upload' | 'completed' | 'unmatched' | 'blocked' | 'failed'
+  errorMessage: text('error_message').notNull().default(''),
+  integrativeCode: text('integrative_code').notNull().default(''),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+
 
 
 
