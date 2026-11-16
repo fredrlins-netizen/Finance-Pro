@@ -14,7 +14,7 @@ import {
   Volume2,
   X,
 } from 'lucide-react';
-import { apiFetch, formatDateTimeBR, getAuthToken } from '../lib/api.ts';
+import { apiFetch, formatDateTimeBR, getActiveUnitHeader, getAuthToken, parseJsonResponse } from '../lib/api.ts';
 import { GotalkHsmTemplate, WhatsappMessage, WhatsappThread } from '../types.ts';
 
 const DockBucketAudio: React.FC<{ sha256: string }> = ({ sha256 }) => {
@@ -155,24 +155,26 @@ export const FixedWhatsAppDock: React.FC<FixedWhatsAppDockProps> = ({
       const form = new FormData();
       form.append('file', file);
       if (draft.trim()) form.append('caption', draft.trim());
+      const token = getAuthToken();
       const resp = await fetch(`/api/whatsapp/threads/${activeThread.id}/send-file`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${getAuthToken()}` },
+        headers: {
+          'x-unit-id': String(getActiveUnitHeader()),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: form,
       });
-      const data = (await resp.json().catch(() => ({}))) as {
-        delivery?: { detail?: string };
-        error?: string;
-      };
-      if (resp.ok) {
-        setDraft('');
-        setToast(data.delivery?.detail || `Anexo "${file.name}" enviado.`);
-        setTimeout(() => setToast(''), 3000);
-        await loadThreads();
-      } else {
-        setToast(data.error || 'Falha ao enviar anexo.');
-        setTimeout(() => setToast(''), 3000);
-      }
+      const data = await parseJsonResponse<{ delivery?: { detail?: string }; error?: string }>(
+        resp,
+        'Falha ao enviar anexo.'
+      );
+      setDraft('');
+      setToast(data.delivery?.detail || `Anexo "${file.name}" enviado.`);
+      setTimeout(() => setToast(''), 3000);
+      await loadThreads();
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : 'Falha ao enviar anexo.');
+      setTimeout(() => setToast(''), 3000);
     } finally {
       setBusy(false);
     }

@@ -16,7 +16,7 @@ import {
   Table2,
   Upload,
 } from 'lucide-react';
-import { apiFetch, getAuthToken } from '../../../lib/api.ts';
+import { apiFetch, getActiveUnitHeader, getAuthToken, parseJsonResponse } from '../../../lib/api.ts';
 
 interface HubColumnSpec {
   key: string;
@@ -213,11 +213,13 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
         unitId: unitFilter,
       });
       const res = await fetch(`/api/data-hub/export-xlsx?${qs.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          'x-unit-id': String(getActiveUnitHeader()),
+        },
       });
       if (!res.ok) {
-        const errJson = await res.json().catch(() => ({ error: 'Falha ao exportar Excel.' }));
-        throw new Error(errJson.error || 'Falha ao exportar Excel.');
+        await parseJsonResponse(res, 'Falha ao exportar Excel.');
       }
       const disp = res.headers.get('content-disposition') || '';
       const fnMatch = disp.match(/filename="([^"]+)"/);
@@ -258,13 +260,13 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
       const token = getAuthToken();
       const res = await fetch('/api/data-hub/import-xlsx/dry-run', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          'x-unit-id': String(getActiveUnitHeader()),
+        },
         body: form,
       });
-      const payload = await res.json();
-      if (!res.ok) {
-        throw new Error(payload.error || 'Falha na leitura da planilha Excel.');
-      }
+      const payload = await parseJsonResponse<ExcelImportResult>(res, 'Falha na leitura da planilha Excel.');
       setDryRunResult(payload as ExcelImportResult);
       onToast(
         `Pré-validação por precedência concluída: ${payload.totals?.inserts || 0} novo(s), ${
@@ -311,13 +313,16 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
       const token = getAuthToken();
       const res = await fetch('/api/data-hub/import-xlsx/commit', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          'x-unit-id': String(getActiveUnitHeader()),
+        },
         body: form,
       });
-      const payload = (await res.json()) as ExcelImportResult & { error?: string };
-      if (!res.ok) {
-        throw new Error(payload.error || 'Erro ao efetivar importação no Cloud SQL.');
-      }
+      const payload = await parseJsonResponse<ExcelImportResult>(
+        res,
+        'Erro ao efetivar importação no banco de dados.'
+      );
       setCommitResult(payload);
       setDryRunResult(null);
       if (payload.returnWorkbookBase64 && payload.returnFileName) {

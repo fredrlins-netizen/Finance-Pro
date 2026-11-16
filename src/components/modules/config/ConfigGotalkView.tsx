@@ -18,7 +18,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { apiFetch, formatDateTimeBR, getAuthToken } from '../../../lib/api.ts';
+import { apiFetch, formatDateTimeBR, getActiveUnitHeader, getAuthToken, parseJsonResponse } from '../../../lib/api.ts';
 import {
   AuthUser,
   GotalkChannelPublic,
@@ -564,20 +564,27 @@ export const ConfigGotalkView: React.FC<{
                 onClick={async () => {
                   setTestingConn(true);
                   try {
+                    const token = getAuthToken();
                     const resp = await fetch('/api/integrations/gotalk/test', {
                       method: 'POST',
                       headers: {
                         'Content-Type': 'application/json',
-                        Authorization: `Bearer ${getAuthToken()}`,
+                        'x-unit-id': String(getActiveUnitHeader()),
+                        ...(token ? { Authorization: `Bearer ${token}` } : {}),
                       },
                     });
-                    const data = (await resp.json()) as { ok?: boolean; error?: string };
+                    const data = await parseJsonResponse<{ ok?: boolean; error?: string }>(
+                      resp,
+                      'Aviso ao autenticar GoTalk (verifique secrets).'
+                    );
                     onToast(
-                      resp.ok && data.ok
+                      data.ok
                         ? 'GoTalk autenticado e recursos sincronizados.'
                         : data.error || 'Aviso ao autenticar GoTalk (verifique secrets).'
                     );
                     await onRefreshConfig();
+                  } catch (err) {
+                    onToast(err instanceof Error ? err.message : 'Aviso ao autenticar GoTalk.');
                   } finally {
                     setTestingConn(false);
                   }
@@ -593,19 +600,26 @@ export const ConfigGotalkView: React.FC<{
                 onClick={async () => {
                   setTestingConn(true);
                   try {
+                    const token = getAuthToken();
                     const resp = await fetch('/api/integrations/gotalk/test-webhook', {
                       method: 'POST',
                       headers: {
                         'Content-Type': 'application/json',
-                        Authorization: `Bearer ${getAuthToken()}`,
+                        'x-unit-id': String(getActiveUnitHeader()),
+                        ...(token ? { Authorization: `Bearer ${token}` } : {}),
                       },
                     });
-                    const data = (await resp.json()) as { ok?: boolean; error?: string };
+                    const data = await parseJsonResponse<{ ok?: boolean; error?: string }>(
+                      resp,
+                      'Falha no autoteste do webhook.'
+                    );
                     onToast(
-                      resp.ok && data.ok
+                      data.ok
                         ? 'Autoteste do Webhook GoTalk concluído com sucesso.'
                         : data.error || 'Falha no autoteste do webhook.'
                     );
+                  } catch (err) {
+                    onToast(err instanceof Error ? err.message : 'Falha no autoteste do webhook.');
                   } finally {
                     setTestingConn(false);
                   }

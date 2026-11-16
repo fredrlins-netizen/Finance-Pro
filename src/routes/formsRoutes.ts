@@ -30,6 +30,7 @@ import {
 } from '../db/schema.ts';
 import { EMBEDDED_FORM_TEMPLATES } from '../data/embeddedFormTemplates.ts';
 import { requireAuth, requireModule, type AuthRequest } from '../middleware/auth.ts';
+import { parsePositiveIntId, sanitizeErrorMessage } from '../utils/validation.ts';
 import { fillDocxTemplateBuffer } from '../services/docx.ts';
 import {
   iviAnalyzeFormSubmission,
@@ -830,7 +831,8 @@ export function registerFormsRoutes(
   // 4. ATUALIZAR FORMULÁRIO
   app.put('/api/forms/:id', requireAuth, requireModule('forms'), async (req: AuthRequest, res: Response) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID do formulário inválido.' });
       const [existing] = await db.select().from(customForms).where(eq(customForms.id, id)).limit(1);
       if (!existing) return res.status(404).json({ error: 'Formulário não encontrado.' });
       if (!isUnitPermitted(req, existing.unitId)) {
@@ -890,7 +892,8 @@ export function registerFormsRoutes(
   // 5. DUPLICAR MODELO OU FORMULÁRIO EXISTENTE
   app.post('/api/forms/:id/duplicate', requireAuth, requireModule('forms'), async (req: AuthRequest, res: Response) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID do formulário inválido.' });
       const [source] = await db.select().from(customForms).where(eq(customForms.id, id)).limit(1);
       if (!source) return res.status(404).json({ error: 'Modelo/formulário de origem não encontrado.' });
       if (!isUnitPermitted(req, source.unitId)) {
@@ -946,7 +949,8 @@ export function registerFormsRoutes(
   // 6. EXCLUIR FORMULÁRIO
   app.delete('/api/forms/:id', requireAuth, requireModule('forms'), async (req: AuthRequest, res: Response) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID do formulário inválido.' });
       const [existing] = await db.select().from(customForms).where(eq(customForms.id, id)).limit(1);
       if (!existing) return res.status(404).json({ error: 'Formulário não encontrado.' });
       if (!isUnitPermitted(req, existing.unitId)) {
@@ -968,14 +972,15 @@ export function registerFormsRoutes(
       res.json({ ok: true });
     } catch (err) {
       console.error('DELETE /api/forms/:id error:', err);
-      res.status(500).json({ error: 'Erro ao excluir formulário.' });
+      res.status(500).json({ error: sanitizeErrorMessage(err, 'Erro ao excluir formulário.') });
     }
   });
 
   // 7. PROTOCOLAR NOVA RESPOSTA DE FORMULÁRIO
   app.post('/api/forms/:id/submissions', requireAuth, requireModule('forms'), async (req: AuthRequest, res: Response) => {
     try {
-      const formId = Number(req.params.id);
+      const formId = parsePositiveIntId(req.params.id);
+      if (!formId) return res.status(400).json({ error: 'ID do formulário inválido.' });
       const [form] = await db.select().from(customForms).where(eq(customForms.id, formId)).limit(1);
       if (!form) return res.status(404).json({ error: 'Formulário não encontrado.' });
       if (!isUnitPermitted(req, form.unitId)) {
@@ -1016,13 +1021,26 @@ export function registerFormsRoutes(
       }
 
       let resolvedClientName = '';
-      if (body.clientId) {
+      let parsedClientId: number | null = null;
+      if (body.clientId !== undefined && body.clientId !== null && body.clientId !== ('' as unknown)) {
+        parsedClientId = parsePositiveIntId(body.clientId);
+        if (!parsedClientId) return res.status(400).json({ error: 'ID do cliente inválido.' });
         const [cl] = await db
-          .select({ id: clients.id, fullName: clients.fullName })
+          .select({ id: clients.id, fullName: clients.fullName, unitId: clients.unitId })
           .from(clients)
-          .where(eq(clients.id, Number(body.clientId)))
+          .where(eq(clients.id, parsedClientId))
           .limit(1);
-        resolvedClientName = cl?.fullName || '';
+        if (!cl) return res.status(404).json({ error: 'Cliente informado não encontrado.' });
+        if (!isUnitPermitted(req, cl.unitId)) {
+          return res.status(403).json({ error: 'Cliente pertence a uma unidade não autorizada.' });
+        }
+        resolvedClientName = cl.fullName;
+      }
+
+      const targetUnitId = body.unitId ? parsePositiveIntId(body.unitId) : (req.activeUnitId ?? 1);
+      if (!targetUnitId) return res.status(400).json({ error: 'Unidade inválida.' });
+      if (!isUnitPermitted(req, targetUnitId)) {
+        return res.status(403).json({ error: 'Acesso negado para a unidade informada.' });
       }
 
       const calculatedScore = computeSubmissionScore(fields, answers);
@@ -1042,14 +1060,13 @@ export function registerFormsRoutes(
         iviClassification = analysis.classification;
       }
 
-      const targetUnitId = body.unitId ?? req.activeUnitId ?? 1;
       const [submission] = await db
         .insert(customFormSubmissions)
         .values({
           formId: form.id,
           protocolCode,
           unitId: targetUnitId,
-          clientId: body.clientId ? Number(body.clientId) : null,
+          clientId: parsedClientId,
           clientName: resolvedClientName,
           admissionId: body.admissionId ? Number(body.admissionId) : null,
           negotiationId: body.negotiationId ? Number(body.negotiationId) : null,
@@ -1091,7 +1108,8 @@ export function registerFormsRoutes(
   // 8. TRIAGEM E REVISÃO DE RESPOSTA
   app.patch('/api/forms/submissions/:subId', requireAuth, requireModule('forms'), async (req: AuthRequest, res: Response) => {
     try {
-      const subId = Number(req.params.subId);
+      const subId = parsePositiveIntId(req.params.subId);
+      if (!subId) return res.status(400).json({ error: 'ID da resposta inválido.' });
       const [existing] = await db
         .select()
         .from(customFormSubmissions)
@@ -1139,7 +1157,8 @@ export function registerFormsRoutes(
   // 9. ANALISAR RESPOSTA SOB DEMANDA COM IVI IA
   app.post('/api/forms/submissions/:subId/ivi-analyze', requireAuth, requireModule('forms'), async (req: AuthRequest, res: Response) => {
     try {
-      const subId = Number(req.params.subId);
+      const subId = parsePositiveIntId(req.params.subId);
+      if (!subId) return res.status(400).json({ error: 'ID da resposta inválido.' });
       const [sub] = await db
         .select()
         .from(customFormSubmissions)
@@ -1181,7 +1200,8 @@ export function registerFormsRoutes(
   // 10. EXPORTAR RESPOSTAS EM CSV SEGURO (EXCEL PT-BR)
   app.get('/api/forms/:id/export-csv', requireAuth, requireModule('forms'), async (req: AuthRequest, res: Response) => {
     try {
-      const formId = Number(req.params.id);
+      const formId = parsePositiveIntId(req.params.id);
+      if (!formId) return res.status(400).json({ error: 'ID do formulário inválido.' });
       const [form] = await db.select().from(customForms).where(eq(customForms.id, formId)).limit(1);
       if (!form) return res.status(404).json({ error: 'Formulário não encontrado.' });
       if (!isUnitPermitted(req, form.unitId)) return res.status(403).json({ error: 'Acesso negado.' });

@@ -31,12 +31,14 @@ import {
   type NegotiationProposalItem,
 } from '../db/schema.js';
 import { AuthRequest, requireAuth, requireModule } from '../middleware/auth.js';
+import { parsePositiveIntId, parseSafeDate, sanitizeErrorMessage } from '../utils/validation.js';
 import {
   iviAnalyzeNegotiationAdvisor,
   iviAskNegotiationCopilot,
   iviTranscribeAudioNote,
   type NegotiationAdvisorContextInput,
 } from '../services/ivi.js';
+import { dispatchIviSectorNotification } from '../services/internalMessaging.js';
 import {
   isGotalkConfigured,
   phonesMatchBR,
@@ -1040,8 +1042,8 @@ export function registerNegotiationsRoutes(app: Express, deps: NegotiationsRoute
 
   app.get('/api/negotiations/client-context/:clientId', requireAuth, requireModule('negotiations'), async (req: AuthRequest, res: Response) => {
     try {
-      const clientId = Number(req.params.clientId);
-      if (!clientId || Number.isNaN(clientId)) {
+      const clientId = parsePositiveIntId(req.params.clientId);
+      if (!clientId) {
         return res.status(400).json({ error: 'ID do cliente inválido.' });
       }
 
@@ -1051,7 +1053,10 @@ export function registerNegotiationsRoutes(app: Express, deps: NegotiationsRoute
         getStaticModalCatalogs(),
       ]);
 
-      if (clientRow && !isUnitPermitted(req, clientRow.unitId)) {
+      if (!clientRow) {
+        return res.status(404).json({ error: 'Cliente não encontrado.' });
+      }
+      if (!isUnitPermitted(req, clientRow.unitId)) {
         return res.status(403).json({ error: 'Cliente pertence a uma unidade não autorizada para seu perfil.' });
       }
 
@@ -1133,26 +1138,37 @@ export function registerNegotiationsRoutes(app: Express, deps: NegotiationsRoute
 
   app.get('/api/negotiations/:id', requireAuth, requireModule('negotiations'), async (req: AuthRequest, res: Response) => {
     try {
-      const id = Number(req.params.id);
-      if (!id || Number.isNaN(id)) return res.status(400).json({ error: 'ID inválido.' });
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID inválido.' });
       const found = await serializeNegotiationById(id);
       if (!found) return res.status(404).json({ error: 'Negociação não encontrada.' });
       if (!isUnitPermitted(req, found.unitId)) return res.status(403).json({ error: 'Unidade não autorizada.' });
       res.json(found);
     } catch (err) {
-      res.status(500).json({ error: 'Falha ao buscar negociação.' });
+      res.status(500).json({ error: sanitizeErrorMessage(err, 'Falha ao buscar negociação.') });
     }
   });
 
   app.post('/api/negotiations', requireAuth, requireModule('negotiations'), async (req: AuthRequest, res: Response) => {
     try {
       const body = req.body || {};
-      const clientId = Number(body.clientId);
+      const clientId = parsePositiveIntId(body.clientId);
       if (!clientId) {
-        return res.status(400).json({ error: 'Selecione um cliente para iniciar a negociação.' });
+        return res.status(400).json({ error: 'Selecione um cliente válido para iniciar a negociação.' });
+      }
+
+      let parsedDeadline: Date | null = null;
+      if (body.targetDeadline !== undefined && body.targetDeadline !== null && body.targetDeadline !== '') {
+        parsedDeadline = parseSafeDate(body.targetDeadline);
+        if (!parsedDeadline) {
+          return res.status(400).json({ error: 'Prazo alvo (targetDeadline) inválido.' });
+        }
       }
 
       const [clientRow] = await db.select().from(clients).where(eq(clients.id, clientId)).limit(1);
+      if (!clientRow) {
+        return res.status(404).json({ error: 'Cliente não encontrado.' });
+      }
       const [allBanks, allBankContacts, allCollabs, allAdmissions] = await Promise.all([
         db.select().from(banks),
         db.select().from(bankContacts),
@@ -1218,7 +1234,7 @@ export function registerNegotiationsRoutes(app: Express, deps: NegotiationsRoute
           targetReductionPct: targetPct,
           currentReductionPct: currentPct,
           estimatedSavingsCents: savingsCents,
-          targetDeadline: body.targetDeadline ? new Date(body.targetDeadline) : new Date(Date.now() + 20 * 86400000),
+          targetDeadline: parsedDeadline || new Date(Date.now() + 20 * 86400000),
           status: legacyStatus,
           negotiationStatus: negStatus,
           contactsJson: initialContacts,
@@ -1257,6 +1273,19 @@ export function registerNegotiationsRoutes(app: Express, deps: NegotiationsRoute
       });
 
       const enriched = (await serializeNegotiationById(created.id)) || created;
+      await dispatchIviSectorNotification(
+        {
+          targetSector: 'negociacoes',
+          targetUnitId: created.unitId,
+          relatedEntityType: 'negotiation',
+          relatedEntityId: created.id,
+          senderName: 'Ivi IA · Negociações',
+          subject: `Nova Negociação Bancária · ${created.clientName || bankName}`,
+          body: `Negociação #${created.id} (${bankName} · ${created.debtValueText || ''}) aberta por ${req.authUser!.name} em Negociações Bancárias.`,
+        },
+        db,
+        broadcast
+      );
       broadcast('negotiations_updated', { negotiationId: created.id });
       res.status(201).json(enriched);
     } catch (err) {
@@ -1267,7 +1296,8 @@ export function registerNegotiationsRoutes(app: Express, deps: NegotiationsRoute
 
   const updateNegotiationHandler = async (req: AuthRequest, res: Response) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de negociação inválido.' });
       const [existing] = await db.select().from(negotiations).where(eq(negotiations.id, id)).limit(1);
       if (!existing) return res.status(404).json({ error: 'Negociação não encontrada.' });
       if (!isUnitPermitted(req, existing.unitId)) return res.status(403).json({ error: 'Unidade não autorizada.' });
@@ -1387,6 +1417,37 @@ export function registerNegotiationsRoutes(app: Express, deps: NegotiationsRoute
       });
 
       const updated = await serializeNegotiationById(id);
+      if (negStatus !== existing.negotiationStatus) {
+        if (negStatus === 'ACORDO_FECHADO') {
+          await dispatchIviSectorNotification(
+            {
+              targetSector: 'financeiro',
+              targetUnitId: existing.unitId,
+              relatedEntityType: 'negotiation',
+              relatedEntityId: id,
+              senderName: 'Ivi IA · Negociações',
+              subject: `Acordo Bancário Fechado · ${existing.clientName || existing.bankName}`,
+              body: `Negociação #${id} (${existing.bankName}) fechada com acordo por ${req.authUser!.name}. Encaminhada para conferência em Administração Financeira.`,
+            },
+            db,
+            broadcast
+          );
+        } else if (negStatus === 'ACORDO_QUEBRADO') {
+          await dispatchIviSectorNotification(
+            {
+              targetSector: 'cobranca',
+              targetUnitId: existing.unitId,
+              relatedEntityType: 'negotiation',
+              relatedEntityId: id,
+              senderName: 'Ivi IA · Negociações',
+              subject: `Acordo Quebrado — Atenção Cobrança · ${existing.clientName || existing.bankName}`,
+              body: `A negociação #${id} (${existing.bankName}) foi marcada como ACORDO QUEBRADO e requer tratativa em Cobrança & Ranking.`,
+            },
+            db,
+            broadcast
+          );
+        }
+      }
       broadcast('negotiations_updated', { negotiationId: id });
       res.json(updated);
     } catch (err) {
@@ -1400,7 +1461,8 @@ export function registerNegotiationsRoutes(app: Express, deps: NegotiationsRoute
 
   app.delete('/api/negotiations/:id', requireAuth, requireModule('negotiations'), async (req: AuthRequest, res: Response) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de negociação inválido.' });
       const [existing] = await db.select().from(negotiations).where(eq(negotiations.id, id)).limit(1);
       if (!existing) return res.status(404).json({ error: 'Negociação não encontrada.' });
       if (!isUnitPermitted(req, existing.unitId)) return res.status(403).json({ error: 'Unidade não autorizada.' });
@@ -1418,7 +1480,7 @@ export function registerNegotiationsRoutes(app: Express, deps: NegotiationsRoute
       broadcast('negotiations_updated', { deletedId: id });
       res.json({ ok: true, deletedId: id });
     } catch (err) {
-      res.status(500).json({ error: 'Falha ao excluir negociação.' });
+      res.status(500).json({ error: sanitizeErrorMessage(err, 'Falha ao excluir negociação.') });
     }
   });
 
@@ -1427,7 +1489,8 @@ export function registerNegotiationsRoutes(app: Express, deps: NegotiationsRoute
   // =========================================================================
   app.post('/api/negotiations/:id/contacts', requireAuth, requireModule('negotiations'), async (req: AuthRequest, res: Response) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de negociação inválido.' });
       const [existing] = await db.select().from(negotiations).where(eq(negotiations.id, id)).limit(1);
       if (!existing) return res.status(404).json({ error: 'Negociação não encontrada.' });
       if (!isUnitPermitted(req, existing.unitId)) return res.status(403).json({ error: 'Unidade não autorizada.' });
@@ -1499,14 +1562,20 @@ export function registerNegotiationsRoutes(app: Express, deps: NegotiationsRoute
 
   app.put('/api/negotiations/:id/contacts/:cid', requireAuth, requireModule('negotiations'), async (req: AuthRequest, res: Response) => {
     try {
-      const id = Number(req.params.id);
-      const cid = Number(req.params.cid);
+      const id = parsePositiveIntId(req.params.id);
+      const cid = parsePositiveIntId(req.params.cid);
+      if (!id || !cid) return res.status(400).json({ error: 'Identificador de negociação ou contato inválido.' });
       const [existing] = await db.select().from(negotiations).where(eq(negotiations.id, id)).limit(1);
       if (!existing) return res.status(404).json({ error: 'Negociação não encontrada.' });
       if (!isUnitPermitted(req, existing.unitId)) return res.status(403).json({ error: 'Unidade não autorizada.' });
 
+      const existingContacts = existing.contactsJson || [];
+      if (!existingContacts.some((c) => c.id === cid)) {
+        return res.status(404).json({ error: 'Registro de contato não encontrado.' });
+      }
+
       const body = req.body || {};
-      const contacts = (existing.contactsJson || []).map((c) =>
+      const contacts = existingContacts.map((c) =>
         c.id === cid
           ? {
               ...c,
@@ -1528,26 +1597,32 @@ export function registerNegotiationsRoutes(app: Express, deps: NegotiationsRoute
       broadcast('negotiations_updated', { negotiationId: id });
       res.json(updated);
     } catch (err) {
-      res.status(500).json({ error: 'Falha ao editar contato.' });
+      res.status(500).json({ error: sanitizeErrorMessage(err, 'Falha ao editar contato.') });
     }
   });
 
   app.delete('/api/negotiations/:id/contacts/:cid', requireAuth, requireModule('negotiations'), async (req: AuthRequest, res: Response) => {
     try {
-      const id = Number(req.params.id);
-      const cid = Number(req.params.cid);
+      const id = parsePositiveIntId(req.params.id);
+      const cid = parsePositiveIntId(req.params.cid);
+      if (!id || !cid) return res.status(400).json({ error: 'Identificador de negociação ou contato inválido.' });
       const [existing] = await db.select().from(negotiations).where(eq(negotiations.id, id)).limit(1);
       if (!existing) return res.status(404).json({ error: 'Negociação não encontrada.' });
       if (!isUnitPermitted(req, existing.unitId)) return res.status(403).json({ error: 'Unidade não autorizada.' });
 
-      const contacts = (existing.contactsJson || []).filter((c) => c.id !== cid);
+      const existingContacts = existing.contactsJson || [];
+      if (!existingContacts.some((c) => c.id === cid)) {
+        return res.status(404).json({ error: 'Registro de contato não encontrado.' });
+      }
+
+      const contacts = existingContacts.filter((c) => c.id !== cid);
       await db.update(negotiations).set({ contactsJson: contacts, updatedAt: new Date() }).where(eq(negotiations.id, id));
 
       const updated = await serializeNegotiationById(id);
       broadcast('negotiations_updated', { negotiationId: id });
       res.json(updated);
     } catch (err) {
-      res.status(500).json({ error: 'Falha ao remover contato.' });
+      res.status(500).json({ error: sanitizeErrorMessage(err, 'Falha ao remover contato.') });
     }
   });
 
@@ -1556,7 +1631,8 @@ export function registerNegotiationsRoutes(app: Express, deps: NegotiationsRoute
   // =========================================================================
   app.post('/api/negotiations/:id/proposals', requireAuth, requireModule('negotiations'), async (req: AuthRequest, res: Response) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de negociação inválido.' });
       const [existing] = await db.select().from(negotiations).where(eq(negotiations.id, id)).limit(1);
       if (!existing) return res.status(404).json({ error: 'Negociação não encontrada.' });
       if (!isUnitPermitted(req, existing.unitId)) return res.status(403).json({ error: 'Unidade não autorizada.' });
@@ -1636,16 +1712,22 @@ export function registerNegotiationsRoutes(app: Express, deps: NegotiationsRoute
 
   app.put('/api/negotiations/:id/proposals/:pid', requireAuth, requireModule('negotiations'), async (req: AuthRequest, res: Response) => {
     try {
-      const id = Number(req.params.id);
-      const pid = Number(req.params.pid);
+      const id = parsePositiveIntId(req.params.id);
+      const pid = parsePositiveIntId(req.params.pid);
+      if (!id || !pid) return res.status(400).json({ error: 'Identificador de negociação ou proposta inválido.' });
       const [existing] = await db.select().from(negotiations).where(eq(negotiations.id, id)).limit(1);
       if (!existing) return res.status(404).json({ error: 'Negociação não encontrada.' });
       if (!isUnitPermitted(req, existing.unitId)) return res.status(403).json({ error: 'Unidade não autorizada.' });
 
+      const existingProposals = existing.proposalsJson || [];
+      if (!existingProposals.some((p) => p.id === pid)) {
+        return res.status(404).json({ error: 'Proposta não encontrada.' });
+      }
+
       const body = req.body || {};
       let acceptedProposal: NegotiationProposalItem | null = null;
 
-      const proposals = (existing.proposalsJson || []).map((p) => {
+      const proposals = existingProposals.map((p) => {
         if (p.id !== pid) return p;
         const propCents =
           body.proposedValue !== undefined
@@ -1727,20 +1809,26 @@ export function registerNegotiationsRoutes(app: Express, deps: NegotiationsRoute
 
   app.delete('/api/negotiations/:id/proposals/:pid', requireAuth, requireModule('negotiations'), async (req: AuthRequest, res: Response) => {
     try {
-      const id = Number(req.params.id);
-      const pid = Number(req.params.pid);
+      const id = parsePositiveIntId(req.params.id);
+      const pid = parsePositiveIntId(req.params.pid);
+      if (!id || !pid) return res.status(400).json({ error: 'Identificador de negociação ou proposta inválido.' });
       const [existing] = await db.select().from(negotiations).where(eq(negotiations.id, id)).limit(1);
       if (!existing) return res.status(404).json({ error: 'Negociação não encontrada.' });
       if (!isUnitPermitted(req, existing.unitId)) return res.status(403).json({ error: 'Unidade não autorizada.' });
 
-      const proposals = (existing.proposalsJson || []).filter((p) => p.id !== pid);
+      const existingProposals = existing.proposalsJson || [];
+      if (!existingProposals.some((p) => p.id === pid)) {
+        return res.status(404).json({ error: 'Proposta não encontrada.' });
+      }
+
+      const proposals = existingProposals.filter((p) => p.id !== pid);
       await db.update(negotiations).set({ proposalsJson: proposals, updatedAt: new Date() }).where(eq(negotiations.id, id));
 
       const updated = await serializeNegotiationById(id);
       broadcast('negotiations_updated', { negotiationId: id });
       res.json(updated);
     } catch (err) {
-      res.status(500).json({ error: 'Falha ao excluir proposta.' });
+      res.status(500).json({ error: sanitizeErrorMessage(err, 'Falha ao excluir proposta.') });
     }
   });
 
@@ -1749,7 +1837,8 @@ export function registerNegotiationsRoutes(app: Express, deps: NegotiationsRoute
   // =========================================================================
   app.post('/api/negotiations/banks/:bankId/contacts', requireAuth, requireModule('negotiations'), async (req: AuthRequest, res: Response) => {
     try {
-      const bankId = Number(req.params.bankId);
+      const bankId = parsePositiveIntId(req.params.bankId);
+      if (!bankId) return res.status(400).json({ error: 'ID do banco inválido.' });
       const [bankRow] = await db.select().from(banks).where(eq(banks.id, bankId)).limit(1);
       if (!bankRow) return res.status(404).json({ error: 'Banco não encontrado.' });
 
@@ -1825,7 +1914,8 @@ export function registerNegotiationsRoutes(app: Express, deps: NegotiationsRoute
   app.get('/api/negotiations/:id/whatsapp', requireAuth, requireModule('negotiations'), async (req: AuthRequest, res: Response) => {
     try {
       await ensureNegotiationsEnrichedSeed();
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de negociação inválido.' });
       const [neg] = await db.select().from(negotiations).where(eq(negotiations.id, id)).limit(1);
       if (!neg) return res.status(404).json({ error: 'Negociação não encontrada.' });
       if (!isUnitPermitted(req, neg.unitId)) return res.status(403).json({ error: 'Unidade não autorizada.' });
@@ -1947,7 +2037,8 @@ export function registerNegotiationsRoutes(app: Express, deps: NegotiationsRoute
 
   app.post('/api/negotiations/:id/whatsapp/send', requireAuth, requireModule('negotiations'), async (req: AuthRequest, res: Response) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de negociação inválido.' });
       const [neg] = await db.select().from(negotiations).where(eq(negotiations.id, id)).limit(1);
       if (!neg) return res.status(404).json({ error: 'Negociação não encontrada.' });
       if (!isUnitPermitted(req, neg.unitId)) return res.status(403).json({ error: 'Unidade não autorizada.' });
@@ -2113,7 +2204,8 @@ export function registerNegotiationsRoutes(app: Express, deps: NegotiationsRoute
     upload.single('file'),
     async (req: AuthRequest, res: Response) => {
       try {
-        const id = Number(req.params.id);
+        const id = parsePositiveIntId(req.params.id);
+        if (!id) return res.status(400).json({ error: 'ID de negociação inválido.' });
         const [neg] = await db.select().from(negotiations).where(eq(negotiations.id, id)).limit(1);
         if (!neg) return res.status(404).json({ error: 'Negociação não encontrada.' });
         if (!isUnitPermitted(req, neg.unitId)) return res.status(403).json({ error: 'Unidade não autorizada.' });
@@ -2326,7 +2418,8 @@ export function registerNegotiationsRoutes(app: Express, deps: NegotiationsRoute
 
   app.post('/api/negotiations/:id/whatsapp/send-hsm', requireAuth, requireModule('negotiations'), async (req: AuthRequest, res: Response) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de negociação inválido.' });
       const [neg] = await db.select().from(negotiations).where(eq(negotiations.id, id)).limit(1);
       if (!neg) return res.status(404).json({ error: 'Negociação não encontrada.' });
       if (!isUnitPermitted(req, neg.unitId)) return res.status(403).json({ error: 'Unidade não autorizada.' });
@@ -2510,7 +2603,12 @@ export function registerNegotiationsRoutes(app: Express, deps: NegotiationsRoute
 
   app.post('/api/negotiations/:id/ivi-advisor', requireAuth, requireModule('negotiations'), async (req: AuthRequest, res: Response) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de negociação inválido.' });
+      const [negRow] = await db.select().from(negotiations).where(eq(negotiations.id, id)).limit(1);
+      if (!negRow) return res.status(404).json({ error: 'Negociação não encontrada.' });
+      if (!isUnitPermitted(req, negRow.unitId)) return res.status(403).json({ error: 'Unidade não autorizada.' });
+
       const ctx = await buildAdvisorContext(id);
       if (!ctx) return res.status(404).json({ error: 'Negociação não encontrada.' });
 
@@ -2527,15 +2625,20 @@ export function registerNegotiationsRoutes(app: Express, deps: NegotiationsRoute
       res.json(advisorPayload);
     } catch (err) {
       console.error('Error in POST /api/negotiations/:id/ivi-advisor:', err);
-      res.status(500).json({ error: 'Falha ao gerar análise da Assessora Ivi IA.' });
+      res.status(500).json({ error: sanitizeErrorMessage(err, 'Falha ao gerar análise da Assessora Ivi IA.') });
     }
   });
 
   app.post('/api/negotiations/:id/ivi-ask', requireAuth, requireModule('negotiations'), async (req: AuthRequest, res: Response) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de negociação inválido.' });
       const question = String(req.body?.question || '').trim();
       if (!question) return res.status(400).json({ error: 'Informe sua pergunta para a Ivi IA.' });
+
+      const [negRow] = await db.select().from(negotiations).where(eq(negotiations.id, id)).limit(1);
+      if (!negRow) return res.status(404).json({ error: 'Negociação não encontrada.' });
+      if (!isUnitPermitted(req, negRow.unitId)) return res.status(403).json({ error: 'Unidade não autorizada.' });
 
       const ctx = await buildAdvisorContext(id);
       if (!ctx) return res.status(404).json({ error: 'Negociação não encontrada.' });
@@ -2543,7 +2646,7 @@ export function registerNegotiationsRoutes(app: Express, deps: NegotiationsRoute
       const response = await iviAskNegotiationCopilot({ question, context: ctx });
       res.json(response);
     } catch (err) {
-      res.status(500).json({ error: 'Falha ao consultar a Assessora Ivi IA.' });
+      res.status(500).json({ error: sanitizeErrorMessage(err, 'Falha ao consultar a Assessora Ivi IA.') });
     }
   });
 
@@ -2566,14 +2669,21 @@ export function registerNegotiationsRoutes(app: Express, deps: NegotiationsRoute
             .orderBy(desc(negotiationGoals.year), desc(negotiationGoals.month), asc(negotiationGoals.id));
       res.json(rows);
     } catch (err) {
-      res.status(500).json({ error: 'Falha ao listar metas de negociação.' });
+      res.status(500).json({ error: sanitizeErrorMessage(err, 'Falha ao listar metas de negociação.') });
     }
   });
 
   app.post('/api/negotiation-goals', requireAuth, requireModule('negotiations'), async (req: AuthRequest, res: Response) => {
     try {
       const body = req.body || {};
-      const collaboratorId = body.collaboratorId ? Number(body.collaboratorId) : null;
+      const targetUnitId = body.unitId ? parsePositiveIntId(body.unitId) : (req.activeUnitId || 1);
+      if (!targetUnitId) return res.status(400).json({ error: 'Unidade inválida.' });
+      if (!isUnitPermitted(req, targetUnitId)) return res.status(403).json({ error: 'Unidade não autorizada.' });
+
+      const collaboratorId = body.collaboratorId ? parsePositiveIntId(body.collaboratorId) : null;
+      if (body.collaboratorId && !collaboratorId) {
+        return res.status(400).json({ error: 'Identificador de colaborador inválido.' });
+      }
       let collaboratorName = body.collaboratorName || 'Meta Geral da Equipe';
       if (collaboratorId) {
         const [col] = await db.select().from(collaborators).where(eq(collaborators.id, collaboratorId)).limit(1);
@@ -2586,7 +2696,7 @@ export function registerNegotiationsRoutes(app: Express, deps: NegotiationsRoute
         .values({
           collaboratorId,
           collaboratorName,
-          unitId: body.unitId ? Number(body.unitId) : req.activeUnitId || 1,
+          unitId: targetUnitId,
           month: Number(body.month || new Date().getMonth() + 1),
           year: Number(body.year || new Date().getFullYear()),
           targetCount: Number(body.targetCount || 10),
@@ -2598,13 +2708,18 @@ export function registerNegotiationsRoutes(app: Express, deps: NegotiationsRoute
       broadcast('negotiations_updated', { goalId: created.id });
       res.status(201).json(created);
     } catch (err) {
-      res.status(500).json({ error: 'Falha ao salvar meta de negociação.' });
+      res.status(500).json({ error: sanitizeErrorMessage(err, 'Falha ao salvar meta de negociação.') });
     }
   });
 
   app.put('/api/negotiation-goals/:id', requireAuth, requireModule('negotiations'), async (req: AuthRequest, res: Response) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID da meta inválido.' });
+      const [existing] = await db.select().from(negotiationGoals).where(eq(negotiationGoals.id, id)).limit(1);
+      if (!existing) return res.status(404).json({ error: 'Meta não encontrada.' });
+      if (!isUnitPermitted(req, existing.unitId)) return res.status(403).json({ error: 'Unidade não autorizada.' });
+
       const body = req.body || {};
       const savingsCents = parseValueToCents(body.targetValue || body.targetSavingsCents || '50000.00');
       const [updated] = await db
@@ -2622,21 +2737,27 @@ export function registerNegotiationsRoutes(app: Express, deps: NegotiationsRoute
         .where(eq(negotiationGoals.id, id))
         .returning();
 
+      if (!updated) return res.status(404).json({ error: 'Meta não encontrada.' });
       broadcast('negotiations_updated', { goalId: id });
       res.json(updated);
     } catch (err) {
-      res.status(500).json({ error: 'Falha ao atualizar meta.' });
+      res.status(500).json({ error: sanitizeErrorMessage(err, 'Falha ao atualizar meta.') });
     }
   });
 
   app.delete('/api/negotiation-goals/:id', requireAuth, requireModule('negotiations'), async (req: AuthRequest, res: Response) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID da meta inválido.' });
+      const [existing] = await db.select().from(negotiationGoals).where(eq(negotiationGoals.id, id)).limit(1);
+      if (!existing) return res.status(404).json({ error: 'Meta não encontrada.' });
+      if (!isUnitPermitted(req, existing.unitId)) return res.status(403).json({ error: 'Unidade não autorizada.' });
+
       await db.delete(negotiationGoals).where(eq(negotiationGoals.id, id));
       broadcast('negotiations_updated', { deletedGoalId: id });
       res.json({ ok: true });
     } catch (err) {
-      res.status(500).json({ error: 'Falha ao remover meta.' });
+      res.status(500).json({ error: sanitizeErrorMessage(err, 'Falha ao remover meta.') });
     }
   });
 
@@ -2656,15 +2777,23 @@ export function registerNegotiationsRoutes(app: Express, deps: NegotiationsRoute
         : await db.select().from(commercialDeals).orderBy(desc(commercialDeals.updatedAt));
       res.json(rows);
     } catch (err) {
-      res.status(500).json({ error: 'Falha ao carregar pipeline comercial.' });
+      res.status(500).json({ error: sanitizeErrorMessage(err, 'Falha ao carregar pipeline comercial.') });
     }
   });
 
   app.post('/api/commercial-deals', requireAuth, requireModule('negotiations'), async (req: AuthRequest, res: Response) => {
     try {
       const body = req.body || {};
-      const clientId = Number(body.clientId);
+      const clientId = parsePositiveIntId(body.clientId);
+      if (!clientId) return res.status(400).json({ error: 'Cliente válido é obrigatório.' });
+
       const [clientRow] = await db.select().from(clients).where(eq(clients.id, clientId)).limit(1);
+      if (!clientRow) return res.status(404).json({ error: 'Cliente não encontrado.' });
+
+      const targetUnitId = body.unitId ? parsePositiveIntId(body.unitId) : (clientRow.unitId || req.activeUnitId || 1);
+      if (!targetUnitId) return res.status(400).json({ error: 'Unidade inválida.' });
+      if (!isUnitPermitted(req, targetUnitId)) return res.status(403).json({ error: 'Unidade não autorizada.' });
+
       const [allBanks, allCollabs] = await Promise.all([db.select().from(banks), db.select().from(collaborators)]);
       const bank = body.bankId ? allBanks.find((b) => b.id === Number(body.bankId)) : undefined;
       const collab = body.collaboratorId ? allCollabs.find((c) => c.id === Number(body.collaboratorId)) : undefined;
@@ -2676,14 +2805,14 @@ export function registerNegotiationsRoutes(app: Express, deps: NegotiationsRoute
         .insert(commercialDeals)
         .values({
           clientId,
-          clientName: body.clientName || clientRow?.fullName || `Cliente #${clientId}`,
+          clientName: body.clientName || clientRow.fullName,
           admissionId: body.admissionId ? Number(body.admissionId) : null,
           titleId: body.titleId ? Number(body.titleId) : null,
           bankId: bank?.id || (body.bankId ? Number(body.bankId) : null),
           bankName: bank?.name || body.bankName || 'Banco BV',
           collaboratorId: collab?.id || (body.collaboratorId ? Number(body.collaboratorId) : null),
           collaboratorName: collab?.name || body.collaboratorName || req.authUser!.name,
-          unitId: Number(body.unitId || clientRow?.unitId || req.activeUnitId || 1),
+          unitId: targetUnitId,
           stage: body.stage || 'TRIAGEM',
           debtValueCents: debtCents,
           debtValue: centsToDecimalString(debtCents),
@@ -2698,13 +2827,14 @@ export function registerNegotiationsRoutes(app: Express, deps: NegotiationsRoute
       broadcast('negotiations_updated', { dealId: created.id });
       res.status(201).json(created);
     } catch (err) {
-      res.status(500).json({ error: 'Falha ao criar oportunidade no pipeline comercial.' });
+      res.status(500).json({ error: sanitizeErrorMessage(err, 'Falha ao criar oportunidade no pipeline comercial.') });
     }
   });
 
   app.put('/api/commercial-deals/:id', requireAuth, requireModule('negotiations'), async (req: AuthRequest, res: Response) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de oportunidade inválido.' });
       const [existing] = await db.select().from(commercialDeals).where(eq(commercialDeals.id, id)).limit(1);
       if (!existing) return res.status(404).json({ error: 'Oportunidade não encontrada.' });
       if (!isUnitPermitted(req, existing.unitId)) return res.status(403).json({ error: 'Unidade não autorizada.' });
@@ -2747,13 +2877,14 @@ export function registerNegotiationsRoutes(app: Express, deps: NegotiationsRoute
       broadcast('negotiations_updated', { dealId: id });
       res.json(updated);
     } catch (err) {
-      res.status(500).json({ error: 'Falha ao atualizar oportunidade.' });
+      res.status(500).json({ error: sanitizeErrorMessage(err, 'Falha ao atualizar oportunidade.') });
     }
   });
 
   const moveStageHandler = async (req: AuthRequest, res: Response) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de oportunidade inválido.' });
       const [existing] = await db.select().from(commercialDeals).where(eq(commercialDeals.id, id)).limit(1);
       if (!existing) return res.status(404).json({ error: 'Oportunidade não encontrada.' });
       if (!isUnitPermitted(req, existing.unitId)) return res.status(403).json({ error: 'Unidade não autorizada.' });
@@ -2774,7 +2905,7 @@ export function registerNegotiationsRoutes(app: Express, deps: NegotiationsRoute
       broadcast('negotiations_updated', { dealId: id });
       res.json(updated);
     } catch (err) {
-      res.status(500).json({ error: 'Falha ao mover etapa do pipeline.' });
+      res.status(500).json({ error: sanitizeErrorMessage(err, 'Falha ao mover etapa do pipeline.') });
     }
   };
 
@@ -2783,7 +2914,8 @@ export function registerNegotiationsRoutes(app: Express, deps: NegotiationsRoute
 
   app.delete('/api/commercial-deals/:id', requireAuth, requireModule('negotiations'), async (req: AuthRequest, res: Response) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de oportunidade inválido.' });
       const [existing] = await db.select().from(commercialDeals).where(eq(commercialDeals.id, id)).limit(1);
       if (!existing) return res.status(404).json({ error: 'Oportunidade não encontrada.' });
       if (!isUnitPermitted(req, existing.unitId)) return res.status(403).json({ error: 'Unidade não autorizada.' });
@@ -2792,94 +2924,109 @@ export function registerNegotiationsRoutes(app: Express, deps: NegotiationsRoute
       broadcast('negotiations_updated', { deletedDealId: id });
       res.json({ ok: true });
     } catch (err) {
-      res.status(500).json({ error: 'Falha ao excluir oportunidade.' });
+      res.status(500).json({ error: sanitizeErrorMessage(err, 'Falha ao excluir oportunidade.') });
     }
   });
 
   app.post('/api/commercial-deals/:id/convert', requireAuth, requireModule('negotiations'), async (req: AuthRequest, res: Response) => {
     try {
-      const id = Number(req.params.id);
-      const [deal] = await db.select().from(commercialDeals).where(eq(commercialDeals.id, id)).limit(1);
-      if (!deal) return res.status(404).json({ error: 'Oportunidade não encontrada.' });
-      if (!isUnitPermitted(req, deal.unitId)) return res.status(403).json({ error: 'Unidade não autorizada.' });
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de oportunidade inválido.' });
+      const [dealPre] = await db.select().from(commercialDeals).where(eq(commercialDeals.id, id)).limit(1);
+      if (!dealPre) return res.status(404).json({ error: 'Oportunidade não encontrada.' });
+      if (!isUnitPermitted(req, dealPre.unitId)) return res.status(403).json({ error: 'Unidade não autorizada.' });
 
-      const targetPct = Math.round(parseFloat(deal.discountPercentage || '55') || 55);
-      const openDateStr = new Date().toISOString().slice(0, 10);
+      const txResult = await db.transaction(async (tx) => {
+        const [deal] = await tx.select().from(commercialDeals).where(eq(commercialDeals.id, id)).limit(1);
+        if (!deal) return { status: 404 as const, error: 'Oportunidade não encontrada.' };
+        if (deal.convertedNegotiationId) {
+          return { status: 409 as const, error: 'Oportunidade já convertida em negociação.' };
+        }
 
-      const initialProposals: NegotiationProposalItem[] = deal.proposedValue
-        ? [
-            {
-              id: Date.now(),
-              date: openDateStr,
-              origin: 'NOSSA_PROPOSTA',
-              proposedValue: deal.proposedValue,
-              proposedValueCents: deal.proposedValueCents || parseValueToCents(deal.proposedValue),
-              discountPercentage: deal.discountPercentage || String(targetPct),
-              installments: 1,
-              installmentValue: deal.proposedValue,
-              entryValue: '0.00',
-              status: deal.stage === 'FECHADO' ? 'ACEITA' : 'AGUARDANDO',
-              notes: `Proposta originada do Pipeline Comercial (#${deal.id}).`,
-            },
-          ]
-        : [];
+        const targetPct = Math.round(parseFloat(deal.discountPercentage || '55') || 55);
+        const openDateStr = new Date().toISOString().slice(0, 10);
 
-      const [createdNeg] = await db
-        .insert(negotiations)
-        .values({
-          admissionId: deal.admissionId,
-          clientId: deal.clientId,
-          clientName: deal.clientName,
-          unitId: deal.unitId || req.activeUnitId || 1,
-          negotiatorId: req.authUser!.id,
-          collaboratorId: deal.collaboratorId,
-          collaboratorName: deal.collaboratorName || req.authUser!.name,
-          bankId: deal.bankId,
-          bankName: deal.bankName || 'Banco BV',
-          titleId: deal.titleId,
-          contractNumber: `CTR-PIPE-${deal.id}`,
-          openDate: openDateStr,
-          originalDebtCents: deal.debtValueCents,
-          debtValueText: deal.debtValue,
-          targetReductionPct: targetPct,
-          currentReductionPct: deal.stage === 'FECHADO' ? targetPct : Math.round(targetPct * 0.5),
-          estimatedSavingsCents: Math.round(deal.debtValueCents * (targetPct / 100)),
-          targetDeadline: new Date(Date.now() + 15 * 86400000),
-          status: deal.stage === 'FECHADO' ? 'meta_alcancada' : 'em_negociacao',
-          negotiationStatus: deal.stage === 'FECHADO' ? 'ACORDO_FECHADO' : 'EM_ANDAMENTO',
-          contactsJson: [
-            {
-              id: Date.now() - 100,
-              date: openDateStr,
-              type: 'WHATSAPP',
-              result: deal.stage === 'FECHADO' ? 'ACORDO' : 'PROPOSTA_APRESENTADA',
-              target: 'CLIENTE',
-              description: `Convertido do Pipeline Comercial (Etapa: ${deal.stage}). ${deal.notes || ''}`,
-              responsible: deal.collaboratorName || req.authUser!.name,
-            },
-          ],
-          proposalsJson: initialProposals,
-          notes: deal.notes || '',
-        })
-        .returning();
+        const initialProposals: NegotiationProposalItem[] = deal.proposedValue
+          ? [
+              {
+                id: Date.now(),
+                date: openDateStr,
+                origin: 'NOSSA_PROPOSTA',
+                proposedValue: deal.proposedValue,
+                proposedValueCents: deal.proposedValueCents || parseValueToCents(deal.proposedValue),
+                discountPercentage: deal.discountPercentage || String(targetPct),
+                installments: 1,
+                installmentValue: deal.proposedValue,
+                entryValue: '0.00',
+                status: deal.stage === 'FECHADO' ? 'ACEITA' : 'AGUARDANDO',
+                notes: `Proposta originada do Pipeline Comercial (#${deal.id}).`,
+              },
+            ]
+          : [];
 
-      await db
-        .update(commercialDeals)
-        .set({
-          stage: 'FECHADO',
-          convertedNegotiationId: createdNeg.id,
-          updatedAt: new Date(),
-        })
-        .where(eq(commercialDeals.id, id));
+        const [createdNeg] = await tx
+          .insert(negotiations)
+          .values({
+            admissionId: deal.admissionId,
+            clientId: deal.clientId,
+            clientName: deal.clientName,
+            unitId: deal.unitId || req.activeUnitId || 1,
+            negotiatorId: req.authUser!.id,
+            collaboratorId: deal.collaboratorId,
+            collaboratorName: deal.collaboratorName || req.authUser!.name,
+            bankId: deal.bankId,
+            bankName: deal.bankName || 'Banco BV',
+            titleId: deal.titleId,
+            contractNumber: `CTR-PIPE-${deal.id}`,
+            openDate: openDateStr,
+            originalDebtCents: deal.debtValueCents,
+            debtValueText: deal.debtValue,
+            targetReductionPct: targetPct,
+            currentReductionPct: deal.stage === 'FECHADO' ? targetPct : Math.round(targetPct * 0.5),
+            estimatedSavingsCents: Math.round(deal.debtValueCents * (targetPct / 100)),
+            targetDeadline: new Date(Date.now() + 15 * 86400000),
+            status: deal.stage === 'FECHADO' ? 'meta_alcancada' : 'em_negociacao',
+            negotiationStatus: deal.stage === 'FECHADO' ? 'ACORDO_FECHADO' : 'EM_ANDAMENTO',
+            contactsJson: [
+              {
+                id: Date.now() - 100,
+                date: openDateStr,
+                type: 'WHATSAPP',
+                result: deal.stage === 'FECHADO' ? 'ACORDO' : 'PROPOSTA_APRESENTADA',
+                target: 'CLIENTE',
+                description: `Convertido do Pipeline Comercial (Etapa: ${deal.stage}). ${deal.notes || ''}`,
+                responsible: deal.collaboratorName || req.authUser!.name,
+              },
+            ],
+            proposalsJson: initialProposals,
+            notes: deal.notes || '',
+          })
+          .returning();
 
-      const hydrated = (await serializeNegotiationById(createdNeg.id)) || createdNeg;
-      broadcast('negotiations_updated', { negotiationId: createdNeg.id, dealId: id });
+        await tx
+          .update(commercialDeals)
+          .set({
+            stage: 'FECHADO',
+            convertedNegotiationId: createdNeg.id,
+            updatedAt: new Date(),
+          })
+          .where(eq(commercialDeals.id, id));
+
+        return { status: 201 as const, createdNeg };
+      });
+
+      if (txResult.status !== 201) {
+        return res.status(txResult.status).json({ error: txResult.error });
+      }
+
+      const hydrated = (await serializeNegotiationById(txResult.createdNeg.id)) || txResult.createdNeg;
+      broadcast('negotiations_updated', { negotiationId: txResult.createdNeg.id, dealId: id });
       res.status(201).json({
         dealId: id,
         negotiation: hydrated,
       });
     } catch (err) {
-      res.status(500).json({ error: 'Falha ao converter oportunidade em negociação.' });
+      res.status(500).json({ error: sanitizeErrorMessage(err, 'Falha ao converter oportunidade em negociação.') });
     }
   });
 

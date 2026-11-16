@@ -47,7 +47,7 @@ import {
   Variable,
   X,
 } from 'lucide-react';
-import { apiFetch, getAuthToken } from '../../../lib/api.ts';
+import { apiFetch, getActiveUnitHeader, getAuthToken, parseJsonResponse } from '../../../lib/api.ts';
 import {
   FORM_CONTEXT_REGISTRY,
   FORM_VARIABLE_CATEGORIES,
@@ -563,16 +563,18 @@ export const FormTemplatesManagerContainer: React.FC<FormTemplatesManagerContain
       const token = getAuthToken();
       const resp = await fetch('/api/form-templates/import-docx', {
         method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        headers: {
+          'x-unit-id': String(getActiveUnitHeader()),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: fd,
       });
-      const json = (await resp.json()) as {
+      const json = await parseJsonResponse<{
         html?: string;
         docxTemplate?: string;
         warnings?: string[];
         error?: string;
-      };
-      if (!resp.ok) throw new Error(json.error || 'Falha ao importar .docx');
+      }>(resp, 'Falha ao importar .docx');
 
       const importedHtml = json.html || '<p></p>';
       setBodyHtml(importedHtml);

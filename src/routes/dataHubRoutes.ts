@@ -9,6 +9,7 @@ import {
 import { exportExcelWorkbook, processExcelImport } from '../services/dataHubExcelService.ts';
 import { db } from '../db/index.ts';
 import { units } from '../db/schema.ts';
+import { parsePositiveIntId, sanitizeErrorMessage } from '../utils/validation.ts';
 
 const excelUpload = multer({
   storage: multer.memoryStorage(),
@@ -39,13 +40,17 @@ export function registerDataHubRoutes(
       const key = String(req.query.key || 'clients');
       const mode = String(req.query.mode || 'data') === 'template' ? 'template' : 'data';
       const rawUnitId = String(req.query.unitId || '').trim();
-      const unitId = rawUnitId && rawUnitId !== 'all' ? Number(rawUnitId) : null;
+      let unitId: number | null = null;
+      if (rawUnitId && rawUnitId !== 'all') {
+        unitId = parsePositiveIntId(rawUnitId);
+        if (!unitId) return res.status(400).json({ error: 'Parâmetro unitId inválido.' });
+      }
 
       const out = await exportExcelWorkbook({
         scopeType,
         key,
         mode,
-        unitId: unitId && Number.isFinite(unitId) ? unitId : null,
+        unitId,
         actorUserId: req.authUser!.id,
         actorName: req.authUser!.name,
       });
@@ -56,7 +61,7 @@ export function registerDataHubRoutes(
       res.setHeader('X-DataHub-Sheets', String(out.sheetsCount));
       res.send(out.buffer);
     } catch (error) {
-      res.status(400).json({ error: error instanceof Error ? error.message : 'Erro ao gerar planilha Excel.' });
+      res.status(400).json({ error: sanitizeErrorMessage(error, 'Erro ao gerar planilha Excel.') });
     }
   });
 
@@ -71,7 +76,11 @@ export function registerDataHubRoutes(
           return res.status(400).json({ error: 'Arquivo .xlsx obrigatório.' });
         }
         const expectedLayoutKey = String(req.body?.expectedLayoutKey || '').trim() || undefined;
-        const unitFallbackId = req.body?.unitFallbackId ? Number(req.body.unitFallbackId) : req.activeUnitId || null;
+        let unitFallbackId: number | null = req.activeUnitId || null;
+        if (req.body?.unitFallbackId !== undefined && String(req.body.unitFallbackId).trim() !== '') {
+          unitFallbackId = parsePositiveIntId(req.body.unitFallbackId);
+          if (!unitFallbackId) return res.status(400).json({ error: 'unitFallbackId inválido.' });
+        }
 
         const result = await processExcelImport({
           buffer: req.file.buffer,
@@ -84,7 +93,7 @@ export function registerDataHubRoutes(
         });
         res.json(result);
       } catch (error) {
-        res.status(400).json({ error: error instanceof Error ? error.message : 'Falha na pré-validação da planilha.' });
+        res.status(400).json({ error: sanitizeErrorMessage(error, 'Falha na pré-validação da planilha.') });
       }
     }
   );
@@ -100,7 +109,11 @@ export function registerDataHubRoutes(
           return res.status(400).json({ error: 'Arquivo .xlsx obrigatório.' });
         }
         const expectedLayoutKey = String(req.body?.expectedLayoutKey || '').trim() || undefined;
-        const unitFallbackId = req.body?.unitFallbackId ? Number(req.body.unitFallbackId) : req.activeUnitId || null;
+        let unitFallbackId: number | null = req.activeUnitId || null;
+        if (req.body?.unitFallbackId !== undefined && String(req.body.unitFallbackId).trim() !== '') {
+          unitFallbackId = parsePositiveIntId(req.body.unitFallbackId);
+          if (!unitFallbackId) return res.status(400).json({ error: 'unitFallbackId inválido.' });
+        }
 
         const result = await processExcelImport({
           buffer: req.file.buffer,
@@ -120,7 +133,7 @@ export function registerDataHubRoutes(
 
         res.json(result);
       } catch (error) {
-        res.status(400).json({ error: error instanceof Error ? error.message : 'Erro ao executar importação Excel.' });
+        res.status(400).json({ error: sanitizeErrorMessage(error, 'Erro ao executar importação Excel.') });
       }
     }
   );

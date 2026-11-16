@@ -39,7 +39,16 @@ import {
   Upload,
   X,
 } from 'lucide-react';
-import { apiFetch, formatBRL, formatBytes, formatDateBR, formatDateTimeBR, getAuthToken } from '../../lib/api.ts';
+import {
+  apiFetch,
+  formatBRL,
+  formatBytes,
+  formatDateBR,
+  formatDateTimeBR,
+  getActiveUnitHeader,
+  getAuthToken,
+  parseJsonResponse,
+} from '../../lib/api.ts';
 import type { FormMergeContext } from '../../lib/formTemplateRenderer.ts';
 import { FormTemplateButton } from '../FormTemplateButton.tsx';
 import {
@@ -58,6 +67,7 @@ import {
   NavigationIntent,
   Unit,
 } from '../../types.ts';
+import { EntityAuditModal } from './cadastros/CadastrosShared.tsx';
 
 interface AdmissionVaultModuleProps {
   units: Unit[];
@@ -74,14 +84,6 @@ interface ConsultantOption {
   name: string;
   role: string;
   allowedUnitIds: number[];
-}
-
-interface AuditLogEntry {
-  id: number;
-  userName: string;
-  action: string;
-  details: Record<string, unknown>;
-  createdAt: string;
 }
 
 interface WhatsappInteractionThread {
@@ -404,7 +406,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
   const [previewTemplate, setPreviewTemplate] = useState<'padrao' | 'procuracao' | 'completo'>('padrao');
   const [previewOpen, setPreviewOpen] = useState(false);
   const [wordModalOpen, setWordModalOpen] = useState(false);
-  const [historyModal, setHistoryModal] = useState<{ admission: Admission; logs: AuditLogEntry[] } | null>(null);
+  const [historyAdmission, setHistoryAdmission] = useState<Admission | null>(null);
   const [interactions, setInteractions] = useState<{
     loading: boolean;
     syncing: boolean;
@@ -1028,13 +1030,19 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
       const form = new FormData();
       form.append('file', file);
       if (waDraft.trim()) form.append('caption', waDraft.trim());
+      const token = getAuthToken();
       const resp = await fetch(`/api/whatsapp/threads/${waSelectedThreadId}/send-file`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${getAuthToken()}` },
+        headers: {
+          'x-unit-id': String(getActiveUnitHeader()),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: form,
       });
-      const data = (await resp.json().catch(() => ({}))) as { error?: string; delivery?: { detail?: string } };
-      if (!resp.ok) throw new Error(data.error || 'Falha ao enviar anexo.');
+      const data = await parseJsonResponse<{ error?: string; delivery?: { detail?: string } }>(
+        resp,
+        'Falha ao enviar anexo.'
+      );
       setWaDraft('');
       setFeedback(data.delivery?.detail || `Anexo "${file.name}" armazenado no bucket e enviado.`);
       await Promise.all([loadClientInteractions(), load()]);
@@ -1322,24 +1330,27 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
 
     try {
       const token = getAuthToken();
+      const baseHeaders = {
+        'x-unit-id': String(getActiveUnitHeader()),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      };
       let resp: Response;
       if (templateFile) {
         const form = new FormData();
         form.append('template', templateFile);
         resp = await fetch(`/api/admissions/${admId}/export-docx`, {
           method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
+          headers: baseHeaders,
           body: form,
         });
       } else {
         resp = await fetch(`/api/admissions/${admId}/export-docx`, {
           method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
+          headers: baseHeaders,
         });
       }
       if (!resp.ok) {
-        const errBody = await resp.json().catch(() => ({}));
-        throw new Error(errBody.error || 'Falha ao gerar arquivo .docx.');
+        await parseJsonResponse(resp, 'Falha ao gerar arquivo .docx.');
       }
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
@@ -1920,10 +1931,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                               <button
                                 type="button"
                                 title="Histórico de Auditoria"
-                                onClick={async () => {
-                                  const res = await apiFetch<{ logs: AuditLogEntry[] }>(`/api/admissions/${adm.id}/history`);
-                                  setHistoryModal({ admission: adm, logs: res.logs || [] });
-                                }}
+                                onClick={() => setHistoryAdmission(adm)}
                                 className="rounded-md border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                               >
                                 <History className="w-3.5 h-3.5" />
@@ -4445,41 +4453,15 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
       )}
 
       {/* ===================================================================
-          MODAL: HISTÓRICO DE AUDITORIA DA ADMISSÃO
+          MODAL: AUDITORIA COMPLETA DA ADMISSÃO (CAMPO ANTERIOR -> ATUALIZADO)
          =================================================================== */}
-      {historyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 dark:bg-slate-950/80 p-4">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-2xl space-y-4 text-xs">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-3">
-              <h3 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
-                Histórico · {historyModal.admission.contractNumber}
-              </h3>
-              <button
-                type="button"
-                onClick={() => setHistoryModal(null)}
-                className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-80 overflow-y-auto">
-              {historyModal.logs.length === 0 ? (
-                <p className="py-4 text-slate-500 dark:text-slate-400">Nenhum evento registrado para esta admissão.</p>
-              ) : (
-                historyModal.logs.map((log) => (
-                  <div key={log.id} className="py-2.5">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-slate-900 dark:text-slate-100">{log.action}</span>
-                      <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400">{formatDateBR(log.createdAt)}</span>
-                    </div>
-                    <div className="text-slate-600 dark:text-slate-300 mt-0.5">Usuário: {log.userName}</div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <EntityAuditModal
+        open={Boolean(historyAdmission)}
+        title={historyAdmission ? `Admissão · ${historyAdmission.contractNumber}` : 'Admissão'}
+        entityType="admissions"
+        entityId={historyAdmission?.id || 0}
+        onClose={() => setHistoryAdmission(null)}
+      />
 
       {/* ===================================================================
           MODAL: PRÉ-VISUALIZAÇÃO SEGURA DE DOCUMENTO DO BUCKET (TEMA DARK/WHITE)

@@ -45,6 +45,7 @@ interface NegotiationDetailModalProps {
   onOpenClientFicha?: (clientId: number) => void;
   onOpenAdmissionFicha?: (admissionId: number | null, clientId: number) => void;
   onOpenHistoryModal?: (neg: Negotiation) => void;
+  onOpenNegAuditModal?: (neg: Negotiation) => void;
 }
 
 export const NegotiationDetailModal: React.FC<NegotiationDetailModalProps> = ({
@@ -59,6 +60,7 @@ export const NegotiationDetailModal: React.FC<NegotiationDetailModalProps> = ({
   onOpenClientFicha,
   onOpenAdmissionFicha,
   onOpenHistoryModal,
+  onOpenNegAuditModal,
 }) => {
   const [subTab, setSubTab] = useState<DetailSubTab>('dados');
   const [statusVal, setStatusVal] = useState<string>('EM_ANDAMENTO');
@@ -299,9 +301,21 @@ export const NegotiationDetailModal: React.FC<NegotiationDetailModalProps> = ({
                 type="button"
                 onClick={() => onOpenHistoryModal(negotiation)}
                 className="inline-flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-700"
+                title="Histórico do Título Financeiro"
               >
                 <History className="w-3.5 h-3.5 text-amber-400" />
                 <span className="hidden sm:inline">Histórico</span>
+              </button>
+            )}
+            {onOpenNegAuditModal && (
+              <button
+                type="button"
+                onClick={() => onOpenNegAuditModal(negotiation)}
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-700"
+                title="Auditoria completa das alterações desta Negociação"
+              >
+                <History className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="hidden sm:inline">Auditoria</span>
               </button>
             )}
 

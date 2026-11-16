@@ -1,5 +1,5 @@
 import type { Express } from 'express';
-import { and, asc, count, desc, eq, ilike, isNull, or } from 'drizzle-orm';
+import { and, asc, count, desc, eq, ilike, inArray, isNull, or } from 'drizzle-orm';
 import { db } from '../db/index.ts';
 import {
   admissions,
@@ -27,8 +27,10 @@ import {
   units,
 } from '../db/schema.ts';
 import { ensureCommonCadastrosSeed } from '../db/seed.ts';
-import { AuthRequest, requireAuth } from '../middleware/auth.ts';
+import { AuthRequest, getAllowedUnitIds, isUnitPermitted, requireAuth } from '../middleware/auth.ts';
 import { syncClientLegalAndEscavadorStatus } from '../services/legalSync.ts';
+import { getEntityTypeAliases, normalizeAuditLogRecord } from '../utils/auditDiff.ts';
+import { parsePositiveIntId, sanitizeErrorMessage } from '../utils/validation.ts';
 
 async function logAudit(
   req: AuthRequest,
@@ -208,19 +210,25 @@ export function registerCadastrosRoutes(
   });
 
   // ---------------------------------------------------------------------------
-  // HISTÓRICO DE AUDITORIA POR ENTIDADE
+  // HISTÓRICO DE AUDITORIA POR ENTIDADE (Normalizado com Labels & Anterior -> Novo)
   // ---------------------------------------------------------------------------
   app.get('/api/cadastros/audit/:entityType/:entityId', requireAuth, async (req: AuthRequest, res) => {
     try {
       const entityType = String(req.params.entityType || '').trim();
       const entityId = String(req.params.entityId || '').trim();
-      const logs = await db
+      const aliases = getEntityTypeAliases(entityType);
+      const rows = await db
         .select()
         .from(auditLogs)
-        .where(and(eq(auditLogs.entityType, entityType), eq(auditLogs.entityId, entityId)))
-        .orderBy(desc(auditLogs.createdAt))
+        .where(
+          and(
+            aliases.length > 0 ? inArray(auditLogs.entityType, aliases) : eq(auditLogs.entityType, entityType),
+            eq(auditLogs.entityId, entityId)
+          )
+        )
+        .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id))
         .limit(500);
-      res.json({ logs });
+      res.json({ logs: rows.map((r) => normalizeAuditLogRecord(r)) });
     } catch (error) {
       res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao consultar auditoria.' });
     }
@@ -285,8 +293,8 @@ export function registerCadastrosRoutes(
   // ---------------------------------------------------------------------------
   app.get('/api/cadastros/clients', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const page = Math.max(1, Number(req.query.page || 1));
-      const limit = Math.min(100, Math.max(1, Number(req.query.limit || 50)));
+      const page = Math.max(1, Number.parseInt(String(req.query.page || '1'), 10) || 1);
+      const limit = Math.min(100, Math.max(1, Number.parseInt(String(req.query.limit || '50'), 10) || 50));
       const q = String(req.query.q || '').trim().toLowerCase();
       const qDigits = q.replace(/\D/g, '');
       const personNature = String(req.query.personNature || '').trim().toUpperCase();
@@ -296,6 +304,7 @@ export function registerCadastrosRoutes(
       const cpfFilter = String(req.query.cpfCnpj || '').trim().replace(/\D/g, '');
       const sortKey = String(req.query.sortKey || 'fullName');
       const sortDir = String(req.query.sortDir || 'asc') === 'desc' ? 'desc' : 'asc';
+      const allowedUnitIds = getAllowedUnitIds(req);
 
       const [allClients, allDocs, allAdms] = await Promise.all([
         db.select().from(clients).orderBy(desc(clients.id)),
@@ -309,6 +318,7 @@ export function registerCadastrosRoutes(
       ]);
 
       const filtered = allClients.filter((c) => {
+        if (allowedUnitIds && !allowedUnitIds.includes(c.unitId)) return false;
         if (personNature && (c.personNature || 'PF').toUpperCase() !== personNature) return false;
         if (status && (c.status || 'ativo').toLowerCase() !== status) return false;
         if (city && !c.city.toLowerCase().includes(city)) return false;
@@ -352,23 +362,27 @@ export function registerCadastrosRoutes(
         totalPages: Math.max(1, Math.ceil(total / limit)),
       });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao listar clientes.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao listar clientes.') });
     }
   });
 
   app.post('/api/cadastros/clients/:id/block', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID do cliente inválido.' });
       const { status, reason } = (req.body || {}) as { status?: 'suspenso' | 'cancelado'; reason?: string };
       const targetStatus = status === 'cancelado' ? 'cancelado' : 'suspenso';
-      if (!reason?.trim()) {
+      if (!String(reason || '').trim()) {
         return res.status(400).json({ error: 'Informe o motivo do bloqueio/suspensão.' });
       }
+      const [existing] = await db.select({ id: clients.id, unitId: clients.unitId }).from(clients).where(eq(clients.id, id)).limit(1);
+      if (!existing) return res.status(404).json({ error: 'Cliente não encontrado.' });
+      if (!isUnitPermitted(req, existing.unitId)) return res.status(403).json({ error: 'Unidade do cliente não autorizada.' });
 
       const synced = await syncClientLegalAndEscavadorStatus({
         clientId: id,
         targetStatus,
-        reason: reason.trim(),
+        reason: String(reason).trim(),
         actorUserId: req.authUser?.id ?? null,
         actorUserName: req.authUser?.name || 'Usuário',
         unitId: req.activeUnitId,
@@ -379,7 +393,7 @@ export function registerCadastrosRoutes(
 
       await logAudit(req, 'CLIENT_BLOCK', 'client', id, {
         status: targetStatus,
-        reason: reason.trim(),
+        reason: String(reason).trim(),
         affectedProcessesCount: synced.affectedProcessesCount,
         escavadorMonitored: synced.escavadorMonitored,
       }, synced.client.unitId);
@@ -392,7 +406,7 @@ export function registerCadastrosRoutes(
         escavadorActionSummary: synced.escavadorActionSummary,
       });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao bloquear cliente.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao bloquear cliente.') });
     }
   });
 
@@ -401,12 +415,13 @@ export function registerCadastrosRoutes(
       if (req.authUser!.role !== 'admin') {
         return res.status(403).json({ error: 'Apenas administradores podem desbloquear um cliente restrito.' });
       }
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID do cliente inválido.' });
       const { reason } = (req.body || {}) as { reason?: string };
       const synced = await syncClientLegalAndEscavadorStatus({
         clientId: id,
         targetStatus: 'ativo',
-        reason: reason?.trim() || 'Desbloqueio administrativo · retorno ao status normal',
+        reason: String(reason || '').trim() || 'Desbloqueio administrativo · retorno ao status normal',
         actorUserId: req.authUser?.id ?? null,
         actorUserName: req.authUser?.name || 'Administrador',
         unitId: req.activeUnitId,
@@ -428,44 +443,56 @@ export function registerCadastrosRoutes(
         escavadorActionSummary: synced.escavadorActionSummary,
       });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao desbloquear cliente.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao desbloquear cliente.') });
     }
   });
 
   app.delete('/api/cadastros/clients/:id', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID do cliente inválido.' });
       const rows = await db.select().from(clients).where(eq(clients.id, id)).limit(1);
       const client = rows[0];
       if (!client) return res.status(404).json({ error: 'Cliente não encontrado.' });
+      if (!isUnitPermitted(req, client.unitId)) {
+        return res.status(403).json({ error: 'Unidade do cliente não autorizada.' });
+      }
 
-      const [docsCount, admCount, titlesCount, apptsCount, procCount] = await Promise.all([
-        db.select({ v: count() }).from(documentObjects).where(and(eq(documentObjects.clientId, id), isNull(documentObjects.deletedAt))),
-        db.select({ v: count() }).from(admissions).where(or(eq(admissions.clientId, id), eq(admissions.assetOwnerId, id))),
-        db.select({ v: count() }).from(financialTitles).where(eq(financialTitles.clientId, id)),
-        db.select({ v: count() }).from(appointments).where(eq(appointments.clientId, id)),
-        db.select({ v: count() }).from(legalProcesses).where(eq(legalProcesses.clientId, id)),
-      ]);
+      const result = await db.transaction(async (tx) => {
+        const [docsCount, admCount, titlesCount, apptsCount, procCount] = await Promise.all([
+          tx.select({ v: count() }).from(documentObjects).where(and(eq(documentObjects.clientId, id), isNull(documentObjects.deletedAt))),
+          tx.select({ v: count() }).from(admissions).where(or(eq(admissions.clientId, id), eq(admissions.assetOwnerId, id))),
+          tx.select({ v: count() }).from(financialTitles).where(eq(financialTitles.clientId, id)),
+          tx.select({ v: count() }).from(appointments).where(eq(appointments.clientId, id)),
+          tx.select({ v: count() }).from(legalProcesses).where(eq(legalProcesses.clientId, id)),
+        ]);
 
-      const deps: string[] = [];
-      if (Number(docsCount[0]?.v || 0) > 0) deps.push(`${docsCount[0].v} documento(s) ativo(s) no bucket`);
-      if (Number(admCount[0]?.v || 0) > 0) deps.push(`${admCount[0].v} ficha(s) de admissão`);
-      if (Number(titlesCount[0]?.v || 0) > 0) deps.push(`${titlesCount[0].v} título(s) financeiro(s)`);
-      if (Number(apptsCount[0]?.v || 0) > 0) deps.push(`${apptsCount[0].v} agendamento(s)`);
-      if (Number(procCount[0]?.v || 0) > 0) deps.push(`${procCount[0].v} processo(s) jurídico(s)`);
+        const deps: string[] = [];
+        if (Number(docsCount[0]?.v || 0) > 0) deps.push(`${docsCount[0].v} documento(s) ativo(s) no bucket`);
+        if (Number(admCount[0]?.v || 0) > 0) deps.push(`${admCount[0].v} ficha(s) de admissão`);
+        if (Number(titlesCount[0]?.v || 0) > 0) deps.push(`${titlesCount[0].v} título(s) financeiro(s)`);
+        if (Number(apptsCount[0]?.v || 0) > 0) deps.push(`${apptsCount[0].v} agendamento(s)`);
+        if (Number(procCount[0]?.v || 0) > 0) deps.push(`${procCount[0].v} processo(s) jurídico(s)`);
 
-      if (deps.length > 0) {
+        if (deps.length > 0) {
+          return { blocked: deps };
+        }
+
+        await tx.delete(clientAssetLinks).where(or(eq(clientAssetLinks.titularClientId, id), eq(clientAssetLinks.assetOwnerClientId, id)));
+        await tx.delete(clients).where(eq(clients.id, id));
+        return { blocked: null };
+      });
+
+      if (result.blocked) {
         return res.status(409).json({
-          error: `Exclusão bloqueada: este cliente possui vínculos ativos (${deps.join(', ')}).`,
+          error: `Exclusão bloqueada: este cliente possui vínculos ativos (${result.blocked.join(', ')}).`,
         });
       }
 
-      await db.delete(clientAssetLinks).where(or(eq(clientAssetLinks.titularClientId, id), eq(clientAssetLinks.assetOwnerClientId, id)));
-      await db.delete(clients).where(eq(clients.id, id));
       await logAudit(req, 'CLIENT_DELETE', 'client', id, { fullName: client.fullName, cpfCnpj: client.cpfCnpj }, client.unitId);
       res.json({ ok: true });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao excluir cliente.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao excluir cliente.') });
     }
   });
 
@@ -504,32 +531,37 @@ export function registerCadastrosRoutes(
 
   app.put('/api/cadastros/roles/:id', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID do cargo inválido.' });
       const b = (req.body || {}) as { name?: string; participatesInScheduleQueue?: boolean; sortOrder?: number; active?: boolean };
-      if (!b.name?.trim()) return res.status(400).json({ error: 'Nome do cargo é obrigatório.' });
-      const [updated] = await db
-        .update(rolesCatalog)
-        .set({
-          name: b.name.trim(),
-          participatesInScheduleQueue: b.participatesInScheduleQueue !== false,
-          sortOrder: Number(b.sortOrder || 0),
-          active: b.active !== false,
-        })
-        .where(eq(rolesCatalog.id, id))
-        .returning();
+      if (!String(b.name || '').trim()) return res.status(400).json({ error: 'Nome do cargo é obrigatório.' });
+      const updated = await db.transaction(async (tx) => {
+        const [row] = await tx
+          .update(rolesCatalog)
+          .set({
+            name: String(b.name).trim(),
+            participatesInScheduleQueue: b.participatesInScheduleQueue !== false,
+            sortOrder: Number(b.sortOrder || 0),
+            active: b.active !== false,
+          })
+          .where(eq(rolesCatalog.id, id))
+          .returning();
+        if (!row) return null;
+        await tx.update(collaborators).set({ jobTitle: row.name }).where(eq(collaborators.roleId, id));
+        return row;
+      });
       if (!updated) return res.status(404).json({ error: 'Cargo não encontrado.' });
-      // Keep collaborators.jobTitle in sync cleanly
-      await db.update(collaborators).set({ jobTitle: updated.name }).where(eq(collaborators.roleId, id));
       await logAudit(req, 'ROLE_UPDATE', 'role', id, { name: updated.name, fila: updated.participatesInScheduleQueue });
       res.json({ data: updated });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao atualizar cargo.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao atualizar cargo.') });
     }
   });
 
   app.delete('/api/cadastros/roles/:id', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID do cargo inválido.' });
       const rows = await db.select().from(rolesCatalog).where(eq(rolesCatalog.id, id)).limit(1);
       const role = rows[0];
       if (!role) return res.status(404).json({ error: 'Cargo não encontrado.' });
@@ -546,7 +578,7 @@ export function registerCadastrosRoutes(
       await logAudit(req, 'ROLE_DELETE', 'role', id, { name: role.name });
       res.json({ ok: true });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao excluir cargo.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao excluir cargo.') });
     }
   });
 
@@ -559,41 +591,42 @@ export function registerCadastrosRoutes(
       const rows = await db.select().from(departments).orderBy(asc(departments.name));
       res.json({ data: rows });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao listar departamentos.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao listar departamentos.') });
     }
   });
 
   app.post('/api/cadastros/departments', requireAuth, async (req: AuthRequest, res) => {
     try {
       const b = (req.body || {}) as { code?: string; name?: string; managerName?: string; status?: string };
-      if (!b.name?.trim()) return res.status(400).json({ error: 'Nome do departamento é obrigatório.' });
+      if (!String(b.name || '').trim()) return res.status(400).json({ error: 'Nome do departamento é obrigatório.' });
       const [created] = await db
         .insert(departments)
         .values({
-          code: (b.code || '').trim(),
-          name: b.name.trim().toUpperCase(),
-          managerName: (b.managerName || '').trim(),
+          code: String(b.code || '').trim(),
+          name: String(b.name).trim().toUpperCase(),
+          managerName: String(b.managerName || '').trim(),
           status: b.status === 'INATIVO' ? 'INATIVO' : 'ATIVO',
         })
         .returning();
       await logAudit(req, 'DEPARTMENT_CREATE', 'department', created.id, { code: created.code, name: created.name });
       res.status(201).json({ data: created });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao criar departamento.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao criar departamento.') });
     }
   });
 
   app.put('/api/cadastros/departments/:id', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID do departamento inválido.' });
       const b = (req.body || {}) as { code?: string; name?: string; managerName?: string; status?: string };
-      if (!b.name?.trim()) return res.status(400).json({ error: 'Nome do departamento é obrigatório.' });
+      if (!String(b.name || '').trim()) return res.status(400).json({ error: 'Nome do departamento é obrigatório.' });
       const [updated] = await db
         .update(departments)
         .set({
-          code: (b.code || '').trim(),
-          name: b.name.trim().toUpperCase(),
-          managerName: (b.managerName || '').trim(),
+          code: String(b.code || '').trim(),
+          name: String(b.name).trim().toUpperCase(),
+          managerName: String(b.managerName || '').trim(),
           status: b.status === 'INATIVO' ? 'INATIVO' : 'ATIVO',
         })
         .where(eq(departments.id, id))
@@ -602,13 +635,14 @@ export function registerCadastrosRoutes(
       await logAudit(req, 'DEPARTMENT_UPDATE', 'department', id, { code: updated.code, name: updated.name, status: updated.status });
       res.json({ data: updated });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao atualizar departamento.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao atualizar departamento.') });
     }
   });
 
   app.delete('/api/cadastros/departments/:id', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID do departamento inválido.' });
       const rows = await db.select().from(departments).where(eq(departments.id, id)).limit(1);
       const dept = rows[0];
       if (!dept) return res.status(404).json({ error: 'Departamento não encontrado.' });
@@ -622,7 +656,7 @@ export function registerCadastrosRoutes(
       await logAudit(req, 'DEPARTMENT_DELETE', 'department', id, { name: dept.name });
       res.json({ ok: true });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao excluir departamento.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao excluir departamento.') });
     }
   });
 
@@ -643,11 +677,27 @@ export function registerCadastrosRoutes(
     try {
       const b = (req.body || {}) as Record<string, unknown>;
       const name = String(b.name || '').trim();
-      const unitId = Number(b.unitId || 0);
+      const unitId = parsePositiveIntId(b.unitId);
       if (!name) return res.status(400).json({ error: 'Nome completo é obrigatório.' });
-      if (!unitId) return res.status(400).json({ error: 'Unidade é obrigatória.' });
+      if (!unitId) return res.status(400).json({ error: 'Unidade inválida ou obrigatória.' });
+      if (!isUnitPermitted(req, unitId)) return res.status(403).json({ error: 'Unidade não autorizada para este usuário.' });
 
-      let roleId = b.roleId ? Number(b.roleId) : null;
+      let roleId: number | null = null;
+      if (b.roleId !== undefined && b.roleId !== null && b.roleId !== '') {
+        roleId = parsePositiveIntId(b.roleId);
+        if (!roleId) return res.status(400).json({ error: 'ID de cargo inválido.' });
+      }
+      let departmentId: number | null = null;
+      if (b.departmentId !== undefined && b.departmentId !== null && b.departmentId !== '') {
+        departmentId = parsePositiveIntId(b.departmentId);
+        if (!departmentId) return res.status(400).json({ error: 'ID de departamento inválido.' });
+      }
+      let userId: number | null = null;
+      if (b.userId !== undefined && b.userId !== null && b.userId !== '') {
+        userId = parsePositiveIntId(b.userId);
+        if (!userId) return res.status(400).json({ error: 'ID de usuário inválido.' });
+      }
+
       let jobTitle = String(b.jobTitle || '').trim();
       if (roleId) {
         const rRows = await db.select().from(rolesCatalog).where(eq(rolesCatalog.id, roleId)).limit(1);
@@ -666,8 +716,8 @@ export function registerCadastrosRoutes(
           unitId,
           roleId,
           jobTitle,
-          departmentId: b.departmentId ? Number(b.departmentId) : null,
-          userId: b.userId ? Number(b.userId) : null,
+          departmentId,
+          userId,
           email: String(b.email || '').trim(),
           phone: String(b.phone || '').trim(),
           isWhatsapp: Boolean(b.isWhatsapp),
@@ -698,20 +748,42 @@ export function registerCadastrosRoutes(
       );
       res.status(201).json({ data: created });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao criar colaborador.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao criar colaborador.') });
     }
   });
 
   app.put('/api/cadastros/collaborators/:id', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID do colaborador inválido.' });
       const b = (req.body || {}) as Record<string, unknown>;
       const name = String(b.name || '').trim();
-      const unitId = Number(b.unitId || 0);
+      const unitId = parsePositiveIntId(b.unitId);
       if (!name) return res.status(400).json({ error: 'Nome completo é obrigatório.' });
-      if (!unitId) return res.status(400).json({ error: 'Unidade é obrigatória.' });
+      if (!unitId) return res.status(400).json({ error: 'Unidade inválida ou obrigatória.' });
 
-      let roleId = b.roleId ? Number(b.roleId) : null;
+      const [existing] = await db.select().from(collaborators).where(eq(collaborators.id, id)).limit(1);
+      if (!existing) return res.status(404).json({ error: 'Colaborador não encontrado.' });
+      if (!isUnitPermitted(req, existing.unitId) || !isUnitPermitted(req, unitId)) {
+        return res.status(403).json({ error: 'Unidade do colaborador não autorizada.' });
+      }
+
+      let roleId: number | null = null;
+      if (b.roleId !== undefined && b.roleId !== null && b.roleId !== '') {
+        roleId = parsePositiveIntId(b.roleId);
+        if (!roleId) return res.status(400).json({ error: 'ID de cargo inválido.' });
+      }
+      let departmentId: number | null = null;
+      if (b.departmentId !== undefined && b.departmentId !== null && b.departmentId !== '') {
+        departmentId = parsePositiveIntId(b.departmentId);
+        if (!departmentId) return res.status(400).json({ error: 'ID de departamento inválido.' });
+      }
+      let userId: number | null = null;
+      if (b.userId !== undefined && b.userId !== null && b.userId !== '') {
+        userId = parsePositiveIntId(b.userId);
+        if (!userId) return res.status(400).json({ error: 'ID de usuário inválido.' });
+      }
+
       let jobTitle = String(b.jobTitle || '').trim();
       if (roleId) {
         const rRows = await db.select().from(rolesCatalog).where(eq(rolesCatalog.id, roleId)).limit(1);
@@ -730,8 +802,8 @@ export function registerCadastrosRoutes(
           unitId,
           roleId,
           jobTitle,
-          departmentId: b.departmentId ? Number(b.departmentId) : null,
-          userId: b.userId ? Number(b.userId) : null,
+          departmentId,
+          userId,
           email: String(b.email || '').trim(),
           phone: String(b.phone || '').trim(),
           isWhatsapp: Boolean(b.isWhatsapp),
@@ -766,13 +838,19 @@ export function registerCadastrosRoutes(
       );
       res.json({ data: updated });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao atualizar colaborador.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao atualizar colaborador.') });
     }
   });
 
   app.patch('/api/cadastros/collaborators/:id/queue-flag', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID do colaborador inválido.' });
+      const [existing] = await db.select().from(collaborators).where(eq(collaborators.id, id)).limit(1);
+      if (!existing) return res.status(404).json({ error: 'Colaborador não encontrado.' });
+      if (!isUnitPermitted(req, existing.unitId)) {
+        return res.status(403).json({ error: 'Unidade do colaborador não autorizada.' });
+      }
       const b = (req.body || {}) as { participatesInScheduleQueue?: boolean };
       const flag = b.participatesInScheduleQueue === true;
       const [updated] = await db
@@ -780,7 +858,6 @@ export function registerCadastrosRoutes(
         .set({ participatesInScheduleQueue: flag })
         .where(eq(collaborators.id, id))
         .returning();
-      if (!updated) return res.status(404).json({ error: 'Colaborador não encontrado.' });
 
       await logAudit(
         req,
@@ -792,16 +869,20 @@ export function registerCadastrosRoutes(
       );
       res.json({ data: updated });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao atualizar flag Participa da Fila.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao atualizar flag Participa da Fila.') });
     }
   });
 
   app.delete('/api/cadastros/collaborators/:id', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID do colaborador inválido.' });
       const rows = await db.select().from(collaborators).where(eq(collaborators.id, id)).limit(1);
       const colab = rows[0];
       if (!colab) return res.status(404).json({ error: 'Colaborador não encontrado.' });
+      if (!isUnitPermitted(req, colab.unitId)) {
+        return res.status(403).json({ error: 'Unidade do colaborador não autorizada.' });
+      }
 
       if (colab.userId) {
         const [admCnt, apptCnt, blkCnt] = await Promise.all([
@@ -824,7 +905,7 @@ export function registerCadastrosRoutes(
       await logAudit(req, 'COLLABORATOR_DELETE', 'collaborator', id, { name: colab.name }, colab.unitId);
       res.json({ ok: true });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao excluir colaborador.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao excluir colaborador.') });
     }
   });
 
@@ -874,67 +955,77 @@ export function registerCadastrosRoutes(
         services?: Array<{ name: string; modalityId?: number | null; modalityDescription?: string; negotiationPercent?: string | number; defaultInstallments?: number }>;
         contacts?: Array<{ name: string; sector?: string; phone?: string; mobile?: string; isWhatsapp?: boolean; email?: string }>;
       };
-      if (!b.name?.trim()) return res.status(400).json({ error: 'Nome do banco é obrigatório.' });
+      if (!String(b.name || '').trim()) return res.status(400).json({ error: 'Nome do banco é obrigatório.' });
 
-      const [created] = await db
-        .insert(banks)
-        .values({
-          code: (b.code || '').trim(),
-          name: b.name.trim(),
-          febrabanCode: (b.febrabanCode || '').trim(),
-          status: b.status === 'INATIVO' ? 'INATIVO' : 'ATIVO',
-          notes: (b.notes || '').trim(),
-        })
-        .returning();
-
-      const srvRows = Array.isArray(b.services) ? b.services.filter((s) => s.name?.trim()) : [];
-      if (srvRows.length > 0) {
-        const allMods = await db.select().from(modalities);
-        await db.insert(bankServices).values(
-          srvRows.map((s) => {
-            const mod = s.modalityId ? allMods.find((m) => m.id === Number(s.modalityId)) : null;
-            return {
-              bankId: created.id,
-              name: s.name.trim(),
-              modalityId: mod?.id || null,
-              modalityDescription: mod?.description || s.modalityDescription || '',
-              negotiationPercent: String(s.negotiationPercent ?? '45').replace(',', '.'),
-              defaultInstallments: Math.max(1, Number(s.defaultInstallments || 12)),
-            };
+      const result = await db.transaction(async (tx) => {
+        const [created] = await tx
+          .insert(banks)
+          .values({
+            code: String(b.code || '').trim(),
+            name: String(b.name).trim(),
+            febrabanCode: String(b.febrabanCode || '').trim(),
+            status: b.status === 'INATIVO' ? 'INATIVO' : 'ATIVO',
+            notes: String(b.notes || '').trim(),
           })
-        );
-      }
+          .returning();
 
-      const ctcRows = Array.isArray(b.contacts) ? b.contacts.filter((c) => c.name?.trim()) : [];
-      if (ctcRows.length > 0) {
-        await db.insert(bankContacts).values(
-          ctcRows.map((c) => ({
-            bankId: created.id,
-            name: c.name.trim(),
-            sector: (c.sector || '').trim(),
-            phone: (c.phone || '').trim(),
-            mobile: (c.mobile || '').trim(),
-            isWhatsapp: Boolean(c.isWhatsapp),
-            email: (c.email || '').trim(),
-          }))
-        );
-      }
+        const srvRows = Array.isArray(b.services) ? b.services.filter((s) => String(s?.name || '').trim()) : [];
+        if (srvRows.length > 0) {
+          const allMods = await tx.select().from(modalities);
+          await tx.insert(bankServices).values(
+            srvRows.map((s) => {
+              const mod = s.modalityId ? allMods.find((m) => m.id === Number(s.modalityId)) : null;
+              return {
+                bankId: created.id,
+                name: String(s.name).trim(),
+                modalityId: mod?.id || null,
+                modalityDescription: mod?.description || s.modalityDescription || '',
+                negotiationPercent: String(s.negotiationPercent ?? '45').replace(',', '.'),
+                defaultInstallments: Math.max(1, Number(s.defaultInstallments || 12)),
+              };
+            })
+          );
+        }
 
-      const [savedServices, savedContacts] = await Promise.all([
-        db.select().from(bankServices).where(eq(bankServices.bankId, created.id)),
-        db.select().from(bankContacts).where(eq(bankContacts.bankId, created.id)),
-      ]);
+        const ctcRows = Array.isArray(b.contacts) ? b.contacts.filter((c) => String(c?.name || '').trim()) : [];
+        if (ctcRows.length > 0) {
+          await tx.insert(bankContacts).values(
+            ctcRows.map((c) => ({
+              bankId: created.id,
+              name: String(c.name).trim(),
+              sector: String(c.sector || '').trim(),
+              phone: String(c.phone || '').trim(),
+              mobile: String(c.mobile || '').trim(),
+              isWhatsapp: Boolean(c.isWhatsapp),
+              email: String(c.email || '').trim(),
+            }))
+          );
+        }
 
-      await logAudit(req, 'BANK_CREATE', 'bank', created.id, { name: created.name, febrabanCode: created.febrabanCode, servicesCount: savedServices.length, contactsCount: savedContacts.length });
-      res.status(201).json({ data: { ...created, services: savedServices, contacts: savedContacts } });
+        const [savedServices, savedContacts] = await Promise.all([
+          tx.select().from(bankServices).where(eq(bankServices.bankId, created.id)),
+          tx.select().from(bankContacts).where(eq(bankContacts.bankId, created.id)),
+        ]);
+
+        return { created, savedServices, savedContacts };
+      });
+
+      await logAudit(req, 'BANK_CREATE', 'bank', result.created.id, {
+        name: result.created.name,
+        febrabanCode: result.created.febrabanCode,
+        servicesCount: result.savedServices.length,
+        contactsCount: result.savedContacts.length,
+      });
+      res.status(201).json({ data: { ...result.created, services: result.savedServices, contacts: result.savedContacts } });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao criar banco.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao criar banco.') });
     }
   });
 
   app.put('/api/cadastros/banks/:id', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID do banco inválido.' });
       const b = (req.body || {}) as {
         code?: string;
         name?: string;
@@ -944,71 +1035,83 @@ export function registerCadastrosRoutes(
         services?: Array<{ name: string; modalityId?: number | null; modalityDescription?: string; negotiationPercent?: string | number; defaultInstallments?: number }>;
         contacts?: Array<{ name: string; sector?: string; phone?: string; mobile?: string; isWhatsapp?: boolean; email?: string }>;
       };
-      if (!b.name?.trim()) return res.status(400).json({ error: 'Nome do banco é obrigatório.' });
+      if (!String(b.name || '').trim()) return res.status(400).json({ error: 'Nome do banco é obrigatório.' });
 
-      const [updated] = await db
-        .update(banks)
-        .set({
-          code: (b.code || '').trim(),
-          name: b.name.trim(),
-          febrabanCode: (b.febrabanCode || '').trim(),
-          status: b.status === 'INATIVO' ? 'INATIVO' : 'ATIVO',
-          notes: (b.notes || '').trim(),
-        })
-        .where(eq(banks.id, id))
-        .returning();
-      if (!updated) return res.status(404).json({ error: 'Banco não encontrado.' });
-
-      await db.delete(bankServices).where(eq(bankServices.bankId, id));
-      const srvRows = Array.isArray(b.services) ? b.services.filter((s) => s.name?.trim()) : [];
-      if (srvRows.length > 0) {
-        const allMods = await db.select().from(modalities);
-        await db.insert(bankServices).values(
-          srvRows.map((s) => {
-            const mod = s.modalityId ? allMods.find((m) => m.id === Number(s.modalityId)) : null;
-            return {
-              bankId: id,
-              name: s.name.trim(),
-              modalityId: mod?.id || null,
-              modalityDescription: mod?.description || s.modalityDescription || '',
-              negotiationPercent: String(s.negotiationPercent ?? '45').replace(',', '.'),
-              defaultInstallments: Math.max(1, Number(s.defaultInstallments || 12)),
-            };
+      const result = await db.transaction(async (tx) => {
+        const [updated] = await tx
+          .update(banks)
+          .set({
+            code: String(b.code || '').trim(),
+            name: String(b.name).trim(),
+            febrabanCode: String(b.febrabanCode || '').trim(),
+            status: b.status === 'INATIVO' ? 'INATIVO' : 'ATIVO',
+            notes: String(b.notes || '').trim(),
           })
-        );
-      }
+          .where(eq(banks.id, id))
+          .returning();
+        if (!updated) return null;
 
-      await db.delete(bankContacts).where(eq(bankContacts.bankId, id));
-      const ctcRows = Array.isArray(b.contacts) ? b.contacts.filter((c) => c.name?.trim()) : [];
-      if (ctcRows.length > 0) {
-        await db.insert(bankContacts).values(
-          ctcRows.map((c) => ({
-            bankId: id,
-            name: c.name.trim(),
-            sector: (c.sector || '').trim(),
-            phone: (c.phone || '').trim(),
-            mobile: (c.mobile || '').trim(),
-            isWhatsapp: Boolean(c.isWhatsapp),
-            email: (c.email || '').trim(),
-          }))
-        );
-      }
+        await tx.delete(bankServices).where(eq(bankServices.bankId, id));
+        const srvRows = Array.isArray(b.services) ? b.services.filter((s) => String(s?.name || '').trim()) : [];
+        if (srvRows.length > 0) {
+          const allMods = await tx.select().from(modalities);
+          await tx.insert(bankServices).values(
+            srvRows.map((s) => {
+              const mod = s.modalityId ? allMods.find((m) => m.id === Number(s.modalityId)) : null;
+              return {
+                bankId: id,
+                name: String(s.name).trim(),
+                modalityId: mod?.id || null,
+                modalityDescription: mod?.description || s.modalityDescription || '',
+                negotiationPercent: String(s.negotiationPercent ?? '45').replace(',', '.'),
+                defaultInstallments: Math.max(1, Number(s.defaultInstallments || 12)),
+              };
+            })
+          );
+        }
 
-      const [savedServices, savedContacts] = await Promise.all([
-        db.select().from(bankServices).where(eq(bankServices.bankId, id)),
-        db.select().from(bankContacts).where(eq(bankContacts.bankId, id)),
-      ]);
+        await tx.delete(bankContacts).where(eq(bankContacts.bankId, id));
+        const ctcRows = Array.isArray(b.contacts) ? b.contacts.filter((c) => String(c?.name || '').trim()) : [];
+        if (ctcRows.length > 0) {
+          await tx.insert(bankContacts).values(
+            ctcRows.map((c) => ({
+              bankId: id,
+              name: String(c.name).trim(),
+              sector: String(c.sector || '').trim(),
+              phone: String(c.phone || '').trim(),
+              mobile: String(c.mobile || '').trim(),
+              isWhatsapp: Boolean(c.isWhatsapp),
+              email: String(c.email || '').trim(),
+            }))
+          );
+        }
 
-      await logAudit(req, 'BANK_UPDATE', 'bank', id, { name: updated.name, febrabanCode: updated.febrabanCode, servicesCount: savedServices.length, contactsCount: savedContacts.length });
-      res.json({ data: { ...updated, services: savedServices, contacts: savedContacts } });
+        const [savedServices, savedContacts] = await Promise.all([
+          tx.select().from(bankServices).where(eq(bankServices.bankId, id)),
+          tx.select().from(bankContacts).where(eq(bankContacts.bankId, id)),
+        ]);
+
+        return { updated, savedServices, savedContacts };
+      });
+
+      if (!result) return res.status(404).json({ error: 'Banco não encontrado.' });
+
+      await logAudit(req, 'BANK_UPDATE', 'bank', id, {
+        name: result.updated.name,
+        febrabanCode: result.updated.febrabanCode,
+        servicesCount: result.savedServices.length,
+        contactsCount: result.savedContacts.length,
+      });
+      res.json({ data: { ...result.updated, services: result.savedServices, contacts: result.savedContacts } });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao atualizar banco.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao atualizar banco.') });
     }
   });
 
   app.delete('/api/cadastros/banks/:id', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID do banco inválido.' });
       const rows = await db.select().from(banks).where(eq(banks.id, id)).limit(1);
       const bank = rows[0];
       if (!bank) return res.status(404).json({ error: 'Banco não encontrado.' });
@@ -1027,7 +1130,7 @@ export function registerCadastrosRoutes(
       await logAudit(req, 'BANK_DELETE', 'bank', id, { name: bank.name });
       res.json({ ok: true });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao excluir banco.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao excluir banco.') });
     }
   });
 
@@ -1068,16 +1171,17 @@ export function registerCadastrosRoutes(
 
   app.put('/api/cadastros/modalities/:id', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID da modalidade inválido.' });
       const b = (req.body || {}) as { type?: string; description?: string; hasVehicleSection?: boolean; active?: boolean };
-      if (!b.type?.trim() || !b.description?.trim()) {
+      if (!String(b.type || '').trim() || !String(b.description || '').trim()) {
         return res.status(400).json({ error: 'Tipo e Descrição da modalidade são obrigatórios.' });
       }
       const [updated] = await db
         .update(modalities)
         .set({
-          type: b.type.trim(),
-          description: b.description.trim(),
+          type: String(b.type).trim(),
+          description: String(b.description).trim(),
           hasVehicleSection: Boolean(b.hasVehicleSection),
           active: b.active !== false,
         })
@@ -1087,13 +1191,14 @@ export function registerCadastrosRoutes(
       await logAudit(req, 'MODALITY_UPDATE', 'modality', id, { type: updated.type, description: updated.description });
       res.json({ data: updated });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao atualizar modalidade.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao atualizar modalidade.') });
     }
   });
 
   app.delete('/api/cadastros/modalities/:id', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID da modalidade inválido.' });
       const rows = await db.select().from(modalities).where(eq(modalities.id, id)).limit(1);
       const mod = rows[0];
       if (!mod) return res.status(404).json({ error: 'Modalidade não encontrada.' });
@@ -1115,7 +1220,7 @@ export function registerCadastrosRoutes(
       await logAudit(req, 'MODALITY_DELETE', 'modality', id, { description: mod.description });
       res.json({ ok: true });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao excluir modalidade.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao excluir modalidade.') });
     }
   });
 
@@ -1128,7 +1233,7 @@ export function registerCadastrosRoutes(
       const rows = await db.select().from(measurementUnits).orderBy(asc(measurementUnits.name));
       res.json({ data: rows });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao listar unidades de medida.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao listar unidades de medida.') });
     }
   });
 
@@ -1147,13 +1252,14 @@ export function registerCadastrosRoutes(
       await logAudit(req, 'MEASUREMENT_UNIT_CREATE', 'measurement_unit', created.id, { name: created.name });
       res.status(201).json({ data: created });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao criar unidade de medida.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao criar unidade de medida.') });
     }
   });
 
   app.put('/api/cadastros/measurement-units/:id', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID da unidade de medida inválido.' });
       const b = (req.body || {}) as { name?: string; conversionFactor?: string | number };
       const name = String(b.name || '').trim().toUpperCase().slice(0, 5);
       if (!name) return res.status(400).json({ error: 'Sigla da unidade de medida é obrigatória.' });
@@ -1169,7 +1275,7 @@ export function registerCadastrosRoutes(
       await logAudit(req, 'MEASUREMENT_UNIT_UPDATE', 'measurement_unit', id, { name: updated.name });
       res.json({ data: updated });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao atualizar unidade de medida.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao atualizar unidade de medida.') });
     }
   });
 
@@ -1186,40 +1292,51 @@ export function registerCadastrosRoutes(
       }));
       res.json({ data });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao listar produtos.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao listar produtos.') });
     }
   });
 
   app.post('/api/cadastros/products', requireAuth, async (req: AuthRequest, res) => {
     try {
       const b = (req.body || {}) as { type?: string; description?: string; unitId?: number | null };
-      if (!b.description?.trim()) return res.status(400).json({ error: 'Descrição do produto/serviço é obrigatória.' });
+      if (!String(b.description || '').trim()) return res.status(400).json({ error: 'Descrição do produto/serviço é obrigatória.' });
+      let unitId: number | null = null;
+      if (b.unitId !== undefined && b.unitId !== null && b.unitId !== ('' as unknown)) {
+        unitId = parsePositiveIntId(b.unitId);
+        if (!unitId) return res.status(400).json({ error: 'ID da unidade de medida inválido.' });
+      }
       const [created] = await db
         .insert(products)
         .values({
           type: b.type === 'MATERIAL' ? 'MATERIAL' : 'SERVICO',
-          description: b.description.trim(),
-          unitId: b.unitId ? Number(b.unitId) : null,
+          description: String(b.description).trim(),
+          unitId,
         })
         .returning();
       await logAudit(req, 'PRODUCT_CREATE', 'product', created.id, { type: created.type, description: created.description });
       res.status(201).json({ data: created });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao criar produto.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao criar produto.') });
     }
   });
 
   app.put('/api/cadastros/products/:id', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID do produto inválido.' });
       const b = (req.body || {}) as { type?: string; description?: string; unitId?: number | null };
-      if (!b.description?.trim()) return res.status(400).json({ error: 'Descrição do produto/serviço é obrigatória.' });
+      if (!String(b.description || '').trim()) return res.status(400).json({ error: 'Descrição do produto/serviço é obrigatória.' });
+      let unitId: number | null = null;
+      if (b.unitId !== undefined && b.unitId !== null && b.unitId !== ('' as unknown)) {
+        unitId = parsePositiveIntId(b.unitId);
+        if (!unitId) return res.status(400).json({ error: 'ID da unidade de medida inválido.' });
+      }
       const [updated] = await db
         .update(products)
         .set({
           type: b.type === 'MATERIAL' ? 'MATERIAL' : 'SERVICO',
-          description: b.description.trim(),
-          unitId: b.unitId ? Number(b.unitId) : null,
+          description: String(b.description).trim(),
+          unitId,
         })
         .where(eq(products.id, id))
         .returning();
@@ -1227,20 +1344,21 @@ export function registerCadastrosRoutes(
       await logAudit(req, 'PRODUCT_UPDATE', 'product', id, { type: updated.type, description: updated.description });
       res.json({ data: updated });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao atualizar produto.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao atualizar produto.') });
     }
   });
 
   app.delete('/api/cadastros/products/:id', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID do produto inválido.' });
       const rows = await db.select().from(products).where(eq(products.id, id)).limit(1);
       if (!rows[0]) return res.status(404).json({ error: 'Produto não encontrado.' });
       await db.delete(products).where(eq(products.id, id));
       await logAudit(req, 'PRODUCT_DELETE', 'product', id, { description: rows[0].description });
       res.json({ ok: true });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao excluir produto.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao excluir produto.') });
     }
   });
 
@@ -1260,7 +1378,7 @@ export function registerCadastrosRoutes(
       }));
       res.json({ data });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao listar séries.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao listar séries.') });
     }
   });
 
@@ -1274,46 +1392,58 @@ export function registerCadastrosRoutes(
         unitNumbering?: Array<{ unitId: number; currentNumber: number }>;
       };
       const sigla = String(b.sigla || '').trim().toUpperCase().slice(0, 10);
-      if (!sigla || !b.description?.trim()) {
+      if (!sigla || !String(b.description || '').trim()) {
         return res.status(400).json({ error: 'Sigla e Descrição da série são obrigatórias.' });
       }
-      if (b.isDefault) {
-        await db.update(seriesCatalog).set({ isDefault: false });
-      }
-      const [created] = await db
-        .insert(seriesCatalog)
-        .values({
-          sigla,
-          description: b.description.trim(),
-          generalNumber: Math.max(1, Number(b.generalNumber || 1)),
-          isDefault: Boolean(b.isDefault),
-        })
-        .returning();
 
       const unitRows = Array.isArray(b.unitNumbering)
-        ? b.unitNumbering.filter((n) => Number(n.unitId) > 0)
+        ? b.unitNumbering
+            .map((n) => ({
+              unitId: parsePositiveIntId(n?.unitId),
+              currentNumber: Math.max(1, Number(n?.currentNumber || 1)),
+            }))
+            .filter((n): n is { unitId: number; currentNumber: number } => n.unitId !== null)
         : [];
-      if (unitRows.length > 0) {
-        await db.insert(seriesUnitNumbering).values(
-          unitRows.map((n) => ({
-            seriesId: created.id,
-            unitId: Number(n.unitId),
-            currentNumber: Math.max(1, Number(n.currentNumber || 1)),
-          }))
-        );
-      }
 
-      const savedUnits = await db.select().from(seriesUnitNumbering).where(eq(seriesUnitNumbering.seriesId, created.id));
+      const { created, savedUnits } = await db.transaction(async (tx) => {
+        if (b.isDefault) {
+          await tx.update(seriesCatalog).set({ isDefault: false });
+        }
+        const [ins] = await tx
+          .insert(seriesCatalog)
+          .values({
+            sigla,
+            description: String(b.description).trim(),
+            generalNumber: Math.max(1, Number(b.generalNumber || 1)),
+            isDefault: Boolean(b.isDefault),
+          })
+          .returning();
+
+        if (unitRows.length > 0) {
+          await tx.insert(seriesUnitNumbering).values(
+            unitRows.map((n) => ({
+              seriesId: ins.id,
+              unitId: n.unitId,
+              currentNumber: n.currentNumber,
+            }))
+          );
+        }
+
+        const su = await tx.select().from(seriesUnitNumbering).where(eq(seriesUnitNumbering.seriesId, ins.id));
+        return { created: ins, savedUnits: su };
+      });
+
       await logAudit(req, 'SERIES_CREATE', 'series', created.id, { sigla: created.sigla, generalNumber: created.generalNumber, unitsCount: savedUnits.length });
       res.status(201).json({ data: { ...created, unitNumbering: savedUnits } });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao criar série.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao criar série.') });
     }
   });
 
   app.put('/api/cadastros/series/:id', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID da série inválido.' });
       const b = (req.body || {}) as {
         sigla?: string;
         description?: string;
@@ -1322,49 +1452,63 @@ export function registerCadastrosRoutes(
         unitNumbering?: Array<{ unitId: number; currentNumber: number }>;
       };
       const sigla = String(b.sigla || '').trim().toUpperCase().slice(0, 10);
-      if (!sigla || !b.description?.trim()) {
+      if (!sigla || !String(b.description || '').trim()) {
         return res.status(400).json({ error: 'Sigla e Descrição da série são obrigatórias.' });
       }
-      if (b.isDefault) {
-        await db.update(seriesCatalog).set({ isDefault: false });
-      }
-      const [updated] = await db
-        .update(seriesCatalog)
-        .set({
-          sigla,
-          description: b.description.trim(),
-          generalNumber: Math.max(1, Number(b.generalNumber || 1)),
-          isDefault: Boolean(b.isDefault),
-        })
-        .where(eq(seriesCatalog.id, id))
-        .returning();
-      if (!updated) return res.status(404).json({ error: 'Série não encontrada.' });
 
-      await db.delete(seriesUnitNumbering).where(eq(seriesUnitNumbering.seriesId, id));
       const unitRows = Array.isArray(b.unitNumbering)
-        ? b.unitNumbering.filter((n) => Number(n.unitId) > 0)
+        ? b.unitNumbering
+            .map((n) => ({
+              unitId: parsePositiveIntId(n?.unitId),
+              currentNumber: Math.max(1, Number(n?.currentNumber || 1)),
+            }))
+            .filter((n): n is { unitId: number; currentNumber: number } => n.unitId !== null)
         : [];
-      if (unitRows.length > 0) {
-        await db.insert(seriesUnitNumbering).values(
-          unitRows.map((n) => ({
-            seriesId: id,
-            unitId: Number(n.unitId),
-            currentNumber: Math.max(1, Number(n.currentNumber || 1)),
-          }))
-        );
-      }
 
-      const savedUnits = await db.select().from(seriesUnitNumbering).where(eq(seriesUnitNumbering.seriesId, id));
-      await logAudit(req, 'SERIES_UPDATE', 'series', id, { sigla: updated.sigla, generalNumber: updated.generalNumber, unitsCount: savedUnits.length });
-      res.json({ data: { ...updated, unitNumbering: savedUnits } });
+      const result = await db.transaction(async (tx) => {
+        if (b.isDefault) {
+          await tx.update(seriesCatalog).set({ isDefault: false });
+        }
+        const [updated] = await tx
+          .update(seriesCatalog)
+          .set({
+            sigla,
+            description: String(b.description).trim(),
+            generalNumber: Math.max(1, Number(b.generalNumber || 1)),
+            isDefault: Boolean(b.isDefault),
+          })
+          .where(eq(seriesCatalog.id, id))
+          .returning();
+        if (!updated) return null;
+
+        await tx.delete(seriesUnitNumbering).where(eq(seriesUnitNumbering.seriesId, id));
+        if (unitRows.length > 0) {
+          await tx.insert(seriesUnitNumbering).values(
+            unitRows.map((n) => ({
+              seriesId: id,
+              unitId: n.unitId,
+              currentNumber: n.currentNumber,
+            }))
+          );
+        }
+
+        const savedUnits = await tx.select().from(seriesUnitNumbering).where(eq(seriesUnitNumbering.seriesId, id));
+        return { updated, savedUnits };
+      });
+
+      if (!result) return res.status(404).json({ error: 'Série não encontrada.' });
+
+      await logAudit(req, 'SERIES_UPDATE', 'series', id, { sigla: result.updated.sigla, generalNumber: result.updated.generalNumber, unitsCount: result.savedUnits.length });
+      res.json({ data: { ...result.updated, unitNumbering: result.savedUnits } });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao atualizar série.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao atualizar série.') });
     }
   });
 
   app.delete('/api/cadastros/series/:id', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID da série inválido.' });
       const rows = await db.select().from(seriesCatalog).where(eq(seriesCatalog.id, id)).limit(1);
       const s = rows[0];
       if (!s) return res.status(404).json({ error: 'Série não encontrada.' });
@@ -1380,7 +1524,7 @@ export function registerCadastrosRoutes(
       await logAudit(req, 'SERIES_DELETE', 'series', id, { sigla: s.sigla });
       res.json({ ok: true });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao excluir série.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao excluir série.') });
     }
   });
 }

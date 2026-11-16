@@ -25,6 +25,7 @@ import {
   ClientDetailModal,
   ConfirmDeleteModal,
 } from './CollectionCoordinatorModalViews.tsx';
+import { EntityAuditModal } from './cadastros/CadastrosShared.tsx';
 import type {
   AvailableTitleRow,
   ClientModalContextPayload,
@@ -120,6 +121,7 @@ export const NegotiationsModule: React.FC<{
     title: FinancialTitle;
     clientName: string;
   } | null>(null);
+  const [auditNegTarget, setAuditNegTarget] = useState<Negotiation | null>(null);
 
   // Sub-tabs state
   const [dashboardClientId, setDashboardClientId] = useState<string>('');
@@ -777,6 +779,7 @@ export const NegotiationsModule: React.FC<{
         onOpenClientFicha={handleOpenClientFicha}
         onOpenAdmissionFicha={handleOpenAdmissionFicha}
         onOpenHistoryModal={handleOpenHistoryModal}
+        onOpenNegAuditModal={(neg) => setAuditNegTarget(neg)}
       />
 
       <ConfirmDeleteModal
@@ -859,6 +862,18 @@ export const NegotiationsModule: React.FC<{
         title={historyTitleTarget?.title || null}
         clientName={historyTitleTarget?.clientName || ''}
         onClose={() => setHistoryTitleTarget(null)}
+      />
+
+      <EntityAuditModal
+        open={Boolean(auditNegTarget)}
+        title={
+          auditNegTarget
+            ? `Negociação · ${auditNegTarget.clientName} (${auditNegTarget.contractNumber || `#${auditNegTarget.id}`})`
+            : 'Negociação'
+        }
+        entityType="negotiations"
+        entityId={auditNegTarget?.id || 0}
+        onClose={() => setAuditNegTarget(null)}
       />
     </div>
   );

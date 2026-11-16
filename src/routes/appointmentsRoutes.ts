@@ -6,7 +6,6 @@ import {
   auditLogs,
   clients,
   collaborators,
-  internalMessages,
   rolesCatalog,
   scheduleBlocks,
   scheduleServices,
@@ -19,8 +18,10 @@ import {
   whatsappThreads,
 } from '../db/schema.ts';
 import { ensureCommonCadastrosSeed, ensureInitialSeed } from '../db/seed.ts';
-import { AuthRequest, requireAuth, requireModule } from '../middleware/auth.ts';
+import { AuthRequest, getAllowedUnitIds, isUnitPermitted, requireAuth, requireModule } from '../middleware/auth.ts';
+import { parsePositiveIntId, sanitizeErrorMessage } from '../utils/validation.ts';
 import { normalizePhone, phonesMatchBR, sendGotalkMessage } from '../services/gotalk.ts';
+import { dispatchIviSectorNotification } from '../services/internalMessaging.ts';
 import { sendUazapiText, UazapiCredentials } from '../services/uazapi.ts';
 import type { ScheduleConfig, ScheduleStatusColors } from '../types.ts';
 
@@ -88,8 +89,8 @@ async function getRotationState(): Promise<Record<string, number[]>> {
   return val.queues && typeof val.queues === 'object' ? val.queues : {};
 }
 
-async function saveRotationState(queues: Record<string, number[]>) {
-  await db
+async function saveRotationState(queues: Record<string, number[]>, executor: typeof db = db) {
+  await executor
     .insert(systemSettings)
     .values({
       key: 'schedule_rotation_state',
@@ -137,9 +138,10 @@ async function logScheduleAudit(
   entityType: string,
   entityId: string | number,
   details: Record<string, unknown>,
-  unitId?: number | null
+  unitId?: number | null,
+  executor: typeof db = db
 ) {
-  await db.insert(auditLogs).values({
+  await executor.insert(auditLogs).values({
     userId: req.authUser?.id ?? null,
     userName: req.authUser?.name || 'Sistema',
     action,
@@ -357,6 +359,7 @@ export function registerAppointmentsRoutes(
   app.get('/api/appointments/clients-search', requireAuth, async (req: AuthRequest, res) => {
     try {
       const q = String(req.query.q || '').trim().toLowerCase();
+      const allowedUnits = getAllowedUnitIds(req);
       const allClients = await db
         .select({
           id: clients.id,
@@ -375,6 +378,7 @@ export function registerAppointmentsRoutes(
       const qDigits = q.replace(/\D/g, '');
       const matched = allClients
         .filter((c) => {
+          if (allowedUnits && !allowedUnits.includes(c.unitId)) return false;
           if (!q) return true;
           if (c.fullName.toLowerCase().includes(q)) return true;
           if (c.email.toLowerCase().includes(q)) return true;
@@ -393,18 +397,28 @@ export function registerAppointmentsRoutes(
 
       res.json({ clients: matched });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao buscar clientes.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao buscar clientes.') });
     }
   });
 
   app.get('/api/appointments/client-history/:clientId', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const clientId = Number(req.params.clientId);
+      const clientId = parsePositiveIntId(req.params.clientId);
+      if (!clientId) return res.status(400).json({ error: 'ID do cliente inválido.' });
+      const [clientRow] = await db.select().from(clients).where(eq(clients.id, clientId)).limit(1);
+      if (!clientRow) return res.status(404).json({ error: 'Cliente não encontrado.' });
+      if (!isUnitPermitted(req, clientRow.unitId)) {
+        return res.status(403).json({ error: 'Unidade não autorizada para consultar histórico deste cliente.' });
+      }
+
       const [rows, allCollabs, allServices] = await Promise.all([
         db.select().from(appointments).where(eq(appointments.clientId, clientId)),
         db.select({ id: collaborators.id, name: collaborators.name, userId: collaborators.userId }).from(collaborators),
         db.select().from(scheduleServices),
       ]);
+
+      const allowedUnits = getAllowedUnitIds(req);
+      const visibleRows = allowedUnits ? rows.filter((r) => allowedUnits.includes(r.unitId)) : rows;
 
       const collabById = new Map(allCollabs.map((c) => [c.id, c.name]));
       const collabByUserId = new Map(
@@ -413,7 +427,7 @@ export function registerAppointmentsRoutes(
       const srvMap = new Map(allServices.map((s) => [s.id, s.name]));
       const nowMs = Date.now();
 
-      const enriched = rows.map((r) => ({
+      const enriched = visibleRows.map((r) => ({
         id: r.id,
         scheduledFor: r.scheduledFor,
         endAt: r.endAt,
@@ -437,7 +451,7 @@ export function registerAppointmentsRoutes(
 
       res.json({ total: enriched.length, items: [...futures, ...pasts] });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao consultar histórico do cliente.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao consultar histórico do cliente.') });
     }
   });
 
@@ -616,10 +630,12 @@ export function registerAppointmentsRoutes(
         useQueueRotation?: boolean;
       };
 
-      if (!body.clientId) {
+      const parsedClientId = parsePositiveIntId(body.clientId);
+      const parsedServiceId = parsePositiveIntId(body.serviceId);
+      if (!parsedClientId) {
         return res.status(400).json({ error: 'Selecione um cliente cadastrado antes de salvar.' });
       }
-      if (!body.serviceId) {
+      if (!parsedServiceId) {
         return res.status(400).json({ error: 'Selecione um serviço antes de salvar.' });
       }
       if (!body.date || !body.startTime) {
@@ -628,8 +644,8 @@ export function registerAppointmentsRoutes(
 
       const [clientRows, serviceRows, allCollabs, allUnits, allUsers, savedQueues] =
         await Promise.all([
-          db.select().from(clients).where(eq(clients.id, Number(body.clientId))).limit(1),
-          db.select().from(scheduleServices).where(eq(scheduleServices.id, Number(body.serviceId))).limit(1),
+          db.select().from(clients).where(eq(clients.id, parsedClientId)).limit(1),
+          db.select().from(scheduleServices).where(eq(scheduleServices.id, parsedServiceId)).limit(1),
           db.select().from(collaborators).orderBy(asc(collaborators.name)),
           db.select().from(units),
           db.select({ id: users.id, groupId: users.groupId }).from(users),
@@ -641,7 +657,11 @@ export function registerAppointmentsRoutes(
       if (!client) return res.status(404).json({ error: 'Cliente não encontrado.' });
       if (!service) return res.status(404).json({ error: 'Serviço não encontrado.' });
 
-      const targetUnitId = Number(body.unitId || client.unitId || req.activeUnitId || 1);
+      const targetUnitId = body.unitId ? parsePositiveIntId(body.unitId) : (client.unitId || req.activeUnitId || 1);
+      if (!targetUnitId) return res.status(400).json({ error: 'Unidade inválida.' });
+      if (!isUnitPermitted(req, targetUnitId)) {
+        return res.status(403).json({ error: 'Unidade não autorizada para agendamento.' });
+      }
       const startAt = new Date(`${body.date}T${body.startTime}:00`);
       const endAt = body.endTime
         ? new Date(`${body.date}T${body.endTime}:00`)
@@ -712,74 +732,70 @@ export function registerAppointmentsRoutes(
       const resolvedGroupId = body.groupId ?? linkedUser?.groupId ?? req.authUser!.groupId ?? null;
       const finalStatus = body.status || 'agendado';
 
-      const [created] = await db
-        .insert(appointments)
-        .values({
-          clientId: client.id,
-          clientName: client.fullName,
-          clientPhone: client.whatsapp || client.phone || '',
-          unitId: targetUnitId,
-          groupId: resolvedGroupId,
-          attendantId: req.authUser!.id,
-          consultantId: consultantUserId,
-          collaboratorId: chosenCollab?.id ?? null,
-          serviceId: service.id,
-          serviceName: service.name,
-          modality: body.modality || '',
-          scheduledFor: startAt,
-          endAt,
-          status: finalStatus,
-          notifiedInternal: true,
-          notifiedWhatsapp: finalStatus === 'confirmado',
-          notes: String(body.notes || '').trim(),
-          createdByName: req.authUser!.name,
-          updatedByName: req.authUser!.name,
-          updatedAt: new Date(),
-        })
-        .returning();
+      const created = await db.transaction(async (tx) => {
+        const [ins] = await tx
+          .insert(appointments)
+          .values({
+            clientId: client.id,
+            clientName: client.fullName,
+            clientPhone: client.whatsapp || client.phone || '',
+            unitId: targetUnitId,
+            groupId: resolvedGroupId,
+            attendantId: req.authUser!.id,
+            consultantId: consultantUserId,
+            collaboratorId: chosenCollab?.id ?? null,
+            serviceId: service.id,
+            serviceName: service.name,
+            modality: body.modality || '',
+            scheduledFor: startAt,
+            endAt,
+            status: finalStatus,
+            notifiedInternal: true,
+            notifiedWhatsapp: finalStatus === 'confirmado',
+            notes: String(body.notes || '').trim(),
+            createdByName: req.authUser!.name,
+            updatedByName: req.authUser!.name,
+            updatedAt: new Date(),
+          })
+          .returning();
 
-      // Rotate unit queue if chosen collaborator was the next in queue
-      if (chosenCollab && unitQueue[0] === chosenCollab.id && unitQueue.length > 1) {
-        const rotated = [...unitQueue.slice(1), unitQueue[0]];
-        queues[String(targetUnitId)] = rotated;
-        await saveRotationState(queues);
-      } else if (body.useQueueRotation && chosenCollab && unitQueue.includes(chosenCollab.id) && unitQueue.length > 1) {
-        const rotated = [...unitQueue.filter((id) => id !== chosenCollab.id), chosenCollab.id];
-        queues[String(targetUnitId)] = rotated;
-        await saveRotationState(queues);
-      }
+        // Rotate unit queue if chosen collaborator was the next in queue
+        if (chosenCollab && unitQueue[0] === chosenCollab.id && unitQueue.length > 1) {
+          const rotated = [...unitQueue.slice(1), unitQueue[0]];
+          queues[String(targetUnitId)] = rotated;
+          await saveRotationState(queues, tx as unknown as typeof db);
+        } else if (body.useQueueRotation && chosenCollab && unitQueue.includes(chosenCollab.id) && unitQueue.length > 1) {
+          const rotated = [...unitQueue.filter((id) => id !== chosenCollab.id), chosenCollab.id];
+          queues[String(targetUnitId)] = rotated;
+          await saveRotationState(queues, tx as unknown as typeof db);
+        }
 
-      // Remove waitlist entry ONLY after appointment is saved successfully
-      if (body.waitlistId) {
-        await db.delete(scheduleWaitlist).where(eq(scheduleWaitlist.id, Number(body.waitlistId)));
-      }
+        // Remove waitlist entry ONLY after appointment is saved successfully
+        if (body.waitlistId) {
+          const wlId = parsePositiveIntId(body.waitlistId);
+          if (wlId) {
+            await tx.delete(scheduleWaitlist).where(eq(scheduleWaitlist.id, wlId));
+          }
+        }
 
-      // Internal notification to consultant
-      if (chosenCollab?.userId) {
-        await db.insert(internalMessages).values({
-          senderId: req.authUser!.id,
-          senderName: 'Agenda FinancePro',
-          recipientId: chosenCollab.userId,
-          targetSector: 'comercial',
-          subject: `Agendamento (${service.name}) · ${client.fullName}`,
-          body: `Novo compromisso registrado para ${startAt.toLocaleString('pt-BR')} (${body.modality || 'Sem modalidade'}). Criado por ${req.authUser!.name}.`,
-        });
-      }
+        const agendaMsg = await dispatchIviSectorNotification(
+          {
+            targetSector: 'agendamentos',
+            targetUnitId: targetUnitId,
+            recipientId: chosenCollab?.userId ?? null,
+            relatedEntityType: 'appointment',
+            relatedEntityId: ins.id,
+            senderName: 'Ivi IA · Agendamentos',
+            subject: `Novo Agendamento (${service.name}) · ${client.fullName}`,
+            body: `Compromisso marcado para ${startAt.toLocaleString('pt-BR')} (${body.modality || 'Sem modalidade'}) com ${chosenCollab?.name || 'consultor'}. Registrado por ${req.authUser!.name}.`,
+          },
+          tx
+        );
 
-      await logScheduleAudit(
-        req,
-        'APPOINTMENT_CREATE',
-        'appointment',
-        created.id,
-        {
-          clientName: client.fullName,
-          serviceName: service.name,
-          collaboratorName: chosenCollab?.name || 'Consultor',
-          status: finalStatus,
-          scheduledFor: startAt.toISOString(),
-        },
-        targetUnitId
-      );
+        return { ins, agendaMsg };
+      });
+
+      deps.broadcast('internal:message', created.agendaMsg);
 
       let whatsappNotification: { attempted: boolean; ok: boolean; detail: string } | null = null;
       if (finalStatus === 'confirmado') {
@@ -796,11 +812,11 @@ export function registerAppointmentsRoutes(
         });
       }
 
-      deps.broadcast('appointments:update', { appointmentId: created.id, unitId: targetUnitId });
-      res.status(201).json({ ok: true, appointment: created, whatsappNotification });
+      deps.broadcast('appointments:update', { appointmentId: created.ins.id, unitId: targetUnitId });
+      res.status(201).json({ ok: true, appointment: created.ins, whatsappNotification });
     } catch (error) {
       console.error('Create appointment error:', error);
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao criar agendamento.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao criar agendamento.') });
     }
   });
 
@@ -847,13 +863,16 @@ export function registerAppointmentsRoutes(
 
   app.put('/api/appointments/:id', requireAuth, requireModule('appointments'), async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
-      if (!Number.isFinite(id) || id <= 0) {
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) {
         return res.status(400).json({ error: 'Identificador de agendamento inválido.' });
       }
       const existingRows = await db.select().from(appointments).where(eq(appointments.id, id)).limit(1);
       const existing = existingRows[0];
       if (!existing) return res.status(404).json({ error: 'Agendamento não encontrado.' });
+      if (!isUnitPermitted(req, existing.unitId)) {
+        return res.status(403).json({ error: 'Unidade não autorizada para editar este agendamento.' });
+      }
 
       const body = (req.body || {}) as {
         clientId?: number | null;
@@ -906,6 +925,9 @@ export function registerAppointmentsRoutes(
           ? new Date(`${body.date}T${body.endTime}:00`)
           : new Date(startAt.getTime() + originalDurationMs);
 
+      if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime())) {
+        return res.status(400).json({ error: 'Data ou horário inválido.' });
+      }
       if (endAt.getTime() <= startAt.getTime()) {
         return res.status(400).json({ error: 'Horário final deve ser posterior ao horário inicial.' });
       }
@@ -936,7 +958,11 @@ export function registerAppointmentsRoutes(
       }
 
       const nextStatus = body.status ?? existing.status;
-      const nextUnitId = body.unitId ? Number(body.unitId) : existing.unitId;
+      const nextUnitId = body.unitId ? parsePositiveIntId(body.unitId) : existing.unitId;
+      if (!nextUnitId) return res.status(400).json({ error: 'Unidade inválida.' });
+      if (!isUnitPermitted(req, nextUnitId)) {
+        return res.status(403).json({ error: 'Unidade de destino não autorizada.' });
+      }
       const nextModality = body.modality !== undefined ? body.modality : existing.modality;
 
       const [updated] = await db
@@ -992,6 +1018,23 @@ export function registerAppointmentsRoutes(
         });
       }
 
+      if (nextStatus !== existing.status && (nextStatus === 'confirmado' || nextStatus === 'compareceu' || nextStatus === 'em_admissao')) {
+        await dispatchIviSectorNotification(
+          {
+            targetSector: 'admissao',
+            targetUnitId: nextUnitId,
+            recipientId: consultantUserId,
+            relatedEntityType: 'appointment',
+            relatedEntityId: id,
+            senderName: 'Ivi IA · Agendamentos',
+            subject: `Cliente ${nextStatus === 'confirmado' ? 'confirmado' : 'encaminhado para Admissão'} · ${clientName}`,
+            body: `O agendamento de ${clientName} (${startAt.toLocaleString('pt-BR')}) avançou para "${nextStatus.toUpperCase()}" e está pronto para atendimento em Comercial → Admissão.`,
+          },
+          db,
+          deps.broadcast
+        );
+      }
+
       deps.broadcast('appointments:update', { appointmentId: id, unitId: nextUnitId });
       res.json({ ok: true, appointment: updated, whatsappNotification });
     } catch (error) {
@@ -1016,7 +1059,8 @@ export function registerAppointmentsRoutes(
         reason?: string;
       };
 
-      if (!body.collaboratorId) {
+      const collaboratorId = parsePositiveIntId(body.collaboratorId);
+      if (!collaboratorId) {
         return res.status(400).json({ error: 'Selecione o consultor responsável.' });
       }
       if (!body.reason?.trim()) {
@@ -1026,10 +1070,13 @@ export function registerAppointmentsRoutes(
       const colRows = await db
         .select()
         .from(collaborators)
-        .where(eq(collaborators.id, Number(body.collaboratorId)))
+        .where(eq(collaborators.id, collaboratorId))
         .limit(1);
       const colab = colRows[0];
       if (!colab) return res.status(404).json({ error: 'Colaborador não encontrado.' });
+      if (!isUnitPermitted(req, colab.unitId)) {
+        return res.status(403).json({ error: 'Unidade não autorizada para criar bloqueio.' });
+      }
 
       const todayStr = toDateKey(new Date());
       const startDateStr = body.startDate || todayStr;
@@ -1044,6 +1091,9 @@ export function registerAppointmentsRoutes(
 
       const startAt = new Date(`${startDateStr}T${sTime}:00`);
       const endAt = new Date(`${endDateStr}T${eTime}:59`);
+      if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime())) {
+        return res.status(400).json({ error: 'Data ou horário de bloqueio inválido.' });
+      }
       if (endAt.getTime() < startAt.getTime()) {
         return res.status(400).json({ error: 'A data/hora final deve ser igual ou posterior ao início.' });
       }
@@ -1077,22 +1127,26 @@ export function registerAppointmentsRoutes(
       deps.broadcast('appointments:update', { blockId: created.id });
       res.status(201).json({ ok: true, block: created });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao criar bloqueio.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao criar bloqueio.') });
     }
   });
 
   app.delete('/api/appointments/blocks/:id', requireAuth, requireModule('appointments'), async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de bloqueio inválido.' });
       const rows = await db.select().from(scheduleBlocks).where(eq(scheduleBlocks.id, id)).limit(1);
       if (!rows[0]) return res.status(404).json({ error: 'Bloqueio não encontrado.' });
+      if (!isUnitPermitted(req, rows[0].unitId)) {
+        return res.status(403).json({ error: 'Unidade não autorizada para remover bloqueio.' });
+      }
 
       await db.delete(scheduleBlocks).where(eq(scheduleBlocks.id, id));
       await logScheduleAudit(req, 'SCHEDULE_BLOCK_DELETE', 'schedule_block', id, { reason: rows[0].reason }, rows[0].unitId);
       deps.broadcast('appointments:update', { blockDeletedId: id });
       res.json({ ok: true });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao remover bloqueio.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao remover bloqueio.') });
     }
   });
 
@@ -1110,17 +1164,22 @@ export function registerAppointmentsRoutes(
         desiredTime?: string;
         notes?: string;
       };
-      if (!body.clientId) return res.status(400).json({ error: 'Selecione um cliente.' });
-      if (!body.serviceId) return res.status(400).json({ error: 'Selecione o serviço pretendido.' });
+      const clientId = parsePositiveIntId(body.clientId);
+      const serviceId = parsePositiveIntId(body.serviceId);
+      if (!clientId) return res.status(400).json({ error: 'Selecione um cliente.' });
+      if (!serviceId) return res.status(400).json({ error: 'Selecione o serviço pretendido.' });
 
-      const cRows = await db.select().from(clients).where(eq(clients.id, Number(body.clientId))).limit(1);
-      const unitId = Number(body.unitId || cRows[0]?.unitId || req.activeUnitId || 1);
+      const cRows = await db.select().from(clients).where(eq(clients.id, clientId)).limit(1);
+      if (!cRows[0]) return res.status(404).json({ error: 'Cliente não encontrado.' });
+      const unitId = body.unitId ? parsePositiveIntId(body.unitId) : (cRows[0].unitId || req.activeUnitId || 1);
+      if (!unitId) return res.status(400).json({ error: 'Unidade inválida.' });
+      if (!isUnitPermitted(req, unitId)) return res.status(403).json({ error: 'Unidade não autorizada.' });
 
       const [created] = await db
         .insert(scheduleWaitlist)
         .values({
-          clientId: Number(body.clientId),
-          serviceId: Number(body.serviceId),
+          clientId,
+          serviceId,
           preferredCollaboratorId: body.preferredCollaboratorId ? Number(body.preferredCollaboratorId) : null,
           unitId,
           desiredDate: body.desiredDate || toDateKey(new Date()),
@@ -1136,18 +1195,26 @@ export function registerAppointmentsRoutes(
         'WAITLIST_CREATE',
         'waitlist',
         created.id,
-        { clientName: cRows[0]?.fullName, desiredDate: created.desiredDate, desiredTime: created.desiredTime },
+        { clientName: cRows[0].fullName, desiredDate: created.desiredDate, desiredTime: created.desiredTime },
         unitId
       );
       res.status(201).json({ ok: true, item: created });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao adicionar à fila de espera.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao adicionar à fila de espera.') });
     }
   });
 
   app.put('/api/appointments/waitlist/:id', requireAuth, requireModule('appointments'), async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID da fila de espera inválido.' });
+
+      const existingRows = await db.select().from(scheduleWaitlist).where(eq(scheduleWaitlist.id, id)).limit(1);
+      if (!existingRows[0]) return res.status(404).json({ error: 'Registro da fila não localizado.' });
+      if (!isUnitPermitted(req, existingRows[0].unitId)) {
+        return res.status(403).json({ error: 'Unidade não autorizada.' });
+      }
+
       const body = (req.body || {}) as {
         clientId?: number;
         serviceId?: number;
@@ -1157,16 +1224,22 @@ export function registerAppointmentsRoutes(
         desiredTime?: string;
         notes?: string;
       };
-      if (!body.clientId) return res.status(400).json({ error: 'Selecione um cliente.' });
-      if (!body.serviceId) return res.status(400).json({ error: 'Selecione o serviço pretendido.' });
+      const clientId = parsePositiveIntId(body.clientId);
+      const serviceId = parsePositiveIntId(body.serviceId);
+      if (!clientId) return res.status(400).json({ error: 'Selecione um cliente.' });
+      if (!serviceId) return res.status(400).json({ error: 'Selecione o serviço pretendido.' });
+
+      const nextUnitId = body.unitId ? parsePositiveIntId(body.unitId) : existingRows[0].unitId;
+      if (!nextUnitId) return res.status(400).json({ error: 'Unidade inválida.' });
+      if (!isUnitPermitted(req, nextUnitId)) return res.status(403).json({ error: 'Unidade não autorizada.' });
 
       const [updated] = await db
         .update(scheduleWaitlist)
         .set({
-          clientId: Number(body.clientId),
-          serviceId: Number(body.serviceId),
+          clientId,
+          serviceId,
           preferredCollaboratorId: body.preferredCollaboratorId ? Number(body.preferredCollaboratorId) : null,
-          ...(body.unitId ? { unitId: Number(body.unitId) } : {}),
+          unitId: nextUnitId,
           desiredDate: body.desiredDate || toDateKey(new Date()),
           desiredTime: body.desiredTime || '08:00',
           notes: String(body.notes || '').trim(),
@@ -1179,21 +1252,25 @@ export function registerAppointmentsRoutes(
       await logScheduleAudit(req, 'WAITLIST_UPDATE', 'waitlist', id, { desiredDate: updated.desiredDate }, updated.unitId);
       res.json({ ok: true, item: updated });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao atualizar registro da fila.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao atualizar registro da fila.') });
     }
   });
 
   app.delete('/api/appointments/waitlist/:id', requireAuth, requireModule('appointments'), async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID da fila de espera inválido.' });
       const rows = await db.select().from(scheduleWaitlist).where(eq(scheduleWaitlist.id, id)).limit(1);
       if (!rows[0]) return res.status(404).json({ error: 'Registro da fila não encontrado.' });
+      if (!isUnitPermitted(req, rows[0].unitId)) {
+        return res.status(403).json({ error: 'Unidade não autorizada.' });
+      }
 
       await db.delete(scheduleWaitlist).where(eq(scheduleWaitlist.id, id));
       await logScheduleAudit(req, 'WAITLIST_DELETE', 'waitlist', id, {}, rows[0].unitId);
       res.json({ ok: true });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao remover da fila de espera.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao remover da fila de espera.') });
     }
   });
 
@@ -1229,13 +1306,14 @@ export function registerAppointmentsRoutes(
       });
       res.status(201).json({ ok: true, service: created });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao criar serviço.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao criar serviço.') });
     }
   });
 
   app.put('/api/appointments/services/:id', requireAuth, requireModule('appointments'), async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de serviço inválido.' });
       const body = (req.body || {}) as {
         name?: string;
         durationMinutes?: number;
@@ -1265,7 +1343,7 @@ export function registerAppointmentsRoutes(
       });
       res.json({ ok: true, service: updated });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao atualizar serviço.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao atualizar serviço.') });
     }
   });
 

@@ -26,8 +26,32 @@ import {
   whatsappThreads,
 } from '../db/schema.ts';
 import { ensureInitialSeed } from '../db/seed.ts';
-import { AuthRequest, requireAuth } from '../middleware/auth.ts';
+import {
+  AuthRequest,
+  getAllowedUnitIds,
+  isUnitPermitted,
+  requireAnyModule,
+  requireAuth,
+  requireModule,
+} from '../middleware/auth.ts';
 import { iviDraftCollectionMessage } from '../services/ivi.ts';
+import { dispatchIviSectorNotification } from '../services/internalMessaging.ts';
+import { normalizeAuditLogRecord } from '../utils/auditDiff.ts';
+import {
+  parseFiniteNumber,
+  parsePositiveIntArray,
+  parsePositiveIntId,
+  parseSafeDate,
+  sanitizeErrorMessage,
+} from '../utils/validation.ts';
+
+class ValidationError extends Error {
+  statusCode: number;
+  constructor(message: string, statusCode = 400) {
+    super(message);
+    this.statusCode = statusCode;
+  }
+}
 
 function entityTypeForScope(scope: string): string {
   return String(scope).toUpperCase() === 'PAGAR' ? 'CONTA_PAGAR' : 'CONTA_RECEBER';
@@ -44,14 +68,14 @@ function formatCentsPtBr(cents: number): string {
 }
 
 function parseDateIso(val: unknown, fallback?: Date): Date {
-  if (!val) return fallback || new Date();
-  const str = String(val).trim();
-  if (!str) return fallback || new Date();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
-    return new Date(`${str}T12:00:00.000Z`);
+  if (val === null || val === undefined || String(val).trim() === '') {
+    return fallback || new Date();
   }
-  const d = new Date(str);
-  return Number.isNaN(d.getTime()) ? fallback || new Date() : d;
+  const d = parseSafeDate(val);
+  if (!d) {
+    throw new ValidationError('Data informada em formato inválido.', 400);
+  }
+  return d;
 }
 
 async function writeTitleAudit(
@@ -77,15 +101,20 @@ export function registerFinancialRoutes(
   app: Express,
   deps: { broadcast: (event: string, payload: unknown) => void }
 ) {
+  const requireFinColl = requireAnyModule('finance', 'collection', 'audit');
+
   // 1. Listar títulos financeiros por escopo (RECEBER | PAGAR), com paginação e baixas agregadas
-  app.get('/api/financial-titles', requireAuth, async (req: AuthRequest, res) => {
+  app.get('/api/financial-titles', requireAuth, requireFinColl, async (req: AuthRequest, res) => {
     try {
       await ensureInitialSeed();
       const scopeParam = String(req.query.scope || 'RECEBER').toUpperCase();
       const scope = scopeParam === 'PAGAR' ? 'PAGAR' : 'RECEBER';
       const search = String(req.query.search || '').trim().toLowerCase();
-      const page = Math.max(1, Number(req.query.page || 1));
-      const pageSize = Math.min(200, Math.max(10, Number(req.query.pageSize || 50)));
+      const rawPage = Number(req.query.page || 1);
+      const rawPageSize = Number(req.query.pageSize || 50);
+      const page = Number.isFinite(rawPage) ? Math.max(1, Math.trunc(rawPage)) : 1;
+      const pageSize = Number.isFinite(rawPageSize) ? Math.min(200, Math.max(10, Math.trunc(rawPageSize))) : 50;
+      const allowedUnits = getAllowedUnitIds(req);
 
       const allClients = await db.select().from(clients);
       const clientMap = new Map(allClients.map((c) => [c.id, c]));
@@ -93,7 +122,11 @@ export function registerFinancialRoutes(
       const rows = await db
         .select()
         .from(financialTitles)
-        .where(eq(financialTitles.scope, scope))
+        .where(
+          allowedUnits !== null
+            ? and(eq(financialTitles.scope, scope), inArray(financialTitles.unitId, allowedUnits))
+            : eq(financialTitles.scope, scope)
+        )
         .orderBy(asc(financialTitles.dueDate), asc(financialTitles.id));
 
       const filtered = search
@@ -134,26 +167,27 @@ export function registerFinancialRoutes(
       });
     } catch (error) {
       console.error('GET /api/financial-titles error:', error);
-      res.status(500).json({ error: 'Erro ao listar títulos financeiros.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao listar títulos financeiros.') });
     }
   });
 
   // 2. Criar título financeiro (RECEBER ou PAGAR)
-  app.post('/api/financial-titles', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/financial-titles', requireAuth, requireFinColl, async (req: AuthRequest, res) => {
     try {
-      const b = req.body as Record<string, unknown>;
+      const b = (req.body || {}) as Record<string, unknown>;
       const scope = String(b.scope || 'RECEBER').toUpperCase() === 'PAGAR' ? 'PAGAR' : 'RECEBER';
       const documentNumber = String(b.documentNumber || '').trim();
-      const clientId = Number(b.clientId || 0);
-      const documentTypeId = b.documentTypeId ? Number(b.documentTypeId) : null;
-      const bearerId = b.bearerId ? Number(b.bearerId) : null;
+      const clientId = parsePositiveIntId(b.clientId);
+      const documentTypeId = parsePositiveIntId(b.documentTypeId);
+      const bearerId = parsePositiveIntId(b.bearerId);
       const description = String(b.description || '').trim();
-      const amountCents = Math.round(Number(b.amountCents || 0));
+      const rawAmount = parseFiniteNumber(b.amountCents);
+      const amountCents = rawAmount !== null ? Math.round(rawAmount) : 0;
 
       if (!documentNumber) return res.status(400).json({ error: 'Nº Documento é obrigatório.' });
       if (!clientId) {
         return res.status(400).json({
-          error: scope === 'PAGAR' ? 'Selecione um Fornecedor.' : 'Selecione um Parceiro / Cliente.',
+          error: scope === 'PAGAR' ? 'Selecione um Fornecedor válido.' : 'Selecione um Parceiro / Cliente válido.',
         });
       }
       if (!documentTypeId) return res.status(400).json({ error: 'Tipo de Documento é obrigatório.' });
@@ -163,11 +197,26 @@ export function registerFinancialRoutes(
 
       const [clientRow] = await db.select().from(clients).where(eq(clients.id, clientId)).limit(1);
       if (!clientRow) return res.status(404).json({ error: 'Cadastro de pessoa não encontrado.' });
+      if (!isUnitPermitted(req, clientRow.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para operar cadastros desta unidade.' });
+      }
       if (clientRow.status === 'suspenso' || clientRow.status === 'cancelado') {
         return res.status(403).json({
           error: `Operação bloqueada: ${clientRow.fullName} está com status "${clientRow.status.toUpperCase()}".`,
         });
       }
+
+      const unitId = parsePositiveIntId(b.unitId) || clientRow.unitId || req.activeUnitId || 1;
+      if (!isUnitPermitted(req, unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para criar títulos na unidade informada.' });
+      }
+
+      const admissionId = b.admissionId ? parsePositiveIntId(b.admissionId) : null;
+      const chartAccountId = b.chartAccountId ? parsePositiveIntId(b.chartAccountId) : null;
+      const departmentId = b.departmentId ? parsePositiveIntId(b.departmentId) : null;
+      const bankAccountId = b.bankAccountId ? parsePositiveIntId(b.bankAccountId) : null;
+      const sellerId = b.sellerId ? parsePositiveIntId(b.sellerId) : null;
+      const assignedCollaboratorId = b.assignedCollaboratorId ? parsePositiveIntId(b.assignedCollaboratorId) : null;
 
       const titleType = ['PADRAO', 'ADIANTAMENTO', 'DEVOLUCAO', 'FATURA'].includes(String(b.titleType || '').toUpperCase())
         ? String(b.titleType).toUpperCase()
@@ -184,9 +233,15 @@ export function registerFinancialRoutes(
       const issueDate = parseDateIso(b.issueDate, new Date());
       const dueDate = parseDateIso(b.dueDate, new Date());
       const forecastDate = parseDateIso(b.forecastDate, dueDate);
-      const unitId = Number(b.unitId || req.activeUnitId || 1);
+      const discountValidUntil = b.discountValidUntil ? parseDateIso(b.discountValidUntil) : null;
       const prefix = scope === 'PAGAR' ? 'PAG' : 'REC';
       const titleCode = `${prefix}-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}-${Math.floor(10 + Math.random() * 89)}`;
+
+      const interestVal = parseFiniteNumber(b.interestCents) ?? 0;
+      const fineVal = parseFiniteNumber(b.fineCents) ?? 0;
+      const discountVal = parseFiniteNumber(b.discountCents) ?? 0;
+      const instNum = parsePositiveIntId(b.installmentNumber) || 1;
+      const totInst = parsePositiveIntId(b.totalInstallments) || 1;
 
       const [created] = await db
         .insert(financialTitles)
@@ -199,25 +254,25 @@ export function registerFinancialRoutes(
           description,
           clientId,
           clientName: clientRow.fullName,
-          admissionId: b.admissionId ? Number(b.admissionId) : null,
+          admissionId,
           unitId,
-          chartAccountId: b.chartAccountId ? Number(b.chartAccountId) : null,
+          chartAccountId,
           documentTypeId,
           bearerId,
-          departmentId: b.departmentId ? Number(b.departmentId) : null,
-          bankAccountId: b.bankAccountId ? Number(b.bankAccountId) : null,
-          sellerId: b.sellerId ? Number(b.sellerId) : null,
-          assignedCollaboratorId: b.assignedCollaboratorId ? Number(b.assignedCollaboratorId) : null,
-          installmentNumber: b.installmentNumber ? Math.max(1, Number(b.installmentNumber)) : 1,
-          totalInstallments: b.totalInstallments ? Math.max(1, Number(b.totalInstallments)) : 1,
+          departmentId,
+          bankAccountId,
+          sellerId,
+          assignedCollaboratorId,
+          installmentNumber: instNum,
+          totalInstallments: totInst,
           isInitialFee: false,
           amountCents,
           originalValueCents: amountCents,
           currentBalanceCents: amountCents,
-          interestCents: Math.max(0, Math.round(Number(b.interestCents || 0))),
-          fineCents: Math.max(0, Math.round(Number(b.fineCents || 0))),
-          discountCents: Math.max(0, Math.round(Number(b.discountCents || 0))),
-          discountValidUntil: b.discountValidUntil ? parseDateIso(b.discountValidUntil) : null,
+          interestCents: Math.max(0, Math.round(interestVal)),
+          fineCents: Math.max(0, Math.round(fineVal)),
+          discountCents: Math.max(0, Math.round(discountVal)),
+          discountValidUntil,
           issueDate,
           dueDate,
           forecastDate,
@@ -245,25 +300,70 @@ export function registerFinancialRoutes(
         unitId
       );
 
+      if (scope === 'RECEBER' && created.collectionStatus === 'COBRAR') {
+        await dispatchIviSectorNotification(
+          {
+            targetSector: 'cobranca',
+            targetUnitId: unitId,
+            relatedEntityType: 'financial_title',
+            relatedEntityId: created.id,
+            senderName: 'Ivi IA · Financeiro',
+            subject: `Novo Título em Carteira · ${clientRow.fullName}`,
+            body: `Título ${created.documentNumber} (${formatCentsPtBr(created.amountCents)}, venc. ${created.dueDate.toISOString().slice(0, 10)}) lançado para acompanhamento de Cobrança.`,
+          },
+          db,
+          deps.broadcast
+        );
+      } else {
+        await dispatchIviSectorNotification(
+          {
+            targetSector: 'financeiro',
+            targetUnitId: unitId,
+            relatedEntityType: 'financial_title',
+            relatedEntityId: created.id,
+            senderName: 'Ivi IA · Financeiro',
+            subject: `Novo Lançamento (${scope}) · ${created.documentNumber}`,
+            body: `Lançamento para ${clientRow.fullName} no valor de ${formatCentsPtBr(created.amountCents)} registrado em Administração Financeira.`,
+          },
+          db,
+          deps.broadcast
+        );
+      }
+
       res.json({ title: created });
     } catch (error) {
       console.error('POST /api/financial-titles error:', error);
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao criar título.' });
+      const status = error instanceof ValidationError ? error.statusCode : 500;
+      res.status(status).json({ error: sanitizeErrorMessage(error, 'Erro ao criar título.') });
     }
   });
 
   // 3. Atualizar título financeiro
-  app.put('/api/financial-titles/:id', requireAuth, async (req: AuthRequest, res) => {
+  app.put('/api/financial-titles/:id', requireAuth, requireFinColl, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de título inválido.' });
       const [existing] = await db.select().from(financialTitles).where(eq(financialTitles.id, id)).limit(1);
       if (!existing) return res.status(404).json({ error: 'Título não encontrado.' });
+      if (!isUnitPermitted(req, existing.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para alterar títulos desta unidade.' });
+      }
 
-      const b = req.body as Record<string, unknown>;
+      const b = (req.body || {}) as Record<string, unknown>;
       const scope = existing.scope || 'RECEBER';
-      const clientId = b.clientId ? Number(b.clientId) : existing.clientId;
+      const clientId = b.clientId !== undefined ? parsePositiveIntId(b.clientId) : existing.clientId;
+      if (!clientId) return res.status(400).json({ error: 'Cliente / Fornecedor inválido.' });
       const [clientRow] = await db.select().from(clients).where(eq(clients.id, clientId)).limit(1);
       if (!clientRow) return res.status(404).json({ error: 'Cadastro de pessoa não encontrado.' });
+      if (!isUnitPermitted(req, clientRow.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para vincular cadastro de outra unidade.' });
+      }
+      if (b.unitId !== undefined) {
+        const nextUnitId = parsePositiveIntId(b.unitId);
+        if (!nextUnitId || !isUnitPermitted(req, nextUnitId)) {
+          return res.status(403).json({ error: 'Sem permissão para mover título para esta unidade.' });
+        }
+      }
       if (clientRow.status === 'suspenso' || clientRow.status === 'cancelado') {
         return res.status(403).json({
           error: `Operação bloqueada: ${clientRow.fullName} está com status "${clientRow.status.toUpperCase()}".`,
@@ -468,16 +568,21 @@ export function registerFinancialRoutes(
       res.json({ title: updated });
     } catch (error) {
       console.error('PUT /api/financial-titles/:id error:', error);
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao atualizar título.' });
+      const status = error instanceof ValidationError ? error.statusCode : 500;
+      res.status(status).json({ error: sanitizeErrorMessage(error, 'Erro ao atualizar título.') });
     }
   });
 
   // 4. Excluir título definitivamente (somente CANCELADO e sem liquidações/vínculos pagos)
-  app.delete('/api/financial-titles/:id', requireAuth, async (req: AuthRequest, res) => {
+  app.delete('/api/financial-titles/:id', requireAuth, requireFinColl, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de título inválido.' });
       const [existing] = await db.select().from(financialTitles).where(eq(financialTitles.id, id)).limit(1);
       if (!existing) return res.status(404).json({ error: 'Título não encontrado.' });
+      if (!isUnitPermitted(req, existing.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para excluir títulos desta unidade.' });
+      }
 
       if (normStatusUpper(existing.status) !== 'CANCELADO') {
         return res.status(409).json({
@@ -505,8 +610,10 @@ export function registerFinancialRoutes(
         });
       }
 
-      await db.delete(collectionCases).where(eq(collectionCases.titleId, id));
-      await db.delete(financialTitles).where(eq(financialTitles.id, id));
+      await db.transaction(async (tx) => {
+        await tx.delete(collectionCases).where(eq(collectionCases.titleId, id));
+        await tx.delete(financialTitles).where(eq(financialTitles.id, id));
+      });
       await writeTitleAudit(
         req,
         'DELETE_TITLE',
@@ -518,14 +625,20 @@ export function registerFinancialRoutes(
       res.json({ ok: true });
     } catch (error) {
       console.error('DELETE /api/financial-titles/:id error:', error);
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao excluir título.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao excluir título.') });
     }
   });
 
   // 5. Listar baixas de um título
-  app.get('/api/financial-titles/:id/settlements', requireAuth, async (req: AuthRequest, res) => {
+  app.get('/api/financial-titles/:id/settlements', requireAuth, requireFinColl, async (req: AuthRequest, res) => {
     try {
-      const titleId = Number(req.params.id);
+      const titleId = parsePositiveIntId(req.params.id);
+      if (!titleId) return res.status(400).json({ error: 'ID de título inválido.' });
+      const [titleRow] = await db.select({ id: financialTitles.id, unitId: financialTitles.unitId }).from(financialTitles).where(eq(financialTitles.id, titleId)).limit(1);
+      if (!titleRow) return res.status(404).json({ error: 'Título não encontrado.' });
+      if (!isUnitPermitted(req, titleRow.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para consultar baixas desta unidade.' });
+      }
       const rows = await db
         .select()
         .from(titleSettlements)
@@ -534,14 +647,14 @@ export function registerFinancialRoutes(
       res.json({ settlements: rows });
     } catch (error) {
       console.error('GET settlements error:', error);
-      res.status(500).json({ error: 'Erro ao consultar baixas do título.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao consultar baixas do título.') });
     }
   });
 
   // 6. Baixa Total / Parcial em Lote (Transacional + Movimento Bancário + Saldo)
-  app.post('/api/financial-titles/settle-batch', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/financial-titles/settle-batch', requireAuth, requireFinColl, async (req: AuthRequest, res) => {
     try {
-      const b = req.body as {
+      const b = (req.body || {}) as {
         titleIds: number[];
         scope?: string;
         mode?: 'total' | 'parcial';
@@ -555,16 +668,17 @@ export function registerFinancialRoutes(
         paymentMethod?: string;
       };
 
-      const titleIds = Array.isArray(b.titleIds) ? b.titleIds.map(Number).filter((n) => n > 0) : [];
+      const titleIds = parsePositiveIntArray(b.titleIds);
+      const bankAccountId = parsePositiveIntId(b.bankAccountId);
       if (titleIds.length === 0) return res.status(400).json({ error: 'Selecione ao menos um título.' });
-      if (!b.bankAccountId) return res.status(400).json({ error: 'Selecione a conta bancária da baixa.' });
+      if (!bankAccountId) return res.status(400).json({ error: 'Selecione uma conta bancária válida para a baixa.' });
 
       const mode = b.mode === 'parcial' ? 'parcial' : 'total';
       const paymentDate = parseDateIso(b.paymentDate, new Date());
       const paymentDateStr = paymentDate.toISOString().slice(0, 10);
-      const interestTotalCents = Math.max(0, Math.round(Number(b.interestCents || 0)));
-      const fineTotalCents = Math.max(0, Math.round(Number(b.fineCents || 0)));
-      const discountTotalCents = Math.max(0, Math.round(Number(b.discountCents || 0)));
+      const interestTotalCents = Math.max(0, Math.round(parseFiniteNumber(b.interestCents) ?? 0));
+      const fineTotalCents = Math.max(0, Math.round(parseFiniteNumber(b.fineCents) ?? 0));
+      const discountTotalCents = Math.max(0, Math.round(parseFiniteNumber(b.discountCents) ?? 0));
       const paymentMethod = String(b.paymentMethod || 'Depósito / Transferência');
 
       const result = await db.transaction(async (tx) => {
@@ -575,31 +689,37 @@ export function registerFinancialRoutes(
           .orderBy(asc(financialTitles.dueDate), asc(financialTitles.id));
 
         if (titles.length !== titleIds.length) {
-          throw new Error('Um ou mais títulos selecionados não foram encontrados.');
+          throw new ValidationError('Um ou mais títulos selecionados não foram encontrados.', 404);
         }
 
         const firstScope = titles[0].scope || 'RECEBER';
         const firstClientId = titles[0].clientId;
         const [clientRow] = await tx.select().from(clients).where(eq(clients.id, firstClientId)).limit(1);
         if (clientRow && (clientRow.status === 'suspenso' || clientRow.status === 'cancelado')) {
-          throw new Error(`Operação bloqueada: ${clientRow.fullName} está "${clientRow.status.toUpperCase()}".`);
+          throw new ValidationError(`Operação bloqueada: ${clientRow.fullName} está "${clientRow.status.toUpperCase()}".`, 403);
         }
 
         for (const t of titles) {
+          if (!isUnitPermitted(req, t.unitId)) {
+            throw new ValidationError(`Sem permissão para baixar o título ${t.documentNumber || t.titleCode} desta unidade.`, 403);
+          }
           if (t.clientId !== firstClientId) {
-            throw new Error('Todos os títulos selecionados para baixa devem pertencer à mesma pessoa/fornecedor.');
+            throw new ValidationError('Todos os títulos selecionados para baixa devem pertencer à mesma pessoa/fornecedor.', 400);
           }
           const st = normStatusUpper(t.status);
           if (st === 'CANCELADO' || st === 'AGRUPADO' || st === 'PAGO') {
-            throw new Error(`O título ${t.documentNumber || t.titleCode} (${st}) não pode ser baixado.`);
+            throw new ValidationError(`O título ${t.documentNumber || t.titleCode} (${st}) não pode ser baixado.`, 409);
           }
           if (t.isProtested || t.isProvision) {
-            throw new Error(`O título ${t.documentNumber || t.titleCode} exige liberação prévia de Protesto/Provisão.`);
+            throw new ValidationError(`O título ${t.documentNumber || t.titleCode} exige liberação prévia de Protesto/Provisão.`, 409);
           }
         }
 
-        const [bankAcc] = await tx.select().from(bankAccounts).where(eq(bankAccounts.id, Number(b.bankAccountId))).limit(1);
-        if (!bankAcc) throw new Error('Conta bancária não encontrada.');
+        const [bankAcc] = await tx.select().from(bankAccounts).where(eq(bankAccounts.id, bankAccountId)).limit(1);
+        if (!bankAcc) throw new ValidationError('Conta bancária não encontrada.', 404);
+        if (!isUnitPermitted(req, bankAcc.unitId)) {
+          throw new ValidationError('Sem permissão para movimentar esta conta bancária.', 403);
+        }
 
         const getBalance = (t: typeof titles[number]) => {
           if (t.currentBalanceCents > 0) return t.currentBalanceCents;
@@ -774,15 +894,16 @@ export function registerFinancialRoutes(
       res.json(result);
     } catch (error) {
       console.error('POST /api/financial-titles/settle-batch error:', error);
-      res.status(400).json({ error: error instanceof Error ? error.message : 'Erro ao registrar baixa.' });
+      const status = error instanceof ValidationError ? error.statusCode : 400;
+      res.status(status).json({ error: sanitizeErrorMessage(error, 'Erro ao registrar baixa.') });
     }
   });
 
   // 7. Estornar / Cancelar baixas selecionadas (estorna títulos + atualiza/remove movimento bancário vinculado)
-  app.post('/api/financial-titles/cancel-settlements', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/financial-titles/cancel-settlements', requireAuth, requireFinColl, async (req: AuthRequest, res) => {
     try {
-      const { settlementIds } = req.body as { settlementIds: number[] };
-      const ids = Array.isArray(settlementIds) ? settlementIds.map(Number).filter((n) => n > 0) : [];
+      const { settlementIds } = (req.body || {}) as { settlementIds: number[] };
+      const ids = parsePositiveIntArray(settlementIds);
       if (ids.length === 0) return res.status(400).json({ error: 'Selecione ao menos uma baixa para cancelar.' });
 
       const result = await db.transaction(async (tx) => {
@@ -790,9 +911,19 @@ export function registerFinancialRoutes(
           .select()
           .from(titleSettlements)
           .where(inArray(titleSettlements.id, ids));
-        if (targets.length === 0) throw new Error('Baixas selecionadas não encontradas.');
+        if (targets.length === 0) throw new ValidationError('Baixas selecionadas não encontradas.', 404);
 
         const affectedTitleIds = Array.from(new Set(targets.map((t) => t.titleId)));
+        const affectedTitleRows = await tx
+          .select()
+          .from(financialTitles)
+          .where(inArray(financialTitles.id, affectedTitleIds));
+        for (const t of affectedTitleRows) {
+          if (!isUnitPermitted(req, t.unitId)) {
+            throw new ValidationError('Sem permissão para estornar baixas desta unidade.', 403);
+          }
+        }
+
         const affectedMovementIds = Array.from(
           new Set(targets.map((t) => t.movementId).filter((m): m is number => Boolean(m && m > 0)))
         );
@@ -880,22 +1011,32 @@ export function registerFinancialRoutes(
       res.json(result);
     } catch (error) {
       console.error('POST /api/financial-titles/cancel-settlements error:', error);
-      res.status(400).json({ error: error instanceof Error ? error.message : 'Erro ao cancelar baixas.' });
+      const status = error instanceof ValidationError ? error.statusCode : 400;
+      res.status(status).json({ error: sanitizeErrorMessage(error, 'Erro ao cancelar baixas.') });
     }
   });
 
   // 8. Vincular / Deduzir Adiantamento ou Devolução com persistência real no banco
-  app.post('/api/financial-titles/link-deductions', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/financial-titles/link-deductions', requireAuth, requireFinColl, async (req: AuthRequest, res) => {
     try {
-      const b = req.body as {
+      const b = (req.body || {}) as {
         targetTitleIds: number[];
         links: Array<{ sourceTitleId: number; amountCents: number }>;
       };
-      const targetIds = Array.isArray(b.targetTitleIds) ? b.targetTitleIds.map(Number).filter(Boolean) : [];
-      const links = Array.isArray(b.links) ? b.links.filter((l) => Number(l.sourceTitleId) > 0 && Number(l.amountCents) > 0) : [];
+      const targetIds = parsePositiveIntArray(b.targetTitleIds);
+      const links = Array.isArray(b.links)
+        ? b.links
+            .map((l) => ({
+              sourceTitleId: parsePositiveIntId(l?.sourceTitleId),
+              amountCents: parseFiniteNumber(l?.amountCents),
+            }))
+            .filter((l): l is { sourceTitleId: number; amountCents: number } => Boolean(l.sourceTitleId && l.amountCents && l.amountCents > 0))
+        : [];
       if (targetIds.length === 0 || links.length === 0) {
-        return res.status(400).json({ error: 'Informe os títulos de destino e créditos a vincular.' });
+        return res.status(400).json({ error: 'Informe os títulos de destino e créditos válidos a vincular.' });
       }
+
+      const sourceIds = Array.from(new Set(links.map((l) => l.sourceTitleId)));
 
       const result = await db.transaction(async (tx) => {
         const targets = await tx
@@ -903,22 +1044,45 @@ export function registerFinancialRoutes(
           .from(financialTitles)
           .where(inArray(financialTitles.id, targetIds))
           .orderBy(asc(financialTitles.dueDate));
+        if (targets.length !== targetIds.length) {
+          throw new ValidationError('Um ou mais títulos de destino não foram encontrados.', 404);
+        }
         const sources = await tx
           .select()
           .from(financialTitles)
-          .where(inArray(financialTitles.id, links.map((l) => Number(l.sourceTitleId))));
+          .where(inArray(financialTitles.id, sourceIds));
+        if (sources.length !== sourceIds.length) {
+          throw new ValidationError('Um ou mais créditos de origem não foram encontrados.', 404);
+        }
+
+        for (const t of [...targets, ...sources]) {
+          if (!isUnitPermitted(req, t.unitId)) {
+            throw new ValidationError('Sem permissão para vincular deduções em títulos desta unidade.', 403);
+          }
+        }
+
+        for (const l of links) {
+          const src = sources.find((s) => s.id === l.sourceTitleId);
+          if (!src) throw new ValidationError('Crédito de origem não encontrado.', 404);
+          const curBal = src.currentBalanceCents > 0 ? src.currentBalanceCents : src.amountCents;
+          if (curBal <= 0 || Math.round(l.amountCents) > curBal) {
+            throw new ValidationError(`Saldo insuficiente no crédito ${src.documentNumber || src.titleCode}.`, 400);
+          }
+        }
 
         const totalTargetBal = targets.reduce((a, t) => a + (t.currentBalanceCents > 0 ? t.currentBalanceCents : t.amountCents), 0);
+        if (totalTargetBal <= 0) {
+          throw new ValidationError('Os títulos de destino não possuem saldo disponível para dedução.', 400);
+        }
         const totalDeduct = links.reduce((a, l) => a + Math.round(l.amountCents), 0);
         if (totalDeduct > totalTargetBal) {
-          throw new Error('O total de deduções não pode exceder o saldo dos títulos selecionados.');
+          throw new ValidationError('O total de deduções não pode exceder o saldo dos títulos selecionados.', 400);
         }
 
         const nowIso = new Date().toISOString().slice(0, 10);
         // Update source credits
         for (const l of links) {
-          const src = sources.find((s) => s.id === Number(l.sourceTitleId));
-          if (!src) continue;
+          const src = sources.find((s) => s.id === l.sourceTitleId)!;
           const curBal = src.currentBalanceCents > 0 ? src.currentBalanceCents : src.amountCents;
           const used = Math.min(curBal, Math.round(l.amountCents));
           const rem = Math.max(0, curBal - used);
@@ -989,20 +1153,25 @@ export function registerFinancialRoutes(
       res.json(result);
     } catch (error) {
       console.error('POST /api/financial-titles/link-deductions error:', error);
-      res.status(400).json({ error: error instanceof Error ? error.message : 'Erro ao aplicar deduções.' });
+      const status = error instanceof ValidationError ? error.statusCode : 400;
+      res.status(status).json({ error: sanitizeErrorMessage(error, 'Erro ao aplicar deduções.') });
     }
   });
 
   // 9. Liberação de Protesto / Provisão persistente no PostgreSQL
-  app.post('/api/financial-titles/:id/release', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/financial-titles/:id/release', requireAuth, requireFinColl, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
-      const { releaseType, reason } = req.body as { releaseType: 'PROTEST' | 'PROVISION'; reason: string };
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de título inválido.' });
+      const { releaseType, reason } = (req.body || {}) as { releaseType: 'PROTEST' | 'PROVISION'; reason: string };
       if (!String(reason || '').trim()) {
         return res.status(400).json({ error: 'Motivo da liberação é obrigatório.' });
       }
       const [t] = await db.select().from(financialTitles).where(eq(financialTitles.id, id)).limit(1);
       if (!t) return res.status(404).json({ error: 'Título não encontrado.' });
+      if (!isUnitPermitted(req, t.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para liberar títulos desta unidade.' });
+      }
 
       const userName = req.authUser?.name || 'Administrador';
       const entry = {
@@ -1042,29 +1211,38 @@ export function registerFinancialRoutes(
       res.json({ title: updated });
     } catch (error) {
       console.error('POST /api/financial-titles/:id/release error:', error);
-      res.status(500).json({ error: 'Erro ao liberar título.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao liberar título.') });
     }
   });
 
   // 10. Calcular impacto antes de cancelar títulos
-  app.get('/api/financial-titles/cancel-impact', requireAuth, async (req: AuthRequest, res) => {
+  app.get('/api/financial-titles/cancel-impact', requireAuth, requireFinColl, async (req: AuthRequest, res) => {
     try {
       const idsParam = String(req.query.ids || '');
-      const ids = idsParam
-        .split(',')
-        .map((x) => Number(x.trim()))
-        .filter((n) => n > 0);
+      const ids = parsePositiveIntArray(idsParam ? idsParam.split(',').map((x) => x.trim()) : []);
       if (ids.length === 0) {
         return res.json({ collectionNotesCount: 0, negotiationsCount: 0, legalProcessesCount: 0 });
       }
 
-      const selected = await db.select().from(financialTitles).where(inArray(financialTitles.id, ids));
+      const allowedUnits = getAllowedUnitIds(req);
+      const selected = await db
+        .select()
+        .from(financialTitles)
+        .where(
+          allowedUnits !== null
+            ? and(inArray(financialTitles.id, ids), inArray(financialTitles.unitId, allowedUnits))
+            : inArray(financialTitles.id, ids)
+        );
+      const allowedTitleIds = selected.map((t) => t.id);
+      if (allowedTitleIds.length === 0) {
+        return res.json({ collectionNotesCount: 0, negotiationsCount: 0, legalProcessesCount: 0 });
+      }
       const admIds = Array.from(new Set(selected.map((t) => t.admissionId).filter((a): a is number => Boolean(a))));
 
       const [casesCount] = await db
         .select({ v: count() })
         .from(collectionCases)
-        .where(inArray(collectionCases.titleId, ids));
+        .where(inArray(collectionCases.titleId, allowedTitleIds));
 
       let negotiationsCount = 0;
       let legalProcessesCount = 0;
@@ -1083,86 +1261,103 @@ export function registerFinancialRoutes(
       });
     } catch (error) {
       console.error('GET /api/financial-titles/cancel-impact error:', error);
-      res.status(500).json({ error: 'Erro ao consultar impacto do cancelamento.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao consultar impacto do cancelamento.') });
     }
   });
 
-  // 11. Cancelar títulos em lote
-  app.post('/api/financial-titles/batch-cancel', requireAuth, async (req: AuthRequest, res) => {
+  // 11. Cancelar títulos em lote (transacional)
+  app.post('/api/financial-titles/batch-cancel', requireAuth, requireFinColl, async (req: AuthRequest, res) => {
     try {
-      const { titleIds } = req.body as { titleIds: number[] };
-      const ids = Array.isArray(titleIds) ? titleIds.map(Number).filter((n) => n > 0) : [];
-      if (ids.length === 0) return res.status(400).json({ error: 'Selecione ao menos um título.' });
+      const { titleIds } = (req.body || {}) as { titleIds: number[] };
+      const ids = parsePositiveIntArray(titleIds);
+      if (ids.length === 0) return res.status(400).json({ error: 'Selecione ao menos um título válido.' });
 
-      const rows = await db.select().from(financialTitles).where(inArray(financialTitles.id, ids));
-      const cancelled: number[] = [];
-      const blocked: Array<{ id: number; documentNumber: string; reason: string }> = [];
+      const result = await db.transaction(async (tx) => {
+        const rows = await tx.select().from(financialTitles).where(inArray(financialTitles.id, ids));
+        const cancelled: number[] = [];
+        const blocked: Array<{ id: number; documentNumber: string; reason: string }> = [];
 
-      for (const t of rows) {
-        const st = normStatusUpper(t.status);
-        if (st === 'PAGO' || st === 'PARCIAL') {
-          blocked.push({
-            id: t.id,
-            documentNumber: t.documentNumber || t.titleCode,
-            reason: 'Possui baixa registrada. Cancele as baixas antes.',
-          });
-          continue;
-        }
-        if (st === 'CANCELADO' || st === 'AGRUPADO') {
-          blocked.push({
-            id: t.id,
-            documentNumber: t.documentNumber || t.titleCode,
-            reason: `Status atual "${st}" não permite cancelamento comum.`,
-          });
-          continue;
-        }
+        for (const t of rows) {
+          if (!isUnitPermitted(req, t.unitId)) {
+            blocked.push({
+              id: t.id,
+              documentNumber: t.documentNumber || t.titleCode,
+              reason: 'Sem permissão para cancelar títulos desta unidade.',
+            });
+            continue;
+          }
+          const st = normStatusUpper(t.status);
+          if (st === 'PAGO' || st === 'PARCIAL') {
+            blocked.push({
+              id: t.id,
+              documentNumber: t.documentNumber || t.titleCode,
+              reason: 'Possui baixa registrada. Cancele as baixas antes.',
+            });
+            continue;
+          }
+          if (st === 'CANCELADO' || st === 'AGRUPADO') {
+            blocked.push({
+              id: t.id,
+              documentNumber: t.documentNumber || t.titleCode,
+              reason: `Status atual "${st}" não permite cancelamento comum.`,
+            });
+            continue;
+          }
 
-        await db
-          .update(financialTitles)
-          .set({ status: 'CANCELADO', currentBalanceCents: 0, updatedAt: new Date() })
-          .where(eq(financialTitles.id, t.id));
+          await tx
+            .update(financialTitles)
+            .set({ status: 'CANCELADO', currentBalanceCents: 0, updatedAt: new Date() })
+            .where(eq(financialTitles.id, t.id));
 
-        await db
-          .update(collectionCases)
-          .set({ status: 'cancelado', updatedAt: new Date() })
-          .where(and(eq(collectionCases.titleId, t.id), ne(collectionCases.status, 'pago')));
+          await tx
+            .update(collectionCases)
+            .set({ status: 'cancelado', updatedAt: new Date() })
+            .where(and(eq(collectionCases.titleId, t.id), ne(collectionCases.status, 'pago')));
 
-        await db
-          .update(negotiations)
-          .set({ status: 'suspensa', negotiationStatus: 'CANCELADA', updatedAt: new Date() })
-          .where(eq(negotiations.titleId, t.id));
-
-        if (t.admissionId) {
-          await db
+          await tx
             .update(negotiations)
             .set({ status: 'suspensa', negotiationStatus: 'CANCELADA', updatedAt: new Date() })
-            .where(eq(negotiations.admissionId, t.admissionId));
+            .where(eq(negotiations.titleId, t.id));
+
+          if (t.admissionId) {
+            await tx
+              .update(negotiations)
+              .set({ status: 'suspensa', negotiationStatus: 'CANCELADA', updatedAt: new Date() })
+              .where(eq(negotiations.admissionId, t.admissionId));
+          }
+
+          await tx.insert(auditLogs).values({
+            userId: req.authUser?.id ?? null,
+            userName: req.authUser?.name || 'Sistema',
+            action: 'CANCEL_TITLE',
+            entityType: entityTypeForScope(t.scope || 'RECEBER'),
+            entityId: String(t.id),
+            details: { changes: [{ field: 'Status', from: t.status, to: 'CANCELADO' }] },
+            unitId: t.unitId,
+          });
+          cancelled.push(t.id);
         }
 
-        await writeTitleAudit(
-          req,
-          'CANCEL_TITLE',
-          t.scope || 'RECEBER',
-          t.id,
-          [{ field: 'Status', from: t.status, to: 'CANCELADO' }],
-          t.unitId
-        );
-        cancelled.push(t.id);
-      }
+        return { cancelledCount: cancelled.length, cancelledIds: cancelled, blocked };
+      });
 
-      res.json({ cancelledCount: cancelled.length, cancelledIds: cancelled, blocked });
+      res.json(result);
     } catch (error) {
       console.error('POST /api/financial-titles/batch-cancel error:', error);
-      res.status(500).json({ error: 'Erro ao cancelar títulos.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao cancelar títulos.') });
     }
   });
 
   // 12. Cancelar fatura (com rollback transacional do grupo e reabertura dos títulos de origem)
-  app.patch('/api/financial-titles/:id/cancel', requireAuth, async (req: AuthRequest, res) => {
+  app.patch('/api/financial-titles/:id/cancel', requireAuth, requireFinColl, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de título inválido.' });
       const [target] = await db.select().from(financialTitles).where(eq(financialTitles.id, id)).limit(1);
       if (!target) return res.status(404).json({ error: 'Título não encontrado.' });
+      if (!isUnitPermitted(req, target.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para cancelar títulos desta unidade.' });
+      }
 
       if (target.invoiceGroupId) {
         const result = await db.transaction(async (tx) => {
@@ -1176,7 +1371,7 @@ export function registerFinancialRoutes(
           for (const inv of invoices) {
             const st = normStatusUpper(inv.status);
             if (st === 'PAGO' || st === 'PARCIAL') {
-              throw new Error(`A fatura ${inv.documentNumber || inv.titleCode} já possui baixa. Estorne antes de cancelar o grupo.`);
+              throw new ValidationError(`A fatura ${inv.documentNumber || inv.titleCode} já possui baixa. Estorne antes de cancelar o grupo.`, 409);
             }
           }
 
@@ -1221,77 +1416,104 @@ export function registerFinancialRoutes(
       if (st === 'PAGO' || st === 'PARCIAL') {
         return res.status(409).json({ error: 'Título com baixa não pode ser cancelado diretamente.' });
       }
-      await db
-        .update(financialTitles)
-        .set({ status: 'CANCELADO', currentBalanceCents: 0, updatedAt: new Date() })
-        .where(eq(financialTitles.id, id));
-      await db
-        .update(collectionCases)
-        .set({ status: 'cancelado', updatedAt: new Date() })
-        .where(and(eq(collectionCases.titleId, id), ne(collectionCases.status, 'pago')));
-      await writeTitleAudit(req, 'CANCEL_TITLE', target.scope || 'RECEBER', id, [{ field: 'Status', from: target.status, to: 'CANCELADO' }], target.unitId);
+      await db.transaction(async (tx) => {
+        await tx
+          .update(financialTitles)
+          .set({ status: 'CANCELADO', currentBalanceCents: 0, updatedAt: new Date() })
+          .where(eq(financialTitles.id, id));
+        await tx
+          .update(collectionCases)
+          .set({ status: 'cancelado', updatedAt: new Date() })
+          .where(and(eq(collectionCases.titleId, id), ne(collectionCases.status, 'pago')));
+        await tx.insert(auditLogs).values({
+          userId: req.authUser?.id ?? null,
+          userName: req.authUser?.name || 'Sistema',
+          action: 'CANCEL_TITLE',
+          entityType: entityTypeForScope(target.scope || 'RECEBER'),
+          entityId: String(id),
+          details: { changes: [{ field: 'Status', from: target.status, to: 'CANCELADO' }] },
+          unitId: target.unitId,
+        });
+      });
       res.json({ cancelledInvoices: 0, reopenedOrigins: 0 });
     } catch (error) {
       console.error('PATCH /api/financial-titles/:id/cancel error:', error);
-      res.status(400).json({ error: error instanceof Error ? error.message : 'Erro ao cancelar.' });
+      const status = error instanceof ValidationError ? error.statusCode : 400;
+      res.status(status).json({ error: sanitizeErrorMessage(error, 'Erro ao cancelar.') });
     }
   });
 
-  // 13. Reabrir título cancelado ou agrupado
-  app.patch('/api/financial-titles/:id/reopen', requireAuth, async (req: AuthRequest, res) => {
+  // 13. Reabrir título cancelado ou agrupado (transacional)
+  app.patch('/api/financial-titles/:id/reopen', requireAuth, requireFinColl, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de título inválido.' });
       const [t] = await db.select().from(financialTitles).where(eq(financialTitles.id, id)).limit(1);
       if (!t) return res.status(404).json({ error: 'Título não encontrado.' });
+      if (!isUnitPermitted(req, t.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para reabrir títulos desta unidade.' });
+      }
 
       const st = normStatusUpper(t.status);
       if (st !== 'CANCELADO' && st !== 'AGRUPADO') {
         return res.status(400).json({ error: 'Apenas títulos cancelados ou agrupados podem ser reabertos.' });
       }
 
-      if (st === 'AGRUPADO') {
-        await db
-          .delete(titleSettlements)
-          .where(and(eq(titleSettlements.titleId, id), eq(titleSettlements.origin, 'FATURA GERADA')));
-      }
-
       const restoredBal = t.originalValueCents > 0 ? t.originalValueCents : t.amountCents;
-      const [updated] = await db
-        .update(financialTitles)
-        .set({
-          status: 'ABERTO',
-          currentBalanceCents: restoredBal,
-          invoiceGroupId: st === 'AGRUPADO' ? '' : t.invoiceGroupId,
-          updatedAt: new Date(),
-        })
-        .where(eq(financialTitles.id, id))
-        .returning();
+      const updated = await db.transaction(async (tx) => {
+        if (st === 'AGRUPADO') {
+          await tx
+            .delete(titleSettlements)
+            .where(and(eq(titleSettlements.titleId, id), eq(titleSettlements.origin, 'FATURA GERADA')));
+        }
 
-      await writeTitleAudit(
-        req,
-        'REOPEN_TITLE',
-        t.scope || 'RECEBER',
-        id,
-        [
-          { field: 'Status', from: t.status, to: 'ABERTO' },
-          { field: 'Saldo Restaurado', from: formatCentsPtBr(t.currentBalanceCents), to: formatCentsPtBr(restoredBal) },
-        ],
-        t.unitId
-      );
+        const [row] = await tx
+          .update(financialTitles)
+          .set({
+            status: 'ABERTO',
+            currentBalanceCents: restoredBal,
+            invoiceGroupId: st === 'AGRUPADO' ? '' : t.invoiceGroupId,
+            updatedAt: new Date(),
+          })
+          .where(eq(financialTitles.id, id))
+          .returning();
+
+        await tx.insert(auditLogs).values({
+          userId: req.authUser?.id ?? null,
+          userName: req.authUser?.name || 'Sistema',
+          action: 'REOPEN_TITLE',
+          entityType: entityTypeForScope(t.scope || 'RECEBER'),
+          entityId: String(id),
+          details: {
+            changes: [
+              { field: 'Status', from: t.status, to: 'ABERTO' },
+              { field: 'Saldo Restaurado', from: formatCentsPtBr(t.currentBalanceCents), to: formatCentsPtBr(restoredBal) },
+            ],
+          },
+          unitId: t.unitId,
+        });
+        return row;
+      });
       res.json({ title: updated });
     } catch (error) {
       console.error('PATCH /api/financial-titles/:id/reopen error:', error);
-      res.status(500).json({ error: 'Erro ao reabrir título.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao reabrir título.') });
     }
   });
 
   // 14. Lançamento Recorrente (persistente para RECEBER e PAGAR)
-  app.post('/api/financial-titles/create-installments', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/financial-titles/create-installments', requireAuth, requireFinColl, async (req: AuthRequest, res) => {
     try {
-      const { parentTitleId, count: installmentCount } = req.body as { parentTitleId: number; count: number };
-      const qty = Math.min(120, Math.max(1, Number(installmentCount || 1)));
-      const [model] = await db.select().from(financialTitles).where(eq(financialTitles.id, Number(parentTitleId))).limit(1);
+      const { parentTitleId, count: installmentCount } = (req.body || {}) as { parentTitleId: number; count: number };
+      const parentId = parsePositiveIntId(parentTitleId);
+      if (!parentId) return res.status(400).json({ error: 'ID do título modelo inválido.' });
+      const qtyRaw = parseFiniteNumber(installmentCount) ?? 1;
+      const qty = Math.min(120, Math.max(1, Math.trunc(qtyRaw)));
+      const [model] = await db.select().from(financialTitles).where(eq(financialTitles.id, parentId)).limit(1);
       if (!model) return res.status(404).json({ error: 'Título modelo não encontrado.' });
+      if (!isUnitPermitted(req, model.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para gerar recorrências nesta unidade.' });
+      }
       if (normStatusUpper(model.status) === 'CANCELADO') {
         return res.status(400).json({ error: 'Não é possível gerar parcelas a partir de título cancelado.' });
       }
@@ -1363,14 +1585,20 @@ export function registerFinancialRoutes(
       res.json({ createdCount: createdRows.length, children: createdRows });
     } catch (error) {
       console.error('POST /api/financial-titles/create-installments error:', error);
-      res.status(500).json({ error: 'Erro ao gerar parcelas recorrentes.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao gerar parcelas recorrentes.') });
     }
   });
 
   // 15. Consultar parcelas filhas de um título modelo
-  app.get('/api/financial-titles/:id/children', requireAuth, async (req: AuthRequest, res) => {
+  app.get('/api/financial-titles/:id/children', requireAuth, requireFinColl, async (req: AuthRequest, res) => {
     try {
-      const parentId = Number(req.params.id);
+      const parentId = parsePositiveIntId(req.params.id);
+      if (!parentId) return res.status(400).json({ error: 'ID de título inválido.' });
+      const [parentRow] = await db.select({ id: financialTitles.id, unitId: financialTitles.unitId }).from(financialTitles).where(eq(financialTitles.id, parentId)).limit(1);
+      if (!parentRow) return res.status(404).json({ error: 'Título modelo não encontrado.' });
+      if (!isUnitPermitted(req, parentRow.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para consultar parcelas desta unidade.' });
+      }
       const rows = await db
         .select()
         .from(financialTitles)
@@ -1379,44 +1607,47 @@ export function registerFinancialRoutes(
       res.json({ children: rows });
     } catch (error) {
       console.error('GET /api/financial-titles/:id/children error:', error);
-      res.status(500).json({ error: 'Erro ao consultar parcelas vinculadas.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao consultar parcelas vinculadas.') });
     }
   });
 
   // 16. Gerar Faturas agrupando 2+ títulos elegíveis
-  app.post('/api/financial-titles/group-invoice', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/financial-titles/group-invoice', requireAuth, requireFinColl, async (req: AuthRequest, res) => {
     try {
-      const b = req.body as {
+      const b = (req.body || {}) as {
         titleIds: number[];
         baseDocument: string;
         installments: number;
         firstDueDate: string;
         intervalDays: number;
       };
-      const ids = Array.isArray(b.titleIds) ? b.titleIds.map(Number).filter((n) => n > 0) : [];
+      const ids = parsePositiveIntArray(b.titleIds);
       if (ids.length < 2) {
-        return res.status(400).json({ error: 'Selecione ao menos 2 títulos da mesma pessoa para gerar fatura.' });
+        return res.status(400).json({ error: 'Selecione ao menos 2 títulos válidos da mesma pessoa para gerar fatura.' });
       }
       const baseDoc = String(b.baseDocument || '').trim();
       if (!baseDoc) return res.status(400).json({ error: 'Informe o Nº Documento base da fatura.' });
 
-      const installments = Math.min(60, Math.max(1, Number(b.installments || 1)));
-      const intervalDays = Math.max(1, Number(b.intervalDays || 30));
+      const installments = Math.min(60, Math.max(1, Math.trunc(parseFiniteNumber(b.installments) ?? 1)));
+      const intervalDays = Math.max(1, Math.trunc(parseFiniteNumber(b.intervalDays) ?? 30));
       const firstDue = parseDateIso(b.firstDueDate, new Date(Date.now() + 30 * 86400000));
 
       const result = await db.transaction(async (tx) => {
         const origins = await tx.select().from(financialTitles).where(inArray(financialTitles.id, ids));
-        if (origins.length !== ids.length) throw new Error('Títulos selecionados não encontrados.');
+        if (origins.length !== ids.length) throw new ValidationError('Títulos selecionados não encontrados.', 404);
 
         const firstClientId = origins[0].clientId;
         const scope = origins[0].scope || 'RECEBER';
         for (const o of origins) {
+          if (!isUnitPermitted(req, o.unitId)) {
+            throw new ValidationError('Sem permissão para faturar títulos desta unidade.', 403);
+          }
           if (o.clientId !== firstClientId) {
-            throw new Error('Todos os títulos agrupados precisam pertencer à mesma pessoa/fornecedor.');
+            throw new ValidationError('Todos os títulos agrupados precisam pertencer à mesma pessoa/fornecedor.', 400);
           }
           const st = normStatusUpper(o.status);
           if (['PAGO', 'CANCELADO', 'AGRUPADO', 'FATURA_GERADA'].includes(st)) {
-            throw new Error(`O título ${o.documentNumber || o.titleCode} (${st}) não pode ser agrupado.`);
+            throw new ValidationError(`O título ${o.documentNumber || o.titleCode} (${st}) não pode ser agrupado.`, 409);
           }
         }
 
@@ -1495,31 +1726,36 @@ export function registerFinancialRoutes(
             .where(eq(financialTitles.id, orig.id));
         }
 
-        return { invoiceGroupId, invoices: createdInvoices };
+        return { invoiceGroupId, invoices: createdInvoices, scope, unitId: model.unitId };
       });
 
       await writeTitleAudit(
         req,
         'GROUP_INVOICE',
-        'RECEBER',
+        result.scope,
         ids[0],
         [{ field: 'Faturamento', from: `${ids.length} títulos`, to: `Grupo ${result.invoiceGroupId.slice(0, 8)}` }],
-        req.activeUnitId
+        result.unitId
       );
 
-      res.json(result);
+      res.json({ invoiceGroupId: result.invoiceGroupId, invoices: result.invoices });
     } catch (error) {
       console.error('POST /api/financial-titles/group-invoice error:', error);
-      res.status(400).json({ error: error instanceof Error ? error.message : 'Erro ao gerar faturas.' });
+      const status = error instanceof ValidationError ? error.statusCode : 400;
+      res.status(status).json({ error: sanitizeErrorMessage(error, 'Erro ao gerar faturas.') });
     }
   });
 
   // 17. Consulta completa de Admissão para o visualizador de Ficha de Admissão (Contas a Receber)
   app.get('/api/admissions/:id', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de admissão inválido.' });
       const [adm] = await db.select().from(admissions).where(eq(admissions.id, id)).limit(1);
       if (!adm) return res.status(404).json({ error: 'Ficha de admissão não encontrada.' });
+      if (!isUnitPermitted(req, adm.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para acessar fichas desta unidade.' });
+      }
 
       const [clientRows, docs, scenarios, processes] = await Promise.all([
         db.select().from(clients).where(eq(clients.id, adm.clientId)).limit(1),
@@ -1548,20 +1784,24 @@ export function registerFinancialRoutes(
       });
     } catch (error) {
       console.error('GET /api/admissions/:id error:', error);
-      res.status(500).json({ error: 'Erro ao carregar ficha de admissão.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao carregar ficha de admissão.') });
     }
   });
 
   // 18. PUT /api/clients/:id para o modal Editar Parceiro / Fornecedor
   app.put('/api/clients/:id', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
-      const b = req.body as Record<string, unknown>;
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de cadastro inválido.' });
+      const b = (req.body || {}) as Record<string, unknown>;
       const fullName = String(b.fullName || '').trim();
       if (!fullName) return res.status(400).json({ error: 'Nome / Razão Social é obrigatório.' });
 
       const [existing] = await db.select().from(clients).where(eq(clients.id, id)).limit(1);
       if (!existing) return res.status(404).json({ error: 'Cadastro não encontrado.' });
+      if (!isUnitPermitted(req, existing.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para editar cadastros desta unidade.' });
+      }
 
       const [updated] = await db
         .update(clients)
@@ -1599,17 +1839,18 @@ export function registerFinancialRoutes(
       res.json({ client: updated });
     } catch (error) {
       console.error('PUT /api/clients/:id error:', error);
-      res.status(500).json({ error: 'Erro ao atualizar cadastro.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao atualizar cadastro.') });
     }
   });
 
-  // 19. Auditoria detalhada por ID do título (até 500 eventos, compatível com legacy e CONTA_RECEBER/PAGAR)
+  // 19. Auditoria detalhada por ID do título (até 500 eventos, compatível com legacy, AUTO_UPDATE e CONTA_RECEBER/PAGAR)
   app.get('/api/audit-logs', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const entityId = String(req.query.entityId || '');
-      const entityType = String(req.query.entityType || '');
+      const entityId = String(req.query.entityId || '').trim();
+      const entityType = String(req.query.entityType || '').trim();
       if (!entityId) return res.json({ logs: [] });
 
+      const allowedUnits = getAllowedUnitIds(req);
       const rows = await db
         .select()
         .from(auditLogs)
@@ -1617,33 +1858,44 @@ export function registerFinancialRoutes(
           and(
             eq(auditLogs.entityId, entityId),
             entityType
-              ? or(eq(auditLogs.entityType, entityType), eq(auditLogs.entityType, 'financial_title'))
+              ? or(
+                  eq(auditLogs.entityType, entityType),
+                  eq(auditLogs.entityType, 'financial_title'),
+                  eq(auditLogs.entityType, 'financial_titles')
+                )
               : or(
                   eq(auditLogs.entityType, 'CONTA_RECEBER'),
                   eq(auditLogs.entityType, 'CONTA_PAGAR'),
-                  eq(auditLogs.entityType, 'financial_title')
-                )
+                  eq(auditLogs.entityType, 'financial_title'),
+                  eq(auditLogs.entityType, 'financial_titles')
+                ),
+            allowedUnits !== null ? inArray(auditLogs.unitId, allowedUnits) : undefined
           )
         )
-        .orderBy(desc(auditLogs.createdAt))
+        .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id))
         .limit(500);
 
-      res.json({ logs: rows });
+      res.json({ logs: rows.map((r) => normalizeAuditLogRecord(r)) });
     } catch (error) {
       console.error('GET /api/audit-logs error:', error);
-      res.status(500).json({ error: 'Erro ao consultar auditoria.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao consultar auditoria.') });
     }
   });
 
   // 20. RÉGUA DE COBRANÇA IVI (Tela separada com lotes confirmáveis antes do disparo)
-  app.get('/api/finance/regua/batches', requireAuth, async (_req: AuthRequest, res) => {
+  app.get('/api/finance/regua/batches', requireAuth, requireModule('finance'), async (req: AuthRequest, res) => {
     try {
       await ensureInitialSeed();
+      const allowedUnits = getAllowedUnitIds(req);
       const [allTitles, allClients, settingRows] = await Promise.all([
         db
           .select()
           .from(financialTitles)
-          .where(eq(financialTitles.scope, 'RECEBER'))
+          .where(
+            allowedUnits !== null
+              ? and(eq(financialTitles.scope, 'RECEBER'), inArray(financialTitles.unitId, allowedUnits))
+              : eq(financialTitles.scope, 'RECEBER')
+          )
           .orderBy(asc(financialTitles.dueDate)),
         db.select().from(clients),
         db.select().from(systemSettings).where(eq(systemSettings.key, 'regua_cobranca')),
@@ -1717,23 +1969,32 @@ export function registerFinancialRoutes(
       });
     } catch (error) {
       console.error('GET /api/finance/regua/batches error:', error);
-      res.status(500).json({ error: 'Erro ao montar lotes da régua de cobrança.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao montar lotes da régua de cobrança.') });
     }
   });
 
-  app.post('/api/finance/regua/confirm-batch', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/finance/regua/confirm-batch', requireAuth, requireModule('finance'), async (req: AuthRequest, res) => {
     try {
-      const { stageTag, titleIds, useAiPersonalization, messageOverrides } = req.body as {
+      const { stageTag, titleIds, useAiPersonalization, messageOverrides } = (req.body || {}) as {
         stageTag: '-15d' | '-5d' | '+7d';
         titleIds: number[];
         useAiPersonalization?: boolean;
         messageOverrides?: Record<string, string>;
       };
 
-      const ids = Array.isArray(titleIds) ? titleIds.map(Number).filter((n) => n > 0) : [];
+      if (!['-15d', '-5d', '+7d'].includes(String(stageTag))) {
+        return res.status(400).json({ error: 'Estágio da régua inválido.' });
+      }
+      const ids = parsePositiveIntArray(titleIds);
       if (ids.length === 0) return res.status(400).json({ error: 'Selecione ao menos um título no lote para confirmar o envio pela Ivi.' });
 
-      const titles = await db.select().from(financialTitles).where(inArray(financialTitles.id, ids));
+      const rawTitles = await db.select().from(financialTitles).where(inArray(financialTitles.id, ids));
+      for (const t of rawTitles) {
+        if (!isUnitPermitted(req, t.unitId)) {
+          return res.status(403).json({ error: 'Sem permissão para disparar régua em títulos desta unidade.' });
+        }
+      }
+      const titles = rawTitles;
       const allClients = await db.select().from(clients);
       const clientMap = new Map(allClients.map((c) => [c.id, c]));
 
@@ -1821,7 +2082,7 @@ export function registerFinancialRoutes(
       });
     } catch (error) {
       console.error('POST /api/finance/regua/confirm-batch error:', error);
-      res.status(500).json({ error: 'Erro ao confirmar e disparar lote pela Ivi.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao confirmar e disparar lote pela Ivi.') });
     }
   });
 }

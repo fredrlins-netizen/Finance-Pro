@@ -34,6 +34,7 @@ import {
   Unit,
 } from '../../types.ts';
 import { CollapsibleFilterBar } from '../CollapsibleFilterBar.tsx';
+import { EntityAuditModal } from './cadastros/CadastrosShared.tsx';
 
 interface LegalModuleProps {
   units: Unit[];
@@ -333,6 +334,7 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
   const [busy, setBusy] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [auditProcess, setAuditProcess] = useState<LegalProcess | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -1063,31 +1065,44 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                         </td>
 
                         <td className="py-3 px-4 align-middle text-right">
-                          {isOpened ? (
+                          <div className="inline-flex items-center justify-end gap-1.5">
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleCloseAnalyzedProcess();
+                                setAuditProcess(proc);
                               }}
-                              className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-red-700 hover:bg-red-50 whitespace-nowrap dark:border-red-800/70 dark:bg-slate-900 dark:text-red-300 dark:hover:bg-red-950/60"
+                              title="Auditoria do Processo"
+                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
                             >
-                              <X className="w-3 h-3" />
-                              Fechar Análise
+                              <History className="w-3.5 h-3.5" />
                             </button>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openProcessForAnalysis(proc);
-                              }}
-                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
-                            >
-                              <FolderOpen className="w-3 h-3" />
-                              Abrir Processo
-                            </button>
-                          )}
+                            {isOpened ? (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleCloseAnalyzedProcess();
+                                }}
+                                className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-red-700 hover:bg-red-50 whitespace-nowrap dark:border-red-800/70 dark:bg-slate-900 dark:text-red-300 dark:hover:bg-red-950/60"
+                              >
+                                <X className="w-3 h-3" />
+                                Fechar Análise
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openProcessForAnalysis(proc);
+                                }}
+                                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+                              >
+                                <FolderOpen className="w-3 h-3" />
+                                Abrir Processo
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1270,6 +1285,15 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                     <ArrowUpRight className="w-3.5 h-3.5" />
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => setAuditProcess(analyzedProcess)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap min-h-[36px] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                  title="Auditoria completa das alterações do processo"
+                >
+                  <History className="w-3.5 h-3.5" />
+                  Auditoria
+                </button>
                 <button
                   type="button"
                   onClick={handleCloseAnalyzedProcess}
@@ -1684,6 +1708,13 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
           </form>
         </div>
       )}
+      <EntityAuditModal
+        open={Boolean(auditProcess)}
+        title={auditProcess ? `Processo · ${auditProcess.processNumber}` : 'Processo'}
+        entityType="legal_processes"
+        entityId={auditProcess?.id || 0}
+        onClose={() => setAuditProcess(null)}
+      />
     </div>
   );
 };

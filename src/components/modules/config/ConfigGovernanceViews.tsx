@@ -10,12 +10,15 @@ import {
   Eye,
   History,
   KeyRound,
+  Lock,
   Palette,
   Plus,
+  RefreshCw,
   RotateCcw,
   Search,
   Shield,
   Trash2,
+  Unlock,
   Upload,
   UserPlus,
   X,
@@ -23,6 +26,7 @@ import {
 import { apiFetch, formatDateTimeBR } from '../../../lib/api.ts';
 import {
   AuditChecklistItem,
+  AuditLogEntry,
   AuthUser,
   ConfigUserItem,
   HelpCenterTopic,
@@ -59,6 +63,7 @@ const RBAC_MODULE_LIST: Array<{ key: string; label: string }> = [
   { key: 'audit', label: 'Auditoria & Boletos' },
   { key: 'legal', label: 'Jurídico & Escavador' },
   { key: 'negotiations', label: 'Negociações Bancárias' },
+  { key: 'internal_messaging', label: 'Operação · Mensageria Interna' },
   { key: 'finance', label: 'Financeiro & Régua' },
   { key: 'collection', label: 'Cobrança & Ranking' },
   { key: 'forms', label: 'Formulários & Relatórios · Formulários' },
@@ -121,6 +126,12 @@ export const ConfigGroupsAndUsersView: React.FC<{
   const [usrPassword, setUsrPassword] = useState('');
   const [usrMustChangePwd, setUsrMustChangePwd] = useState(true);
   const [usrActive, setUsrActive] = useState(true);
+  const [usrSuspended, setUsrSuspended] = useState(false);
+  const [usrSuspendedReason, setUsrSuspendedReason] = useState('');
+  const [usrSuspendedAt, setUsrSuspendedAt] = useState<string | null>(null);
+  const [usrSuspendedBy, setUsrSuspendedBy] = useState('');
+  const [usrFailedAttempts, setUsrFailedAttempts] = useState(0);
+  const [usrRehabilitateBusy, setUsrRehabilitateBusy] = useState(false);
   const [usrSaving, setUsrSaving] = useState(false);
   const [usrErr, setUsrErr] = useState('');
 
@@ -210,6 +221,11 @@ export const ConfigGroupsAndUsersView: React.FC<{
     setUsrPassword('');
     setUsrMustChangePwd(true);
     setUsrActive(true);
+    setUsrSuspended(false);
+    setUsrSuspendedReason('');
+    setUsrSuspendedAt(null);
+    setUsrSuspendedBy('');
+    setUsrFailedAttempts(0);
     setUsrErr('');
     setUsrModalOpen(true);
   };
@@ -227,8 +243,39 @@ export const ConfigGroupsAndUsersView: React.FC<{
     setUsrPassword('');
     setUsrMustChangePwd(false);
     setUsrActive(u.active !== false);
+    setUsrSuspended(Boolean(u.suspended));
+    setUsrSuspendedReason(u.suspendedReason || '');
+    setUsrSuspendedAt(u.suspendedAt || null);
+    setUsrSuspendedBy(u.suspendedBy || '');
+    setUsrFailedAttempts(u.failedLoginAttempts || 0);
     setUsrErr('');
     setUsrModalOpen(true);
+  };
+
+  const handleRehabilitateUser = async (userId: number, userNameLabel: string, closeAfter?: boolean) => {
+    if (!isAdmin) return;
+    setUsrRehabilitateBusy(true);
+    setUsrErr('');
+    try {
+      await apiFetch(`/api/config/users/${userId}/rehabilitate`, { method: 'POST' });
+      setUsrSuspended(false);
+      setUsrSuspendedReason('');
+      setUsrSuspendedAt(null);
+      setUsrSuspendedBy('');
+      setUsrFailedAttempts(0);
+      setUsrActive(true);
+      onToast(`Usuário ${userNameLabel} reabilitado por autorização de administrador.`);
+      if (closeAfter) {
+        setUsrModalOpen(false);
+      }
+      await onRefresh();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao reabilitar usuário.';
+      setUsrErr(msg);
+      onToast(msg);
+    } finally {
+      setUsrRehabilitateBusy(false);
+    }
   };
 
   const handleSaveUser = async (e: React.FormEvent) => {
@@ -486,12 +533,48 @@ export const ConfigGroupsAndUsersView: React.FC<{
                           {u.points}
                         </td>
                         <td className="px-4 py-2.5 whitespace-nowrap">
-                          <span className={u.active ? 'font-semibold text-emerald-700 dark:text-emerald-300' : 'text-slate-400 dark:text-slate-400'}>
-                            {u.active ? 'Ativo' : 'Inativo'}
-                          </span>
+                          {u.suspended ? (
+                            <div className="space-y-0.5">
+                              <span className="inline-flex items-center gap-1 rounded bg-red-100 px-2 py-0.5 text-[11px] font-bold text-red-800 dark:bg-red-950/70 dark:text-red-300 border border-red-200 dark:border-red-800">
+                                <Lock className="w-3 h-3" />
+                                Suspenso ({u.failedLoginAttempts || 3} falhas)
+                              </span>
+                              {u.suspendedReason && (
+                                <div className="text-[10px] text-red-700 dark:text-red-300 max-w-[220px] truncate" title={u.suspendedReason}>
+                                  {u.suspendedReason}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className={u.active ? 'font-semibold text-emerald-700 dark:text-emerald-300' : 'text-slate-400 dark:text-slate-400'}>
+                              {u.active ? 'Ativo' : 'Inativo'}
+                            </span>
+                          )}
                         </td>
                         <td className="px-4 py-2.5 text-right whitespace-nowrap">
                           <div className="inline-flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setAuditEntity({ type: 'users', id: u.id, title: `Usuário ${u.name}` })
+                              }
+                              title="Histórico de Auditoria do Usuário"
+                              className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                            >
+                              <History className="w-3.5 h-3.5" />
+                            </button>
+                            {isAdmin && u.suspended && (
+                              <button
+                                type="button"
+                                disabled={usrRehabilitateBusy}
+                                onClick={() => handleRehabilitateUser(u.id, u.name)}
+                                title="Autorizar Reabilitação de Usuário Suspenso (Admin)"
+                                className="inline-flex items-center gap-1 rounded-md border border-emerald-300 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 dark:hover:bg-emerald-900/70"
+                              >
+                                <Unlock className="w-3 h-3" />
+                                Reabilitar
+                              </button>
+                            )}
                             {isAdmin && (
                               <>
                                 <button
@@ -689,6 +772,49 @@ export const ConfigGroupsAndUsersView: React.FC<{
 
             {usrErr && (
               <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">{usrErr}</div>
+            )}
+
+            {editUsrId && usrSuspended && (
+              <div className="rounded-xl border border-red-300 bg-red-50 p-3.5 space-y-2 dark:border-red-800 dark:bg-red-950/60">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-2">
+                    <Lock className="w-4 h-4 text-red-700 dark:text-red-300 shrink-0 mt-0.5" />
+                    <div className="space-y-0.5">
+                      <div className="font-bold text-red-900 dark:text-red-100">
+                        Usuário Suspenso / Bloqueado Automaticamente
+                      </div>
+                      <p className="text-[11px] text-red-800 dark:text-red-200">
+                        {usrSuspendedReason || 'Bloqueado após 3 tentativas inválidas de senha ou reCAPTCHA.'}
+                      </p>
+                      <div className="text-[11px] font-mono text-red-700 dark:text-red-300 flex flex-wrap gap-x-3 gap-y-0.5">
+                        <span>Falhas registradas: {usrFailedAttempts}</span>
+                        {usrSuspendedAt && <span>Bloqueado em: {formatDateTimeBR(usrSuspendedAt)}</span>}
+                        {usrSuspendedBy && <span>Origem: {usrSuspendedBy}</span>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                {isAdmin ? (
+                  <div className="pt-1 flex flex-wrap items-center justify-between gap-2 border-t border-red-200 dark:border-red-800/70">
+                    <span className="text-[11px] text-red-800 dark:text-red-200">
+                      Somente um administrador pode autorizar a reabilitação desta conta.
+                    </span>
+                    <button
+                      type="button"
+                      disabled={usrRehabilitateBusy}
+                      onClick={() => handleRehabilitateUser(editUsrId, usrName)}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+                    >
+                      <Unlock className="w-3.5 h-3.5" />
+                      {usrRehabilitateBusy ? 'Reabilitando...' : 'Autorizar Reabilitação do Usuário'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="text-[11px] font-semibold text-red-800 dark:text-red-200">
+                    Aguardando autorização de um usuário administrador para desbloqueio.
+                  </div>
+                )}
+              </div>
             )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -936,6 +1062,16 @@ export const ConfigAuditAndChecklistView: React.FC<{
   // Audit History
   const [auditTarget, setAuditTarget] = useState<AuditChecklistItem | null>(null);
 
+  // Global Audit Explorer (Rotinas Atuais & Futuras)
+  const [globalLogs, setGlobalLogs] = useState<AuditLogEntry[]>([]);
+  const [globalEntities, setGlobalEntities] = useState<Array<{ entityType: string; label: string }>>([]);
+  const [globalLogsPage, setGlobalLogsPage] = useState(1);
+  const [globalLogsTotal, setGlobalLogsTotal] = useState(0);
+  const [globalLogsPages, setGlobalLogsPages] = useState(1);
+  const [globalLogsSearch, setGlobalLogsSearch] = useState('');
+  const [globalLogsEntity, setGlobalLogsEntity] = useState('all');
+  const [globalLogsLoading, setGlobalLogsLoading] = useState(false);
+
   // Unbound Audit Report (25/page)
   const [unboundReason, setUnboundReason] = useState('all');
   const [unboundPage, setUnboundPage] = useState(1);
@@ -977,11 +1113,39 @@ export const ConfigAuditAndChecklistView: React.FC<{
     }
   }, [isAdmin, unboundPage, unboundReason]);
 
+  const loadGlobalAuditLogs = useCallback(async () => {
+    setGlobalLogsLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: String(globalLogsPage),
+        pageSize: '25',
+      });
+      if (globalLogsSearch.trim()) params.set('search', globalLogsSearch.trim());
+      if (globalLogsEntity !== 'all') params.set('entityType', globalLogsEntity);
+      const res = await apiFetch<{
+        logs: AuditLogEntry[];
+        total: number;
+        totalPages: number;
+        availableEntities: Array<{ entityType: string; label: string }>;
+      }>(`/api/audit-logs/all?${params.toString()}`);
+      setGlobalLogs(res.logs || []);
+      setGlobalLogsTotal(res.total || 0);
+      setGlobalLogsPages(res.totalPages || 1);
+      if (res.availableEntities) setGlobalEntities(res.availableEntities);
+    } catch {
+      // Fallback silencioso para lista recente caso endpoint falhe
+    } finally {
+      setGlobalLogsLoading(false);
+    }
+  }, [globalLogsPage, globalLogsSearch, globalLogsEntity]);
+
   useEffect(() => {
     if (subTab === 'unbound') {
       loadUnbound();
+    } else if (subTab === 'logs') {
+      loadGlobalAuditLogs();
     }
-  }, [subTab, loadUnbound]);
+  }, [subTab, loadUnbound, loadGlobalAuditLogs]);
 
   const openNewItem = () => {
     setEditItem(null);
@@ -1098,7 +1262,7 @@ export const ConfigAuditAndChecklistView: React.FC<{
               subTab === 'logs' ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-slate-100' : 'text-slate-600 dark:text-slate-300'
             }`}
           >
-            Eventos Recentes ({auditLogs.length})
+            Trilha Global de Auditoria ({globalLogsTotal || auditLogs.length})
           </button>
         </div>
 
@@ -1386,32 +1550,176 @@ export const ConfigAuditAndChecklistView: React.FC<{
       )}
 
       {subTab === 'logs' && (
-        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
-                <tr>
-                  <th className="px-4 py-2.5">Evento</th>
-                  <th className="px-4 py-2.5">Operador</th>
-                  <th className="px-4 py-2.5">Entidade</th>
-                  <th className="px-4 py-2.5 text-right">Data / Hora</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {auditLogs.map((log) => (
-                  <tr key={log.id} className="hover:bg-slate-50/80">
-                    <td className="px-4 py-2.5 font-mono font-semibold text-slate-900 dark:text-slate-100">{log.action}</td>
-                    <td className="px-4 py-2.5 text-slate-700 dark:text-slate-200">{log.userName}</td>
-                    <td className="px-4 py-2.5 font-mono text-slate-500 dark:text-slate-400">
-                      {log.entityType} #{log.entityId}
-                    </td>
-                    <td className="px-4 py-2.5 text-right font-mono text-[11px] text-slate-500 tabular-nums dark:text-slate-400">
-                      {formatDateTimeBR(log.createdAt)}
-                    </td>
-                  </tr>
+        <div className="space-y-3">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 dark:border-slate-700 dark:bg-slate-900">
+            <div>
+              <div className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
+                Auditoria Automática Global · Rotinas Atuais e Futuras
+              </div>
+              <p className="text-slate-500 dark:text-slate-400">
+                Rastreamento automático de usuário, data/horário, rótulo (label) do campo alterado, conteúdo anterior e conteúdo atualizado.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative min-w-[200px]">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                <input
+                  type="text"
+                  value={globalLogsSearch}
+                  onChange={(e) => {
+                    setGlobalLogsSearch(e.target.value);
+                    setGlobalLogsPage(1);
+                  }}
+                  placeholder="Filtrar usuário, ação ou campo..."
+                  className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                />
+              </div>
+              <select
+                value={globalLogsEntity}
+                onChange={(e) => {
+                  setGlobalLogsEntity(e.target.value);
+                  setGlobalLogsPage(1);
+                }}
+                className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              >
+                <option value="all">Todas as Rotinas / Tabelas</option>
+                {globalEntities.map((ent) => (
+                  <option key={ent.entityType} value={ent.entityType}>
+                    {ent.label} ({ent.entityType})
+                  </option>
                 ))}
-              </tbody>
-            </table>
+              </select>
+              <button
+                type="button"
+                onClick={loadGlobalAuditLogs}
+                disabled={globalLogsLoading}
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${globalLogsLoading ? 'animate-spin' : ''}`} />
+                Atualizar
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
+                  <tr>
+                    <th className="px-4 py-2.5 whitespace-nowrap">Data / Horário</th>
+                    <th className="px-4 py-2.5 whitespace-nowrap">Usuário</th>
+                    <th className="px-4 py-2.5 whitespace-nowrap">Rotina / Ação</th>
+                    <th className="px-4 py-2.5">Campo (Label)</th>
+                    <th className="px-4 py-2.5">Conteúdo Anterior</th>
+                    <th className="px-4 py-2.5">Conteúdo Atualizado</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {globalLogsLoading && globalLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
+                        Carregando trilha global de auditoria...
+                      </td>
+                    </tr>
+                  ) : globalLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
+                        Nenhum evento de auditoria encontrado para os filtros atuais.
+                      </td>
+                    </tr>
+                  ) : (
+                    globalLogs.map((log) => {
+                      const changes = Array.isArray(log.changes) ? log.changes : [];
+                      if (changes.length === 0) {
+                        return (
+                          <tr key={log.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/60">
+                            <td className="px-4 py-2.5 font-mono text-[11px] text-slate-500 tabular-nums whitespace-nowrap dark:text-slate-400">
+                              {formatDateTimeBR(log.createdAt)}
+                            </td>
+                            <td className="px-4 py-2.5 font-semibold text-slate-800 whitespace-nowrap dark:text-slate-100">
+                              {log.userName}
+                            </td>
+                            <td className="px-4 py-2.5 whitespace-nowrap">
+                              <div className="font-semibold text-slate-900 dark:text-slate-100">
+                                {log.entityLabel || log.entityType} #{log.entityId}
+                              </div>
+                              <div className="font-mono text-[10px] text-slate-500 dark:text-slate-400">
+                                {log.action}
+                              </div>
+                            </td>
+                            <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">Evento operacional</td>
+                            <td className="px-4 py-2.5 text-slate-400 dark:text-slate-500">—</td>
+                            <td className="px-4 py-2.5 text-slate-700 dark:text-slate-200 max-w-md break-words">
+                              {log.summaryText || 'Registro auditado'}
+                            </td>
+                          </tr>
+                        );
+                      }
+                      return changes.map((c, idx) => (
+                        <tr
+                          key={`${log.id}-${c.field}-${idx}`}
+                          className="hover:bg-slate-50/80 dark:hover:bg-slate-800/60"
+                        >
+                          <td className="px-4 py-2 font-mono text-[11px] text-slate-500 tabular-nums whitespace-nowrap dark:text-slate-400">
+                            {idx === 0 ? formatDateTimeBR(log.createdAt) : ''}
+                          </td>
+                          <td className="px-4 py-2 font-semibold text-slate-800 whitespace-nowrap dark:text-slate-100">
+                            {idx === 0 ? log.userName : ''}
+                          </td>
+                          <td className="px-4 py-2 whitespace-nowrap">
+                            {idx === 0 ? (
+                              <>
+                                <div className="font-semibold text-slate-900 dark:text-slate-100">
+                                  {log.entityLabel || log.entityType} #{log.entityId}
+                                </div>
+                                <div className="font-mono text-[10px] text-slate-500 dark:text-slate-400">
+                                  {log.action}
+                                </div>
+                              </>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 dark:text-slate-500">↳ continuação</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2 font-semibold text-slate-900 dark:text-slate-100">
+                            {c.label}
+                          </td>
+                          <td className="px-4 py-2 text-red-700 dark:text-red-300 bg-red-50/40 dark:bg-red-950/20 max-w-[240px] break-words">
+                            {c.previousValue || '—'}
+                          </td>
+                          <td className="px-4 py-2 text-emerald-700 dark:text-emerald-300 bg-emerald-50/40 dark:bg-emerald-950/20 max-w-[240px] break-words font-medium">
+                            {c.newValue || '—'}
+                          </td>
+                        </tr>
+                      ));
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2.5 text-slate-600 dark:border-slate-800 dark:text-slate-300">
+              <span className="font-mono tabular-nums">
+                Total: {globalLogsTotal} · Página {globalLogsPage} de {globalLogsPages} (25/pág)
+              </span>
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  disabled={globalLogsPage <= 1}
+                  onClick={() => setGlobalLogsPage((p) => Math.max(1, p - 1))}
+                  className="rounded border border-slate-200 px-2.5 py-1 font-semibold disabled:opacity-40 dark:border-slate-700"
+                >
+                  Anterior
+                </button>
+                <button
+                  type="button"
+                  disabled={globalLogsPage >= globalLogsPages}
+                  onClick={() => setGlobalLogsPage((p) => Math.min(globalLogsPages, p + 1))}
+                  className="rounded border border-slate-200 px-2.5 py-1 font-semibold disabled:opacity-40 dark:border-slate-700"
+                >
+                  Próxima
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

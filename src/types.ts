@@ -14,6 +14,7 @@ export type ModuleId =
   | 'audit'
   | 'legal'
   | 'negotiations'
+  | 'internal_messaging'
   | 'finance'
   | 'finance_cadastros'
   | 'finance_cad_fornecedores'
@@ -37,6 +38,7 @@ export type ModuleId =
   | 'jur_dashboard'
   | 'jur_processos'
   | 'jur_prazos'
+  | 'backup_restore'
   | 'config';
 
 export interface NavigationIntent {

@@ -13,6 +13,7 @@ import {
   Folder,
   FolderOpen,
   GraduationCap,
+  History,
   Layers,
   Layout,
   Lock,
@@ -49,6 +50,7 @@ import {
   REPORT_CATEGORIES,
 } from '../../lib/reportCatalogs.ts';
 import { ConfirmDeleteModal } from './CollectionCoordinatorModalViews.tsx';
+import { EntityAuditModal } from './cadastros/CadastrosShared.tsx';
 import { ReportDataSourceTab } from './reports/ReportDataSourceTab.tsx';
 import { ReportLayoutTab } from './reports/ReportLayoutTab.tsx';
 import { ReportChartsTab } from './reports/ReportChartsTab.tsx';
@@ -130,6 +132,7 @@ export const ReportsModule: React.FC<{
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<ReportTemplateItem | null>(null);
+  const [auditTarget, setAuditTarget] = useState<ReportTemplateItem | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [pendingAction, setPendingAction] = useState<null | (() => void)>(null);
   const [trainingModalOpen, setTrainingModalOpen] = useState(false);
@@ -588,6 +591,15 @@ export const ReportsModule: React.FC<{
 
               {draft.id && (
                 <>
+                  <button
+                    type="button"
+                    onClick={() => setAuditTarget(draft)}
+                    title="Auditoria de alterações do modelo de relatório"
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                  >
+                    <History className="w-3.5 h-3.5" />
+                    Auditoria
+                  </button>
                   <button
                     type="button"
                     onClick={() => openSaveDialog(true)}
@@ -1110,6 +1122,13 @@ export const ReportsModule: React.FC<{
           {toastMsg}
         </div>
       )}
+      <EntityAuditModal
+        open={Boolean(auditTarget)}
+        title={auditTarget ? `Relatório · ${auditTarget.name}` : 'Relatório'}
+        entityType="report_templates"
+        entityId={auditTarget?.id || ''}
+        onClose={() => setAuditTarget(null)}
+      />
     </div>
   );
 };

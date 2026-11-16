@@ -31,7 +31,10 @@ import {
   workSchedules,
 } from '../db/schema.ts';
 import { ensureCommonCadastrosSeed, ensureInitialSeed } from '../db/seed.ts';
-import { AuthRequest, hashPassword, requireAdmin, requireAuth } from '../middleware/auth.ts';
+import { AuthRequest, getAllowedUnitIds, hashPassword, isUnitPermitted, requireAdmin, requireAuth } from '../middleware/auth.ts';
+import { markManualAuditLogged } from '../utils/auditContext.ts';
+import { computeRecordDiff } from '../utils/auditDiff.ts';
+import { parsePositiveIntArray, parsePositiveIntId, sanitizeErrorMessage } from '../utils/validation.ts';
 import {
   fetchGotalkAllChannels,
   normalizePhone,
@@ -255,7 +258,7 @@ export function registerConfigRoutes(app: Express) {
 
       res.json({ ok: true, branding: nextBranding });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao salvar identidade visual.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao salvar identidade visual.') });
     }
   });
 
@@ -296,7 +299,7 @@ export function registerConfigRoutes(app: Express) {
         uazapiImportState,
       });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao carregar governança.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao carregar governança.') });
     }
   });
 
@@ -365,12 +368,15 @@ export function registerConfigRoutes(app: Express) {
         active: body.active !== false,
       };
 
-      if (body.id) {
+      if (body.id !== undefined && body.id !== null) {
+        const unitId = parsePositiveIntId(body.id);
+        if (!unitId) return res.status(400).json({ error: 'ID de unidade inválido.' });
         const [updated] = await db
           .update(units)
           .set(payload)
-          .where(eq(units.id, Number(body.id)))
+          .where(eq(units.id, unitId))
           .returning();
+        if (!updated) return res.status(404).json({ error: 'Unidade não encontrada.' });
         await logConfigAudit(req, 'UNIT_UPDATED', 'unit', updated.id, {
           code: updated.code,
           name: updated.name,
@@ -390,13 +396,14 @@ export function registerConfigRoutes(app: Express) {
         return res.json({ ok: true, unit: created });
       }
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao salvar unidade.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao salvar unidade.') });
     }
   });
 
   app.delete('/api/config/units/:id', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
     try {
-      const unitId = Number(req.params.id);
+      const unitId = parsePositiveIntId(req.params.id);
+      if (!unitId) return res.status(400).json({ error: 'ID de unidade inválido.' });
       const target = await db.select().from(units).where(eq(units.id, unitId)).limit(1);
       if (!target[0]) {
         return res.status(404).json({ error: 'Unidade não localizada.' });
@@ -426,9 +433,11 @@ export function registerConfigRoutes(app: Express) {
         });
       }
 
-      await db.delete(unitWhatsappCredentials).where(eq(unitWhatsappCredentials.unitId, unitId));
-      await db.delete(seriesUnitNumbering).where(eq(seriesUnitNumbering.unitId, unitId));
-      await db.delete(units).where(eq(units.id, unitId));
+      await db.transaction(async (tx) => {
+        await tx.delete(unitWhatsappCredentials).where(eq(unitWhatsappCredentials.unitId, unitId));
+        await tx.delete(seriesUnitNumbering).where(eq(seriesUnitNumbering.unitId, unitId));
+        await tx.delete(units).where(eq(units.id, unitId));
+      });
 
       await logConfigAudit(req, 'UNIT_DELETED', 'unit', unitId, {
         code: target[0].code,
@@ -437,7 +446,7 @@ export function registerConfigRoutes(app: Express) {
 
       res.json({ ok: true });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao excluir unidade.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao excluir unidade.') });
     }
   });
 
@@ -489,11 +498,13 @@ export function registerConfigRoutes(app: Express) {
           .where(eq(unitWhatsappCredentials.unitId, unitId));
       }
 
-      if (body.id) {
+      if (body.id !== undefined && body.id !== null) {
+        const instDbId = parsePositiveIntId(body.id);
+        if (!instDbId) return res.status(400).json({ error: 'ID de instância inválido.' });
         const existingRows = await db
           .select()
           .from(unitWhatsappCredentials)
-          .where(eq(unitWhatsappCredentials.id, Number(body.id)))
+          .where(eq(unitWhatsappCredentials.id, instDbId))
           .limit(1);
         const existing = existingRows[0];
         if (!existing) {
@@ -665,13 +676,14 @@ export function registerConfigRoutes(app: Express) {
         });
       }
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao salvar instância UaZapi.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao salvar instância UaZapi.') });
     }
   });
 
   app.delete('/api/config/uazapi/instances/:id', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de instância inválido.' });
       const force = req.query.force === 'true';
       const rows = await db
         .select()
@@ -712,7 +724,7 @@ export function registerConfigRoutes(app: Express) {
 
       res.json({ ok: true });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao remover instância UaZapi.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao remover instância UaZapi.') });
     }
   });
 
@@ -726,6 +738,7 @@ export function registerConfigRoutes(app: Express) {
       const instanceQ = String(req.query.instanceId || '').trim();
       const fromQ = String(req.query.from || '').trim();
       const toQ = String(req.query.to || '').trim();
+      const allowedUnits = getAllowedUnitIds(req);
 
       const [allThreads, allMsgs, allUnits] = await Promise.all([
         db.select().from(whatsappThreads).where(eq(whatsappThreads.provider, 'uazapi')),
@@ -733,7 +746,8 @@ export function registerConfigRoutes(app: Express) {
         db.select().from(units),
       ]);
 
-      const threadMap = new Map(allThreads.map((t) => [t.id, t]));
+      const scopedThreads = allowedUnits === null ? allThreads : allThreads.filter((t) => allowedUnits.includes(t.unitId));
+      const threadMap = new Map(scopedThreads.map((t) => [t.id, t]));
       const unitMap = new Map(allUnits.map((u) => [u.id, u]));
 
       const fromTs = fromQ ? new Date(`${fromQ}T00:00:00`).getTime() : null;
@@ -747,8 +761,8 @@ export function registerConfigRoutes(app: Express) {
           if (directionQ !== 'all' && m.direction !== directionQ) return false;
           if (instanceQ && (th.uazapiInstanceId || '') !== instanceQ) return false;
           const ts = new Date(m.createdAt).getTime();
-          if (fromTs && ts < fromTs) return false;
-          if (toTs && ts > toTs) return false;
+          if (fromTs && !Number.isNaN(fromTs) && ts < fromTs) return false;
+          if (toTs && !Number.isNaN(toTs) && ts > toTs) return false;
           return true;
         })
         .map((m) => {
@@ -783,7 +797,7 @@ export function registerConfigRoutes(app: Express) {
         importState: uazapiImportState,
       });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao consultar histórico UaZapi.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao consultar histórico UaZapi.') });
     }
   });
 
@@ -940,6 +954,7 @@ export function registerConfigRoutes(app: Express) {
       const sortBy = String(req.query.sortBy || 'createdAt');
       const sortDir = String(req.query.sortDir || 'desc') === 'asc' ? 1 : -1;
 
+      const allowedUnits = getAllowedUnitIds(req);
       const [threads, msgs, allClients, channels] = await Promise.all([
         db.select().from(whatsappThreads).where(eq(whatsappThreads.provider, 'gotalk')),
         db.select().from(whatsappMessages).orderBy(desc(whatsappMessages.createdAt)),
@@ -947,7 +962,8 @@ export function registerConfigRoutes(app: Express) {
         db.select().from(gotalkChannels),
       ]);
 
-      const threadMap = new Map(threads.map((t) => [t.id, t]));
+      const scopedThreads = allowedUnits === null ? threads : threads.filter((t) => allowedUnits.includes(t.unitId));
+      const threadMap = new Map(scopedThreads.map((t) => [t.id, t]));
       const clientMap = new Map(allClients.map((c) => [c.id, c.fullName]));
       const channelMap = new Map(channels.map((c) => [c.id, c.name]));
 
@@ -1006,7 +1022,7 @@ export function registerConfigRoutes(app: Express) {
 
       res.json({ total, page, pageSize, totalPages, rows });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao listar mensagens GoTalk.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao listar mensagens GoTalk.') });
     }
   });
 
@@ -1015,13 +1031,16 @@ export function registerConfigRoutes(app: Express) {
       const rawPhone = String(req.params.phone || '');
       const page = Math.max(1, Number(req.query.page || 1));
       const pageSize = 50;
+      const allowedUnits = getAllowedUnitIds(req);
 
       const [threads, msgs] = await Promise.all([
         db.select().from(whatsappThreads),
         db.select().from(whatsappMessages).orderBy(asc(whatsappMessages.createdAt)),
       ]);
 
-      const matchingThreads = threads.filter((t) => phonesMatchBR(t.contactPhone, rawPhone));
+      const matchingThreads = threads.filter(
+        (t) => phonesMatchBR(t.contactPhone, rawPhone) && (allowedUnits === null || allowedUnits.includes(t.unitId))
+      );
       const threadIds = new Set(matchingThreads.map((t) => t.id));
       const threadMap = new Map(matchingThreads.map((t) => [t.id, t]));
 
@@ -1062,7 +1081,7 @@ export function registerConfigRoutes(app: Express) {
         rows,
       });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao consultar histórico do telefone.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao consultar histórico do telefone.') });
     }
   });
 
@@ -1080,20 +1099,25 @@ export function registerConfigRoutes(app: Express) {
       if (!name?.trim()) {
         return res.status(400).json({ error: 'Nome do canal GoTalk é obrigatório.' });
       }
-      if (isPrimary) {
-        await db.update(gotalkChannels).set({ isPrimary: false });
-      }
-      const [created] = await db
-        .insert(gotalkChannels)
-        .values({
-          name: name.trim(),
-          phoneNumber: phoneNumber?.trim() || null,
-          unitId: unitId ? Number(unitId) : null,
-          notes: String(notes || '').trim(),
-          isPrimary: Boolean(isPrimary),
-          isActive: isActive !== false,
-        })
-        .returning();
+      const parsedUnitId = unitId ? parsePositiveIntId(unitId) : null;
+      if (unitId && !parsedUnitId) return res.status(400).json({ error: 'ID de unidade inválido.' });
+      const created = await db.transaction(async (tx) => {
+        if (isPrimary) {
+          await tx.update(gotalkChannels).set({ isPrimary: false });
+        }
+        const [row] = await tx
+          .insert(gotalkChannels)
+          .values({
+            name: name.trim(),
+            phoneNumber: phoneNumber?.trim() || null,
+            unitId: parsedUnitId,
+            notes: String(notes || '').trim(),
+            isPrimary: Boolean(isPrimary),
+            isActive: isActive !== false,
+          })
+          .returning();
+        return row;
+      });
 
       await logConfigAudit(req, 'GOTALK_CHANNEL_CREATED', 'gotalk_channel', created.id, {
         name: created.name,
@@ -1112,13 +1136,14 @@ export function registerConfigRoutes(app: Express) {
         },
       });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao criar canal GoTalk.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao criar canal GoTalk.') });
     }
   });
 
   app.put('/api/config/gotalk/channels/:id', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de canal inválido.' });
       const { name, phoneNumber, unitId, notes, isPrimary, isActive } = (req.body || {}) as {
         name?: string;
         phoneNumber?: string;
@@ -1130,24 +1155,33 @@ export function registerConfigRoutes(app: Express) {
       if (!name?.trim()) {
         return res.status(400).json({ error: 'Nome do canal GoTalk é obrigatório.' });
       }
-      if (isPrimary) {
-        await db.update(gotalkChannels).set({ isPrimary: false });
-      }
-      const [updated] = await db
-        .update(gotalkChannels)
-        .set({
-          name: name.trim(),
-          phoneNumber: phoneNumber?.trim() || null,
-          unitId: unitId ? Number(unitId) : null,
-          notes: String(notes || '').trim(),
-          isPrimary: Boolean(isPrimary),
-          isActive: isActive !== false,
-          updatedAt: new Date(),
-        })
-        .where(eq(gotalkChannels.id, id))
-        .returning();
+      const parsedUnitId = unitId ? parsePositiveIntId(unitId) : null;
+      if (unitId && !parsedUnitId) return res.status(400).json({ error: 'ID de unidade inválido.' });
 
-      await logConfigAudit(req, 'GOTALK_CHANNEL_UPDATED', 'gotalk_channel', id, { name: updated?.name });
+      const updated = await db.transaction(async (tx) => {
+        const [exists] = await tx.select({ id: gotalkChannels.id }).from(gotalkChannels).where(eq(gotalkChannels.id, id)).limit(1);
+        if (!exists) return null;
+        if (isPrimary) {
+          await tx.update(gotalkChannels).set({ isPrimary: false });
+        }
+        const [row] = await tx
+          .update(gotalkChannels)
+          .set({
+            name: name.trim(),
+            phoneNumber: phoneNumber?.trim() || null,
+            unitId: parsedUnitId,
+            notes: String(notes || '').trim(),
+            isPrimary: Boolean(isPrimary),
+            isActive: isActive !== false,
+            updatedAt: new Date(),
+          })
+          .where(eq(gotalkChannels.id, id))
+          .returning();
+        return row || null;
+      });
+      if (!updated) return res.status(404).json({ error: 'Canal GoTalk não encontrado.' });
+
+      await logConfigAudit(req, 'GOTALK_CHANNEL_UPDATED', 'gotalk_channel', id, { name: updated.name });
       res.json({
         channel: {
           id: updated.id,
@@ -1160,13 +1194,14 @@ export function registerConfigRoutes(app: Express) {
         },
       });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao atualizar canal GoTalk.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao atualizar canal GoTalk.') });
     }
   });
 
   app.patch('/api/config/gotalk/channels/:id/toggle', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de canal inválido.' });
       const rows = await db.select().from(gotalkChannels).where(eq(gotalkChannels.id, id)).limit(1);
       if (!rows[0]) return res.status(404).json({ error: 'Canal não localizado.' });
       const [updated] = await db
@@ -1176,20 +1211,27 @@ export function registerConfigRoutes(app: Express) {
         .returning();
       res.json({ ok: true, isActive: updated.isActive });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao alternar canal.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao alternar canal.') });
     }
   });
 
   app.delete('/api/config/gotalk/channels/:id', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
-      await db.update(whatsappThreads).set({ channelDbId: null }).where(eq(whatsappThreads.channelDbId, id));
-      await db.update(gotalkHsmTemplates).set({ channelDbId: null }).where(eq(gotalkHsmTemplates.channelDbId, id));
-      await db.delete(gotalkChannels).where(eq(gotalkChannels.id, id));
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de canal inválido.' });
+      const deleted = await db.transaction(async (tx) => {
+        const [exists] = await tx.select({ id: gotalkChannels.id }).from(gotalkChannels).where(eq(gotalkChannels.id, id)).limit(1);
+        if (!exists) return null;
+        await tx.update(whatsappThreads).set({ channelDbId: null }).where(eq(whatsappThreads.channelDbId, id));
+        await tx.update(gotalkHsmTemplates).set({ channelDbId: null }).where(eq(gotalkHsmTemplates.channelDbId, id));
+        const [row] = await tx.delete(gotalkChannels).where(eq(gotalkChannels.id, id)).returning();
+        return row || null;
+      });
+      if (!deleted) return res.status(404).json({ error: 'Canal GoTalk não encontrado.' });
       await logConfigAudit(req, 'GOTALK_CHANNEL_DELETED', 'gotalk_channel', id, {});
       res.json({ ok: true });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao remover canal GoTalk.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao remover canal GoTalk.') });
     }
   });
 
@@ -1306,6 +1348,11 @@ export function registerConfigRoutes(app: Express) {
       const typeFilter = String(req.query.type || 'all'); // 'all' | 'client' | 'bank'
       const unitFilter = req.query.unitId ? Number(req.query.unitId) : null;
 
+      const allowedUnits = getAllowedUnitIds(req);
+      if (unitFilter && allowedUnits !== null && !allowedUnits.includes(unitFilter)) {
+        return res.status(403).json({ error: 'Sem permissão para consultar atendimentos desta unidade.' });
+      }
+
       const [threads, msgs, allClients, allBankContacts, allBanks, allOps] = await Promise.all([
         db.select().from(whatsappThreads).where(eq(whatsappThreads.provider, 'gotalk')).orderBy(desc(whatsappThreads.updatedAt)),
         db.select().from(whatsappMessages).orderBy(asc(whatsappMessages.createdAt)),
@@ -1319,7 +1366,7 @@ export function registerConfigRoutes(app: Express) {
       const bankMap = new Map(allBanks.map((b) => [b.id, b.name]));
 
       const items = threads
-        .filter((t) => !unitFilter || t.unitId === unitFilter)
+        .filter((t) => (allowedUnits === null || allowedUnits.includes(t.unitId)) && (!unitFilter || t.unitId === unitFilter))
         .map((t) => {
           const threadMsgs = msgs.filter((m) => m.threadId === t.id);
           const matchedBankContact = allBankContacts.find(
@@ -1362,13 +1409,19 @@ export function registerConfigRoutes(app: Express) {
 
       res.json({ total, page, pageSize, totalPages, rows });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao carregar atendimentos GoTalk.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao carregar atendimentos GoTalk.') });
     }
   });
 
   app.get('/api/config/gotalk/attendances/:threadId/messages', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const threadId = Number(req.params.threadId);
+      const threadId = parsePositiveIntId(req.params.threadId);
+      if (!threadId) return res.status(400).json({ error: 'ID da conversa inválido.' });
+      const [thread] = await db.select().from(whatsappThreads).where(eq(whatsappThreads.id, threadId)).limit(1);
+      if (!thread) return res.status(404).json({ error: 'Atendimento não encontrado.' });
+      if (!isUnitPermitted(req, thread.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para ler mensagens desta unidade.' });
+      }
       const offset = Math.max(0, Number(req.query.offset || 0));
       const limit = Math.min(100, Math.max(10, Number(req.query.limit || 100)));
       const allMsgs = await db
@@ -1384,7 +1437,7 @@ export function registerConfigRoutes(app: Express) {
         messages: allMsgs.slice(offset, offset + limit),
       });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao carregar conversa do atendimento.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao carregar conversa do atendimento.') });
     }
   });
 
@@ -1406,7 +1459,9 @@ export function registerConfigRoutes(app: Express) {
       if (!name) return res.status(400).json({ error: 'Nome do grupo é obrigatório.' });
 
       let savedGroup;
-      if (body.id) {
+      if (body.id !== undefined && body.id !== null) {
+        const groupId = parsePositiveIntId(body.id);
+        if (!groupId) return res.status(400).json({ error: 'ID do grupo inválido.' });
         const [updated] = await db
           .update(userGroups)
           .set({
@@ -1415,8 +1470,9 @@ export function registerConfigRoutes(app: Express) {
             ...(body.modulePermissions ? { modulePermissions: body.modulePermissions } : {}),
             ...(body.fieldPermissions ? { fieldPermissions: body.fieldPermissions } : {}),
           })
-          .where(eq(userGroups.id, Number(body.id)))
+          .where(eq(userGroups.id, groupId))
           .returning();
+        if (!updated) return res.status(404).json({ error: 'Grupo de acesso não encontrado.' });
         savedGroup = updated;
       } else {
         const [created] = await db
@@ -1445,7 +1501,7 @@ export function registerConfigRoutes(app: Express) {
 
       // Sincroniza associação bidirecional de números/instâncias UaZapi para este grupo
       if (Array.isArray(body.uazapiInstanceIds) && savedGroup) {
-        const selectedSet = new Set(body.uazapiInstanceIds.map((x) => Number(x)));
+        const selectedSet = new Set(parsePositiveIntArray(body.uazapiInstanceIds));
         const allInstances = await db.select().from(unitWhatsappCredentials);
         for (const inst of allInstances) {
           const cur = new Set(inst.allowedGroupIds || []);
@@ -1465,24 +1521,26 @@ export function registerConfigRoutes(app: Express) {
 
       res.json({ ok: true, group: savedGroup });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao salvar grupo de acesso.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao salvar grupo de acesso.') });
     }
   });
 
   app.delete('/api/config/groups/:id', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de grupo inválido.' });
       const linkedUsers = await db.select({ v: count() }).from(users).where(eq(users.groupId, id));
       if (Number(linkedUsers[0]?.v || 0) > 0) {
         return res.status(409).json({
           error: `Não é possível excluir: existem ${linkedUsers[0].v} usuário(s) vinculados a este grupo.`,
         });
       }
-      await db.delete(userGroups).where(eq(userGroups.id, id));
+      const [deleted] = await db.delete(userGroups).where(eq(userGroups.id, id)).returning();
+      if (!deleted) return res.status(404).json({ error: 'Grupo não encontrado.' });
       await logConfigAudit(req, 'USER_GROUP_DELETED', 'user_group', id, {});
       res.json({ ok: true });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao excluir grupo.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao excluir grupo.') });
     }
   });
 
@@ -1500,6 +1558,7 @@ export function registerConfigRoutes(app: Express) {
         password?: string;
         mustChangePassword?: boolean;
         active?: boolean;
+        rehabilitate?: boolean;
       };
 
       const name = String(body.name || '').trim();
@@ -1509,15 +1568,25 @@ export function registerConfigRoutes(app: Express) {
       }
 
       const role = String(body.role || 'consultant');
-      const groupId = body.groupId ? Number(body.groupId) : null;
-      const defaultUnitId = body.defaultUnitId ? Number(body.defaultUnitId) : 1;
-      const allowedUnitIds = Array.isArray(body.allowedUnitIds) && body.allowedUnitIds.length > 0
-        ? body.allowedUnitIds.map((u) => Number(u))
-        : [defaultUnitId];
+      const groupId = body.groupId ? parsePositiveIntId(body.groupId) : null;
+      if (body.groupId && !groupId) return res.status(400).json({ error: 'ID de grupo inválido.' });
+      const defaultUnitId = body.defaultUnitId ? parsePositiveIntId(body.defaultUnitId) : 1;
+      if (!defaultUnitId) return res.status(400).json({ error: 'ID da unidade padrão inválido.' });
+      const parsedUnits = parsePositiveIntArray(body.allowedUnitIds);
+      const allowedUnitIds = parsedUnits.length > 0 ? parsedUnits : [defaultUnitId];
       const whatsappPhone = String(body.whatsappPhone || '').trim();
       const active = body.active !== false;
 
-      if (body.id) {
+      if (body.id !== undefined && body.id !== null) {
+        const userId = parsePositiveIntId(body.id);
+        if (!userId) return res.status(400).json({ error: 'ID de usuário inválido.' });
+        const [existingUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+        if (!existingUser) return res.status(404).json({ error: 'Usuário não encontrado.' });
+
+        const dup = await db.select().from(users).where(eq(users.email, email)).limit(1);
+        if (dup[0] && dup[0].id !== userId) {
+          return res.status(409).json({ error: `Já existe outro usuário cadastrado com o e-mail "${email}".` });
+        }
         const updateSet: Record<string, unknown> = {
           name,
           email,
@@ -1532,14 +1601,61 @@ export function registerConfigRoutes(app: Express) {
           updateSet.passwordHash = hashPassword(body.password.trim());
           updateSet.mustChangePassword = Boolean(body.mustChangePassword);
         }
+        if (body.rehabilitate === true && existingUser.suspended) {
+          updateSet.suspended = false;
+          updateSet.suspendedReason = '';
+          updateSet.suspendedAt = null;
+          updateSet.suspendedBy = `Reabilitado por ${req.authUser!.name}`;
+          updateSet.failedLoginAttempts = 0;
+          updateSet.lockedUntil = null;
+          updateSet.active = true;
+          updateSet.sessionVersion = (existingUser.sessionVersion || 1) + 1;
+        }
         const [updated] = await db
           .update(users)
           .set(updateSet)
-          .where(eq(users.id, Number(body.id)))
+          .where(eq(users.id, userId))
           .returning();
+        if (!updated) return res.status(404).json({ error: 'Usuário não encontrado.' });
 
-        await logConfigAudit(req, 'USER_UPDATED', 'user', updated.id, { email: updated.email, role: updated.role, groupId });
-        return res.json({ ok: true, userId: updated.id });
+        const changes = computeRecordDiff(
+          {
+            name: existingUser.name,
+            email: existingUser.email,
+            role: existingUser.role,
+            groupId: existingUser.groupId,
+            defaultUnitId: existingUser.defaultUnitId,
+            allowedUnitIds: existingUser.allowedUnitIds,
+            whatsappPhone: existingUser.whatsappPhone,
+            active: existingUser.active,
+            suspended: existingUser.suspended,
+            suspendedReason: existingUser.suspendedReason,
+            failedLoginAttempts: existingUser.failedLoginAttempts,
+          },
+          {
+            name: updated.name,
+            email: updated.email,
+            role: updated.role,
+            groupId: updated.groupId,
+            defaultUnitId: updated.defaultUnitId,
+            allowedUnitIds: updated.allowedUnitIds,
+            whatsappPhone: updated.whatsappPhone,
+            active: updated.active,
+            suspended: updated.suspended,
+            suspendedReason: updated.suspendedReason,
+            failedLoginAttempts: updated.failedLoginAttempts,
+          }
+        );
+
+        await logConfigAudit(
+          req,
+          body.rehabilitate === true && existingUser.suspended ? 'USER_REHABILITATED' : 'USER_UPDATED',
+          'users',
+          updated.id,
+          { changes }
+        );
+        markManualAuditLogged();
+        return res.json({ ok: true, userId: updated.id, user: updated });
       } else {
         const dup = await db.select().from(users).where(eq(users.email, email)).limit(1);
         if (dup[0]) {
@@ -1563,11 +1679,69 @@ export function registerConfigRoutes(app: Express) {
           })
           .returning();
 
-        await logConfigAudit(req, 'USER_CREATED', 'user', created.id, { email: created.email, role: created.role, groupId });
+        const changes = computeRecordDiff(null, {
+          name: created.name,
+          email: created.email,
+          role: created.role,
+          groupId: created.groupId,
+          defaultUnitId: created.defaultUnitId,
+          active: created.active,
+        });
+        await logConfigAudit(req, 'USER_CREATED', 'users', created.id, { changes });
+        markManualAuditLogged();
         return res.json({ ok: true, userId: created.id });
       }
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao salvar usuário.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao salvar usuário.') });
+    }
+  });
+
+  app.post('/api/config/users/:id/rehabilitate', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      const userId = parsePositiveIntId(req.params.id);
+      if (!userId) return res.status(400).json({ error: 'ID de usuário inválido.' });
+      const [existing] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      if (!existing) return res.status(404).json({ error: 'Usuário não encontrado.' });
+
+      const [updated] = await db
+        .update(users)
+        .set({
+          suspended: false,
+          suspendedReason: '',
+          suspendedAt: null,
+          suspendedBy: `Autorizado por Admin: ${req.authUser!.name}`,
+          failedLoginAttempts: 0,
+          lockedUntil: null,
+          active: true,
+          sessionVersion: sql`${users.sessionVersion} + 1`,
+        })
+        .where(eq(users.id, userId))
+        .returning();
+
+      const changes = computeRecordDiff(
+        {
+          suspended: existing.suspended,
+          suspendedReason: existing.suspendedReason,
+          failedLoginAttempts: existing.failedLoginAttempts,
+          active: existing.active,
+        },
+        {
+          suspended: updated.suspended,
+          suspendedReason: updated.suspendedReason,
+          failedLoginAttempts: updated.failedLoginAttempts,
+          active: updated.active,
+        }
+      );
+
+      await logConfigAudit(req, 'USER_REHABILITATED', 'users', updated.id, {
+        changes,
+        authorizedByAdmin: req.authUser!.name,
+      });
+      markManualAuditLogged();
+
+      res.json({ ok: true, user: updated });
+    } catch (error) {
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao reabilitar usuário.') });
     }
   });
 
@@ -1583,7 +1757,7 @@ export function registerConfigRoutes(app: Express) {
         .orderBy(asc(auditChecklistItems.sortOrder), asc(auditChecklistItems.id));
       res.json({ items });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao carregar checklist de auditoria.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao carregar checklist de auditoria.') });
     }
   });
 
@@ -1621,13 +1795,14 @@ export function registerConfigRoutes(app: Express) {
 
       res.json({ ok: true, item: created });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao criar item de checklist.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao criar item de checklist.') });
     }
   });
 
   app.put('/api/config/audit-checklist/:id', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de item inválido.' });
       const { sortOrder, title, description, modalityCondition, active } = (req.body || {}) as {
         sortOrder?: number;
         title?: string;
@@ -1650,6 +1825,7 @@ export function registerConfigRoutes(app: Express) {
         })
         .where(eq(auditChecklistItems.id, id))
         .returning();
+      if (!updated) return res.status(404).json({ error: 'Item de checklist não encontrado.' });
 
       await logConfigAudit(req, 'AUDIT_CHECKLIST_UPDATED', 'audit_checklist', id, {
         title: updated.title,
@@ -1658,13 +1834,14 @@ export function registerConfigRoutes(app: Express) {
 
       res.json({ ok: true, item: updated });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao atualizar item de checklist.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao atualizar item de checklist.') });
     }
   });
 
   app.patch('/api/config/audit-checklist/:id/reorder', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de item inválido.' });
       const { direction } = (req.body || {}) as { direction: 'up' | 'down' };
       const all = await db
         .select()
@@ -1683,12 +1860,14 @@ export function registerConfigRoutes(app: Express) {
       const orderA = a.sortOrder === b.sortOrder ? idx + 1 : a.sortOrder;
       const orderB = a.sortOrder === b.sortOrder ? swapIdx + 1 : b.sortOrder;
 
-      await db.update(auditChecklistItems).set({ sortOrder: orderB, updatedAt: new Date() }).where(eq(auditChecklistItems.id, a.id));
-      await db.update(auditChecklistItems).set({ sortOrder: orderA, updatedAt: new Date() }).where(eq(auditChecklistItems.id, b.id));
+      await db.transaction(async (tx) => {
+        await tx.update(auditChecklistItems).set({ sortOrder: orderB, updatedAt: new Date() }).where(eq(auditChecklistItems.id, a.id));
+        await tx.update(auditChecklistItems).set({ sortOrder: orderA, updatedAt: new Date() }).where(eq(auditChecklistItems.id, b.id));
+      });
 
       res.json({ ok: true });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao reordenar checklist.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao reordenar checklist.') });
     }
   });
 
@@ -1699,11 +1878,13 @@ export function registerConfigRoutes(app: Express) {
         sourceId: number;
         targetId?: number;
       };
+      const cleanSourceId = parsePositiveIntId(sourceId);
+      if (!cleanSourceId) return res.status(400).json({ error: 'ID de origem inválido.' });
       const all = await db
         .select()
         .from(auditChecklistItems)
         .orderBy(asc(auditChecklistItems.sortOrder), asc(auditChecklistItems.id));
-      const source = all.find((x) => x.id === Number(sourceId));
+      const source = all.find((x) => x.id === cleanSourceId);
       if (!source) return res.status(404).json({ error: 'Item de origem não localizado.' });
 
       if (operation === 'duplicate') {
@@ -1722,18 +1903,21 @@ export function registerConfigRoutes(app: Express) {
         return res.json({ ok: true, item: dup });
       }
 
-      const target = all.find((x) => x.id === Number(targetId));
+      const cleanTargetId = parsePositiveIntId(targetId);
+      const target = cleanTargetId ? all.find((x) => x.id === cleanTargetId) : undefined;
       if (!target) return res.status(400).json({ error: 'Selecione um item de destino válido.' });
 
       if (operation === 'swap') {
-        await db
-          .update(auditChecklistItems)
-          .set({ sortOrder: target.sortOrder, updatedAt: new Date() })
-          .where(eq(auditChecklistItems.id, source.id));
-        await db
-          .update(auditChecklistItems)
-          .set({ sortOrder: source.sortOrder, updatedAt: new Date() })
-          .where(eq(auditChecklistItems.id, target.id));
+        await db.transaction(async (tx) => {
+          await tx
+            .update(auditChecklistItems)
+            .set({ sortOrder: target.sortOrder, updatedAt: new Date() })
+            .where(eq(auditChecklistItems.id, source.id));
+          await tx
+            .update(auditChecklistItems)
+            .set({ sortOrder: source.sortOrder, updatedAt: new Date() })
+            .where(eq(auditChecklistItems.id, target.id));
+        });
         await logConfigAudit(req, 'AUDIT_CHECKLIST_SWAPPED', 'audit_checklist', source.id, { targetId: target.id });
         return res.json({ ok: true });
       }
@@ -1755,7 +1939,7 @@ export function registerConfigRoutes(app: Express) {
 
       res.status(400).json({ error: 'Operação inválida.' });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro na operação de migração do item.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro na operação de migração do item.') });
     }
   });
 
@@ -1864,7 +2048,7 @@ export function registerConfigRoutes(app: Express) {
 
       res.json({ total, page, pageSize, totalPages, rows, reasonCounts });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao consultar auditorias históricas sem unidade.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao consultar auditorias históricas sem unidade.') });
     }
   });
 
@@ -1880,7 +2064,7 @@ export function registerConfigRoutes(app: Express) {
         .orderBy(asc(helpCenterTopics.menuPath), asc(helpCenterTopics.title));
       res.json({ topics });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao carregar Central de Ajuda.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao carregar Central de Ajuda.') });
     }
   });
 
@@ -1926,13 +2110,14 @@ export function registerConfigRoutes(app: Express) {
       await logConfigAudit(req, 'HELP_TOPIC_CREATED', 'help_topic', created.id, { topicKey: created.topicKey, title: created.title });
       res.json({ ok: true, topic: created });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao criar tópico de ajuda.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao criar tópico de ajuda.') });
     }
   });
 
   app.put('/api/config/help-center/:id', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de tópico inválido.' });
       const { menuPath, title, summary, keywords, htmlContent } = (req.body || {}) as {
         menuPath?: string;
         title?: string;
@@ -1962,33 +2147,38 @@ export function registerConfigRoutes(app: Express) {
         })
         .where(eq(helpCenterTopics.id, id))
         .returning();
+      if (!updated) return res.status(404).json({ error: 'Tópico de ajuda não encontrado.' });
 
       await logConfigAudit(req, 'HELP_TOPIC_UPDATED', 'help_topic', id, { title: updated.title });
       res.json({ ok: true, topic: updated });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao atualizar tópico de ajuda.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao atualizar tópico de ajuda.') });
     }
   });
 
   app.delete('/api/config/help-center/:id', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
-      await db.delete(helpCenterTopics).where(eq(helpCenterTopics.id, id));
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de tópico inválido.' });
+      const [deleted] = await db.delete(helpCenterTopics).where(eq(helpCenterTopics.id, id)).returning();
+      if (!deleted) return res.status(404).json({ error: 'Tópico de ajuda não encontrado.' });
       await logConfigAudit(req, 'HELP_TOPIC_DELETED', 'help_topic', id, {});
       res.json({ ok: true });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao excluir tópico de ajuda.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao excluir tópico de ajuda.') });
     }
   });
 
   app.post('/api/config/help-center/restore-defaults', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
     try {
-      await db.delete(helpCenterTopics);
-      const inserted = await db.insert(helpCenterTopics).values(DEFAULT_HELP_TOPICS).returning();
+      const inserted = await db.transaction(async (tx) => {
+        await tx.delete(helpCenterTopics);
+        return tx.insert(helpCenterTopics).values(DEFAULT_HELP_TOPICS).returning();
+      });
       await logConfigAudit(req, 'HELP_CENTER_RESTORED_DEFAULTS', 'help_topic', 'all', { count: inserted.length });
       res.json({ ok: true, topics: inserted });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao restaurar tópicos padrão.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao restaurar tópicos padrão.') });
     }
   });
 
@@ -1997,114 +2187,172 @@ export function registerConfigRoutes(app: Express) {
   // ---------------------------------------------------------------------------
   app.put('/api/config/schedules/:id', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
-      const { targetType, targetId, targetLabel, startTime, endTime, allowedDays, active } = req.body as {
-        targetType: string;
-        targetId: number;
-        targetLabel: string;
-        startTime: string;
-        endTime: string;
-        allowedDays: number[];
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de horário inválido.' });
+      const {
+        targetType,
+        targetId,
+        unitId,
+        groupId,
+        targetLabel,
+        startTime,
+        endTime,
+        allowedDays,
+        closingWarningMessage,
+        active,
+      } = (req.body || {}) as {
+        targetType?: string;
+        targetId?: number;
+        unitId?: number | null;
+        groupId?: number | null;
+        targetLabel?: string;
+        startTime?: string;
+        endTime?: string;
+        allowedDays?: number[];
+        closingWarningMessage?: string;
         active?: boolean;
       };
+      const cleanType = String(targetType || '').trim();
+      const cleanStart = String(startTime || '').trim();
+      const cleanEnd = String(endTime || '').trim();
+      if (!cleanType || !cleanStart || !cleanEnd) {
+        return res.status(400).json({ error: 'Tipo de alvo e horários de início/término são obrigatórios.' });
+      }
+      if (cleanEnd <= cleanStart) {
+        return res.status(400).json({ error: 'O horário final deve ser maior que o horário inicial.' });
+      }
+
+      const parsedUnitId = unitId ? parsePositiveIntId(unitId) : null;
+      const parsedGroupId = groupId ? parsePositiveIntId(groupId) : null;
+      const resolvedTargetId =
+        parsePositiveIntId(targetId) ||
+        (cleanType === 'group' ? parsedGroupId : parsedUnitId) ||
+        1;
+      const effectiveUnitId =
+        cleanType === 'unit' || cleanType === 'unit_group' ? parsedUnitId || resolvedTargetId : null;
+      const effectiveGroupId =
+        cleanType === 'group' || cleanType === 'unit_group'
+          ? parsedGroupId || (cleanType === 'group' ? resolvedTargetId : null)
+          : null;
+
       const [updated] = await db
         .update(workSchedules)
         .set({
-          targetType,
-          targetId: Number(targetId || 1),
+          targetType: cleanType,
+          targetId: resolvedTargetId,
+          unitId: effectiveUnitId,
+          groupId: effectiveGroupId,
           targetLabel: String(targetLabel || '').trim(),
-          startTime,
-          endTime,
+          startTime: cleanStart,
+          endTime: cleanEnd,
           allowedDays: Array.isArray(allowedDays) ? allowedDays : [1, 2, 3, 4, 5],
+          closingWarningMessage: String(closingWarningMessage || '').trim(),
           active: active !== false,
         })
         .where(eq(workSchedules.id, id))
         .returning();
+      if (!updated) return res.status(404).json({ error: 'Regra de horário não encontrada.' });
       res.json({ ok: true, schedule: updated });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao atualizar regra de horário.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao atualizar regra de horário.') });
     }
   });
 
   app.delete('/api/config/schedules/:id', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
-      await db.delete(workSchedules).where(eq(workSchedules.id, id));
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de horário inválido.' });
+      const [deleted] = await db.delete(workSchedules).where(eq(workSchedules.id, id)).returning();
+      if (!deleted) return res.status(404).json({ error: 'Regra de horário não encontrada.' });
       res.json({ ok: true });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao remover horário.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao remover horário.') });
     }
   });
 
   app.put('/api/config/custom-fields/:id', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
-      const { module, fieldKey, label, fieldType, required } = req.body as {
-        module: string;
-        fieldKey: string;
-        label: string;
-        fieldType: string;
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID do campo customizado inválido.' });
+      const { module, fieldKey, label, fieldType, required } = (req.body || {}) as {
+        module?: string;
+        fieldKey?: string;
+        label?: string;
+        fieldType?: string;
         required?: boolean;
       };
+      if (!String(module || '').trim() || !String(fieldKey || '').trim() || !String(label || '').trim()) {
+        return res.status(400).json({ error: 'Módulo, chave e rótulo do campo são obrigatórios.' });
+      }
       const [updated] = await db
         .update(customFields)
         .set({
-          module,
-          fieldKey: fieldKey.trim(),
-          label: label.trim(),
-          fieldType: fieldType || 'text',
+          module: String(module).trim(),
+          fieldKey: String(fieldKey).trim(),
+          label: String(label).trim(),
+          fieldType: String(fieldType || 'text').trim(),
           required: Boolean(required),
         })
         .where(eq(customFields.id, id))
         .returning();
+      if (!updated) return res.status(404).json({ error: 'Campo customizado não encontrado.' });
       res.json({ ok: true, field: updated });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao atualizar campo customizado.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao atualizar campo customizado.') });
     }
   });
 
   app.delete('/api/config/custom-fields/:id', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
-      await db.delete(customFields).where(eq(customFields.id, id));
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID do campo customizado inválido.' });
+      const [deleted] = await db.delete(customFields).where(eq(customFields.id, id)).returning();
+      if (!deleted) return res.status(404).json({ error: 'Campo customizado não encontrado.' });
       res.json({ ok: true });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao excluir campo customizado.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao excluir campo customizado.') });
     }
   });
 
   app.put('/api/config/payment-categories/:id', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
-      const { name, providerCode, active } = req.body as { name: string; providerCode?: string; active?: boolean };
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de categoria inválido.' });
+      const { name, providerCode, active } = (req.body || {}) as { name?: string; providerCode?: string; active?: boolean };
+      if (!String(name || '').trim()) {
+        return res.status(400).json({ error: 'Nome da categoria é obrigatório.' });
+      }
       const [updated] = await db
         .update(paymentCategories)
         .set({
-          name: name.trim(),
-          providerCode: (providerCode || 'custom').trim(),
+          name: String(name).trim(),
+          providerCode: String(providerCode || 'custom').trim(),
           active: active !== false,
         })
         .where(eq(paymentCategories.id, id))
         .returning();
+      if (!updated) return res.status(404).json({ error: 'Categoria de pagamento não encontrada.' });
       res.json({ ok: true, category: updated });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao atualizar categoria.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao atualizar categoria.') });
     }
   });
 
   app.delete('/api/config/payment-categories/:id', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de categoria inválido.' });
       const used = await db.select({ v: count() }).from(financialTitles).where(eq(financialTitles.categoryId, id));
       if (Number(used[0]?.v || 0) > 0) {
         return res.status(409).json({
           error: `Categoria em uso por ${used[0].v} título(s) financeiro(s). Inative-a em vez de excluir.`,
         });
       }
-      await db.delete(paymentCategories).where(eq(paymentCategories.id, id));
+      const [deleted] = await db.delete(paymentCategories).where(eq(paymentCategories.id, id)).returning();
+      if (!deleted) return res.status(404).json({ error: 'Categoria de pagamento não encontrada.' });
       res.json({ ok: true });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao excluir categoria.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao excluir categoria.') });
     }
   });
 

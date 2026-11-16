@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ChevronDown, Download, FileText, Printer, X } from 'lucide-react';
-import { apiFetch, getAuthToken } from '../lib/api.ts';
+import { apiFetch, getActiveUnitHeader, getAuthToken, parseJsonResponse } from '../lib/api.ts';
 import {
   buildPrintableHtmlDocument,
   buildTemplateVariableMap,
@@ -117,13 +117,13 @@ export const FormTemplateButton: React.FC<FormTemplateButtonProps> = ({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-unit-id': String(getActiveUnitHeader()),
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({ vars, fileName: tpl.name }),
       });
       if (!resp.ok) {
-        const err = (await resp.json().catch(() => ({}))) as { error?: string };
-        throw new Error(err.error || 'Falha ao gerar arquivo .docx.');
+        await parseJsonResponse(resp, 'Falha ao gerar arquivo .docx.');
       }
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);

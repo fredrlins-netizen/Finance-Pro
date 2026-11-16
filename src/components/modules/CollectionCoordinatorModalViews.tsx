@@ -34,7 +34,9 @@ import {
   formatBytes,
   formatDateBR,
   formatDateTimeBR,
+  getActiveUnitHeader,
   getAuthToken,
+  parseJsonResponse,
 } from '../../lib/api.ts';
 import { DossierDocumentPreviewModal } from '../DossierDocumentViewer.tsx';
 import {
@@ -541,15 +543,18 @@ export const EditTitleModal: React.FC<{
       const token = getAuthToken();
       const resp = await fetch(`/api/financial-titles/${title.id}/receipt`, {
         method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: {
+          'x-unit-id': String(getActiveUnitHeader()),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: formData,
       });
-      const json = (await resp.json()) as {
+      const json = await parseJsonResponse<{
         document?: DocumentObject;
         error?: string;
         backend?: string;
-      };
-      if (!resp.ok || !json.document) {
+      }>(resp, 'Erro ao enviar comprovante para o Bucket da Invicta.');
+      if (!json.document) {
         throw new Error(json.error || 'Erro ao enviar comprovante para o Bucket da Invicta.');
       }
       setAttachedDocOverride(json.document);
@@ -1063,11 +1068,24 @@ export const AuditHistoryModal: React.FC<{
     }> = [];
     for (const log of logs) {
       const details = (log.details || {}) as {
-        changes?: Array<{ field?: string; from?: string; to?: string }>;
+        changes?: Array<{
+          field?: string;
+          label?: string;
+          from?: string;
+          to?: string;
+          previousValue?: string;
+          newValue?: string;
+        }>;
         description?: string;
         transferReason?: string;
       };
-      const changes = Array.isArray(details.changes) ? details.changes : [];
+      const topChanges = Array.isArray(log.changes) ? log.changes : [];
+      const changes =
+        topChanges.length > 0
+          ? topChanges
+          : Array.isArray(details.changes)
+          ? details.changes
+          : [];
       if (changes.length > 0) {
         changes.forEach((ch, idx) => {
           out.push({
@@ -1075,9 +1093,9 @@ export const AuditHistoryModal: React.FC<{
             createdAt: log.createdAt,
             userName: log.userName || 'Sistema',
             action: log.action,
-            field: ch.field || '—',
-            from: ch.from || '—',
-            to: ch.to || '—',
+            field: ch.label || ch.field || '—',
+            from: String(ch.previousValue ?? ch.from ?? '—'),
+            to: String(ch.newValue ?? ch.to ?? '—'),
           });
         });
       } else {
@@ -1086,7 +1104,7 @@ export const AuditHistoryModal: React.FC<{
           createdAt: log.createdAt,
           userName: log.userName || 'Sistema',
           action: log.action,
-          field: '—',
+          field: 'Ação Executada',
           from: '—',
           to: details.description || details.transferReason || log.action,
         });

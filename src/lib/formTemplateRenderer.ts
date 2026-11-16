@@ -654,10 +654,43 @@ export function openPrintWindow(params: {
   const htmlDocument = buildPrintableHtmlDocument(params);
   const blob = new Blob([htmlDocument], { type: 'text/html;charset=utf-8' });
   const blobUrl = URL.createObjectURL(blob);
-  const win = window.open(blobUrl, '_blank', 'noopener,noreferrer');
-  if (!win) {
+
+  if (typeof document === 'undefined' || !document.body) {
+    window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
     return { opened: false, htmlDocument, blobUrl };
   }
-  window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('aria-hidden', 'true');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  iframe.style.visibility = 'hidden';
+
+  let printed = false;
+  iframe.addEventListener('load', () => {
+    if (printed) return;
+    printed = true;
+    try {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+    } catch {
+      // ignore sandbox print restrictions
+    }
+  });
+
+  iframe.srcdoc = htmlDocument;
+  document.body.appendChild(iframe);
+
+  window.setTimeout(() => {
+    URL.revokeObjectURL(blobUrl);
+    if (iframe.parentNode) {
+      iframe.parentNode.removeChild(iframe);
+    }
+  }, 60_000);
+
   return { opened: true, htmlDocument, blobUrl };
 }

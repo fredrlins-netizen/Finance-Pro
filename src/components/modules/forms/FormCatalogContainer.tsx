@@ -6,6 +6,7 @@ import {
   Download,
   Edit3,
   FilePlus2,
+  History,
   Play,
   Search,
   Sparkles,
@@ -46,6 +47,7 @@ interface FormCatalogContainerProps {
   onDeleteForm: (form: CustomFormItem) => void;
   onExportCsv: (formId: number) => void;
   onSavePresentationOptions: (form: CustomFormItem, nextSettings: CustomFormSettings) => Promise<void>;
+  onViewAudit?: (form: CustomFormItem) => void;
 }
 
 export const FormCatalogContainer: React.FC<FormCatalogContainerProps> = ({
@@ -59,6 +61,7 @@ export const FormCatalogContainer: React.FC<FormCatalogContainerProps> = ({
   onDeleteForm,
   onExportCsv,
   onSavePresentationOptions,
+  onViewAudit,
 }) => {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('TODAS');
@@ -387,6 +390,16 @@ export const FormCatalogContainer: React.FC<FormCatalogContainerProps> = ({
                         >
                           <Download className="w-3.5 h-3.5" />
                         </button>
+                        {onViewAudit && (
+                          <button
+                            type="button"
+                            onClick={() => onViewAudit(f)}
+                            title="Histórico de Auditoria do Formulário"
+                            className="rounded-md border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+                          >
+                            <History className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => onDeleteForm(f)}
@@ -476,6 +489,16 @@ export const FormCatalogContainer: React.FC<FormCatalogContainerProps> = ({
                     <Copy className="w-3.5 h-3.5" />
                     Duplicar
                   </button>
+                  {onViewAudit && (
+                    <button
+                      type="button"
+                      onClick={() => onViewAudit(f)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:border-slate-600 dark:text-slate-200"
+                    >
+                      <History className="w-3.5 h-3.5" />
+                      Auditoria
+                    </button>
+                  )}
                 </div>
               </div>
             );

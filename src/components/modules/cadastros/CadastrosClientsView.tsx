@@ -28,7 +28,15 @@ import {
   Upload,
   X,
 } from 'lucide-react';
-import { apiFetch, formatBytes, formatDateBR, formatDateTimeBR, getAuthToken } from '../../../lib/api.ts';
+import {
+  apiFetch,
+  formatBytes,
+  formatDateBR,
+  formatDateTimeBR,
+  getActiveUnitHeader,
+  getAuthToken,
+  parseJsonResponse,
+} from '../../../lib/api.ts';
 import { DossierDocumentPreviewModal } from '../../DossierDocumentViewer.tsx';
 import { Admission, AuthUser, Client, DocumentObject, ModuleId, NavigationIntent, Unit } from '../../../types.ts';
 import {
@@ -456,13 +464,16 @@ export const CadastrosClientsView: React.FC<CadastrosClientsViewProps> = ({
       form.append('file', file);
       form.append('clientId', String(editingId));
       form.append('docCategory', docCategory);
+      const token = getAuthToken();
       const resp = await fetch('/api/documents/upload', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${getAuthToken()}` },
+        headers: {
+          'x-unit-id': String(getActiveUnitHeader()),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: form,
       });
-      const data = (await resp.json().catch(() => ({}))) as { error?: string };
-      if (!resp.ok) throw new Error(data.error || 'Falha no upload para Cloudflare R2.');
+      await parseJsonResponse(resp, 'Falha no upload para Cloudflare R2.');
       setFeedback(`Documento "${file.name}" armazenado com criptografia AES-256-GCM no bucketdainvicta.`);
       await loadList();
     } catch (err) {

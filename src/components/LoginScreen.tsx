@@ -15,7 +15,7 @@ import {
   Sun,
 } from 'lucide-react';
 import { auth, googleAuthProvider } from '../lib/firebase.ts';
-import { apiFetch, setAuthToken } from '../lib/api.ts';
+import { apiFetch, parseJsonResponse, setAuthToken } from '../lib/api.ts';
 import { useTheme } from '../lib/theme.tsx';
 import { AuthUser, PortalBrandingConfig } from '../types.ts';
 import { PWAInstallButton } from './PWAControls.tsx';
@@ -36,6 +36,7 @@ interface CaptchaData {
 interface LoginScreenProps {
   onAuthenticated: (token: string, user?: AuthUser) => void;
   branding?: PortalBrandingConfig | null;
+  forcedLockMessage?: string;
 }
 
 function renderTileIcon(category: string) {
@@ -51,7 +52,11 @@ function renderTileIcon(category: string) {
   }
 }
 
-export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthenticated, branding }) => {
+export const LoginScreen: React.FC<LoginScreenProps> = ({
+  onAuthenticated,
+  branding,
+  forcedLockMessage,
+}) => {
   const { isDark, toggleTheme } = useTheme();
   const [email, setEmail] = useState('admin@financepro.com.br');
   const [password, setPassword] = useState('Invicta@2026');
@@ -67,7 +72,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthenticated, brand
   const loadCaptcha = async () => {
     try {
       const res = await fetch('/api/auth/captcha');
-      const data = (await res.json()) as CaptchaData;
+      const data = await parseJsonResponse<CaptchaData>(res, 'Falha ao carregar desafio de segurança.');
       setCaptcha(data);
       setSelectedTiles([]);
       setMathAnswer('');
@@ -259,11 +264,25 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onAuthenticated, brand
             </div>
           </div>
 
-          {error && (
-            <div className="mt-4 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/50 px-3.5 py-2.5 text-xs font-medium text-red-700 dark:text-red-300">
-              {error}
-            </div>
-          )}
+          {(error || forcedLockMessage) && (() => {
+            const displayErr = error || forcedLockMessage || '';
+            const isSuspendedErr = /suspens|3 tentativas|reabilita/i.test(displayErr);
+            return (
+              <div
+                className={`mt-4 rounded-xl border px-3.5 py-3 text-xs space-y-1 ${
+                  isSuspendedErr
+                    ? 'border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-950/70 text-red-800 dark:text-red-200'
+                    : 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300'
+                }`}
+              >
+                <div className="font-bold flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5 shrink-0" />
+                  <span>{isSuspendedErr ? 'Acesso Bloqueado / Usuário Suspenso' : 'Aviso de Autenticação'}</span>
+                </div>
+                <div className="font-medium leading-relaxed">{displayErr}</div>
+              </div>
+            );
+          })()}
 
           {forgotInfo && (
             <div className="mt-4 rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/50 px-3.5 py-2.5 text-xs font-medium text-emerald-800 dark:text-emerald-300">

@@ -4,6 +4,7 @@ import { db, pool } from '../db/index.ts';
 import { auditLogs, reportTemplates, userGroups, users } from '../db/schema.ts';
 import { EMBEDDED_REPORT_TEMPLATES } from '../lib/reportCatalogs.ts';
 import { requireAdmin, requireAuth, requireModule, type AuthRequest } from '../middleware/auth.ts';
+import { parsePositiveIntArray, sanitizeErrorMessage } from '../utils/validation.ts';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -414,8 +415,7 @@ export function registerReportsRoutes(
       const data = await runReadOnlySql(sqlToRun, paramsToRun, maxLimit);
       res.json(data);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Erro ao executar pré-visualização.';
-      res.status(400).json({ error: msg });
+      res.status(400).json({ error: sanitizeErrorMessage(err, 'Erro ao executar pré-visualização.') });
     }
   });
 
@@ -566,12 +566,10 @@ export function registerReportsRoutes(
     const defErr = validateReportDefinition(body);
     if (defErr) return res.status(400).json({ error: defErr });
 
-    const allowedUsers = Array.isArray(body.allowed_users) && body.allowed_users.length > 0
-      ? body.allowed_users.map(Number).filter(Number.isInteger)
-      : null;
-    const allowedGroups = Array.isArray(body.allowed_groups) && body.allowed_groups.length > 0
-      ? body.allowed_groups.map(Number).filter(Number.isInteger)
-      : null;
+    const parsedAllowedUsers = parsePositiveIntArray(body.allowed_users);
+    const allowedUsers = parsedAllowedUsers.length > 0 ? parsedAllowedUsers : null;
+    const parsedAllowedGroups = parsePositiveIntArray(body.allowed_groups);
+    const allowedGroups = parsedAllowedGroups.length > 0 ? parsedAllowedGroups : null;
 
     try {
       const [created] = await db
@@ -637,16 +635,18 @@ export function registerReportsRoutes(
 
       const nextAllowedUsers =
         body.allowed_users !== undefined
-          ? Array.isArray(body.allowed_users) && body.allowed_users.length > 0
-            ? body.allowed_users.map(Number).filter(Number.isInteger)
-            : null
+          ? (() => {
+              const parsed = parsePositiveIntArray(body.allowed_users);
+              return parsed.length > 0 ? parsed : null;
+            })()
           : existing.allowedUsers;
 
       const nextAllowedGroups =
         body.allowed_groups !== undefined
-          ? Array.isArray(body.allowed_groups) && body.allowed_groups.length > 0
-            ? body.allowed_groups.map(Number).filter(Number.isInteger)
-            : null
+          ? (() => {
+              const parsed = parsePositiveIntArray(body.allowed_groups);
+              return parsed.length > 0 ? parsed : null;
+            })()
           : existing.allowedGroups;
 
       const [updated] = await db

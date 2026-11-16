@@ -16,7 +16,7 @@ import {
   ShieldCheck,
   Terminal,
 } from 'lucide-react';
-import { apiFetch, getAuthToken } from '../../../lib/api.ts';
+import { apiFetch, getActiveUnitHeader, getAuthToken, parseJsonResponse } from '../../../lib/api.ts';
 
 interface MigrationBatch {
   id: number;
@@ -223,16 +223,21 @@ export const ConfigR2MigrationView: React.FC<ConfigR2MigrationViewProps> = ({ ws
     try {
       const token = getAuthToken();
       const res = await fetch(`/api/migration/batches/${batch.id}/agent-script?kind=${kind}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          'x-unit-id': String(getActiveUnitHeader()),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
       });
-      if (!res.ok) throw new Error('Falha ao baixar arquivo do agente Windows.');
+      if (!res.ok) {
+        await parseJsonResponse(res, 'Falha ao baixar arquivo do agente Windows.');
+      }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = kind === 'bat' ? `executar-${batch.batchCode}.bat` : `invicta-r2-sync-${batch.batchCode}.mjs`;
       a.click();
-      URL.revokeObjectURL(url);
+      window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
       onToast(
         kind === 'mjs'
           ? `Agente CLI ${batch.batchCode}.mjs baixado com token criptográfico ativo.`
@@ -298,21 +303,27 @@ export const ConfigR2MigrationView: React.FC<ConfigR2MigrationViewProps> = ({ ws
   };
 
   const handleDownloadByIntegrativeCode = async (code: string) => {
-    const token = getAuthToken();
-    const res = await fetch(`/api/vault/i/${encodeURIComponent(code)}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) {
-      onToast('Não foi possível baixar o documento pelo código integrativo.');
-      return;
+    try {
+      const token = getAuthToken();
+      const res = await fetch(`/api/vault/i/${encodeURIComponent(code)}`, {
+        headers: {
+          'x-unit-id': String(getActiveUnitHeader()),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (!res.ok) {
+        await parseJsonResponse(res, 'Não foi possível baixar o documento pelo código integrativo.');
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${code}.bin`;
+      a.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : 'Não foi possível baixar o documento pelo código integrativo.');
     }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${code}.bin`;
-    a.click();
-    URL.revokeObjectURL(url);
   };
 
   const handleResolveUnmatched = async (item: MigrationItem) => {

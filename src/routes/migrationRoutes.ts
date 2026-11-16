@@ -13,6 +13,7 @@ import {
   vaultMigrationItems,
 } from '../db/schema.ts';
 import { AuthRequest, requireAdmin, requireAuth } from '../middleware/auth.ts';
+import { parsePositiveIntId, sanitizeErrorMessage } from '../utils/validation.ts';
 import {
   canPreviewInline,
   completeR2MultipartUpload,
@@ -66,8 +67,8 @@ export function registerMigrationRoutes(
   // Middleware allowing either Admin JWT OR Scoped Migration Agent Token for a specific batch
   const requireAdminOrBatchAgent = async (req: AuthRequest, res: Response, next: NextFunction) => {
     const agentHeader = String(req.headers['x-migration-agent-token'] || '').trim();
-    const batchId = Number(req.params.id);
-    if (agentHeader && Number.isFinite(batchId) && batchId > 0) {
+    const batchId = parsePositiveIntId(req.params.id);
+    if (agentHeader && batchId) {
       const [batch] = await db
         .select()
         .from(vaultMigrationBatches)
@@ -175,7 +176,8 @@ export function registerMigrationRoutes(
   // Rotate token (returns new raw token once)
   app.post('/api/migration/batches/:id/rotate-token', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
     try {
-      const batchId = Number(req.params.id);
+      const batchId = parsePositiveIntId(req.params.id);
+      if (!batchId) return res.status(400).json({ error: 'ID do lote inválido.' });
       const { rawToken, tokenHash, expiresAt } = generateAgentToken();
       const [updated] = await db
         .update(vaultMigrationBatches)
@@ -185,14 +187,15 @@ export function registerMigrationRoutes(
       if (!updated) return res.status(404).json({ error: 'Lote não encontrado.' });
       res.json({ ok: true, agentToken: rawToken, tokenExpiresAt: expiresAt });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao rotacionar token.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao rotacionar token.') });
     }
   });
 
   // Download pre-configured Windows CLI script (.mjs) or .bat launcher
   app.get('/api/migration/batches/:id/agent-script', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
     try {
-      const batchId = Number(req.params.id);
+      const batchId = parsePositiveIntId(req.params.id);
+      if (!batchId) return res.status(400).json({ error: 'ID do lote inválido.' });
       const kind = String(req.query.kind || 'mjs');
       const [batch] = await db
         .select()
@@ -239,9 +242,10 @@ export function registerMigrationRoutes(
   // List items inside a migration batch with filter
   app.get('/api/migration/batches/:id/items', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
     try {
-      const batchId = Number(req.params.id);
+      const batchId = parsePositiveIntId(req.params.id);
+      if (!batchId) return res.status(400).json({ error: 'ID do lote inválido.' });
       const filter = String(req.query.filter || 'all');
-      const limit = Math.min(200, Math.max(10, Number(req.query.limit || 100)));
+      const limit = Math.min(200, Math.max(10, Number(req.query.limit || 100) || 100));
 
       const allItems = await db
         .select()
@@ -272,7 +276,8 @@ export function registerMigrationRoutes(
   // Core Incremental & Initial Manifest Diff + Presigned R2 S3 URL Issuer
   app.post('/api/migration/batches/:id/manifest-diff', requireAdminOrBatchAgent, async (req: AuthRequest, res) => {
     try {
-      const batchId = Number(req.params.id);
+      const batchId = parsePositiveIntId(req.params.id);
+      if (!batchId) return res.status(400).json({ error: 'ID do lote inválido.' });
       const [batch] = await db
         .select()
         .from(vaultMigrationBatches)
@@ -627,6 +632,7 @@ export function registerMigrationRoutes(
               referenceSeed: f.sha256Hash || safeName,
             });
             await db.update(documentObjects).set({ integrativeCode: intCode }).where(eq(documentObjects.id, docId));
+            docByLogicalKey.set(logicalKey, insDoc);
           }
           await db.insert(vaultMigrationItems).values({
             batchId,
@@ -649,7 +655,7 @@ export function registerMigrationRoutes(
             status: 'completed',
             integrativeCode: intCode,
           });
-          decisions.push({ legacySourcePath: f.legacySourcePath, action: 'unchanged' });
+          decisions.push({ legacySourcePath: f.legacySourcePath, action: actionType, deduplicatedInstant: true });
           continue;
         }
 
@@ -764,6 +770,11 @@ export function registerMigrationRoutes(
   // Sign R2 Multipart UploadPart URLs
   app.post('/api/migration/batches/:id/multipart/sign-parts', requireAdminOrBatchAgent, async (req: AuthRequest, res) => {
     try {
+      const batchId = parsePositiveIntId(req.params.id);
+      if (!batchId) return res.status(400).json({ error: 'ID do lote inválido.' });
+      const [batch] = await db.select({ id: vaultMigrationBatches.id }).from(vaultMigrationBatches).where(eq(vaultMigrationBatches.id, batchId)).limit(1);
+      if (!batch) return res.status(404).json({ error: 'Lote não encontrado.' });
+
       const r2Cfg = await getActiveR2ConfigForMigration();
       if (!r2Cfg) return res.status(400).json({ error: 'Cloudflare R2 não configurado.' });
       const { objectKey, uploadId, partNumbers } = (req.body || {}) as {
@@ -771,7 +782,7 @@ export function registerMigrationRoutes(
         uploadId: string;
         partNumbers: number[];
       };
-      if (!objectKey || !uploadId || !Array.isArray(partNumbers)) {
+      if (!objectKey || !uploadId || !Array.isArray(partNumbers) || !String(objectKey).startsWith('bucketdainvicta/objects/')) {
         return res.status(400).json({ error: 'Parâmetros multipart inválidos.' });
       }
       const partUrls: Record<string, string> = {};
@@ -789,13 +800,18 @@ export function registerMigrationRoutes(
       }
       res.json({ partUrls });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao assinar partes multipart.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao assinar partes multipart.') });
     }
   });
 
   // Complete R2 Multipart Upload
   app.post('/api/migration/batches/:id/multipart/complete', requireAdminOrBatchAgent, async (req: AuthRequest, res) => {
     try {
+      const batchId = parsePositiveIntId(req.params.id);
+      if (!batchId) return res.status(400).json({ error: 'ID do lote inválido.' });
+      const [batch] = await db.select({ id: vaultMigrationBatches.id }).from(vaultMigrationBatches).where(eq(vaultMigrationBatches.id, batchId)).limit(1);
+      if (!batch) return res.status(404).json({ error: 'Lote não encontrado.' });
+
       const r2Cfg = await getActiveR2ConfigForMigration();
       if (!r2Cfg) return res.status(400).json({ error: 'Cloudflare R2 não configurado.' });
       const { objectKey, uploadId, parts } = (req.body || {}) as {
@@ -803,10 +819,13 @@ export function registerMigrationRoutes(
         uploadId: string;
         parts: Array<{ partNumber: number; etag: string }>;
       };
+      if (!objectKey || !uploadId || !String(objectKey).startsWith('bucketdainvicta/objects/')) {
+        return res.status(400).json({ error: 'Parâmetros multipart inválidos.' });
+      }
       await completeR2MultipartUpload(r2Cfg, objectKey, uploadId, parts || []);
       res.json({ ok: true });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao concluir multipart R2.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao concluir multipart R2.') });
     }
   });
 
@@ -817,8 +836,9 @@ export function registerMigrationRoutes(
     express.raw({ type: '*/*', limit: '30mb' }),
     async (req: AuthRequest, res) => {
       try {
-        const batchId = Number(req.params.id);
-        const itemId = Number(req.params.itemId);
+        const batchId = parsePositiveIntId(req.params.id);
+        const itemId = parsePositiveIntId(req.params.itemId);
+        if (!batchId || !itemId) return res.status(400).json({ error: 'Identificadores de lote/item inválidos.' });
         const [item] = await db
           .select()
           .from(vaultMigrationItems)
@@ -972,7 +992,8 @@ export function registerMigrationRoutes(
   // Commit batch of direct R2 presigned / multipart uploads
   app.post('/api/migration/batches/:id/commit-items', requireAdminOrBatchAgent, async (req: AuthRequest, res) => {
     try {
-      const batchId = Number(req.params.id);
+      const batchId = parsePositiveIntId(req.params.id);
+      if (!batchId) return res.status(400).json({ error: 'ID do lote inválido.' });
       const { items } = (req.body || {}) as {
         items: Array<{ itemId: number; storageUri?: string; success: boolean; errorMessage?: string }>;
       };
@@ -981,10 +1002,12 @@ export function registerMigrationRoutes(
       let committed = 0;
       let failed = 0;
       for (const entry of items) {
+        const parsedEntryId = parsePositiveIntId(entry?.itemId);
+        if (!parsedEntryId) continue;
         const [item] = await db
           .select()
           .from(vaultMigrationItems)
-          .where(and(eq(vaultMigrationItems.id, entry.itemId), eq(vaultMigrationItems.batchId, batchId)))
+          .where(and(eq(vaultMigrationItems.id, parsedEntryId), eq(vaultMigrationItems.batchId, batchId)))
           .limit(1);
         if (!item) continue;
 
@@ -1010,14 +1033,15 @@ export function registerMigrationRoutes(
       deps.broadcast('migration:progress', { batchId });
       res.json({ ok: true, committed, failed });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao confirmar itens do lote.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao confirmar itens do lote.') });
     }
   });
 
   // Finalize batch status
   app.post('/api/migration/batches/:id/finalize', requireAdminOrBatchAgent, async (req: AuthRequest, res) => {
     try {
-      const batchId = Number(req.params.id);
+      const batchId = parsePositiveIntId(req.params.id);
+      if (!batchId) return res.status(400).json({ error: 'ID do lote inválido.' });
       const [batch] = await db
         .select()
         .from(vaultMigrationBatches)
@@ -1036,7 +1060,7 @@ export function registerMigrationRoutes(
       deps.broadcast('migration:progress', { batchId, status: nextStatus });
       res.json({ ok: true, batch: { ...updated, agentSessionTokenHash: undefined } });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao finalizar lote.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao finalizar lote.') });
     }
   });
 
@@ -1064,86 +1088,106 @@ export function registerMigrationRoutes(
         })),
       });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao carregar alvos para vínculo.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao carregar alvos para vínculo.') });
     }
   });
 
   // Manual resolution of unmatched folder/item -> links unit or admission across matching items
   app.post('/api/migration/batches/:id/resolve-unmatched', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
     try {
-      const batchId = Number(req.params.id);
+      const batchId = parsePositiveIntId(req.params.id);
+      if (!batchId) return res.status(400).json({ error: 'ID do lote inválido.' });
       const { itemId, unitId, admissionId, applyToFolder = true } = (req.body || {}) as {
         itemId: number;
         unitId?: number;
         admissionId?: number;
         applyToFolder?: boolean;
       };
+      const parsedItemId = parsePositiveIntId(itemId);
+      if (!parsedItemId) return res.status(400).json({ error: 'ID do item inválido.' });
+
+      let parsedUnitId: number | null = null;
+      if (unitId !== undefined && unitId !== null) {
+        parsedUnitId = parsePositiveIntId(unitId);
+        if (!parsedUnitId) return res.status(400).json({ error: 'ID da unidade inválido.' });
+      }
+      let parsedAdmissionId: number | null = null;
+      if (admissionId !== undefined && admissionId !== null) {
+        parsedAdmissionId = parsePositiveIntId(admissionId);
+        if (!parsedAdmissionId) return res.status(400).json({ error: 'ID da admissão inválido.' });
+      }
+
       const [item] = await db
         .select()
         .from(vaultMigrationItems)
-        .where(and(eq(vaultMigrationItems.id, itemId), eq(vaultMigrationItems.batchId, batchId)))
+        .where(and(eq(vaultMigrationItems.id, parsedItemId), eq(vaultMigrationItems.batchId, batchId)))
         .limit(1);
       if (!item) return res.status(404).json({ error: 'Item não encontrado.' });
 
       let resolvedAdmission: typeof admissions.$inferSelect | undefined;
-      if (admissionId) {
-        const [adm] = await db.select().from(admissions).where(eq(admissions.id, admissionId)).limit(1);
+      if (parsedAdmissionId) {
+        const [adm] = await db.select().from(admissions).where(eq(admissions.id, parsedAdmissionId)).limit(1);
+        if (!adm) return res.status(404).json({ error: 'Admissão informada não encontrada.' });
         resolvedAdmission = adm;
       }
 
-      const targetUnitId = resolvedAdmission?.unitId || unitId || item.unitId;
+      const targetUnitId = resolvedAdmission?.unitId || parsedUnitId || item.unitId;
       const targetClientId = resolvedAdmission?.clientId || item.clientId;
-      const targetAdmissionId = resolvedAdmission?.id || admissionId || item.admissionId;
+      const targetAdmissionId = resolvedAdmission?.id || item.admissionId;
 
-      const batchUnmatched = await db
-        .select()
-        .from(vaultMigrationItems)
-        .where(and(eq(vaultMigrationItems.batchId, batchId), eq(vaultMigrationItems.status, 'unmatched')));
-
-      const matchingIds = applyToFolder
-        ? batchUnmatched
-            .filter((row) => {
-              if (item.action === 'unmatched_unit' && item.unitFolderName) {
-                return row.unitFolderName === item.unitFolderName;
-              }
-              if (item.contractFolderName) {
-                return row.unitFolderName === item.unitFolderName && row.contractFolderName === item.contractFolderName;
-              }
-              return row.id === item.id;
-            })
-            .map((r) => r.id)
-        : [item.id];
-
-      const idsToUpdate = matchingIds.length > 0 ? matchingIds : [item.id];
-
-      await db
-        .update(vaultMigrationItems)
-        .set({
-          unitId: targetUnitId ?? null,
-          clientId: targetClientId ?? null,
-          admissionId: targetAdmissionId ?? null,
-          status: targetAdmissionId ? 'pending' : 'unmatched',
-          action: targetAdmissionId ? 'create' : 'unmatched_contract',
-          errorMessage: targetAdmissionId ? 'Vínculo resolvido manualmente — pronto para re-sync' : 'Unidade associada, aguardando contrato',
-          updatedAt: new Date(),
-        })
-        .where(inArray(vaultMigrationItems.id, idsToUpdate));
-
-      if (targetAdmissionId) {
-        const remainingUnmatched = await db
-          .select({ id: vaultMigrationItems.id })
+      const resolvedCount = await db.transaction(async (tx) => {
+        const batchUnmatched = await tx
+          .select()
           .from(vaultMigrationItems)
           .where(and(eq(vaultMigrationItems.batchId, batchId), eq(vaultMigrationItems.status, 'unmatched')));
-        await db
-          .update(vaultMigrationBatches)
-          .set({ unmatchedCount: remainingUnmatched.length, updatedAt: new Date() })
-          .where(eq(vaultMigrationBatches.id, batchId));
-      }
+
+        const matchingIds = applyToFolder
+          ? batchUnmatched
+              .filter((row) => {
+                if (item.action === 'unmatched_unit' && item.unitFolderName) {
+                  return row.unitFolderName === item.unitFolderName;
+                }
+                if (item.contractFolderName) {
+                  return row.unitFolderName === item.unitFolderName && row.contractFolderName === item.contractFolderName;
+                }
+                return row.id === item.id;
+              })
+              .map((r) => r.id)
+          : [item.id];
+
+        const idsToUpdate = matchingIds.length > 0 ? matchingIds : [item.id];
+
+        await tx
+          .update(vaultMigrationItems)
+          .set({
+            unitId: targetUnitId ?? null,
+            clientId: targetClientId ?? null,
+            admissionId: targetAdmissionId ?? null,
+            status: targetAdmissionId ? 'pending' : 'unmatched',
+            action: targetAdmissionId ? 'create' : 'unmatched_contract',
+            errorMessage: targetAdmissionId ? 'Vínculo resolvido manualmente — pronto para re-sync' : 'Unidade associada, aguardando contrato',
+            updatedAt: new Date(),
+          })
+          .where(inArray(vaultMigrationItems.id, idsToUpdate));
+
+        if (targetAdmissionId) {
+          const remainingUnmatched = await tx
+            .select({ id: vaultMigrationItems.id })
+            .from(vaultMigrationItems)
+            .where(and(eq(vaultMigrationItems.batchId, batchId), eq(vaultMigrationItems.status, 'unmatched')));
+          await tx
+            .update(vaultMigrationBatches)
+            .set({ unmatchedCount: remainingUnmatched.length, updatedAt: new Date() })
+            .where(eq(vaultMigrationBatches.id, batchId));
+        }
+
+        return idsToUpdate.length;
+      });
 
       deps.broadcast('migration:progress', { batchId });
-      res.json({ ok: true, resolvedCount: idsToUpdate.length });
+      res.json({ ok: true, resolvedCount });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao resolver pendência de vínculo.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao resolver pendência de vínculo.') });
     }
   });
 
@@ -1155,24 +1199,34 @@ export function registerMigrationRoutes(
         overwrite?: boolean;
         batchId?: number | null;
       };
+      let parsedUnitId: number | null = null;
+      if (unitId !== undefined && unitId !== null) {
+        parsedUnitId = parsePositiveIntId(unitId);
+        if (!parsedUnitId) return res.status(400).json({ error: 'ID da unidade inválido.' });
+      }
+      let parsedBatchId: number | null = null;
+      if (batchId !== undefined && batchId !== null) {
+        parsedBatchId = parsePositiveIntId(batchId);
+        if (!parsedBatchId) return res.status(400).json({ error: 'ID do lote inválido.' });
+      }
       const result = await assignIntegrativeCodesBatch({
-        unitId: unitId ? Number(unitId) : null,
+        unitId: parsedUnitId,
         overwrite: Boolean(overwrite),
         actorUserId: req.authUser!.id,
         actorName: req.authUser!.name,
       });
 
-      if (batchId) {
+      if (parsedBatchId) {
         await db
           .update(vaultMigrationBatches)
           .set({ integrativeSealedAt: new Date(), updatedAt: new Date() })
-          .where(eq(vaultMigrationBatches.id, Number(batchId)));
+          .where(eq(vaultMigrationBatches.id, parsedBatchId));
       }
 
       deps.broadcast('vault:integrative_sealed', result);
       res.json({ ok: true, ...result });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao gerar códigos seguros integrativos.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao gerar códigos seguros integrativos.') });
     }
   });
 

@@ -18,7 +18,7 @@ import {
   userGroups,
   users,
 } from '../db/schema.ts';
-import { requireAdmin, requireAuth, requireModule, type AuthRequest } from '../middleware/auth.ts';
+import { isUnitPermitted, requireAdmin, requireAuth, requireModule, type AuthRequest } from '../middleware/auth.ts';
 import {
   canPreviewInline,
   getBucketObjectBuffer,
@@ -26,6 +26,8 @@ import {
   sanitizeFileName,
   validateUploadFile,
 } from '../services/bucketStorage.ts';
+import { getEntityTypeAliases, normalizeAuditLogRecord } from '../utils/auditDiff.ts';
+import { parsePositiveIntArray, parsePositiveIntId, sanitizeErrorMessage } from '../utils/validation.ts';
 
 interface CompanyLegalRouteDeps {
   broadcast: (event: string, payload: unknown) => void;
@@ -292,8 +294,16 @@ export function registerCompanyLegalRoutes(app: Express, deps: CompanyLegalRoute
       const allowedUnits = getAllowedUnitsScope(req);
       const [processes, unitRows, clientRows, collabRows] = await Promise.all([
         loadSerializedProcesses(allowedUnits),
-        db.select().from(units).where(eq(units.active, true)).orderBy(asc(units.id)),
-        db.select().from(clients).orderBy(asc(clients.fullName)),
+        allowedUnits === null
+          ? db.select().from(units).where(eq(units.active, true)).orderBy(asc(units.id))
+          : allowedUnits.length === 0
+          ? Promise.resolve([])
+          : db.select().from(units).where(and(eq(units.active, true), inArray(units.id, allowedUnits))).orderBy(asc(units.id)),
+        allowedUnits === null
+          ? db.select().from(clients).orderBy(asc(clients.fullName))
+          : allowedUnits.length === 0
+          ? Promise.resolve([])
+          : db.select().from(clients).where(inArray(clients.unitId, allowedUnits)).orderBy(asc(clients.fullName)),
         db.select().from(collaborators).where(eq(collaborators.active, true)).orderBy(asc(collaborators.name)),
       ]);
 
@@ -305,7 +315,7 @@ export function registerCompanyLegalRoutes(app: Express, deps: CompanyLegalRoute
       });
     } catch (error) {
       console.error('GET /api/company-legal/bootstrap error:', error);
-      res.status(500).json({ error: 'Erro ao carregar dados do Acompanhamento Jurídico.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao carregar dados do Acompanhamento Jurídico.') });
     }
   });
 
@@ -375,8 +385,8 @@ export function registerCompanyLegalRoutes(app: Express, deps: CompanyLegalRoute
       if (!canAccessAnyLegalModule(req)) {
         return res.status(403).json({ error: 'Acesso negado.' });
       }
-      const id = Number(req.params.id);
-      if (!Number.isFinite(id)) return res.status(400).json({ error: 'ID inválido.' });
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID inválido.' });
 
       const rows = await db
         .select()
@@ -435,27 +445,59 @@ export function registerCompanyLegalRoutes(app: Express, deps: CompanyLegalRoute
       }
 
       const rawUnitId = body.unitId ?? body.unit_id ?? req.activeUnitId ?? null;
-      const unitId = rawUnitId ? Number(rawUnitId) : null;
+      let unitId: number | null = null;
+      if (rawUnitId !== null && rawUnitId !== undefined && rawUnitId !== '') {
+        unitId = parsePositiveIntId(rawUnitId);
+        if (!unitId) return res.status(400).json({ error: 'ID de unidade inválido.' });
+      }
       const allowedUnits = getAllowedUnitsScope(req);
       if (allowedUnits !== null && unitId !== null && !allowedUnits.includes(unitId)) {
         return res.status(403).json({ error: 'Unidade selecionada não autorizada para este perfil.' });
       }
 
-      const partnerId = body.partnerId || body.partner_id ? Number(body.partnerId || body.partner_id) : null;
-      const clientId = body.clientId || body.client_id ? Number(body.clientId || body.client_id) : partnerId;
-      const admissionId = body.admissionId || body.admission_id ? Number(body.admissionId || body.admission_id) : null;
+      const rawPartnerId = body.partnerId ?? body.partner_id;
+      let partnerId: number | null = null;
+      if (rawPartnerId !== null && rawPartnerId !== undefined && rawPartnerId !== '') {
+        partnerId = parsePositiveIntId(rawPartnerId);
+        if (!partnerId) return res.status(400).json({ error: 'ID do parceiro inválido.' });
+      }
+      const rawClientId = body.clientId ?? body.client_id;
+      let clientId: number | null = partnerId;
+      if (rawClientId !== null && rawClientId !== undefined && rawClientId !== '') {
+        clientId = parsePositiveIntId(rawClientId);
+        if (!clientId) return res.status(400).json({ error: 'ID do cliente inválido.' });
+      }
+      const rawAdmissionId = body.admissionId ?? body.admission_id;
+      let admissionId: number | null = null;
+      if (rawAdmissionId !== null && rawAdmissionId !== undefined && rawAdmissionId !== '') {
+        admissionId = parsePositiveIntId(rawAdmissionId);
+        if (!admissionId) return res.status(400).json({ error: 'ID da admissão inválido.' });
+      }
 
       if (unitId) {
         const uExists = await db.select({ id: units.id }).from(units).where(eq(units.id, unitId)).limit(1);
         if (!uExists[0]) return res.status(400).json({ error: 'Unidade informada não encontrada.' });
       }
       if (partnerId) {
-        const cExists = await db.select({ id: clients.id }).from(clients).where(eq(clients.id, partnerId)).limit(1);
+        const cExists = await db.select({ id: clients.id, unitId: clients.unitId }).from(clients).where(eq(clients.id, partnerId)).limit(1);
         if (!cExists[0]) return res.status(400).json({ error: 'Parceiro vinculado não encontrado.' });
+        if (!isUnitPermitted(req, cExists[0].unitId)) {
+          return res.status(403).json({ error: 'Parceiro vinculado pertence a unidade não autorizada.' });
+        }
+      }
+      if (clientId && clientId !== partnerId) {
+        const cExists = await db.select({ id: clients.id, unitId: clients.unitId }).from(clients).where(eq(clients.id, clientId)).limit(1);
+        if (!cExists[0]) return res.status(400).json({ error: 'Cliente vinculado não encontrado.' });
+        if (!isUnitPermitted(req, cExists[0].unitId)) {
+          return res.status(403).json({ error: 'Cliente vinculado pertence a unidade não autorizada.' });
+        }
       }
       if (admissionId) {
-        const aExists = await db.select({ id: admissions.id }).from(admissions).where(eq(admissions.id, admissionId)).limit(1);
+        const aExists = await db.select({ id: admissions.id, unitId: admissions.unitId }).from(admissions).where(eq(admissions.id, admissionId)).limit(1);
         if (!aExists[0]) return res.status(400).json({ error: 'Admissão informada não encontrada.' });
+        if (!isUnitPermitted(req, aExists[0].unitId)) {
+          return res.status(403).json({ error: 'Admissão informada pertence a unidade não autorizada.' });
+        }
       }
 
       // Upload new base64 attachments into bucketdainvicta before DB tx
@@ -642,8 +684,8 @@ export function registerCompanyLegalRoutes(app: Express, deps: CompanyLegalRoute
       if (!canAccessAnyLegalModule(req)) {
         return res.status(403).json({ error: 'Acesso negado.' });
       }
-      const id = Number(req.params.id);
-      if (!Number.isFinite(id)) return res.status(400).json({ error: 'ID inválido.' });
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID inválido.' });
 
       const existingRows = await db
         .select()
@@ -659,12 +701,14 @@ export function registerCompanyLegalRoutes(app: Express, deps: CompanyLegalRoute
       }
 
       const body = (req.body || {}) as Record<string, any>;
-      const nextUnitId =
-        body.unitId !== undefined
-          ? body.unitId
-            ? Number(body.unitId)
-            : null
-          : existing.unitId;
+      let nextUnitId: number | null = existing.unitId;
+      if (body.unitId !== undefined) {
+        if (body.unitId === null || body.unitId === '') nextUnitId = null;
+        else {
+          nextUnitId = parsePositiveIntId(body.unitId);
+          if (!nextUnitId) return res.status(400).json({ error: 'ID de unidade inválido.' });
+        }
+      }
       if (allowedUnits !== null && nextUnitId !== null && !allowedUnits.includes(nextUnitId)) {
         return res.status(403).json({ error: 'Nova unidade selecionada não autorizada.' });
       }
@@ -675,32 +719,55 @@ export function registerCompanyLegalRoutes(app: Express, deps: CompanyLegalRoute
         return res.status(400).json({ error: 'O número do processo é obrigatório.' });
       }
 
-      const nextPartnerId =
-        body.partnerId !== undefined ? (body.partnerId ? Number(body.partnerId) : null) : existing.partnerId;
-      const nextClientId =
-        body.clientId !== undefined
-          ? body.clientId
-            ? Number(body.clientId)
-            : null
-          : nextPartnerId ?? existing.clientId;
-      const nextAdmissionId =
-        body.admissionId !== undefined
-          ? body.admissionId
-            ? Number(body.admissionId)
-            : null
-          : existing.admissionId;
+      let nextPartnerId: number | null = existing.partnerId;
+      if (body.partnerId !== undefined) {
+        if (body.partnerId === null || body.partnerId === '') nextPartnerId = null;
+        else {
+          nextPartnerId = parsePositiveIntId(body.partnerId);
+          if (!nextPartnerId) return res.status(400).json({ error: 'ID do parceiro inválido.' });
+        }
+      }
+      let nextClientId: number | null = nextPartnerId ?? existing.clientId;
+      if (body.clientId !== undefined) {
+        if (body.clientId === null || body.clientId === '') nextClientId = null;
+        else {
+          nextClientId = parsePositiveIntId(body.clientId);
+          if (!nextClientId) return res.status(400).json({ error: 'ID do cliente inválido.' });
+        }
+      }
+      let nextAdmissionId: number | null = existing.admissionId;
+      if (body.admissionId !== undefined) {
+        if (body.admissionId === null || body.admissionId === '') nextAdmissionId = null;
+        else {
+          nextAdmissionId = parsePositiveIntId(body.admissionId);
+          if (!nextAdmissionId) return res.status(400).json({ error: 'ID da admissão inválido.' });
+        }
+      }
 
       if (nextUnitId) {
         const uExists = await db.select({ id: units.id }).from(units).where(eq(units.id, nextUnitId)).limit(1);
         if (!uExists[0]) return res.status(400).json({ error: 'Unidade informada não encontrada.' });
       }
       if (nextPartnerId) {
-        const cExists = await db.select({ id: clients.id }).from(clients).where(eq(clients.id, nextPartnerId)).limit(1);
+        const cExists = await db.select({ id: clients.id, unitId: clients.unitId }).from(clients).where(eq(clients.id, nextPartnerId)).limit(1);
         if (!cExists[0]) return res.status(400).json({ error: 'Parceiro vinculado não encontrado.' });
+        if (!isUnitPermitted(req, cExists[0].unitId)) {
+          return res.status(403).json({ error: 'Parceiro vinculado pertence a unidade não autorizada.' });
+        }
+      }
+      if (nextClientId && nextClientId !== nextPartnerId) {
+        const cExists = await db.select({ id: clients.id, unitId: clients.unitId }).from(clients).where(eq(clients.id, nextClientId)).limit(1);
+        if (!cExists[0]) return res.status(400).json({ error: 'Cliente vinculado não encontrado.' });
+        if (!isUnitPermitted(req, cExists[0].unitId)) {
+          return res.status(403).json({ error: 'Cliente vinculado pertence a unidade não autorizada.' });
+        }
       }
       if (nextAdmissionId) {
-        const aExists = await db.select({ id: admissions.id }).from(admissions).where(eq(admissions.id, nextAdmissionId)).limit(1);
+        const aExists = await db.select({ id: admissions.id, unitId: admissions.unitId }).from(admissions).where(eq(admissions.id, nextAdmissionId)).limit(1);
         if (!aExists[0]) return res.status(400).json({ error: 'Admissão informada não encontrada.' });
+        if (!isUnitPermitted(req, aExists[0].unitId)) {
+          return res.status(403).json({ error: 'Admissão informada pertence a unidade não autorizada.' });
+        }
       }
 
       // Prepare attachments if provided
@@ -1059,8 +1126,8 @@ export function registerCompanyLegalRoutes(app: Express, deps: CompanyLegalRoute
       if (!canAccessAnyLegalModule(req)) {
         return res.status(403).json({ error: 'Acesso negado.' });
       }
-      const id = Number(req.params.id);
-      if (!Number.isFinite(id)) return res.status(400).json({ error: 'ID inválido.' });
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID inválido.' });
 
       const rows = await db
         .select()
@@ -1095,7 +1162,7 @@ export function registerCompanyLegalRoutes(app: Express, deps: CompanyLegalRoute
       res.json({ success: true, message: 'Processo excluído com sucesso.' });
     } catch (error) {
       console.error('DELETE /api/company-legal/processes/:id error:', error);
-      res.status(500).json({ error: 'Erro ao excluir processo.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao excluir processo.') });
     }
   });
 
@@ -1105,29 +1172,48 @@ export function registerCompanyLegalRoutes(app: Express, deps: CompanyLegalRoute
       if (!canAccessAnyLegalModule(req)) {
         return res.status(403).json({ error: 'Acesso negado.' });
       }
-      const id = String(req.params.id || '').trim();
-      if (!id) return res.json({ logs: [] });
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de processo inválido.' });
+
+      const [proc] = await db
+        .select({ id: companyLegalProcesses.id, unitId: companyLegalProcesses.unitId })
+        .from(companyLegalProcesses)
+        .where(eq(companyLegalProcesses.id, id))
+        .limit(1);
+      if (!proc) return res.status(404).json({ error: 'Processo não encontrado.' });
+      const allowedUnits = getAllowedUnitsScope(req);
+      if (allowedUnits !== null && proc.unitId !== null && !allowedUnits.includes(proc.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para visualizar histórico desta unidade.' });
+      }
 
       const limit = Math.min(500, Math.max(1, Number(req.query.limit || 500)));
       const rows = await db
         .select()
         .from(auditLogs)
-        .where(and(eq(auditLogs.entityType, 'company_legal_process'), eq(auditLogs.entityId, id)))
-        .orderBy(desc(auditLogs.createdAt))
+        .where(
+          and(
+            inArray(auditLogs.entityType, getEntityTypeAliases('company_legal_processes')),
+            eq(auditLogs.entityId, String(id))
+          )
+        )
+        .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id))
         .limit(limit);
 
-      res.json({ logs: rows });
+      res.json({ logs: rows.map((r) => normalizeAuditLogRecord(r)) });
     } catch (error) {
       console.error('GET /api/company-legal/processes/:id/audit-history error:', error);
-      res.status(500).json({ error: 'Erro ao consultar histórico de alterações.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao consultar histórico de alterações.') });
     }
   });
 
   // 9. Attachment binary preview / download from bucketdainvicta
   app.get('/api/company-legal/attachments/:id/content', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
-      if (!Number.isFinite(id)) return res.status(400).json({ error: 'ID inválido.' });
+      if (!canAccessAnyLegalModule(req)) {
+        return res.status(403).json({ error: 'Acesso negado.' });
+      }
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID inválido.' });
 
       const attRows = await db
         .select()
@@ -1160,13 +1246,16 @@ export function registerCompanyLegalRoutes(app: Express, deps: CompanyLegalRoute
       return res.send(buf);
     } catch (error) {
       console.error('GET /api/company-legal/attachments/:id/content error:', error);
-      res.status(500).json({ error: 'Erro ao ler anexo.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao ler anexo.') });
     }
   });
 
   // 10. Automated 7 / 5 / 3 day alerts to internal messages
   app.post('/api/company-legal/deadline-alerts', requireAuth, async (req: AuthRequest, res) => {
     try {
+      if (!canAccessAnyLegalModule(req)) {
+        return res.status(403).json({ error: 'Acesso negado.' });
+      }
       const { summaryText } = (req.body || {}) as { summaryText?: string };
       const bodyText = String(summaryText || '').trim();
       if (!bodyText) return res.status(400).json({ error: 'Resumo vazio.' });
@@ -1205,7 +1294,7 @@ export function registerCompanyLegalRoutes(app: Express, deps: CompanyLegalRoute
       res.json({ ok: true, message: msg });
     } catch (error) {
       console.error('POST /api/company-legal/deadline-alerts error:', error);
-      res.status(500).json({ error: 'Erro ao disparar alerta interno de prazos.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao disparar alerta interno de prazos.') });
     }
   });
 
@@ -1215,8 +1304,16 @@ export function registerCompanyLegalRoutes(app: Express, deps: CompanyLegalRoute
 
   app.get('/api/company-legal/partner-documents', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const clientId = Number(req.query.clientId);
-      if (!Number.isFinite(clientId)) return res.json({ items: [], total: 0, hasMore: false, nextCursor: null });
+      if (!canAccessAnyLegalModule(req)) {
+        return res.status(403).json({ error: 'Acesso negado.' });
+      }
+      const clientId = parsePositiveIntId(req.query.clientId);
+      if (!clientId) return res.json({ items: [], total: 0, hasMore: false, nextCursor: null });
+
+      const [clientRow] = await db.select({ unitId: clients.unitId }).from(clients).where(eq(clients.id, clientId)).limit(1);
+      if (clientRow && !isUnitPermitted(req, clientRow.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para consultar documentos deste parceiro.' });
+      }
 
       const search = String(req.query.search || '').trim().toLowerCase();
       const filterCat = String(req.query.category || '').trim().toLowerCase();
@@ -1319,14 +1416,17 @@ export function registerCompanyLegalRoutes(app: Express, deps: CompanyLegalRoute
       });
     } catch (error) {
       console.error('GET /api/company-legal/partner-documents error:', error);
-      res.status(500).json({ error: 'Erro ao listar documentos do parceiro.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao listar documentos do parceiro.') });
     }
   });
 
   app.delete('/api/company-legal/partner-documents/:docId', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const docId = Number(req.params.docId);
-      if (!Number.isFinite(docId)) return res.status(400).json({ error: 'ID inválido.' });
+      if (!canAccessAnyLegalModule(req)) {
+        return res.status(403).json({ error: 'Acesso negado.' });
+      }
+      const docId = parsePositiveIntId(req.params.docId);
+      if (!docId) return res.status(400).json({ error: 'ID inválido.' });
 
       const rows = await db.select().from(documentObjects).where(eq(documentObjects.id, docId)).limit(1);
       const doc = rows[0];
@@ -1364,7 +1464,7 @@ export function registerCompanyLegalRoutes(app: Express, deps: CompanyLegalRoute
       res.json({ ok: true });
     } catch (error) {
       console.error('DELETE /api/company-legal/partner-documents/:docId error:', error);
-      res.status(500).json({ error: 'Erro ao excluir documento do parceiro.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao excluir documento do parceiro.') });
     }
   });
 
@@ -1402,12 +1502,13 @@ export function registerCompanyLegalRoutes(app: Express, deps: CompanyLegalRoute
       });
     } catch (error) {
       console.error('GET /api/company-legal/acl/options error:', error);
-      res.status(500).json({ error: 'Erro ao carregar destinatários ACL.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao carregar destinatários ACL.') });
     }
   });
 
   app.get('/api/company-legal/acl/folders/:clientId', requireAuth, requireAdmin, async (req, res) => {
-    const clientId = Number(req.params.clientId);
+    const clientId = parsePositiveIntId(req.params.clientId);
+    if (!clientId) return res.status(400).json({ error: 'ID de cliente inválido.' });
     const rule = (await getSettingValue<{ groupIds: number[]; userIds: number[] }>(`legal_doc_acl_folder:${clientId}`)) || {
       groupIds: [],
       userIds: [],
@@ -1416,18 +1517,20 @@ export function registerCompanyLegalRoutes(app: Express, deps: CompanyLegalRoute
   });
 
   app.put('/api/company-legal/acl/folders/:clientId', requireAuth, requireAdmin, async (req, res) => {
-    const clientId = Number(req.params.clientId);
+    const clientId = parsePositiveIntId(req.params.clientId);
+    if (!clientId) return res.status(400).json({ error: 'ID de cliente inválido.' });
     const body = (req.body || {}) as { groupIds?: number[]; userIds?: number[] };
     const value = {
-      groupIds: Array.isArray(body.groupIds) ? body.groupIds.map(Number) : [],
-      userIds: Array.isArray(body.userIds) ? body.userIds.map(Number) : [],
+      groupIds: parsePositiveIntArray(body.groupIds),
+      userIds: parsePositiveIntArray(body.userIds),
     };
     await upsertSettingValue(`legal_doc_acl_folder:${clientId}`, value);
     res.json(value);
   });
 
   app.get('/api/company-legal/acl/files/:docId', requireAuth, requireAdmin, async (req, res) => {
-    const docId = Number(req.params.docId);
+    const docId = parsePositiveIntId(req.params.docId);
+    if (!docId) return res.status(400).json({ error: 'ID de documento inválido.' });
     const rule = (await getSettingValue<{ overrideEnabled: boolean; groupIds: number[]; userIds: number[] }>(
       `legal_doc_acl_file:${docId}`
     )) || {
@@ -1439,21 +1542,23 @@ export function registerCompanyLegalRoutes(app: Express, deps: CompanyLegalRoute
   });
 
   app.put('/api/company-legal/acl/files/:docId', requireAuth, requireAdmin, async (req, res) => {
-    const docId = Number(req.params.docId);
+    const docId = parsePositiveIntId(req.params.docId);
+    if (!docId) return res.status(400).json({ error: 'ID de documento inválido.' });
     const body = (req.body || {}) as { overrideEnabled?: boolean; groupIds?: number[]; userIds?: number[] };
     const value = {
       overrideEnabled: Boolean(body.overrideEnabled),
-      groupIds: body.overrideEnabled && Array.isArray(body.groupIds) ? body.groupIds.map(Number) : [],
-      userIds: body.overrideEnabled && Array.isArray(body.userIds) ? body.userIds.map(Number) : [],
+      groupIds: body.overrideEnabled ? parsePositiveIntArray(body.groupIds) : [],
+      userIds: body.overrideEnabled ? parsePositiveIntArray(body.userIds) : [],
     };
     await upsertSettingValue(`legal_doc_acl_file:${docId}`, value);
     res.json(value);
   });
 
   app.post('/api/company-legal/acl/legacy/:clientId/impact', requireAuth, requireAdmin, async (req, res) => {
-    const clientId = Number(req.params.clientId);
+    const clientId = parsePositiveIntId(req.params.clientId);
+    if (!clientId) return res.status(400).json({ error: 'ID de cliente inválido.' });
     const body = (req.body || {}) as { attachmentIds?: number[] };
-    const ids = Array.isArray(body.attachmentIds) ? body.attachmentIds.slice(0, 500).map(Number) : [];
+    const ids = parsePositiveIntArray(body.attachmentIds).slice(0, 500);
     const folderAcl = await getSettingValue<{ groupIds?: number[]; userIds?: number[] }>(`legal_doc_acl_folder:${clientId}`);
     const docs = ids.length
       ? await db.select().from(documentObjects).where(inArray(documentObjects.id, ids))
@@ -1473,9 +1578,10 @@ export function registerCompanyLegalRoutes(app: Express, deps: CompanyLegalRoute
   });
 
   app.post('/api/company-legal/acl/legacy/:clientId/protect', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
-    const clientId = Number(req.params.clientId);
+    const clientId = parsePositiveIntId(req.params.clientId);
+    if (!clientId) return res.status(400).json({ error: 'ID de cliente inválido.' });
     const body = (req.body || {}) as { attachmentIds?: number[] };
-    const ids = Array.isArray(body.attachmentIds) ? body.attachmentIds.slice(0, 500).map(Number) : [];
+    const ids = parsePositiveIntArray(body.attachmentIds).slice(0, 500);
     const folderAcl = await getSettingValue<{ groupIds?: number[]; userIds?: number[] }>(`legal_doc_acl_folder:${clientId}`);
     if (!folderAcl) {
       return res.status(400).json({ error: 'Configure primeiro a regra de acesso da pasta do parceiro.' });
@@ -1510,7 +1616,8 @@ export function registerCompanyLegalRoutes(app: Express, deps: CompanyLegalRoute
   });
 
   app.get('/api/company-legal/acl/legacy/:clientId/protected', requireAuth, requireAdmin, async (req, res) => {
-    const clientId = Number(req.params.clientId);
+    const clientId = parsePositiveIntId(req.params.clientId);
+    if (!clientId) return res.status(400).json({ error: 'ID de cliente inválido.' });
     const page = Math.max(1, Number(req.query.page || 1));
     const limit = 15;
     const all =
@@ -1528,8 +1635,9 @@ export function registerCompanyLegalRoutes(app: Express, deps: CompanyLegalRoute
   });
 
   app.delete('/api/company-legal/acl/legacy/:clientId/protect/:docId', requireAuth, requireAdmin, async (req, res) => {
-    const clientId = Number(req.params.clientId);
-    const docId = Number(req.params.docId);
+    const clientId = parsePositiveIntId(req.params.clientId);
+    const docId = parsePositiveIntId(req.params.docId);
+    if (!clientId || !docId) return res.status(400).json({ error: 'Parâmetros inválidos.' });
     const all =
       (await getSettingValue<
         Array<{ docId: number; fileName: string; module: string; category: string; protectedBy: string; protectedAt: string }>

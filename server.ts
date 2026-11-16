@@ -1,8 +1,10 @@
 import 'dotenv/config';
 import express from 'express';
 import http from 'node:http';
+import net from 'node:net';
 import path from 'node:path';
 import fs from 'node:fs';
+import { spawn, type ChildProcess } from 'node:child_process';
 import crypto from 'node:crypto';
 import multer from 'multer';
 import { WebSocketServer, WebSocket } from 'ws';
@@ -23,6 +25,7 @@ import {
   appointments,
   legalProcesses,
   legalMovements,
+  companyLegalProcesses,
   negotiations,
   paymentCategories,
   financialTitles,
@@ -65,18 +68,32 @@ import { registerReportsRoutes } from './src/routes/reportsRoutes.ts';
 import { registerCompanyLegalRoutes } from './src/routes/companyLegalRoutes.ts';
 import { registerDataHubRoutes } from './src/routes/dataHubRoutes.ts';
 import { registerMigrationRoutes } from './src/routes/migrationRoutes.ts';
+import { registerBackupRoutes } from './src/routes/backupRoutes.ts';
+import { registerInternalMessagingRoutes } from './src/routes/internalMessagingRoutes.ts';
+import { dispatchIviSectorNotification } from './src/services/internalMessaging.ts';
+import { startBackupScheduler } from './src/services/backupScheduler.ts';
 import { syncClientLegalAndEscavadorStatus } from './src/services/legalSync.ts';
 import {
   AuthRequest,
   checkUserScheduleWindow,
+  getAllowedUnitIds,
   hashPassword,
+  isUnitPermitted,
   normalizeModulePermissions,
   requireAdmin,
+  requireAnyModule,
   requireAuth,
   requireModule,
   signCorporateToken,
   verifyPassword,
 } from './src/middleware/auth.ts';
+import {
+  parseFiniteNumber,
+  parsePositiveIntArray,
+  parsePositiveIntId,
+  parseSafeDate,
+  sanitizeErrorMessage,
+} from './src/utils/validation.ts';
 import {
   getIviChainConfig,
   iviDraftCollectionMessage,
@@ -201,26 +218,176 @@ function createCaptchaChallenge(): { token: string; mathQuestion: string; imageP
 }
 
 function verifyCaptchaChallenge(token: string, mathInput: string, selectedTileIds: string[]): { ok: boolean; error?: string } {
-  if (!token || !token.includes('.')) return { ok: false, error: 'Desafio CAPTCHA ausente.' };
-  const [payload, sig] = token.split('.');
+  if (!token || typeof token !== 'string' || !token.includes('.')) {
+    return { ok: false, error: 'Desafio CAPTCHA ausente.' };
+  }
+  const parts = token.split('.');
+  if (parts.length !== 2) return { ok: false, error: 'Token CAPTCHA inválido.' };
+  const [payload, sig] = parts;
+  if (!payload || !sig) return { ok: false, error: 'Token CAPTCHA inválido.' };
   const expected = crypto.createHmac('sha256', CAPTCHA_SECRET).update(payload).digest('base64url');
-  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
+  const sigBuf = Buffer.from(sig);
+  const expBuf = Buffer.from(expected);
+  if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
     return { ok: false, error: 'Token CAPTCHA inválido.' };
   }
-  const challenge = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as CaptchaChallenge;
-  if (challenge.exp < Date.now()) return { ok: false, error: 'CAPTCHA expirado. Atualize o desafio.' };
+  let challenge: CaptchaChallenge;
+  try {
+    challenge = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as CaptchaChallenge;
+  } catch {
+    return { ok: false, error: 'Token CAPTCHA corrompido.' };
+  }
+  if (!challenge || typeof challenge.exp !== 'number' || challenge.exp < Date.now()) {
+    return { ok: false, error: 'CAPTCHA expirado. Atualize o desafio.' };
+  }
   if (Number(mathInput) !== challenge.mathAnswer) {
     return { ok: false, error: 'Resposta do CAPTCHA matemático incorreta.' };
   }
-  const expectedIds = challenge.tiles.filter((t) => t.category === challenge.targetCategory).map((t) => t.id).sort();
-  const receivedIds = [...new Set(selectedTileIds)].sort();
+  const expectedIds = (Array.isArray(challenge.tiles) ? challenge.tiles : [])
+    .filter((t) => t.category === challenge.targetCategory)
+    .map((t) => t.id)
+    .sort();
+  const receivedIds = [...new Set(Array.isArray(selectedTileIds) ? selectedTileIds : [])].sort();
   if (expectedIds.length !== receivedIds.length || expectedIds.some((id, idx) => id !== receivedIds[idx])) {
     return { ok: false, error: 'Seleção do CAPTCHA de imagens incorreta.' };
   }
   return { ok: true };
 }
 
+let sqlProxyChild: ChildProcess | null = null;
+let ensureProxyPromise: Promise<void> | null = null;
+let lastProxyFailureAt = 0;
+let proxySignalHandlersRegistered = false;
+
+function testUnixSocket(socketPath: string): Promise<'ok' | 'econnrefused' | 'enoent'> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const socket = net.createConnection(socketPath);
+    const done = (result: 'ok' | 'econnrefused' | 'enoent') => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolve(result);
+    };
+    socket.setTimeout(500);
+    socket.once('connect', () => done('ok'));
+    socket.once('timeout', () => done('econnrefused'));
+    socket.once('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'ENOENT') done('enoent');
+      else done('econnrefused');
+    });
+  });
+}
+
+async function ensureSqlHostProxySocket(force = false): Promise<void> {
+  const sqlHost = (process.env.SQL_HOST || '').trim();
+  if (!sqlHost.startsWith('/app/cloudsql/')) return;
+  if (!fs.existsSync('/app/cloud_sql_proxy')) return;
+
+  const instanceConnection = path.basename(sqlHost);
+  if (!instanceConnection || !instanceConnection.includes(':')) return;
+
+  if (!force && Date.now() - lastProxyFailureAt < 5000 && lastProxyFailureAt > 0) {
+    return;
+  }
+
+  if (ensureProxyPromise) {
+    return ensureProxyPromise;
+  }
+
+  const socketPath = path.join(sqlHost, '.s.PGSQL.5432');
+
+  ensureProxyPromise = (async () => {
+    try {
+      const status = await testUnixSocket(socketPath);
+      if (status === 'ok') return;
+
+      if (status === 'econnrefused') {
+        try {
+          if (fs.existsSync(socketPath)) fs.unlinkSync(socketPath);
+        } catch {
+          // ignore unlink errors if race cleared it
+        }
+      }
+
+      if (sqlProxyChild && sqlProxyChild.exitCode === null && !sqlProxyChild.killed) {
+        try {
+          sqlProxyChild.kill('SIGTERM');
+        } catch {
+          // ignore kill failure
+        }
+        sqlProxyChild = null;
+      }
+
+      if (!proxySignalHandlersRegistered) {
+        proxySignalHandlersRegistered = true;
+        const cleanupProxy = () => {
+          if (sqlProxyChild && sqlProxyChild.exitCode === null && !sqlProxyChild.killed) {
+            try {
+              sqlProxyChild.kill('SIGTERM');
+            } catch {
+              // ignore cleanup failure
+            }
+          }
+        };
+        process.once('SIGINT', cleanupProxy);
+        process.once('SIGTERM', cleanupProxy);
+      }
+
+      const child = spawn(
+        '/app/cloud_sql_proxy',
+        [
+          instanceConnection,
+          '--unix-socket=/app/cloudsql',
+          '--sql-data',
+          '--sql-data-endpoint=sqladmin.googleapis.com',
+          '--sqladmin-api-endpoint=sqladmin.googleapis.com',
+        ],
+        { stdio: ['ignore', 'pipe', 'pipe'] }
+      );
+      sqlProxyChild = child;
+
+      child.stderr?.on('data', (chunk) => {
+        const text = String(chunk || '').trim();
+        if (text && /error|failed|denied/i.test(text)) {
+          console.error('[cloud_sql_proxy]', text);
+        }
+      });
+
+      child.on('exit', () => {
+        if (sqlProxyChild === child) {
+          sqlProxyChild = null;
+        }
+      });
+
+      let connected = false;
+      for (let i = 0; i < 40; i++) {
+        if (child.exitCode !== null || child.killed) break;
+        if ((await testUnixSocket(socketPath)) === 'ok') {
+          connected = true;
+          break;
+        }
+        await new Promise((r) => setTimeout(r, 100));
+      }
+
+      if (!connected) {
+        lastProxyFailureAt = Date.now();
+      } else {
+        lastProxyFailureAt = 0;
+      }
+    } catch (err) {
+      lastProxyFailureAt = Date.now();
+      console.error('ensureSqlHostProxySocket warning:', err);
+    } finally {
+      ensureProxyPromise = null;
+    }
+  })();
+
+  return ensureProxyPromise;
+}
+
 async function startServer() {
+  await ensureSqlHostProxySocket(true);
   const app = express();
   const server = http.createServer(app);
   const wss = new WebSocketServer({ noServer: true });
@@ -247,6 +414,14 @@ async function startServer() {
   });
 
   app.use(express.json({ limit: '15mb' }));
+
+  app.use('/api', async (req, _res, next) => {
+    if (req.path === '/health' || req.path === '/auth/captcha') return next();
+    if (!sqlProxyChild || sqlProxyChild.exitCode !== null || sqlProxyChild.killed) {
+      await ensureSqlHostProxySocket();
+    }
+    next();
+  });
 
   // Public health check
   app.get('/api/health', (_req, res) => {
@@ -897,15 +1072,26 @@ async function startServer() {
         endAt: string;
         reason: string;
       };
+      const parsedConsultantId = parsePositiveIntId(consultantId);
+      if (!parsedConsultantId) return res.status(400).json({ error: 'Consultor inválido.' });
+      const start = parseSafeDate(startAt);
+      const end = parseSafeDate(endAt);
+      if (!start || !end || end <= start) {
+        return res.status(400).json({ error: 'Período de bloqueio inválido (início/fim).' });
+      }
       if (!reason?.trim()) return res.status(400).json({ error: 'Informe o motivo do bloqueio de agenda.' });
+      const targetUnitId = unitId ? parsePositiveIntId(unitId) : (req.activeUnitId || 1);
+      if (!targetUnitId || !isUnitPermitted(req, targetUnitId)) {
+        return res.status(403).json({ error: 'Unidade não autorizada.' });
+      }
       const [block] = await db
         .insert(scheduleBlocks)
         .values({
-          consultantId: Number(consultantId),
-          unitId: unitId || req.activeUnitId || 1,
-          startAt: new Date(startAt),
-          endAt: new Date(endAt),
-          reason,
+          consultantId: parsedConsultantId,
+          unitId: targetUnitId,
+          startAt: start,
+          endAt: end,
+          reason: reason.trim(),
           createdBy: req.authUser!.name,
         })
         .returning();
@@ -927,9 +1113,15 @@ async function startServer() {
         initialMessage?: string;
         mode?: 'ivi' | 'human';
       };
-      const targetUnit = unitId || req.activeUnitId || 1;
+      const targetUnit = unitId !== undefined && unitId !== null ? parsePositiveIntId(unitId) : (req.activeUnitId || 1);
+      if (!targetUnit || !isUnitPermitted(req, targetUnit)) {
+        return res.status(403).json({ error: 'Unidade inválida ou não autorizada.' });
+      }
+      if (!phone || !String(phone).trim()) {
+        return res.status(400).json({ error: 'Telefone do lead é obrigatório.' });
+      }
       const cleanName = String(name || '').trim();
-      const formattedPhone = formatPhoneWithPlus55(phone);
+      const formattedPhone = formatPhoneWithPlus55(String(phone));
       const isPhoneChannel = channel === 'telefone';
       const transcript: Array<{
         sender: string;
@@ -993,6 +1185,22 @@ async function startServer() {
         })
         .returning();
 
+      if (stage === 'escalado_humano') {
+        await dispatchIviSectorNotification(
+          {
+            targetSector: 'prospeccao',
+            targetUnitId: targetUnit,
+            relatedEntityType: 'lead',
+            relatedEntityId: lead.id,
+            senderName: 'Ivi IA · Prospecção',
+            subject: `Lead escalado para atendimento · ${cleanName || formattedPhone}`,
+            body: `A Ivi encaminhou o lead ${cleanName || 'Sem nome'} (${formattedPhone} · canal ${channel}) para tratativa comercial em Prospecção.`,
+          },
+          db,
+          broadcast
+        );
+      }
+
       res.json({ lead });
     } catch (error) {
       console.error('Create lead error:', error);
@@ -1002,11 +1210,13 @@ async function startServer() {
 
   app.post('/api/prospection/leads/:id/ivi-reply', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const leadId = Number(req.params.id);
+      const leadId = parsePositiveIntId(req.params.id);
+      if (!leadId) return res.status(400).json({ error: 'ID de lead inválido.' });
       const { message, mode } = req.body as { message: string; mode?: 'ivi' | 'human' };
       const rows = await db.select().from(prospectionLeads).where(eq(prospectionLeads.id, leadId)).limit(1);
       const lead = rows[0];
       if (!lead) return res.status(404).json({ error: 'Lead não encontrado.' });
+      if (!isUnitPermitted(req, lead.unitId)) return res.status(403).json({ error: 'Unidade do lead não autorizada.' });
 
       if (mode === 'human') {
         const nextTranscript = [
@@ -1038,6 +1248,19 @@ async function startServer() {
           .returning();
 
         const snap = await archiveLeadConversationSnapshot(leadId, undefined, req.authUser!.name);
+        await dispatchIviSectorNotification(
+          {
+            targetSector: 'prospeccao',
+            targetUnitId: lead.unitId,
+            relatedEntityType: 'lead',
+            relatedEntityId: leadId,
+            senderName: 'Ivi IA · Prospecção',
+            subject: `Atendimento humano assumido · ${lead.name || lead.phone}`,
+            body: `${req.authUser!.name} assumiu a tratativa do lead ${lead.name || lead.phone} em Prospecção.`,
+          },
+          db,
+          broadcast
+        );
         return res.json({ lead: snap?.lead || updated, ivi: { provider: sumRes.provider, needsHuman: true } });
       }
 
@@ -1075,6 +1298,21 @@ async function startServer() {
         .returning();
 
       const snap = await archiveLeadConversationSnapshot(leadId, undefined, 'Ivi IA');
+      if (iviRes.needsHuman) {
+        await dispatchIviSectorNotification(
+          {
+            targetSector: 'prospeccao',
+            targetUnitId: lead.unitId,
+            relatedEntityType: 'lead',
+            relatedEntityId: leadId,
+            senderName: 'Ivi IA · Prospecção',
+            subject: `Escalação Automática Ivi · ${lead.name || lead.phone}`,
+            body: `A Ivi detectou necessidade de intervenção comercial humana no lead ${lead.name || lead.phone} (${lead.channel}).`,
+          },
+          db,
+          broadcast
+        );
+      }
       res.json({ lead: snap?.lead || updated, ivi: iviRes });
     } catch (error) {
       console.error('Ivi reply error:', error);
@@ -1084,7 +1322,8 @@ async function startServer() {
 
   app.post('/api/prospection/leads/:id/transcribe-audio', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const leadId = Number(req.params.id);
+      const leadId = parsePositiveIntId(req.params.id);
+      if (!leadId) return res.status(400).json({ error: 'ID de lead inválido.' });
       const { audioDataUri, mimeType, audioDescription, sender } = req.body as {
         audioDataUri?: string;
         mimeType?: string;
@@ -1094,6 +1333,7 @@ async function startServer() {
       const rows = await db.select().from(prospectionLeads).where(eq(prospectionLeads.id, leadId)).limit(1);
       const lead = rows[0];
       if (!lead) return res.status(404).json({ error: 'Lead não encontrado.' });
+      if (!isUnitPermitted(req, lead.unitId)) return res.status(403).json({ error: 'Unidade do lead não autorizada.' });
 
       const payload = audioDataUri || audioDescription || '';
       if (!payload.trim()) return res.status(400).json({ error: 'Envie o áudio ou descrição para transcrição.' });
@@ -1195,10 +1435,12 @@ async function startServer() {
 
   app.post('/api/prospection/leads/:id/summarize', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const leadId = Number(req.params.id);
+      const leadId = parsePositiveIntId(req.params.id);
+      if (!leadId) return res.status(400).json({ error: 'ID de lead inválido.' });
       const rows = await db.select().from(prospectionLeads).where(eq(prospectionLeads.id, leadId)).limit(1);
       const lead = rows[0];
       if (!lead) return res.status(404).json({ error: 'Lead não encontrado.' });
+      if (!isUnitPermitted(req, lead.unitId)) return res.status(403).json({ error: 'Unidade do lead não autorizada.' });
 
       const sumRes = await iviSummarizeConversation({
         leadName: lead.name || 'Cliente sem nome',
@@ -1224,8 +1466,12 @@ async function startServer() {
 
   app.put('/api/prospection/leads/:id/summary', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const leadId = Number(req.params.id);
+      const leadId = parsePositiveIntId(req.params.id);
+      if (!leadId) return res.status(400).json({ error: 'ID de lead inválido.' });
       const { summaryText } = req.body as { summaryText: string };
+      const existingLead = await db.select({ unitId: prospectionLeads.unitId }).from(prospectionLeads).where(eq(prospectionLeads.id, leadId)).limit(1);
+      if (!existingLead[0]) return res.status(404).json({ error: 'Lead não encontrado.' });
+      if (!isUnitPermitted(req, existingLead[0].unitId)) return res.status(403).json({ error: 'Unidade do lead não autorizada.' });
       const [updated] = await db
         .update(prospectionLeads)
         .set({
@@ -1245,9 +1491,13 @@ async function startServer() {
 
   app.patch('/api/prospection/leads/:id/contact', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const leadId = Number(req.params.id);
+      const leadId = parsePositiveIntId(req.params.id);
+      if (!leadId) return res.status(400).json({ error: 'ID de lead inválido.' });
       const { name, phone } = req.body as { name: string; phone: string };
       if (!String(name || '').trim()) return res.status(400).json({ error: 'Informe o nome do cliente.' });
+      const existingLead = await db.select({ unitId: prospectionLeads.unitId }).from(prospectionLeads).where(eq(prospectionLeads.id, leadId)).limit(1);
+      if (!existingLead[0]) return res.status(404).json({ error: 'Lead não encontrado.' });
+      if (!isUnitPermitted(req, existingLead[0].unitId)) return res.status(403).json({ error: 'Unidade do lead não autorizada.' });
       const formattedPhone = formatPhoneWithPlus55(phone);
       const [updated] = await db
         .update(prospectionLeads)
@@ -1267,11 +1517,13 @@ async function startServer() {
 
   app.post('/api/prospection/leads/:id/call', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const leadId = Number(req.params.id);
+      const leadId = parsePositiveIntId(req.params.id);
+      if (!leadId) return res.status(400).json({ error: 'ID de lead inválido.' });
       const { isVideo, provider } = (req.body || {}) as { isVideo?: boolean; provider?: 'uazapi' | 'gotalk' };
       const rows = await db.select().from(prospectionLeads).where(eq(prospectionLeads.id, leadId)).limit(1);
       const lead = rows[0];
       if (!lead) return res.status(404).json({ error: 'Lead não encontrado.' });
+      if (!isUnitPermitted(req, lead.unitId)) return res.status(403).json({ error: 'Unidade do lead não autorizada.' });
 
       const chosenProvider =
         provider === 'gotalk' || (provider !== 'uazapi' && lead.channel === 'whatsapp_gotalk')
@@ -1348,11 +1600,13 @@ async function startServer() {
 
   app.post('/api/prospection/leads/:id/call/terminate', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const leadId = Number(req.params.id);
+      const leadId = parsePositiveIntId(req.params.id);
+      if (!leadId) return res.status(400).json({ error: 'ID de lead inválido.' });
       const { callId, durationSeconds } = req.body as { callId: string; durationSeconds?: number };
       const rows = await db.select().from(prospectionLeads).where(eq(prospectionLeads.id, leadId)).limit(1);
       const lead = rows[0];
       if (!lead) return res.status(404).json({ error: 'Lead não encontrado.' });
+      if (!isUnitPermitted(req, lead.unitId)) return res.status(403).json({ error: 'Unidade do lead não autorizada.' });
 
       const creds = await resolveUazapiCredentials({ unitId: lead.unitId, moduleId: 'prospection' });
       const result = callId?.startsWith('gt-call-')
@@ -1378,8 +1632,9 @@ async function startServer() {
 
   app.post('/api/prospection/leads/:id/calls/:callLogId/recording', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const leadId = Number(req.params.id);
-      const callLogId = Number(req.params.callLogId);
+      const leadId = parsePositiveIntId(req.params.id);
+      const callLogId = parsePositiveIntId(req.params.callLogId);
+      if (!leadId || !callLogId) return res.status(400).json({ error: 'Identificadores de lead/ligação inválidos.' });
       const { audioDataUri, mimeType, fileName, durationSeconds } = req.body as {
         audioDataUri: string;
         mimeType?: string;
@@ -1393,6 +1648,7 @@ async function startServer() {
       const lead = leadRows[0];
       const callLog = callRows[0];
       if (!lead || !callLog) return res.status(404).json({ error: 'Lead ou registro de ligação não encontrado.' });
+      if (!isUnitPermitted(req, lead.unitId)) return res.status(403).json({ error: 'Unidade do lead não autorizada.' });
 
       const parsed = parseDataUriBuffer(audioDataUri, mimeType || 'audio/webm');
       if (!parsed) return res.status(400).json({ error: 'Arquivo de áudio da gravação inválido.' });
@@ -1494,7 +1750,11 @@ async function startServer() {
 
   app.post('/api/prospection/leads/:id/archive', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const leadId = Number(req.params.id);
+      const leadId = parsePositiveIntId(req.params.id);
+      if (!leadId) return res.status(400).json({ error: 'ID de lead inválido.' });
+      const [lead] = await db.select({ unitId: prospectionLeads.unitId }).from(prospectionLeads).where(eq(prospectionLeads.id, leadId)).limit(1);
+      if (!lead) return res.status(404).json({ error: 'Lead não encontrado.' });
+      if (!isUnitPermitted(req, lead.unitId)) return res.status(403).json({ error: 'Unidade do lead não autorizada.' });
       const snap = await archiveLeadConversationSnapshot(leadId, undefined, req.authUser!.name);
       if (!snap) return res.status(404).json({ error: 'Lead não encontrado.' });
       res.json(snap);
@@ -1515,9 +1775,17 @@ async function startServer() {
         scheduledFor: string;
         notes?: string;
       };
-      const targetUnit = unitId || req.activeUnitId || 1;
-
-      const targetDate = new Date(scheduledFor || Date.now() + 86400000);
+      const targetUnit = unitId !== undefined && unitId !== null ? parsePositiveIntId(unitId) : (req.activeUnitId || 1);
+      if (!targetUnit || !isUnitPermitted(req, targetUnit)) {
+        return res.status(403).json({ error: 'Unidade inválida ou não autorizada.' });
+      }
+      const targetDate = scheduledFor ? parseSafeDate(scheduledFor) : new Date(Date.now() + 86400000);
+      if (!targetDate) {
+        return res.status(400).json({ error: 'Data/hora do agendamento (scheduledFor) inválida.' });
+      }
+      if (!clientName || !String(clientName).trim()) {
+        return res.status(400).json({ error: 'Nome do cliente é obrigatório.' });
+      }
 
       // Load lead summary if leadId provided so Observações receives full discussion summary + user/date/time
       let finalNotes = String(notes || '').trim();
@@ -1587,18 +1855,22 @@ async function startServer() {
         await db.update(prospectionLeads).set({ stage: 'agendado', assignedUserId: chosenConsultant?.id }).where(eq(prospectionLeads.id, leadId));
       }
 
-      // Notify assigned consultant via internal message + WhatsApp log
-      if (chosenConsultant) {
-        await db.insert(internalMessages).values({
-          senderId: req.authUser!.id,
-          senderName: 'Agenda Ivi',
-          recipientId: chosenConsultant.id,
-          targetSector: 'comercial',
-          subject: `Novo Agendamento (${modality.toUpperCase()}) · ${clientName}`,
-          body: `Cliente ${clientName} (${clientPhone}) agendado para ${new Date(appt.scheduledFor).toLocaleString('pt-BR')}. Notificação enviada para seu WhatsApp (${chosenConsultant.whatsappPhone || 'cadastrado'}). Convide o cliente para confirmação presencial!`,
-        });
-        broadcast('internal:message', { recipientId: chosenConsultant.id, clientName, modality });
-      }
+      // Notify Agendamentos + Consultor Comercial via Ivi
+      await dispatchIviSectorNotification(
+        {
+          targetSector: 'agendamentos',
+          targetUnitId: targetUnit,
+          recipientId: chosenConsultant?.id ?? null,
+          targetGroupId: chosenConsultant?.groupId ?? null,
+          relatedEntityType: 'appointment',
+          relatedEntityId: appt.id,
+          senderName: 'Ivi IA · Agendamentos',
+          subject: `Novo Agendamento (${(modality || 'presencial').toUpperCase()}) · ${clientName}`,
+          body: `Cliente ${clientName} (${clientPhone}) agendado para ${new Date(appt.scheduledFor).toLocaleString('pt-BR')} com ${chosenConsultant?.name || 'consultor da unidade'}.`,
+        },
+        db,
+        broadcast
+      );
 
       res.json({ appointment: appt, consultant: chosenConsultant });
     } catch (error) {
@@ -1609,8 +1881,12 @@ async function startServer() {
 
   app.patch('/api/prospection/appointments/:id/status', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de agendamento inválido.' });
       const { status } = req.body as { status: string };
+      const [existing] = await db.select().from(appointments).where(eq(appointments.id, id)).limit(1);
+      if (!existing) return res.status(404).json({ error: 'Agendamento não encontrado.' });
+      if (!isUnitPermitted(req, existing.unitId)) return res.status(403).json({ error: 'Unidade não autorizada.' });
       const [updated] = await db.update(appointments).set({ status }).where(eq(appointments.id, id)).returning();
       res.json({ appointment: updated });
     } catch (error) {
@@ -1635,19 +1911,23 @@ async function startServer() {
         db.select({ id: whatsappThreads.id, contactPhone: whatsappThreads.contactPhone, provider: whatsappThreads.provider }).from(whatsappThreads),
         getBucketRuntimeStats(),
       ]);
-      const isAdmin = req.authUser!.role === 'admin';
-      const allowedUnits = req.authUser!.allowedUnitIds || [];
-      const permittedDocs = allDocs.filter((d) => isAdmin || allowedUnits.includes(d.unitId));
+      const allowedUnits = getAllowedUnitIds(req);
+      const unitAllowed = (uId: number | null | undefined) =>
+        allowedUnits === null || (typeof uId === 'number' && allowedUnits.includes(uId));
+      const permittedClients = allClients.filter((c) => unitAllowed(c.unitId));
+      const permittedAdmissions = allAdmissions.filter((a) => unitAllowed(a.unitId));
+      const permittedDocs = allDocs.filter((d) => unitAllowed(d.unitId));
+      const permittedScenarios = scenarios.filter((s) => unitAllowed(s.unitId));
       const threadPhones = Array.from(
         new Set(allThreads.map((t) => String(t.contactPhone || '').replace(/\D/g, '').slice(-8)).filter(Boolean))
       );
       res.json({
-        clients: allClients,
+        clients: permittedClients,
         assetLinks: links,
-        admissions: allAdmissions,
+        admissions: permittedAdmissions,
         documents: permittedDocs.filter((d) => !d.deletedAt),
         trashedDocuments: permittedDocs.filter((d) => Boolean(d.deletedAt)),
-        recalcScenarios: scenarios,
+        recalcScenarios: permittedScenarios,
         consultants: allUsers,
         threadPhones,
         bucketStats,
@@ -1661,9 +1941,11 @@ async function startServer() {
   app.get('/api/clients/search', requireAuth, async (req: AuthRequest, res) => {
     try {
       const q = String(req.query.q || '').trim().toLowerCase();
-      const offset = Math.max(0, Number(req.query.offset || 0));
-      const limit = Math.min(50, Math.max(1, Number(req.query.limit || 15)));
-      const all = await db.select().from(clients).orderBy(desc(clients.id));
+      const offset = Math.max(0, Number(req.query.offset || 0) || 0);
+      const limit = Math.min(50, Math.max(1, Number(req.query.limit || 15) || 15));
+      const allRaw = await db.select().from(clients).orderBy(desc(clients.id));
+      const allowedUnits = getAllowedUnitIds(req);
+      const all = allowedUnits === null ? allRaw : allRaw.filter((c) => allowedUnits.includes(c.unitId));
       const matched =
         q.length < 3
           ? all
@@ -1683,7 +1965,7 @@ async function startServer() {
         hasMore: offset + limit < matched.length,
       });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro na pesquisa de clientes.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro na pesquisa de clientes.') });
     }
   });
 
@@ -1760,15 +2042,19 @@ async function startServer() {
       });
       res.json({ client: created });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao cadastrar cliente.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao cadastrar cliente.') });
     }
   });
 
   app.patch('/api/clients/:id', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de cliente inválido.' });
       const rows = await db.select().from(clients).where(eq(clients.id, id)).limit(1);
       if (!rows[0]) return res.status(404).json({ error: 'Cliente não encontrado.' });
+      if (!isUnitPermitted(req, rows[0].unitId)) {
+        return res.status(403).json({ error: 'Unidade do cliente não autorizada.' });
+      }
       const b = (req.body || {}) as Record<string, string | boolean | undefined>;
       const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
       const [updated] = await db
@@ -1812,7 +2098,7 @@ async function startServer() {
       });
       res.json({ client: updated });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao atualizar cliente.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao atualizar cliente.') });
     }
   });
 
@@ -1827,10 +2113,19 @@ async function startServer() {
         installmentsTotal: number;
         notes?: string;
       };
-      const iContract = Math.max(0.001, Number(contractRateMonthlyPct) / 100);
-      const iBacen = Math.max(0.001, Number(bacenAvgRateMonthlyPct) / 100);
-      const n = Math.max(2, Number(installmentsTotal) || 48);
-      const pmt = Math.max(100, Number(originalInstallmentCents));
+      const parsedClientId = parsePositiveIntId(clientId);
+      const parsedAdmId = admissionId !== undefined && admissionId !== null && String(admissionId) !== '' ? parsePositiveIntId(admissionId) : null;
+      const rawContractRate = parseFiniteNumber(contractRateMonthlyPct);
+      const rawBacenRate = parseFiniteNumber(bacenAvgRateMonthlyPct);
+      const rawPmt = parseFiniteNumber(originalInstallmentCents);
+      const rawInst = parseFiniteNumber(installmentsTotal);
+      if (!parsedClientId || rawContractRate === null || rawBacenRate === null || rawPmt === null) {
+        return res.status(400).json({ error: 'Parâmetros numéricos inválidos para recálculo.' });
+      }
+      const iContract = Math.max(0.001, rawContractRate / 100);
+      const iBacen = Math.max(0.001, rawBacenRate / 100);
+      const n = Math.max(2, Math.round(rawInst ?? 48));
+      const pmt = Math.max(100, Math.round(rawPmt));
 
       // Present value under contract rate, then recalculate fair PMT at BACEN average rate
       const pv = pmt * ((1 - Math.pow(1 + iContract, -n)) / iContract);
@@ -1840,11 +2135,11 @@ async function startServer() {
       const [scenario] = await db
         .insert(recalcScenarios)
         .values({
-          clientId: Number(clientId),
-          admissionId: admissionId ? Number(admissionId) : null,
+          clientId: parsedClientId,
+          admissionId: parsedAdmId,
           unitId: req.activeUnitId || 1,
-          contractRateMonthlyPct: String(contractRateMonthlyPct),
-          bacenAvgRateMonthlyPct: String(bacenAvgRateMonthlyPct),
+          contractRateMonthlyPct: String(rawContractRate),
+          bacenAvgRateMonthlyPct: String(rawBacenRate),
           originalInstallmentCents: pmt,
           fairInstallmentCents: fairPmt,
           installmentsTotal: n,
@@ -1931,10 +2226,13 @@ async function startServer() {
   app.post('/api/admissions', requireAuth, async (req: AuthRequest, res) => {
     try {
       const body = (req.body || {}) as Record<string, unknown>;
-      const targetUnitId = Number(body.unitId || req.activeUnitId || 1);
+      const targetUnitId = parsePositiveIntId(body.unitId ?? req.activeUnitId ?? 1);
       const bankName = String(body.bankName || '').trim();
       const series = String(body.series || 'ADM').trim().toUpperCase();
-      const clientIdInput = body.clientId ? Number(body.clientId) : null;
+      const clientIdInput = body.clientId ? parsePositiveIntId(body.clientId) : null;
+      if (body.clientId !== undefined && body.clientId !== null && body.clientId !== '' && !clientIdInput) {
+        return res.status(400).json({ error: 'clientId inválido.' });
+      }
       const clientFullName = String(body.clientFullName || '').trim();
       const clientCpf = String(body.clientCpf || '').trim();
       const clientPhone = String(body.clientPhone || '').trim();
@@ -1944,6 +2242,9 @@ async function startServer() {
         return res.status(400).json({
           error: 'Campos obrigatórios para salvar: Cliente, Banco, Série e Unidade.',
         });
+      }
+      if (!isUnitPermitted(req, targetUnitId)) {
+        return res.status(403).json({ error: 'Unidade não autorizada para este perfil.' });
       }
 
       const [unit] = await db.select().from(units).where(eq(units.id, targetUnitId)).limit(1);
@@ -2135,6 +2436,21 @@ async function startServer() {
       });
 
       broadcast('audit:event', { type: 'NEW_ADMISSION', protocolCode });
+      if (requestedStatus === 'aguardando_auditoria') {
+        await dispatchIviSectorNotification(
+          {
+            targetSector: 'auditoria',
+            targetUnitId: targetUnitId,
+            relatedEntityType: 'admission',
+            relatedEntityId: admission.id,
+            senderName: 'Ivi IA · Fluxo Comercial',
+            subject: `Nova ficha enviada para Auditoria · ${protocolCode}`,
+            body: `O Comercial (${req.authUser!.name}) enviou a ficha ${protocolCode} (${titular.fullName} · ${bankName}) para conferência em Auditoria & Boletos.`,
+          },
+          db,
+          broadcast
+        );
+      }
       res.json({ admission, titular });
     } catch (error) {
       console.error('Create admission error:', error);
@@ -2144,10 +2460,12 @@ async function startServer() {
 
   app.patch('/api/admissions/:id', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de admissão inválido.' });
       const rows = await db.select().from(admissions).where(eq(admissions.id, id)).limit(1);
       const existing = rows[0];
       if (!existing) return res.status(404).json({ error: 'Ficha de admissão não encontrada.' });
+      if (!isUnitPermitted(req, existing.unitId)) return res.status(403).json({ error: 'Unidade da ficha não autorizada.' });
 
       const body = (req.body || {}) as Record<string, unknown>;
       const printAutoTransitionOnly = body.printAutoTransition === true;
@@ -2176,6 +2494,19 @@ async function startServer() {
           details: { from: 'pendente', to: 'negociacao' },
           unitId: existing.unitId,
         });
+        await dispatchIviSectorNotification(
+          {
+            targetSector: 'negociacoes',
+            targetUnitId: existing.unitId,
+            relatedEntityType: 'admission',
+            relatedEntityId: id,
+            senderName: 'Ivi IA · Admissão',
+            subject: `Ficha em Negociação · ${existing.protocolCode}`,
+            body: `A ficha ${existing.protocolCode} (${existing.bankName}) avançou para etapa de negociação após emissão do dossiê por ${req.authUser!.name}.`,
+          },
+          db,
+          broadcast
+        );
         return res.json({ admission: updated });
       }
 
@@ -2287,6 +2618,36 @@ async function startServer() {
         unitId: targetUnitId,
       });
 
+      if (updated.status === 'aguardando_auditoria' && existing.status !== 'aguardando_auditoria') {
+        await dispatchIviSectorNotification(
+          {
+            targetSector: 'auditoria',
+            targetUnitId: targetUnitId,
+            relatedEntityType: 'admission',
+            relatedEntityId: updated.id,
+            senderName: 'Ivi IA · Fluxo Comercial',
+            subject: `Ficha encaminhada para Auditoria · ${updated.protocolCode}`,
+            body: `A ficha ${updated.protocolCode} (${updated.bankName}) foi enviada para conferência documental em Auditoria & Boletos por ${req.authUser!.name}.`,
+          },
+          db,
+          broadcast
+        );
+      } else if (updated.status === 'negociacao' && existing.status !== 'negociacao') {
+        await dispatchIviSectorNotification(
+          {
+            targetSector: 'negociacoes',
+            targetUnitId: targetUnitId,
+            relatedEntityType: 'admission',
+            relatedEntityId: updated.id,
+            senderName: 'Ivi IA · Fluxo Comercial',
+            subject: `Ficha movida para Negociações · ${updated.protocolCode}`,
+            body: `A ficha ${updated.protocolCode} (${updated.bankName}) foi direcionada para Negociações Bancárias.`,
+          },
+          db,
+          broadcast
+        );
+      }
+
       res.json({ admission: updated });
     } catch (error) {
       console.error('Update admission error:', error);
@@ -2296,7 +2657,8 @@ async function startServer() {
 
   app.post('/api/admissions/:id/respond-critique', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de admissão inválido.' });
       const { responseText, resubmitToAudit } = (req.body || {}) as {
         responseText?: string;
         resubmitToAudit?: boolean;
@@ -2307,6 +2669,7 @@ async function startServer() {
       const rows = await db.select().from(admissions).where(eq(admissions.id, id)).limit(1);
       const adm = rows[0];
       if (!adm) return res.status(404).json({ error: 'Admissão não encontrada.' });
+      if (!isUnitPermitted(req, adm.unitId)) return res.status(403).json({ error: 'Unidade da ficha não autorizada.' });
 
       const critiques = Array.isArray(adm.auditCritiquesJson) ? [...adm.auditCritiquesJson] : [];
       if (critiques.length === 0) {
@@ -2349,55 +2712,79 @@ async function startServer() {
         unitId: adm.unitId,
       });
 
+      if (resubmitToAudit) {
+        await dispatchIviSectorNotification(
+          {
+            targetSector: 'auditoria',
+            targetUnitId: adm.unitId,
+            relatedEntityType: 'admission',
+            relatedEntityId: id,
+            senderName: 'Ivi IA · Retorno Comercial',
+            subject: `Crítica respondida e reenviada · ${adm.protocolCode}`,
+            body: `${req.authUser!.name} respondeu à crítica da Auditoria na ficha ${adm.protocolCode}: "${responseText.trim().slice(0, 140)}". Aguardando reavaliação.`,
+          },
+          db,
+          broadcast
+        );
+      }
+
       res.json({ admission: updated });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao responder crítica.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao responder crítica.') });
     }
   });
 
   app.delete('/api/admissions/:id', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de admissão inválido.' });
       const rows = await db.select().from(admissions).where(eq(admissions.id, id)).limit(1);
       const adm = rows[0];
       if (!adm) return res.status(404).json({ error: 'Admissão não encontrada.' });
+      if (!isUnitPermitted(req, adm.unitId)) return res.status(403).json({ error: 'Unidade da ficha não autorizada.' });
 
       if (['aprovada', 'auditada', 'em_andamento', 'finalizada', 'concluido'].includes(adm.status)) {
         return res.status(400).json({ error: 'Registros aprovados ou finalizados não podem ser excluídos.' });
       }
 
-      const [hasTitles, hasLegal, hasNeg, hasDocs] = await Promise.all([
+      const [hasTitles, hasLegal, hasNeg, hasDocs, hasCompanyLegal] = await Promise.all([
         db.select({ id: financialTitles.id }).from(financialTitles).where(eq(financialTitles.admissionId, id)).limit(1),
         db.select({ id: legalProcesses.id }).from(legalProcesses).where(eq(legalProcesses.admissionId, id)).limit(1),
         db.select({ id: negotiations.id }).from(negotiations).where(eq(negotiations.admissionId, id)).limit(1),
         db.select({ id: documentObjects.id }).from(documentObjects).where(and(eq(documentObjects.admissionId, id), isNull(documentObjects.deletedAt))).limit(1),
+        db.select({ id: companyLegalProcesses.id }).from(companyLegalProcesses).where(eq(companyLegalProcesses.admissionId, id)).limit(1),
       ]);
 
-      if (hasTitles[0] || hasLegal[0] || hasNeg[0] || hasDocs[0]) {
+      if (hasTitles[0] || hasLegal[0] || hasNeg[0] || hasDocs[0] || hasCompanyLegal[0]) {
         return res.status(409).json({
-          error: 'Exclusão bloqueada: existem boletos, processos jurídicos, negociações ou documentos vinculados a esta ficha.',
+          error: 'Exclusão bloqueada: existem boletos, processos jurídicos, cobranças, negociações ou documentos vinculados a esta ficha.',
         });
       }
 
-      await db.delete(admissions).where(eq(admissions.id, id));
-      await db.insert(auditLogs).values({
-        userId: req.authUser!.id,
-        userName: req.authUser!.name,
-        action: 'DELETE_ADMISSION',
-        entityType: 'admission',
-        entityId: String(id),
-        details: { protocolCode: adm.protocolCode },
-        unitId: adm.unitId,
+      await db.transaction(async (tx) => {
+        await tx.update(documentObjects).set({ admissionId: null }).where(eq(documentObjects.admissionId, id));
+        await tx.update(recalcScenarios).set({ admissionId: null }).where(eq(recalcScenarios.admissionId, id));
+        await tx.delete(admissions).where(eq(admissions.id, id));
+        await tx.insert(auditLogs).values({
+          userId: req.authUser!.id,
+          userName: req.authUser!.name,
+          action: 'DELETE_ADMISSION',
+          entityType: 'admission',
+          entityId: String(id),
+          details: { protocolCode: adm.protocolCode },
+          unitId: adm.unitId,
+        });
       });
       res.json({ ok: true });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao excluir ficha.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao excluir ficha.') });
     }
   });
 
   app.get('/api/admissions/:id/history', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de admissão inválido.' });
       const logs = await db
         .select()
         .from(auditLogs)
@@ -2405,7 +2792,7 @@ async function startServer() {
         .orderBy(desc(auditLogs.id));
       res.json({ logs });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao buscar histórico.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao buscar histórico.') });
     }
   });
 
@@ -2604,53 +2991,68 @@ async function startServer() {
 
   app.get('/api/admissions/:id/interactions', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de admissão inválido.' });
       const [adm] = await db.select().from(admissions).where(eq(admissions.id, id)).limit(1);
       if (!adm) return res.status(404).json({ error: 'Admissão não encontrada.' });
+      if (!isUnitPermitted(req, adm.unitId)) return res.status(403).json({ error: 'Unidade da ficha não autorizada.' });
       const data = await resolveClientWhatsappInteractions(adm.clientId, adm.assetOwnerId);
       res.json(data);
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao consultar atendimentos.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao consultar atendimentos.') });
     }
   });
 
   app.get('/api/clients/:clientId/interactions', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const clientId = Number(req.params.clientId);
-      const titularId = req.query.titularId ? Number(req.query.titularId) : null;
+      const clientId = parsePositiveIntId(req.params.clientId);
+      if (!clientId) return res.status(400).json({ error: 'ID de cliente inválido.' });
+      const titularId = req.query.titularId ? parsePositiveIntId(req.query.titularId) : null;
+      const [client] = await db.select({ unitId: clients.unitId }).from(clients).where(eq(clients.id, clientId)).limit(1);
+      if (client && !isUnitPermitted(req, client.unitId)) {
+        return res.status(403).json({ error: 'Unidade do cliente não autorizada.' });
+      }
       const data = await resolveClientWhatsappInteractions(clientId, titularId);
       res.json(data);
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao consultar conversas do cliente.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao consultar conversas do cliente.') });
     }
   });
 
   app.post('/api/admissions/:id/sync-whatsapp', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de admissão inválido.' });
       const [adm] = await db.select().from(admissions).where(eq(admissions.id, id)).limit(1);
       if (!adm) return res.status(404).json({ error: 'Admissão não encontrada.' });
+      if (!isUnitPermitted(req, adm.unitId)) return res.status(403).json({ error: 'Unidade da ficha não autorizada.' });
       const data = await syncClientWhatsappConversations(adm.clientId, adm.assetOwnerId, adm.unitId);
       res.json({ ok: true, ...data });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao sincronizar conversas WhatsApp.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao sincronizar conversas WhatsApp.') });
     }
   });
 
   app.post('/api/clients/:clientId/sync-whatsapp', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const clientId = Number(req.params.clientId);
+      const clientId = parsePositiveIntId(req.params.clientId);
+      if (!clientId) return res.status(400).json({ error: 'ID de cliente inválido.' });
       const { titularId, unitId } = (req.body || {}) as { titularId?: number | null; unitId?: number };
+      const [client] = await db.select({ unitId: clients.unitId }).from(clients).where(eq(clients.id, clientId)).limit(1);
+      if (client && !isUnitPermitted(req, client.unitId)) {
+        return res.status(403).json({ error: 'Unidade do cliente não autorizada.' });
+      }
       const data = await syncClientWhatsappConversations(clientId, titularId || null, unitId || req.activeUnitId);
       res.json({ ok: true, ...data });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao sincronizar conversas do cliente.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao sincronizar conversas do cliente.') });
     }
   });
 
   app.post('/api/clients/:clientId/whatsapp/start', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const clientId = Number(req.params.clientId);
+      const clientId = parsePositiveIntId(req.params.clientId);
+      if (!clientId) return res.status(400).json({ error: 'ID de cliente inválido.' });
       const { provider, phone, unitId } = (req.body || {}) as {
         provider?: 'gotalk' | 'uazapi';
         phone?: string;
@@ -2658,6 +3060,7 @@ async function startServer() {
       };
       const [client] = await db.select().from(clients).where(eq(clients.id, clientId)).limit(1);
       if (!client) return res.status(404).json({ error: 'Cliente não encontrado.' });
+      if (!isUnitPermitted(req, client.unitId)) return res.status(403).json({ error: 'Unidade do cliente não autorizada.' });
 
       const chosenPhone = normalizePhone(phone || client.whatsapp || client.phone || '');
       if (!chosenPhone || chosenPhone.replace(/\D/g, '').length < 8) {
@@ -2709,15 +3112,17 @@ async function startServer() {
 
       res.json({ thread: created, created: true });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao iniciar conversa WhatsApp.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao iniciar conversa WhatsApp.') });
     }
   });
 
   app.post('/api/admissions/:id/export-docx', requireAuth, upload.single('template'), async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de admissão inválido.' });
       const [adm] = await db.select().from(admissions).where(eq(admissions.id, id)).limit(1);
       if (!adm) return res.status(404).json({ error: 'Admissão não encontrada.' });
+      if (!isUnitPermitted(req, adm.unitId)) return res.status(403).json({ error: 'Unidade da ficha não autorizada.' });
 
       const [clientRows, ownerRows, unitRows] = await Promise.all([
         db.select().from(clients).where(eq(clients.id, adm.clientId)).limit(1),
@@ -2896,18 +3301,23 @@ async function startServer() {
   // Link an existing client bucket document to a specific admission dossier without duplicating the binary in bucket
   app.post('/api/admissions/:id/link-document', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const admissionId = Number(req.params.id);
+      const admissionId = parsePositiveIntId(req.params.id);
+      if (!admissionId) return res.status(400).json({ error: 'ID de admissão inválido.' });
       const { documentId } = (req.body || {}) as { documentId?: number };
-      if (!documentId) return res.status(400).json({ error: 'documentId obrigatório.' });
+      const parsedDocId = parsePositiveIntId(documentId);
+      if (!parsedDocId) return res.status(400).json({ error: 'documentId obrigatório.' });
 
       const [admRows, docRows] = await Promise.all([
         db.select().from(admissions).where(eq(admissions.id, admissionId)).limit(1),
-        db.select().from(documentObjects).where(eq(documentObjects.id, Number(documentId))).limit(1),
+        db.select().from(documentObjects).where(eq(documentObjects.id, parsedDocId)).limit(1),
       ]);
       const adm = admRows[0];
       const srcDoc = docRows[0];
       if (!adm) return res.status(404).json({ error: 'Admissão não encontrada.' });
       if (!srcDoc || srcDoc.deletedAt) return res.status(404).json({ error: 'Documento de origem não encontrado.' });
+      if (!isUnitPermitted(req, adm.unitId) || !isUnitPermitted(req, srcDoc.unitId)) {
+        return res.status(403).json({ error: 'Unidade da ficha ou do documento não autorizada.' });
+      }
 
       if (srcDoc.admissionId === admissionId) {
         return res.json({ document: srcDoc, linked: false });
@@ -2951,7 +3361,7 @@ async function startServer() {
 
       res.json({ document: linkedCopy, linked: true });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao vincular documento à ficha.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao vincular documento à ficha.') });
     }
   });
 
@@ -2963,7 +3373,7 @@ async function startServer() {
       ]);
       res.json({ ...stats, activeMetadataCount: Number(totals[0]?.total || 0) });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao consultar status do bucket.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao consultar status do bucket.') });
     }
   });
 
@@ -2974,7 +3384,7 @@ async function startServer() {
       const stats = await getBucketRuntimeStats();
       res.status(result.ok ? 200 : 403).json({ ...result, stats });
     } catch (error) {
-      res.status(500).json({ ok: false, error: error instanceof Error ? error.message : 'Erro ao provisionar bucket.' });
+      res.status(500).json({ ok: false, error: sanitizeErrorMessage(error, 'Erro ao provisionar bucket.') });
     }
   });
 
@@ -2992,16 +3402,42 @@ async function startServer() {
 
       const isAdmin = req.authUser!.role === 'admin';
       const allowedUnits = req.authUser!.allowedUnitIds || [];
-      const allowedDoc = matchingDocs.find((d) => !d.deletedAt && (isAdmin || allowedUnits.includes(d.unitId)));
+      const activeDocs = matchingDocs.filter((d) => !d.deletedAt);
+
+      let allowedMsg: (typeof matchingMsgs)[number] | undefined;
+      if (matchingMsgs.length > 0) {
+        if (isAdmin) {
+          allowedMsg = matchingMsgs[0];
+        } else {
+          const threadIds = Array.from(new Set(matchingMsgs.map((m) => m.threadId)));
+          const threads = threadIds.length > 0
+            ? await db.select({ id: whatsappThreads.id, unitId: whatsappThreads.unitId }).from(whatsappThreads).where(inArray(whatsappThreads.id, threadIds))
+            : [];
+          const allowedThreadIds = new Set(threads.filter((t) => allowedUnits.includes(t.unitId)).map((t) => t.id));
+          allowedMsg = matchingMsgs.find((m) => allowedThreadIds.has(m.threadId));
+        }
+      }
+
+      const allowedDoc = activeDocs.find((d) => isAdmin || allowedUnits.includes(d.unitId));
       const allowedArchive = matchingArchives.find((a) => isAdmin || allowedUnits.includes(a.unitId));
       const allowedCall = matchingCallLogs.find((c) => isAdmin || allowedUnits.includes(c.unitId));
-      const matchedMsg = matchingMsgs[0];
+
+      const hasAnyRecord =
+        activeDocs.length > 0 || matchingArchives.length > 0 || matchingCallLogs.length > 0 || matchingMsgs.length > 0;
+      const hasAnyAllowed = Boolean(allowedDoc || allowedArchive || allowedCall || allowedMsg);
+
+      if (!isAdmin && hasAnyRecord && !hasAnyAllowed) {
+        return res.status(403).json({ error: 'ACL negada: objeto pertencente a outra unidade.' });
+      }
+      if (!isAdmin && !hasAnyRecord) {
+        return res.status(404).json({ error: 'Objeto não localizado no bucket.' });
+      }
 
       const storageUri =
         allowedDoc?.storageUri ||
         allowedArchive?.storageUri ||
         allowedCall?.recordingStorageUri ||
-        matchedMsg?.mediaStorageUri ||
+        allowedMsg?.mediaStorageUri ||
         null;
 
       const etag = `"${cleanHash}"`;
@@ -3016,13 +3452,13 @@ async function startServer() {
         allowedDoc?.mimeType ||
         allowedArchive?.mimeType ||
         allowedCall?.recordingMimeType ||
-        matchedMsg?.attachmentMimeType ||
+        allowedMsg?.attachmentMimeType ||
         String(req.query.mime || 'application/octet-stream');
       const fileName = sanitizeFileName(
         allowedDoc?.fileName ||
           allowedArchive?.fileName ||
           allowedCall?.recordingFileName ||
-          matchedMsg?.attachmentName ||
+          allowedMsg?.attachmentName ||
           String(req.query.name || `${cleanHash}.bin`)
       );
       const disposition = req.query.preview === '1' && canPreviewInline(mime) ? 'inline' : 'attachment';
@@ -3035,17 +3471,18 @@ async function startServer() {
       res.setHeader('Content-Disposition', `${disposition}; filename="${fileName}"`);
       return res.send(buf);
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao ler objeto do bucket.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao ler objeto do bucket.') });
     }
   });
 
   app.delete('/api/documents/:id', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de documento inválido.' });
       const rows = await db.select().from(documentObjects).where(eq(documentObjects.id, id)).limit(1);
       const doc = rows[0];
       if (!doc) return res.status(404).json({ error: 'Documento não encontrado.' });
-      if (req.authUser!.role !== 'admin' && !req.authUser!.allowedUnitIds.includes(doc.unitId)) {
+      if (!isUnitPermitted(req, doc.unitId)) {
         return res.status(403).json({ error: 'ACL negada: unidade do anexo não autorizada.' });
       }
       const [updated] = await db
@@ -3071,11 +3508,12 @@ async function startServer() {
 
   app.delete('/api/documents/:id/purge', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de documento inválido.' });
       const rows = await db.select().from(documentObjects).where(eq(documentObjects.id, id)).limit(1);
       const doc = rows[0];
       if (!doc) return res.status(404).json({ error: 'Documento não encontrado.' });
-      if (req.authUser!.role !== 'admin' && !req.authUser!.allowedUnitIds.includes(doc.unitId)) {
+      if (!isUnitPermitted(req, doc.unitId)) {
         return res.status(403).json({ error: 'ACL negada: unidade do anexo não autorizada.' });
       }
 
@@ -3100,17 +3538,18 @@ async function startServer() {
       });
       res.json({ ok: true });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao excluir definitivamente.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao excluir definitivamente.') });
     }
   });
 
   app.post('/api/documents/:id/restore', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de documento inválido.' });
       const rows = await db.select().from(documentObjects).where(eq(documentObjects.id, id)).limit(1);
       const doc = rows[0];
       if (!doc) return res.status(404).json({ error: 'Documento não encontrado.' });
-      if (req.authUser!.role !== 'admin' && !req.authUser!.allowedUnitIds.includes(doc.unitId)) {
+      if (!isUnitPermitted(req, doc.unitId)) {
         return res.status(403).json({ error: 'ACL negada: unidade do anexo não autorizada.' });
       }
       const [updated] = await db
@@ -3136,11 +3575,12 @@ async function startServer() {
 
   app.get('/api/documents/:id/download', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de documento inválido.' });
       const rows = await db.select().from(documentObjects).where(eq(documentObjects.id, id)).limit(1);
       const doc = rows[0];
       if (!doc || doc.deletedAt) return res.status(404).json({ error: 'Documento não encontrado ou na lixeira.' });
-      if (req.authUser!.role !== 'admin' && !req.authUser!.allowedUnitIds.includes(doc.unitId)) {
+      if (!isUnitPermitted(req, doc.unitId)) {
         return res.status(403).json({ error: 'ACL negada: sem concessão para baixar este anexo.' });
       }
 
@@ -3178,7 +3618,7 @@ async function startServer() {
   // ---------------------------------------------------------------------------
   // 4. JURÍDICO (ESCAVADOR WEBHOOK/FALLBACK, IVI TRADUÇÃO & SLAs)
   // ---------------------------------------------------------------------------
-  app.get('/api/legal', requireAuth, async (_req: AuthRequest, res) => {
+  app.get('/api/legal', requireAuth, async (req: AuthRequest, res) => {
     try {
       await ensureInitialSeed();
       const [procs, movs, allClients, allUsers, allCases, allReceivables] = await Promise.all([
@@ -3189,13 +3629,18 @@ async function startServer() {
         db.select().from(collectionCases).orderBy(desc(collectionCases.updatedAt)),
         db.select().from(financialTitles).where(eq(financialTitles.scope, 'RECEBER')),
       ]);
+      const allowedUnits = getAllowedUnitIds(req);
+      const unitAllowed = (uId: number | null | undefined) =>
+        allowedUnits === null || (typeof uId === 'number' && allowedUnits.includes(uId));
+      const permittedProcs = procs.filter((p) => unitAllowed(p.unitId));
+      const permittedProcIds = new Set(permittedProcs.map((p) => p.id));
       res.json({
-        processes: procs,
-        movements: movs,
-        clients: allClients,
+        processes: permittedProcs,
+        movements: allowedUnits === null ? movs : movs.filter((m) => permittedProcIds.has(m.processId)),
+        clients: allClients.filter((c) => unitAllowed(c.unitId)),
         lawyers: allUsers,
-        collectionCases: allCases,
-        financialTitles: allReceivables,
+        collectionCases: allCases.filter((c) => unitAllowed(c.unitId)),
+        financialTitles: allReceivables.filter((t) => unitAllowed(t.unitId)),
       });
     } catch (error) {
       console.error('Legal get error:', error);
@@ -3203,7 +3648,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/legal/escavador-sync', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/legal/escavador-sync', requireAuth, requireModule('legal'), async (req: AuthRequest, res) => {
     try {
       const { processId, dispatchText, source, isSeized } = req.body as {
         processId: number;
@@ -3211,13 +3656,18 @@ async function startServer() {
         source?: string;
         isSeized?: boolean;
       };
+      const parsedProcId = parsePositiveIntId(processId);
+      if (!parsedProcId) return res.status(400).json({ error: 'ID do processo inválido.' });
       const [targetProc] = await db
         .select()
         .from(legalProcesses)
-        .where(eq(legalProcesses.id, processId))
+        .where(eq(legalProcesses.id, parsedProcId))
         .limit(1);
       if (!targetProc) {
         return res.status(404).json({ error: 'Processo jurídico não encontrado.' });
+      }
+      if (!isUnitPermitted(req, targetProc.unitId)) {
+        return res.status(403).json({ error: 'Unidade do processo não autorizada.' });
       }
       const [procClient] = await db
         .select()
@@ -3242,7 +3692,7 @@ async function startServer() {
       const [movement] = await db
         .insert(legalMovements)
         .values({
-          processId,
+          processId: parsedProcId,
           source: source || 'escavador_webhook',
           originalDispatch: dispatchText,
           iviTranslationPtBr: tr.text,
@@ -3258,10 +3708,23 @@ async function startServer() {
           status: isSeized ? 'apreendido' : 'alerta_movimentacao',
           vehicleSeized: Boolean(isSeized),
         })
-        .where(eq(legalProcesses.id, processId))
+        .where(eq(legalProcesses.id, parsedProcId))
         .returning();
 
-      broadcast('legal:update', { processId, processNumber: proc?.processNumber });
+      broadcast('legal:update', { processId: parsedProcId, processNumber: proc?.processNumber });
+      await dispatchIviSectorNotification(
+        {
+          targetSector: 'juridico',
+          targetUnitId: targetProc.unitId,
+          relatedEntityType: 'legal_process',
+          relatedEntityId: parsedProcId,
+          senderName: 'Ivi IA · Escavador',
+          subject: `${isSeized ? '[URGENTE BUSCA/APREENSÃO] ' : ''}Nova movimentação Escavador · ${proc?.processNumber || ''}`,
+          body: `Cliente ${procClient?.fullName || `#${targetProc.clientId}`}: ${tr.text.slice(0, 220)}`,
+        },
+        db,
+        broadcast
+      );
       res.json({ movement, process: proc, providerUsed: tr.provider });
     } catch (error) {
       console.error('Escavador sync error:', error);
@@ -3269,11 +3732,15 @@ async function startServer() {
     }
   });
 
-  app.post('/api/legal/movements/:id/open', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/legal/movements/:id/open', requireAuth, requireModule('legal'), async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de movimentação inválido.' });
       const rows = await db.select().from(legalMovements).where(eq(legalMovements.id, id)).limit(1);
-      if (rows[0] && !rows[0].openedAt) {
+      if (!rows[0]) return res.status(404).json({ error: 'Movimentação não encontrada.' });
+      const [proc] = await db.select({ unitId: legalProcesses.unitId }).from(legalProcesses).where(eq(legalProcesses.id, rows[0].processId)).limit(1);
+      if (proc && !isUnitPermitted(req, proc.unitId)) return res.status(403).json({ error: 'Unidade do processo não autorizada.' });
+      if (!rows[0].openedAt) {
         const [updated] = await db.update(legalMovements).set({ openedAt: new Date() }).where(eq(legalMovements.id, id)).returning();
         return res.json({ movement: updated });
       }
@@ -3284,9 +3751,14 @@ async function startServer() {
     }
   });
 
-  app.post('/api/legal/movements/:id/read-complete', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/legal/movements/:id/read-complete', requireAuth, requireModule('legal'), async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de movimentação inválido.' });
+      const [existing] = await db.select().from(legalMovements).where(eq(legalMovements.id, id)).limit(1);
+      if (!existing) return res.status(404).json({ error: 'Movimentação não encontrada.' });
+      const [proc] = await db.select({ unitId: legalProcesses.unitId }).from(legalProcesses).where(eq(legalProcesses.id, existing.processId)).limit(1);
+      if (proc && !isUnitPermitted(req, proc.unitId)) return res.status(403).json({ error: 'Unidade do processo não autorizada.' });
       const [updated] = await db
         .update(legalMovements)
         .set({ readCompletedAt: new Date(), lawyerId: req.authUser!.id })
@@ -3302,9 +3774,14 @@ async function startServer() {
     }
   });
 
-  app.post('/api/legal/movements/:id/client-contact', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/legal/movements/:id/client-contact', requireAuth, requireModule('legal'), async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de movimentação inválido.' });
+      const [existing] = await db.select().from(legalMovements).where(eq(legalMovements.id, id)).limit(1);
+      if (!existing) return res.status(404).json({ error: 'Movimentação não encontrada.' });
+      const [proc] = await db.select({ unitId: legalProcesses.unitId }).from(legalProcesses).where(eq(legalProcesses.id, existing.processId)).limit(1);
+      if (proc && !isUnitPermitted(req, proc.unitId)) return res.status(403).json({ error: 'Unidade do processo não autorizada.' });
       const { contactChannel, contactSummary, emailSent } = req.body as {
         contactChannel: string;
         contactSummary: string;
@@ -3340,14 +3817,27 @@ async function startServer() {
   // ---------------------------------------------------------------------------
   // 6. FINANCEIRO (BOLETOS, VARREDURA 07H, FOLHA DE ROSTO & RÉGUA IVI)
   // ---------------------------------------------------------------------------
-  app.get('/api/finance', requireAuth, async (_req: AuthRequest, res) => {
+  app.get('/api/finance', requireAuth, requireModule('finance'), async (req: AuthRequest, res) => {
     try {
       await ensureInitialSeed();
+      const allowedUnits = getAllowedUnitIds(req);
       const [titles, cats, allClients, allAdmissions, settingsRows] = await Promise.all([
-        db.select().from(financialTitles).orderBy(desc(financialTitles.dueDate)),
+        allowedUnits === null
+          ? db.select().from(financialTitles).orderBy(desc(financialTitles.dueDate))
+          : allowedUnits.length === 0
+          ? Promise.resolve([])
+          : db.select().from(financialTitles).where(inArray(financialTitles.unitId, allowedUnits)).orderBy(desc(financialTitles.dueDate)),
         db.select().from(paymentCategories),
-        db.select().from(clients),
-        db.select().from(admissions),
+        allowedUnits === null
+          ? db.select().from(clients)
+          : allowedUnits.length === 0
+          ? Promise.resolve([])
+          : db.select().from(clients).where(inArray(clients.unitId, allowedUnits)),
+        allowedUnits === null
+          ? db.select().from(admissions)
+          : allowedUnits.length === 0
+          ? Promise.resolve([])
+          : db.select().from(admissions).where(inArray(admissions.unitId, allowedUnits)),
         db.select().from(systemSettings),
       ]);
       res.json({
@@ -3363,20 +3853,33 @@ async function startServer() {
     }
   });
 
-  app.post('/api/finance/ivi-07h-scan', requireAuth, async (_req: AuthRequest, res) => {
+  app.post('/api/finance/ivi-07h-scan', requireAuth, requireModule('finance'), async (req: AuthRequest, res) => {
     try {
+      const allowedUnits = getAllowedUnitIds(req);
       const [allTitles, allAdmissions, allClients] = await Promise.all([
-        db.select().from(financialTitles),
-        db.select().from(admissions),
-        db.select().from(clients),
+        allowedUnits === null
+          ? db.select().from(financialTitles)
+          : allowedUnits.length === 0
+          ? Promise.resolve([])
+          : db.select().from(financialTitles).where(inArray(financialTitles.unitId, allowedUnits)),
+        allowedUnits === null
+          ? db.select().from(admissions)
+          : allowedUnits.length === 0
+          ? Promise.resolve([])
+          : db.select().from(admissions).where(inArray(admissions.unitId, allowedUnits)),
+        allowedUnits === null
+          ? db.select().from(clients)
+          : allowedUnits.length === 0
+          ? Promise.resolve([])
+          : db.select().from(clients).where(inArray(clients.unitId, allowedUnits)),
       ]);
 
       // Identify admissions where the 2 initial installments are paid and remaining installments aren't generated yet
       const readyForCoverSheet = allAdmissions
         .filter((adm) => {
           const admTitles = allTitles.filter((t) => t.admissionId === adm.id);
-          const paidInitials = admTitles.filter((t) => t.isInitialFee && t.status === 'pago');
-          const remaining = admTitles.filter((t) => !t.isInitialFee);
+          const paidInitials = admTitles.filter((t) => t.isInitialFee && String(t.status).toLowerCase() === 'pago');
+          const remaining = admTitles.filter((t) => !t.isInitialFee && String(t.status).toLowerCase() !== 'cancelado');
           return paidInitials.length >= 2 && remaining.length === 0 && adm.installmentsCount > 2;
         })
         .map((adm) => {
@@ -3391,9 +3894,25 @@ async function startServer() {
           };
         });
 
+      if (readyForCoverSheet.length > 0) {
+        await dispatchIviSectorNotification(
+          {
+            targetSector: 'financeiro',
+            targetUnitId: req.activeUnitId || null,
+            relatedEntityType: 'finance_scan',
+            relatedEntityId: String(Date.now()),
+            senderName: 'Ivi IA · Conciliação 07h',
+            subject: `Varredura 07h: ${readyForCoverSheet.length} dossiê(s) pronto(s) para folha de rosto`,
+            body: `Identificados ${readyForCoverSheet.length} contrato(s) com as 2 parcelas iniciais quitadas aguardando geração das demais parcelas em Administração Financeira.`,
+          },
+          db,
+          broadcast
+        );
+      }
+
       res.json({
         scannedAt: new Date().toISOString(),
-        paidTitlesTotal: allTitles.filter((t) => t.status === 'pago').length,
+        paidTitlesTotal: allTitles.filter((t) => String(t.status).toLowerCase() === 'pago').length,
         readyForCoverSheet,
       });
     } catch (error) {
@@ -3402,40 +3921,90 @@ async function startServer() {
     }
   });
 
-  app.post('/api/finance/generate-remaining/:admissionId', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/finance/generate-remaining/:admissionId', requireAuth, requireModule('finance'), async (req: AuthRequest, res) => {
     try {
-      const admissionId = Number(req.params.admissionId);
-      const { firstDueDate, customAmountCents } = req.body as { firstDueDate?: string; customAmountCents?: number };
+      const admissionId = parsePositiveIntId(req.params.admissionId);
+      if (!admissionId) return res.status(400).json({ error: 'ID de admissão inválido.' });
+
+      const { firstDueDate, customAmountCents } = (req.body || {}) as { firstDueDate?: string; customAmountCents?: number };
+      let start: Date;
+      if (firstDueDate !== undefined && firstDueDate !== null && String(firstDueDate).trim() !== '') {
+        const parsed = parseSafeDate(firstDueDate);
+        if (!parsed) return res.status(400).json({ error: 'Data do primeiro vencimento inválida.' });
+        start = parsed;
+      } else {
+        start = new Date(Date.now() + 30 * 86400000);
+      }
+
+      if (customAmountCents !== undefined && customAmountCents !== null) {
+        const amtNum = parseFiniteNumber(customAmountCents);
+        if (amtNum === null || amtNum <= 0) {
+          return res.status(400).json({ error: 'Valor da parcela inválido.' });
+        }
+      }
+
       const rows = await db.select().from(admissions).where(eq(admissions.id, admissionId)).limit(1);
       const adm = rows[0];
       if (!adm) return res.status(404).json({ error: 'Admissão não encontrada.' });
+      if (!isUnitPermitted(req, adm.unitId)) {
+        return res.status(403).json({ error: 'Unidade da admissão não autorizada.' });
+      }
+
+      const existingRemaining = await db
+        .select({ id: financialTitles.id, status: financialTitles.status })
+        .from(financialTitles)
+        .where(and(eq(financialTitles.admissionId, adm.id), eq(financialTitles.isInitialFee, false)));
+      if (existingRemaining.some((t) => String(t.status).toLowerCase() !== 'cancelado')) {
+        return res.status(409).json({ error: 'As parcelas restantes desta admissão já foram geradas.' });
+      }
 
       const [cat] = await db.select().from(paymentCategories).limit(1);
-      const start = firstDueDate ? new Date(firstDueDate) : new Date(Date.now() + 30 * 86400000);
-      const created = [];
-      for (let i = 3; i <= adm.installmentsCount; i++) {
-        const dueDate = new Date(start.getTime() + (i - 3) * 30 * 86400000);
-        const [title] = await db
-          .insert(financialTitles)
-          .values({
-            titleCode: `TIT-${new Date().getFullYear()}-${adm.id}0${i}-${Math.floor(100 + Math.random() * 899)}`,
-            clientId: adm.clientId,
-            admissionId: adm.id,
-            unitId: adm.unitId,
-            categoryId: cat?.id || null,
-            installmentNumber: i,
-            totalInstallments: adm.installmentsCount,
-            isInitialFee: false,
-            amountCents: customAmountCents || adm.initialInstallmentCents || 50000,
-            dueDate,
-            status: 'aberto',
-            boletoProvider: 'santander',
-            coverSheetApproved: true,
-            barcode: `03399.63290 64000.00${adm.id} 00100.${i}01014 8 ${Math.floor(10000000000000 + Math.random() * 89999999999999)}`,
-            ourNumber: `${adm.id}000${i}`,
-          })
-          .returning();
-        created.push(title);
+      const resolvedAmount = Math.round(Number(customAmountCents || adm.initialInstallmentCents || 50000));
+      const created = await db.transaction(async (tx) => {
+        const out = [];
+        for (let i = 3; i <= adm.installmentsCount; i++) {
+          const dueDate = new Date(start.getTime() + (i - 3) * 30 * 86400000);
+          const [title] = await tx
+            .insert(financialTitles)
+            .values({
+              titleCode: `TIT-${new Date().getFullYear()}-${adm.id}0${i}-${Math.floor(100 + Math.random() * 899)}`,
+              clientId: adm.clientId,
+              admissionId: adm.id,
+              unitId: adm.unitId,
+              categoryId: cat?.id || null,
+              installmentNumber: i,
+              totalInstallments: adm.installmentsCount,
+              isInitialFee: false,
+              amountCents: resolvedAmount,
+              originalValueCents: resolvedAmount,
+              currentBalanceCents: resolvedAmount,
+              dueDate,
+              status: 'aberto',
+              boletoProvider: 'santander',
+              coverSheetApproved: true,
+              barcode: `03399.63290 64000.00${adm.id} 00100.${i}01014 8 ${Math.floor(10000000000000 + Math.random() * 89999999999999)}`,
+              ourNumber: `${adm.id}000${i}`,
+            })
+            .returning();
+          out.push(title);
+        }
+        return out;
+      });
+
+      if (created.length > 0) {
+        await dispatchIviSectorNotification(
+          {
+            targetSector: 'cobranca',
+            targetUnitId: adm.unitId,
+            relatedEntityType: 'admission',
+            relatedEntityId: adm.id,
+            senderName: 'Ivi IA · Faturamento',
+            subject: `Novas parcelas liberadas para carteira · ${adm.protocolCode}`,
+            body: `${created.length} parcela(s) restante(s) foram geradas para o contrato ${adm.contractNumber || adm.protocolCode} e disponibilizadas para acompanhamento de Cobrança.`,
+          },
+          db,
+          broadcast
+        );
       }
 
       res.json({ generatedCount: created.length, titles: created });
@@ -3445,13 +4014,30 @@ async function startServer() {
     }
   });
 
-  app.post('/api/finance/run-regua', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/finance/run-regua', requireAuth, requireModule('finance'), async (req: AuthRequest, res) => {
     try {
-      const { titleId } = req.body as { titleId?: number };
-      const allTitles = titleId
-        ? await db.select().from(financialTitles).where(eq(financialTitles.id, titleId))
-        : await db.select().from(financialTitles);
-      const target = allTitles.find((t) => t.status === 'aberto' || t.status === 'vencido');
+      const { titleId } = (req.body || {}) as { titleId?: number };
+      const allowedUnits = getAllowedUnitIds(req);
+      let allTitles;
+      if (titleId !== undefined && titleId !== null && String(titleId).trim() !== '') {
+        const parsedTitleId = parsePositiveIntId(titleId);
+        if (!parsedTitleId) return res.status(400).json({ error: 'ID de título inválido.' });
+        allTitles = await db.select().from(financialTitles).where(eq(financialTitles.id, parsedTitleId));
+        if (allTitles[0] && !isUnitPermitted(req, allTitles[0].unitId)) {
+          return res.status(403).json({ error: 'Sem permissão para operar título desta unidade.' });
+        }
+      } else {
+        allTitles =
+          allowedUnits === null
+            ? await db.select().from(financialTitles)
+            : allowedUnits.length === 0
+            ? []
+            : await db.select().from(financialTitles).where(inArray(financialTitles.unitId, allowedUnits));
+      }
+      const target = allTitles.find((t) => {
+        const st = String(t.status || '').toLowerCase();
+        return st === 'aberto' || st === 'vencido';
+      });
       if (!target) return res.status(404).json({ error: 'Nenhum título elegível para régua.' });
 
       const [client] = await db.select().from(clients).where(eq(clients.id, target.clientId)).limit(1);
@@ -3476,51 +4062,80 @@ async function startServer() {
     }
   });
 
-  // PRD FR-10: Batch settlement for multiple financial titles
+  // PRD FR-10: Batch settlement for multiple financial titles (idempotent + transactional + unit-scoped)
   app.post('/api/finance/batch-settle', requireAuth, requireModule('finance'), async (req: AuthRequest, res) => {
     try {
-      const { titleIds } = req.body as { titleIds: number[] };
-      if (!Array.isArray(titleIds) || titleIds.length === 0) {
-        return res.status(400).json({ error: 'Selecione ao menos um título para baixa em lote.' });
+      const titleIds = parsePositiveIntArray(req.body?.titleIds, 500);
+      if (titleIds.length === 0) {
+        return res.status(400).json({ error: 'Selecione ao menos um título válido para baixa em lote.' });
       }
-      const updated = await db
-        .update(financialTitles)
-        .set({ status: 'pago', currentBalanceCents: 0, paidAt: new Date(), collectorId: req.authUser!.id })
-        .where(inArray(financialTitles.id, titleIds))
-        .returning();
 
-      await db.insert(auditLogs).values({
-        userId: req.authUser!.id,
-        userName: req.authUser!.name,
-        action: 'FINANCE_BATCH_SETTLE',
-        entityType: 'financial_title',
-        entityId: titleIds.join(','),
-        details: { count: updated.length },
-        unitId: req.activeUnitId,
-      });
+      const targets = await db.select().from(financialTitles).where(inArray(financialTitles.id, titleIds));
+      if (targets.length === 0) {
+        return res.status(404).json({ error: 'Nenhum título encontrado para baixa.' });
+      }
+      if (targets.some((t) => !isUnitPermitted(req, t.unitId))) {
+        return res.status(403).json({ error: 'Um ou mais títulos pertencem a uma unidade não autorizada.' });
+      }
 
-      // Integração automática: registra movimento BAIXA_RECEBER na conta bancária ativa da unidade
-      if (updated.length > 0) {
-        const [defaultAcc] = await db.select().from(bankAccounts).where(eq(bankAccounts.active, true)).limit(1);
-        if (defaultAcc) {
-          let runningBalance = defaultAcc.currentBalanceCents;
-          for (const titleRow of updated) {
-            const [createdMov] = await db.insert(bankMovements).values({
-              bankAccountId: defaultAcc.id,
-              movementType: 'CREDITO',
-              amountCents: titleRow.amountCents,
-              description: `Baixa Título ${titleRow.titleCode}`,
-              documentNumber: titleRow.titleCode,
-              movementDate: new Date(),
-              origin: 'BAIXA_RECEBER',
-              status: 'PENDENTE',
-              reconciled: false,
-              titleId: titleRow.id,
-              titleSource: 'RECEBER',
-              unitId: titleRow.unitId,
-            }).returning();
-            runningBalance += titleRow.amountCents;
-            await db.insert(auditLogs).values({
+      const eligibleIds = targets
+        .filter((t) => {
+          const st = String(t.status || '').toLowerCase();
+          return st !== 'pago' && st !== 'cancelado' && st !== 'agrupado';
+        })
+        .map((t) => t.id);
+
+      if (eligibleIds.length === 0) {
+        return res.json({ settledCount: 0, alreadySettledCount: targets.length });
+      }
+
+      const updated = await db.transaction(async (tx) => {
+        const settledRows = await tx
+          .update(financialTitles)
+          .set({ status: 'pago', currentBalanceCents: 0, paidAt: new Date(), collectorId: req.authUser!.id, updatedAt: new Date() })
+          .where(inArray(financialTitles.id, eligibleIds))
+          .returning();
+
+        await tx.insert(auditLogs).values({
+          userId: req.authUser!.id,
+          userName: req.authUser!.name,
+          action: 'FINANCE_BATCH_SETTLE',
+          entityType: 'financial_title',
+          entityId: eligibleIds.join(','),
+          details: { count: settledRows.length },
+          unitId: req.activeUnitId,
+        });
+
+        const activeAccounts = await tx.select().from(bankAccounts).where(eq(bankAccounts.active, true));
+        if (settledRows.length > 0 && activeAccounts.length > 0) {
+          const balanceCache = new Map<number, number>(activeAccounts.map((a) => [a.id, a.currentBalanceCents]));
+          for (const titleRow of settledRows) {
+            const targetAcc =
+              (titleRow.bankAccountId ? activeAccounts.find((a) => a.id === titleRow.bankAccountId) : undefined) ||
+              activeAccounts.find((a) => a.unitId === titleRow.unitId) ||
+              activeAccounts[0];
+            if (!targetAcc) continue;
+
+            const settleAmt = titleRow.currentBalanceCents > 0 ? titleRow.currentBalanceCents : titleRow.amountCents;
+            const [createdMov] = await tx
+              .insert(bankMovements)
+              .values({
+                bankAccountId: targetAcc.id,
+                movementType: 'CREDITO',
+                amountCents: settleAmt,
+                description: `Baixa Título ${titleRow.titleCode}`,
+                documentNumber: titleRow.titleCode,
+                movementDate: new Date(),
+                origin: 'BAIXA_RECEBER',
+                status: 'PENDENTE',
+                reconciled: false,
+                titleId: titleRow.id,
+                titleSource: 'RECEBER',
+                unitId: titleRow.unitId,
+              })
+              .returning();
+            balanceCache.set(targetAcc.id, (balanceCache.get(targetAcc.id) ?? 0) + settleAmt);
+            await tx.insert(auditLogs).values({
               userId: req.authUser!.id,
               userName: req.authUser!.name,
               action: 'CREATE_BANK_MOVEMENT',
@@ -3536,9 +4151,16 @@ async function startServer() {
               unitId: req.activeUnitId,
             });
           }
-          await db.update(bankAccounts).set({ currentBalanceCents: runningBalance }).where(eq(bankAccounts.id, defaultAcc.id));
+
+          for (const acc of activeAccounts) {
+            const nextBal = balanceCache.get(acc.id);
+            if (nextBal !== undefined && nextBal !== acc.currentBalanceCents) {
+              await tx.update(bankAccounts).set({ currentBalanceCents: nextBal }).where(eq(bankAccounts.id, acc.id));
+            }
+          }
         }
-      }
+        return settledRows;
+      });
 
       broadcast('collection:payment', { operator: req.authUser!.name, points: updated.length * 10 });
       res.json({ settledCount: updated.length });
@@ -3553,10 +4175,20 @@ async function startServer() {
   // ---------------------------------------------------------------------------
 
   // 1. Fornecedores (clients with natureza = 'F')
-  app.get('/api/finance/suppliers', requireAuth, async (_req: AuthRequest, res) => {
+  app.get('/api/finance/suppliers', requireAuth, requireModule('finance'), async (req: AuthRequest, res) => {
     try {
       await ensureInitialSeed();
-      const list = await db.select().from(clients).where(eq(clients.natureza, 'F')).orderBy(desc(clients.id));
+      const allowedUnits = getAllowedUnitIds(req);
+      const list =
+        allowedUnits === null
+          ? await db.select().from(clients).where(eq(clients.natureza, 'F')).orderBy(desc(clients.id))
+          : allowedUnits.length === 0
+          ? []
+          : await db
+              .select()
+              .from(clients)
+              .where(and(eq(clients.natureza, 'F'), inArray(clients.unitId, allowedUnits)))
+              .orderBy(desc(clients.id));
       res.json({ suppliers: list });
     } catch (error) {
       console.error('Get suppliers error:', error);
@@ -3564,15 +4196,20 @@ async function startServer() {
     }
   });
 
-  app.post('/api/finance/suppliers', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/finance/suppliers', requireAuth, requireModule('finance'), async (req: AuthRequest, res) => {
     try {
       const { fullName, cpfCnpj, personNature, phone, email, address, addressNumber, complement, neighborhood, city, state, zipCode, notes, unitId } = req.body as any;
-      if (!fullName || !fullName.trim()) return res.status(400).json({ error: 'Nome / Razão Social é obrigatório.' });
-      if (!cpfCnpj || !cpfCnpj.trim()) return res.status(400).json({ error: 'CPF/CNPJ é obrigatório.' });
+      if (!fullName || !String(fullName).trim()) return res.status(400).json({ error: 'Nome / Razão Social é obrigatório.' });
+      if (!cpfCnpj || !String(cpfCnpj).trim()) return res.status(400).json({ error: 'CPF/CNPJ é obrigatório.' });
+
+      const targetUnitId = unitId !== undefined && unitId !== null ? parsePositiveIntId(unitId) : req.activeUnitId || 1;
+      if (!targetUnitId || !isUnitPermitted(req, targetUnitId)) {
+        return res.status(403).json({ error: 'Unidade inválida ou não autorizada para cadastrar fornecedor.' });
+      }
 
       const [created] = await db.insert(clients).values({
-        fullName: fullName.trim(),
-        cpfCnpj: cpfCnpj.trim(),
+        fullName: String(fullName).trim(),
+        cpfCnpj: String(cpfCnpj).trim(),
         personNature: personNature || 'PJ',
         natureza: 'F',
         phone: phone || '',
@@ -3585,7 +4222,7 @@ async function startServer() {
         state: state || '',
         zipCode: zipCode || '',
         notes: notes || '',
-        unitId: unitId || req.activeUnitId || 1,
+        unitId: targetUnitId,
       }).returning();
 
       await db.insert(auditLogs).values({
@@ -3601,19 +4238,27 @@ async function startServer() {
       res.json({ supplier: created });
     } catch (error) {
       console.error('Create supplier error:', error);
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao cadastrar fornecedor.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao cadastrar fornecedor.') });
     }
   });
 
-  app.put('/api/finance/suppliers/:id', requireAuth, async (req: AuthRequest, res) => {
+  app.put('/api/finance/suppliers/:id', requireAuth, requireModule('finance'), async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de fornecedor inválido.' });
+
+      const [existing] = await db.select().from(clients).where(and(eq(clients.id, id), eq(clients.natureza, 'F'))).limit(1);
+      if (!existing) return res.status(404).json({ error: 'Fornecedor não encontrado.' });
+      if (!isUnitPermitted(req, existing.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para alterar fornecedor desta unidade.' });
+      }
+
       const { fullName, cpfCnpj, personNature, phone, email, address, addressNumber, complement, neighborhood, city, state, zipCode, notes } = req.body as any;
-      if (!fullName || !fullName.trim()) return res.status(400).json({ error: 'Nome / Razão Social é obrigatório.' });
+      if (!fullName || !String(fullName).trim()) return res.status(400).json({ error: 'Nome / Razão Social é obrigatório.' });
 
       const [updated] = await db.update(clients).set({
-        fullName: fullName.trim(),
-        cpfCnpj: cpfCnpj?.trim() || '',
+        fullName: String(fullName).trim(),
+        cpfCnpj: cpfCnpj ? String(cpfCnpj).trim() : existing.cpfCnpj,
         personNature: personNature || 'PJ',
         natureza: 'F',
         phone: phone || '',
@@ -3643,13 +4288,21 @@ async function startServer() {
       res.json({ supplier: updated });
     } catch (error) {
       console.error('Update supplier error:', error);
-      res.status(500).json({ error: 'Erro ao atualizar fornecedor.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao atualizar fornecedor.') });
     }
   });
 
-  app.delete('/api/finance/suppliers/:id', requireAuth, async (req: AuthRequest, res) => {
+  app.delete('/api/finance/suppliers/:id', requireAuth, requireModule('finance'), async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de fornecedor inválido.' });
+
+      const [existing] = await db.select().from(clients).where(and(eq(clients.id, id), eq(clients.natureza, 'F'))).limit(1);
+      if (!existing) return res.status(404).json({ error: 'Fornecedor não encontrado.' });
+      if (!isUnitPermitted(req, existing.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para excluir fornecedor desta unidade.' });
+      }
+
       const titlesCount = await db.select({ v: count() }).from(financialTitles).where(eq(financialTitles.clientId, id));
       if (Number(titlesCount[0]?.v || 0) > 0) {
         return res.status(400).json({ error: `Exclusão bloqueada: existem ${titlesCount[0].v} título(s) financeiro(s) vinculados a este fornecedor.` });
@@ -3671,12 +4324,12 @@ async function startServer() {
       res.json({ ok: true });
     } catch (error) {
       console.error('Delete supplier error:', error);
-      res.status(500).json({ error: 'Erro ao excluir fornecedor.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao excluir fornecedor.') });
     }
   });
 
   // 2. Tipos de Documento (/api/finance/document-types)
-  app.get('/api/finance/document-types', requireAuth, async (_req: AuthRequest, res) => {
+  app.get('/api/finance/document-types', requireAuth, requireModule('finance'), async (_req: AuthRequest, res) => {
     try {
       await ensureInitialSeed();
       const list = await db.select().from(documentTypes).orderBy(desc(documentTypes.id));
@@ -3686,13 +4339,13 @@ async function startServer() {
     }
   });
 
-  app.post('/api/finance/document-types', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/finance/document-types', requireAuth, requireModule('finance'), async (req: AuthRequest, res) => {
     try {
       const { description, category, isFiscal, requiresNumber, active } = req.body as any;
-      if (!description || !description.trim()) return res.status(400).json({ error: 'Descrição é obrigatória.' });
+      if (!description || !String(description).trim()) return res.status(400).json({ error: 'Descrição é obrigatória.' });
 
       const [created] = await db.insert(documentTypes).values({
-        description: description.trim(),
+        description: String(description).trim(),
         category: category || 'ambos',
         isFiscal: Boolean(isFiscal),
         requiresNumber: Boolean(requiresNumber),
@@ -3711,18 +4364,19 @@ async function startServer() {
 
       res.json({ documentType: created });
     } catch (error) {
-      res.status(500).json({ error: 'Erro ao cadastrar tipo de documento.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao cadastrar tipo de documento.') });
     }
   });
 
-  app.put('/api/finance/document-types/:id', requireAuth, async (req: AuthRequest, res) => {
+  app.put('/api/finance/document-types/:id', requireAuth, requireModule('finance'), async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID inválido.' });
       const { description, category, isFiscal, requiresNumber, active } = req.body as any;
-      if (!description || !description.trim()) return res.status(400).json({ error: 'Descrição é obrigatória.' });
+      if (!description || !String(description).trim()) return res.status(400).json({ error: 'Descrição é obrigatória.' });
 
       const [updated] = await db.update(documentTypes).set({
-        description: description.trim(),
+        description: String(description).trim(),
         category: category || 'ambos',
         isFiscal: Boolean(isFiscal),
         requiresNumber: Boolean(requiresNumber),
@@ -3743,13 +4397,14 @@ async function startServer() {
 
       res.json({ documentType: updated });
     } catch (error) {
-      res.status(500).json({ error: 'Erro ao atualizar tipo de documento.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao atualizar tipo de documento.') });
     }
   });
 
-  app.delete('/api/finance/document-types/:id', requireAuth, async (req: AuthRequest, res) => {
+  app.delete('/api/finance/document-types/:id', requireAuth, requireModule('finance'), async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID inválido.' });
       const [deleted] = await db.delete(documentTypes).where(eq(documentTypes.id, id)).returning();
       if (!deleted) return res.status(404).json({ error: 'Tipo de documento não encontrado.' });
 
@@ -3765,31 +4420,40 @@ async function startServer() {
 
       res.json({ ok: true });
     } catch (error) {
-      res.status(500).json({ error: 'Erro ao excluir tipo de documento.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao excluir tipo de documento.') });
     }
   });
 
   // 3. Portadores (/api/finance/bearers)
-  app.get('/api/finance/bearers', requireAuth, async (_req: AuthRequest, res) => {
+  app.get('/api/finance/bearers', requireAuth, requireModule('finance'), async (req: AuthRequest, res) => {
     try {
       await ensureInitialSeed();
-      const list = await db.select().from(bearers).orderBy(desc(bearers.id));
+      const allowedUnits = getAllowedUnitIds(req);
+      const all = await db.select().from(bearers).orderBy(desc(bearers.id));
+      const list =
+        allowedUnits === null
+          ? all
+          : all.filter((b) => !b.unitId || allowedUnits.includes(b.unitId));
       res.json({ bearers: list });
     } catch (error) {
       res.status(500).json({ error: 'Erro ao carregar portadores.' });
     }
   });
 
-  app.post('/api/finance/bearers', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/finance/bearers', requireAuth, requireModule('finance'), async (req: AuthRequest, res) => {
     try {
       const { code, name, type, associatedBankAccountId, active } = req.body as any;
-      if (!name || !name.trim()) return res.status(400).json({ error: 'Nome do portador é obrigatório.' });
+      if (!name || !String(name).trim()) return res.status(400).json({ error: 'Nome do portador é obrigatório.' });
+      const assocAccId = associatedBankAccountId ? parsePositiveIntId(associatedBankAccountId) : null;
+      if (associatedBankAccountId && !assocAccId) {
+        return res.status(400).json({ error: 'Conta bancária associada inválida.' });
+      }
 
       const [created] = await db.insert(bearers).values({
-        code: code?.trim() || '',
-        name: name.trim(),
+        code: code ? String(code).trim() : '',
+        name: String(name).trim(),
         type: type || 'banco',
-        associatedBankAccountId: associatedBankAccountId ? Number(associatedBankAccountId) : null,
+        associatedBankAccountId: assocAccId,
         active: active !== false,
         unitId: req.activeUnitId,
       }).returning();
@@ -3806,21 +4470,32 @@ async function startServer() {
 
       res.json({ bearer: created });
     } catch (error) {
-      res.status(500).json({ error: 'Erro ao cadastrar portador.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao cadastrar portador.') });
     }
   });
 
-  app.put('/api/finance/bearers/:id', requireAuth, async (req: AuthRequest, res) => {
+  app.put('/api/finance/bearers/:id', requireAuth, requireModule('finance'), async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de portador inválido.' });
+      const [existing] = await db.select().from(bearers).where(eq(bearers.id, id)).limit(1);
+      if (!existing) return res.status(404).json({ error: 'Portador não encontrado.' });
+      if (existing.unitId && !isUnitPermitted(req, existing.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para alterar portador desta unidade.' });
+      }
+
       const { code, name, type, associatedBankAccountId, active } = req.body as any;
-      if (!name || !name.trim()) return res.status(400).json({ error: 'Nome do portador é obrigatório.' });
+      if (!name || !String(name).trim()) return res.status(400).json({ error: 'Nome do portador é obrigatório.' });
+      const assocAccId = associatedBankAccountId ? parsePositiveIntId(associatedBankAccountId) : null;
+      if (associatedBankAccountId && !assocAccId) {
+        return res.status(400).json({ error: 'Conta bancária associada inválida.' });
+      }
 
       const [updated] = await db.update(bearers).set({
-        code: code?.trim() || '',
-        name: name.trim(),
+        code: code ? String(code).trim() : '',
+        name: String(name).trim(),
         type: type || 'banco',
-        associatedBankAccountId: associatedBankAccountId ? Number(associatedBankAccountId) : null,
+        associatedBankAccountId: assocAccId,
         active: active !== false,
       }).where(eq(bearers.id, id)).returning();
 
@@ -3838,13 +4513,20 @@ async function startServer() {
 
       res.json({ bearer: updated });
     } catch (error) {
-      res.status(500).json({ error: 'Erro ao atualizar portador.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao atualizar portador.') });
     }
   });
 
-  app.delete('/api/finance/bearers/:id', requireAuth, async (req: AuthRequest, res) => {
+  app.delete('/api/finance/bearers/:id', requireAuth, requireModule('finance'), async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de portador inválido.' });
+      const [existing] = await db.select().from(bearers).where(eq(bearers.id, id)).limit(1);
+      if (!existing) return res.status(404).json({ error: 'Portador não encontrado.' });
+      if (existing.unitId && !isUnitPermitted(req, existing.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para excluir portador desta unidade.' });
+      }
+
       const [deleted] = await db.delete(bearers).where(eq(bearers.id, id)).returning();
       if (!deleted) return res.status(404).json({ error: 'Portador não encontrado.' });
 
@@ -3860,12 +4542,12 @@ async function startServer() {
 
       res.json({ ok: true });
     } catch (error) {
-      res.status(500).json({ error: 'Erro ao excluir portador.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao excluir portador.') });
     }
   });
 
   // 4. Plano de Contas (/api/finance/chart-of-accounts)
-  app.get('/api/finance/chart-of-accounts', requireAuth, async (_req: AuthRequest, res) => {
+  app.get('/api/finance/chart-of-accounts', requireAuth, requireModule('finance'), async (_req: AuthRequest, res) => {
     try {
       await ensureInitialSeed();
       const list = await db.select().from(chartOfAccounts).orderBy(chartOfAccounts.code);
@@ -3875,18 +4557,22 @@ async function startServer() {
     }
   });
 
-  app.post('/api/finance/chart-of-accounts', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/finance/chart-of-accounts', requireAuth, requireModule('finance'), async (req: AuthRequest, res) => {
     try {
       const { code, name, type, parentId, isAnalytic, active } = req.body as any;
-      if (!code || !code.trim() || !name || !name.trim()) {
+      if (!code || !String(code).trim() || !name || !String(name).trim()) {
         return res.status(400).json({ error: 'Código e Nome são obrigatórios.' });
+      }
+      const parsedParent = parentId ? parsePositiveIntId(parentId) : null;
+      if (parentId && !parsedParent) {
+        return res.status(400).json({ error: 'Conta pai inválida.' });
       }
 
       const [created] = await db.insert(chartOfAccounts).values({
-        code: code.trim(),
-        name: name.trim(),
+        code: String(code).trim(),
+        name: String(name).trim(),
         type: type || 'despesa',
-        parentId: parentId ? Number(parentId) : null,
+        parentId: parsedParent,
         isAnalytic: isAnalytic !== false,
         active: active !== false,
       }).returning();
@@ -3903,23 +4589,31 @@ async function startServer() {
 
       res.json({ account: created });
     } catch (error) {
-      res.status(500).json({ error: 'Erro ao cadastrar conta no plano.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao cadastrar conta no plano.') });
     }
   });
 
-  app.put('/api/finance/chart-of-accounts/:id', requireAuth, async (req: AuthRequest, res) => {
+  app.put('/api/finance/chart-of-accounts/:id', requireAuth, requireModule('finance'), async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID inválido.' });
       const { code, name, type, parentId, isAnalytic, active } = req.body as any;
-      if (!code || !code.trim() || !name || !name.trim()) {
+      if (!code || !String(code).trim() || !name || !String(name).trim()) {
         return res.status(400).json({ error: 'Código e Nome são obrigatórios.' });
+      }
+      const parsedParent = parentId ? parsePositiveIntId(parentId) : null;
+      if (parentId && !parsedParent) {
+        return res.status(400).json({ error: 'Conta pai inválida.' });
+      }
+      if (parsedParent === id) {
+        return res.status(400).json({ error: 'Uma conta não pode ser pai dela mesma.' });
       }
 
       const [updated] = await db.update(chartOfAccounts).set({
-        code: code.trim(),
-        name: name.trim(),
+        code: String(code).trim(),
+        name: String(name).trim(),
         type: type || 'despesa',
-        parentId: parentId ? Number(parentId) : null,
+        parentId: parsedParent,
         isAnalytic: isAnalytic !== false,
         active: active !== false,
       }).where(eq(chartOfAccounts.id, id)).returning();
@@ -3938,13 +4632,14 @@ async function startServer() {
 
       res.json({ account: updated });
     } catch (error) {
-      res.status(500).json({ error: 'Erro ao atualizar conta no plano.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao atualizar conta no plano.') });
     }
   });
 
-  app.delete('/api/finance/chart-of-accounts/:id', requireAuth, async (req: AuthRequest, res) => {
+  app.delete('/api/finance/chart-of-accounts/:id', requireAuth, requireModule('finance'), async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID inválido.' });
       const children = await db.select({ v: count() }).from(chartOfAccounts).where(eq(chartOfAccounts.parentId, id));
       if (Number(children[0]?.v || 0) > 0) {
         return res.status(400).json({ error: 'Exclusão bloqueada: esta conta possui subcontas vinculadas.' });
@@ -3965,36 +4660,51 @@ async function startServer() {
 
       res.json({ ok: true });
     } catch (error) {
-      res.status(500).json({ error: 'Erro ao excluir conta.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao excluir conta.') });
     }
   });
 
   // 5. Conta Corrente / Bancos (/api/finance/bank-accounts & /api/finance/bank-movements)
-  app.get('/api/finance/bank-accounts', requireAuth, async (_req: AuthRequest, res) => {
+  app.get('/api/finance/bank-accounts', requireAuth, requireModule('finance'), async (req: AuthRequest, res) => {
     try {
       await ensureInitialSeed();
-      const list = await db.select().from(bankAccounts).orderBy(bankAccounts.bankName);
+      const allowedUnits = getAllowedUnitIds(req);
+      const list =
+        allowedUnits === null
+          ? await db.select().from(bankAccounts).orderBy(bankAccounts.bankName)
+          : allowedUnits.length === 0
+          ? []
+          : await db.select().from(bankAccounts).where(inArray(bankAccounts.unitId, allowedUnits)).orderBy(bankAccounts.bankName);
       res.json({ bankAccounts: list });
     } catch (error) {
       res.status(500).json({ error: 'Erro ao carregar contas bancárias.' });
     }
   });
 
-  app.post('/api/finance/bank-accounts', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/finance/bank-accounts', requireAuth, requireModule('finance'), async (req: AuthRequest, res) => {
     try {
       const { bankName, agency, accountNumber, accountType, initialBalanceCents, unitId, active } = req.body as any;
-      if (!bankName || !bankName.trim()) {
+      if (!bankName || !String(bankName).trim()) {
         return res.status(400).json({ error: 'Nome do banco é obrigatório.' });
       }
-      const initialBal = Number(initialBalanceCents) || 0;
+      const parsedBal = initialBalanceCents !== undefined && initialBalanceCents !== null ? parseFiniteNumber(initialBalanceCents) : 0;
+      if (parsedBal === null) {
+        return res.status(400).json({ error: 'Saldo inicial inválido.' });
+      }
+      const targetUnitId = unitId !== undefined && unitId !== null ? parsePositiveIntId(unitId) : req.activeUnitId;
+      if (!targetUnitId || !isUnitPermitted(req, targetUnitId)) {
+        return res.status(403).json({ error: 'Unidade inválida ou não autorizada.' });
+      }
+
+      const initialBal = Math.round(parsedBal);
       const [created] = await db.insert(bankAccounts).values({
-        bankName: bankName.trim(),
-        agency: agency?.trim() || '',
-        accountNumber: accountNumber?.trim() || '',
+        bankName: String(bankName).trim(),
+        agency: agency ? String(agency).trim() : '',
+        accountNumber: accountNumber ? String(accountNumber).trim() : '',
         accountType: accountType || 'corrente',
         initialBalanceCents: initialBal,
         currentBalanceCents: initialBal,
-        unitId: unitId ? Number(unitId) : req.activeUnitId,
+        unitId: targetUnitId,
         active: active !== false,
       }).returning();
 
@@ -4010,22 +4720,29 @@ async function startServer() {
 
       res.json({ bankAccount: created });
     } catch (error) {
-      res.status(500).json({ error: 'Erro ao cadastrar conta bancária.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao cadastrar conta bancária.') });
     }
   });
 
-  app.put('/api/finance/bank-accounts/:id', requireAuth, async (req: AuthRequest, res) => {
+  app.put('/api/finance/bank-accounts/:id', requireAuth, requireModule('finance'), async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de conta bancária inválido.' });
+      const [existing] = await db.select().from(bankAccounts).where(eq(bankAccounts.id, id)).limit(1);
+      if (!existing) return res.status(404).json({ error: 'Conta bancária não encontrada.' });
+      if (!isUnitPermitted(req, existing.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para alterar conta bancária desta unidade.' });
+      }
+
       const { bankName, agency, accountNumber, accountType, active } = req.body as any;
-      if (!bankName || !bankName.trim()) {
+      if (!bankName || !String(bankName).trim()) {
         return res.status(400).json({ error: 'Nome do banco é obrigatório.' });
       }
 
       const [updated] = await db.update(bankAccounts).set({
-        bankName: bankName.trim(),
-        agency: agency?.trim() || '',
-        accountNumber: accountNumber?.trim() || '',
+        bankName: String(bankName).trim(),
+        agency: agency ? String(agency).trim() : '',
+        accountNumber: accountNumber ? String(accountNumber).trim() : '',
         accountType: accountType || 'corrente',
         active: active !== false,
       }).where(eq(bankAccounts.id, id)).returning();
@@ -4044,13 +4761,20 @@ async function startServer() {
 
       res.json({ bankAccount: updated });
     } catch (error) {
-      res.status(500).json({ error: 'Erro ao atualizar conta bancária.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao atualizar conta bancária.') });
     }
   });
 
-  app.delete('/api/finance/bank-accounts/:id', requireAuth, async (req: AuthRequest, res) => {
+  app.delete('/api/finance/bank-accounts/:id', requireAuth, requireModule('finance'), async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de conta bancária inválido.' });
+      const [existing] = await db.select().from(bankAccounts).where(eq(bankAccounts.id, id)).limit(1);
+      if (!existing) return res.status(404).json({ error: 'Conta bancária não encontrada.' });
+      if (!isUnitPermitted(req, existing.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para excluir conta bancária desta unidade.' });
+      }
+
       const moves = await db.select({ v: count() }).from(bankMovements).where(eq(bankMovements.bankAccountId, id));
       if (Number(moves[0]?.v || 0) > 0) {
         return res.status(400).json({ error: 'Exclusão bloqueada: esta conta possui movimentações financeiras registradas.' });
@@ -4071,7 +4795,7 @@ async function startServer() {
 
       res.json({ ok: true });
     } catch (error) {
-      res.status(500).json({ error: 'Erro ao excluir conta bancária.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao excluir conta bancária.') });
     }
   });
 
@@ -4081,15 +4805,22 @@ async function startServer() {
     return 'DEBITO';
   };
 
-  app.get('/api/finance/bank-movements', requireAuth, async (req: AuthRequest, res) => {
+  app.get('/api/finance/bank-movements', requireAuth, requireModule('finance'), async (req: AuthRequest, res) => {
     try {
       await ensureInitialSeed();
+      const allowedUnits = getAllowedUnitIds(req);
       const limitParam = Math.min(500, Math.max(1, Number(req.query.limit) || 500));
-      const rows = await db
-        .select()
-        .from(bankMovements)
-        .orderBy(asc(bankMovements.movementDate), asc(bankMovements.id))
-        .limit(limitParam);
+      const rows =
+        allowedUnits === null
+          ? await db.select().from(bankMovements).orderBy(asc(bankMovements.movementDate), asc(bankMovements.id)).limit(limitParam)
+          : allowedUnits.length === 0
+          ? []
+          : await db
+              .select()
+              .from(bankMovements)
+              .where(inArray(bankMovements.unitId, allowedUnits))
+              .orderBy(asc(bankMovements.movementDate), asc(bankMovements.id))
+              .limit(limitParam);
       const normalized = rows.map((r) => ({
         ...r,
         movementType: normalizeMovType(r.movementType),
@@ -4102,7 +4833,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/finance/bank-movements', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/finance/bank-movements', requireAuth, requireModule('finance'), async (req: AuthRequest, res) => {
     try {
       const {
         bankAccountId,
@@ -4124,16 +4855,33 @@ async function startServer() {
         unitId,
       } = req.body as any;
 
-      const amt = Math.round(Number(amountCents) || 0);
-      if (!bankAccountId || !movementType || amt <= 0 || !description || !String(description).trim()) {
-        return res.status(400).json({ error: 'Conta, data, tipo, valor positivo e descrição são obrigatórios.' });
+      const parsedAccId = parsePositiveIntId(bankAccountId);
+      const amtNum = parseFiniteNumber(amountCents);
+      const amt = amtNum !== null ? Math.round(amtNum) : 0;
+      if (!parsedAccId || !movementType || amt <= 0 || !description || !String(description).trim()) {
+        return res.status(400).json({ error: 'Conta válida, data, tipo, valor positivo e descrição são obrigatórios.' });
       }
 
-      const [acc] = await db.select().from(bankAccounts).where(eq(bankAccounts.id, Number(bankAccountId)));
+      let safeDate = new Date();
+      if (movementDate !== undefined && movementDate !== null && String(movementDate).trim() !== '') {
+        const parsed = parseSafeDate(`${String(movementDate).slice(0, 10)}T12:00:00`);
+        if (!parsed) return res.status(400).json({ error: 'Data da movimentação inválida.' });
+        safeDate = parsed;
+      }
+
+      const [acc] = await db.select().from(bankAccounts).where(eq(bankAccounts.id, parsedAccId));
       if (!acc) return res.status(404).json({ error: 'Conta bancária não encontrada.' });
+      if (!isUnitPermitted(req, acc.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para lançar na conta bancária desta unidade.' });
+      }
+
+      const targetUnitId = unitId ? parsePositiveIntId(unitId) : acc.unitId || req.activeUnitId;
+      if (!targetUnitId || !isUnitPermitted(req, targetUnitId)) {
+        return res.status(403).json({ error: 'Unidade inválida ou não autorizada.' });
+      }
 
       let resolvedCatName = String(categoryName || '').trim();
-      const parsedCatId = categoryId ? Number(categoryId) : null;
+      const parsedCatId = categoryId ? parsePositiveIntId(categoryId) : null;
       if (parsedCatId && !resolvedCatName) {
         const [cat] = await db.select().from(chartOfAccounts).where(eq(chartOfAccounts.id, parsedCatId));
         if (cat) resolvedCatName = `${cat.code} - ${cat.name}`;
@@ -4142,59 +4890,65 @@ async function startServer() {
       const normType = normalizeMovType(movementType);
       const normStatus = String(status || 'PENDENTE').toUpperCase() === 'CONCILIADO' ? 'CONCILIADO' : 'PENDENTE';
       const normOrigin = String(origin || 'MANUAL').toUpperCase();
-      const parsedDate = movementDate ? new Date(`${String(movementDate).slice(0, 10)}T12:00:00`) : new Date();
 
-      const [mov] = await db.insert(bankMovements).values({
-        bankAccountId: acc.id,
-        movementType: normType,
-        amountCents: amt,
-        description: String(description).trim(),
-        documentNumber: String(documentNumber || '').trim(),
-        movementDate: Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate,
-        categoryId: parsedCatId,
-        categoryName: resolvedCatName,
-        origin: normOrigin,
-        status: normStatus,
-        reconciled: Boolean(reconciled),
-        reconciliationDate: String(reconciliationDate || '').trim(),
-        compensationDate: String(compensationDate || '').trim(),
-        documentTypeId: documentTypeId ? Number(documentTypeId) : null,
-        bearerId: bearerId ? Number(bearerId) : null,
-        departmentId: departmentId ? Number(departmentId) : null,
-        unitId: unitId ? Number(unitId) : req.activeUnitId,
-      }).returning();
+      const { mov, newBalance } = await db.transaction(async (tx) => {
+        const [freshAcc] = await tx.select().from(bankAccounts).where(eq(bankAccounts.id, acc.id)).limit(1);
+        if (!freshAcc) throw new Error('Conta bancária não encontrada.');
 
-      const balanceDelta = normType === 'CREDITO' ? amt : -amt;
-      const newBalance = acc.currentBalanceCents + balanceDelta;
-      await db.update(bankAccounts).set({ currentBalanceCents: newBalance }).where(eq(bankAccounts.id, acc.id));
+        const [createdMov] = await tx.insert(bankMovements).values({
+          bankAccountId: freshAcc.id,
+          movementType: normType,
+          amountCents: amt,
+          description: String(description).trim(),
+          documentNumber: String(documentNumber || '').trim(),
+          movementDate: safeDate,
+          categoryId: parsedCatId,
+          categoryName: resolvedCatName,
+          origin: normOrigin,
+          status: normStatus,
+          reconciled: Boolean(reconciled),
+          reconciliationDate: String(reconciliationDate || '').trim(),
+          compensationDate: String(compensationDate || '').trim(),
+          documentTypeId: documentTypeId ? parsePositiveIntId(documentTypeId) : null,
+          bearerId: bearerId ? parsePositiveIntId(bearerId) : null,
+          departmentId: departmentId ? parsePositiveIntId(departmentId) : null,
+          unitId: targetUnitId,
+        }).returning();
 
-      await db.insert(auditLogs).values({
-        userId: req.authUser!.id,
-        userName: req.authUser!.name,
-        action: 'CREATE_BANK_MOVEMENT',
-        entityType: 'bank_movement',
-        entityId: String(mov.id),
-        details: {
-          changes: [
-            { field: 'Conta', from: '', to: acc.bankName },
-            { field: 'Tipo', from: '', to: normType },
-            { field: 'Valor (centavos)', from: '', to: String(amt) },
-            { field: 'Descrição', from: '', to: mov.description },
-            { field: 'Origem', from: '', to: normOrigin },
-            { field: 'Status', from: '', to: normStatus },
-          ],
-        },
-        unitId: req.activeUnitId,
+        const balanceDelta = normType === 'CREDITO' ? amt : -amt;
+        const computedBalance = freshAcc.currentBalanceCents + balanceDelta;
+        await tx.update(bankAccounts).set({ currentBalanceCents: computedBalance }).where(eq(bankAccounts.id, freshAcc.id));
+
+        await tx.insert(auditLogs).values({
+          userId: req.authUser!.id,
+          userName: req.authUser!.name,
+          action: 'CREATE_BANK_MOVEMENT',
+          entityType: 'bank_movement',
+          entityId: String(createdMov.id),
+          details: {
+            changes: [
+              { field: 'Conta', from: '', to: freshAcc.bankName },
+              { field: 'Tipo', from: '', to: normType },
+              { field: 'Valor (centavos)', from: '', to: String(amt) },
+              { field: 'Descrição', from: '', to: createdMov.description },
+              { field: 'Origem', from: '', to: normOrigin },
+              { field: 'Status', from: '', to: normStatus },
+            ],
+          },
+          unitId: req.activeUnitId,
+        });
+
+        return { mov: createdMov, newBalance: computedBalance };
       });
 
       res.json({ movement: mov, newBalance });
     } catch (error) {
       console.error('Create bank movement error:', error);
-      res.status(500).json({ error: 'Erro ao registrar movimentação bancária.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao registrar movimentação bancária.') });
     }
   });
 
-  app.post('/api/finance/bank-movements/transfer', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/finance/bank-movements/transfer', requireAuth, requireModule('finance'), async (req: AuthRequest, res) => {
     try {
       const {
         sourceAccountId,
@@ -4206,22 +4960,36 @@ async function startServer() {
         status,
       } = req.body as any;
 
-      const amt = Math.round(Number(amountCents) || 0);
-      if (!sourceAccountId || !destinationAccountId || Number(sourceAccountId) === Number(destinationAccountId)) {
-        return res.status(400).json({ error: 'Selecione contas de origem e destino distintas.' });
+      const srcId = parsePositiveIntId(sourceAccountId);
+      const dstId = parsePositiveIntId(destinationAccountId);
+      const amtNum = parseFiniteNumber(amountCents);
+      const amt = amtNum !== null ? Math.round(amtNum) : 0;
+
+      if (!srcId || !dstId || srcId === dstId) {
+        return res.status(400).json({ error: 'Selecione contas de origem e destino válidas e distintas.' });
       }
       if (amt <= 0 || !description || !String(description).trim()) {
         return res.status(400).json({ error: 'Data, valor positivo e descrição são obrigatórios.' });
       }
 
-      const [srcAcc] = await db.select().from(bankAccounts).where(eq(bankAccounts.id, Number(sourceAccountId)));
-      const [dstAcc] = await db.select().from(bankAccounts).where(eq(bankAccounts.id, Number(destinationAccountId)));
+      let safeDate = new Date();
+      if (movementDate !== undefined && movementDate !== null && String(movementDate).trim() !== '') {
+        const parsed = parseSafeDate(`${String(movementDate).slice(0, 10)}T12:00:00`);
+        if (!parsed) return res.status(400).json({ error: 'Data da transferência inválida.' });
+        safeDate = parsed;
+      }
+
+      const [srcAcc] = await db.select().from(bankAccounts).where(eq(bankAccounts.id, srcId));
+      const [dstAcc] = await db.select().from(bankAccounts).where(eq(bankAccounts.id, dstId));
       if (!srcAcc || !dstAcc) {
         return res.status(404).json({ error: 'Conta de origem ou destino não encontrada.' });
       }
+      if (!isUnitPermitted(req, srcAcc.unitId) || !isUnitPermitted(req, dstAcc.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para transferir entre contas desta unidade.' });
+      }
 
       let resolvedCatName = '';
-      const parsedCatId = categoryId ? Number(categoryId) : null;
+      const parsedCatId = categoryId ? parsePositiveIntId(categoryId) : null;
       if (parsedCatId) {
         const [cat] = await db.select().from(chartOfAccounts).where(eq(chartOfAccounts.id, parsedCatId));
         if (cat) resolvedCatName = `${cat.code} - ${cat.name}`;
@@ -4229,140 +4997,156 @@ async function startServer() {
 
       const transferId = crypto.randomUUID();
       const normStatus = String(status || 'PENDENTE').toUpperCase() === 'CONCILIADO' ? 'CONCILIADO' : 'PENDENTE';
-      const parsedDate = movementDate ? new Date(`${String(movementDate).slice(0, 10)}T12:00:00`) : new Date();
-      const safeDate = Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
       const descText = String(description).trim();
 
-      const [debitMov] = await db.insert(bankMovements).values({
-        bankAccountId: srcAcc.id,
-        movementType: 'DEBITO',
-        amountCents: amt,
-        description: `${descText} (Para ${dstAcc.bankName})`,
-        documentNumber: '',
-        movementDate: safeDate,
-        categoryId: parsedCatId,
-        categoryName: resolvedCatName,
-        origin: 'TRANSFERENCIA',
-        status: normStatus,
-        reconciled: false,
-        transferId,
-        unitId: req.activeUnitId,
-      }).returning();
+      const { debitMov, creditMov } = await db.transaction(async (tx) => {
+        const [freshSrc] = await tx.select().from(bankAccounts).where(eq(bankAccounts.id, srcAcc.id));
+        const [freshDst] = await tx.select().from(bankAccounts).where(eq(bankAccounts.id, dstAcc.id));
+        if (!freshSrc || !freshDst) throw new Error('Conta bancária não encontrada.');
 
-      const [creditMov] = await db.insert(bankMovements).values({
-        bankAccountId: dstAcc.id,
-        movementType: 'CREDITO',
-        amountCents: amt,
-        description: `${descText} (De ${srcAcc.bankName})`,
-        documentNumber: '',
-        movementDate: safeDate,
-        categoryId: parsedCatId,
-        categoryName: resolvedCatName,
-        origin: 'TRANSFERENCIA',
-        status: normStatus,
-        reconciled: false,
-        transferId,
-        unitId: req.activeUnitId,
-      }).returning();
+        const [dMov] = await tx.insert(bankMovements).values({
+          bankAccountId: freshSrc.id,
+          movementType: 'DEBITO',
+          amountCents: amt,
+          description: `${descText} (Para ${freshDst.bankName})`,
+          documentNumber: '',
+          movementDate: safeDate,
+          categoryId: parsedCatId,
+          categoryName: resolvedCatName,
+          origin: 'TRANSFERENCIA',
+          status: normStatus,
+          reconciled: false,
+          transferId,
+          unitId: freshSrc.unitId || req.activeUnitId,
+        }).returning();
 
-      await db.update(bankAccounts).set({ currentBalanceCents: srcAcc.currentBalanceCents - amt }).where(eq(bankAccounts.id, srcAcc.id));
-      await db.update(bankAccounts).set({ currentBalanceCents: dstAcc.currentBalanceCents + amt }).where(eq(bankAccounts.id, dstAcc.id));
+        const [cMov] = await tx.insert(bankMovements).values({
+          bankAccountId: freshDst.id,
+          movementType: 'CREDITO',
+          amountCents: amt,
+          description: `${descText} (De ${freshSrc.bankName})`,
+          documentNumber: '',
+          movementDate: safeDate,
+          categoryId: parsedCatId,
+          categoryName: resolvedCatName,
+          origin: 'TRANSFERENCIA',
+          status: normStatus,
+          reconciled: false,
+          transferId,
+          unitId: freshDst.unitId || req.activeUnitId,
+        }).returning();
 
-      await db.insert(auditLogs).values([
-        {
-          userId: req.authUser!.id,
-          userName: req.authUser!.name,
-          action: 'TRANSFER_OUT',
-          entityType: 'bank_movement',
-          entityId: String(debitMov.id),
-          details: {
-            transferId,
-            changes: [
-              { field: 'Conta Origem', from: '', to: srcAcc.bankName },
-              { field: 'Conta Destino', from: '', to: dstAcc.bankName },
-              { field: 'Valor (centavos)', from: '', to: String(amt) },
-            ],
+        await tx.update(bankAccounts).set({ currentBalanceCents: freshSrc.currentBalanceCents - amt }).where(eq(bankAccounts.id, freshSrc.id));
+        await tx.update(bankAccounts).set({ currentBalanceCents: freshDst.currentBalanceCents + amt }).where(eq(bankAccounts.id, freshDst.id));
+
+        await tx.insert(auditLogs).values([
+          {
+            userId: req.authUser!.id,
+            userName: req.authUser!.name,
+            action: 'TRANSFER_OUT',
+            entityType: 'bank_movement',
+            entityId: String(dMov.id),
+            details: {
+              transferId,
+              changes: [
+                { field: 'Conta Origem', from: '', to: freshSrc.bankName },
+                { field: 'Conta Destino', from: '', to: freshDst.bankName },
+                { field: 'Valor (centavos)', from: '', to: String(amt) },
+              ],
+            },
+            unitId: req.activeUnitId,
           },
-          unitId: req.activeUnitId,
-        },
-        {
-          userId: req.authUser!.id,
-          userName: req.authUser!.name,
-          action: 'TRANSFER_IN',
-          entityType: 'bank_movement',
-          entityId: String(creditMov.id),
-          details: {
-            transferId,
-            changes: [
-              { field: 'Conta Origem', from: '', to: srcAcc.bankName },
-              { field: 'Conta Destino', from: '', to: dstAcc.bankName },
-              { field: 'Valor (centavos)', from: '', to: String(amt) },
-            ],
+          {
+            userId: req.authUser!.id,
+            userName: req.authUser!.name,
+            action: 'TRANSFER_IN',
+            entityType: 'bank_movement',
+            entityId: String(cMov.id),
+            details: {
+              transferId,
+              changes: [
+                { field: 'Conta Origem', from: '', to: freshSrc.bankName },
+                { field: 'Conta Destino', from: '', to: freshDst.bankName },
+                { field: 'Valor (centavos)', from: '', to: String(amt) },
+              ],
+            },
+            unitId: req.activeUnitId,
           },
-          unitId: req.activeUnitId,
-        },
-        {
-          userId: req.authUser!.id,
-          userName: req.authUser!.name,
-          action: 'CREATE_TRANSFER',
-          entityType: 'bank_transfer',
-          entityId: transferId,
-          details: { sourceAccountId: srcAcc.id, destinationAccountId: dstAcc.id, amountCents: amt, description: descText },
-          unitId: req.activeUnitId,
-        },
-      ]);
+          {
+            userId: req.authUser!.id,
+            userName: req.authUser!.name,
+            action: 'CREATE_TRANSFER',
+            entityType: 'bank_transfer',
+            entityId: transferId,
+            details: { sourceAccountId: freshSrc.id, destinationAccountId: freshDst.id, amountCents: amt, description: descText },
+            unitId: req.activeUnitId,
+          },
+        ]);
+
+        return { debitMov: dMov, creditMov: cMov };
+      });
 
       res.json({ debitMovement: debitMov, creditMovement: creditMov, transferId });
     } catch (error) {
       console.error('Bank transfer error:', error);
-      res.status(500).json({ error: 'Erro ao executar transferência entre contas.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao executar transferência entre contas.') });
     }
   });
 
-  app.post('/api/finance/bank-movements/reconcile', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/finance/bank-movements/reconcile', requireAuth, requireModule('finance'), async (req: AuthRequest, res) => {
     try {
-      const { movementIds, reconciled, reconciliationDate, compensationDate } = req.body as {
+      const { reconciled, reconciliationDate, compensationDate } = req.body as {
         movementIds: number[];
         reconciled: boolean;
         reconciliationDate?: string;
         compensationDate?: string;
       };
-      if (!Array.isArray(movementIds) || movementIds.length === 0) {
-        return res.status(400).json({ error: 'Selecione ao menos um movimento para conciliação.' });
+      const movementIds = parsePositiveIntArray(req.body?.movementIds, 500);
+      if (movementIds.length === 0) {
+        return res.status(400).json({ error: 'Selecione ao menos um movimento válido para conciliação.' });
       }
+
+      const targets = await db.select().from(bankMovements).where(inArray(bankMovements.id, movementIds));
+      if (targets.some((t) => !isUnitPermitted(req, t.unitId))) {
+        return res.status(403).json({ error: 'Um ou mais movimentos pertencem a uma unidade não autorizada.' });
+      }
+
       const isRec = Boolean(reconciled);
       const recDate = isRec ? (String(reconciliationDate || '').trim() || new Date().toISOString().slice(0, 10)) : '';
       const compDate = isRec ? String(compensationDate || '').trim() : '';
 
-      const updatedRows = await db
-        .update(bankMovements)
-        .set({
-          reconciled: isRec,
-          status: isRec ? 'CONCILIADO' : 'PENDENTE',
-          reconciliationDate: recDate,
-          compensationDate: compDate,
-        })
-        .where(inArray(bankMovements.id, movementIds.map(Number)))
-        .returning();
+      const updatedRows = await db.transaction(async (tx) => {
+        const rows = await tx
+          .update(bankMovements)
+          .set({
+            reconciled: isRec,
+            status: isRec ? 'CONCILIADO' : 'PENDENTE',
+            reconciliationDate: recDate,
+            compensationDate: compDate,
+          })
+          .where(inArray(bankMovements.id, movementIds))
+          .returning();
 
-      for (const row of updatedRows) {
-        await db.insert(auditLogs).values({
-          userId: req.authUser!.id,
-          userName: req.authUser!.name,
-          action: isRec ? 'RECONCILE_BANK_MOVEMENT' : 'UNRECONCILE_BANK_MOVEMENT',
-          entityType: 'bank_movement',
-          entityId: String(row.id),
-          details: {
-            changes: [
-              { field: 'Conciliado', from: isRec ? 'Não' : 'Sim', to: isRec ? 'Sim' : 'Não' },
-              { field: 'Status', from: isRec ? 'PENDENTE' : 'CONCILIADO', to: row.status },
-              ...(recDate ? [{ field: 'Data Conciliação', from: '', to: recDate }] : []),
-              ...(compDate ? [{ field: 'Data Compensação', from: '', to: compDate }] : []),
-            ],
-          },
-          unitId: req.activeUnitId,
-        });
-      }
+        for (const row of rows) {
+          await tx.insert(auditLogs).values({
+            userId: req.authUser!.id,
+            userName: req.authUser!.name,
+            action: isRec ? 'RECONCILE_BANK_MOVEMENT' : 'UNRECONCILE_BANK_MOVEMENT',
+            entityType: 'bank_movement',
+            entityId: String(row.id),
+            details: {
+              changes: [
+                { field: 'Conciliado', from: isRec ? 'Não' : 'Sim', to: isRec ? 'Sim' : 'Não' },
+                { field: 'Status', from: isRec ? 'PENDENTE' : 'CONCILIADO', to: row.status },
+                ...(recDate ? [{ field: 'Data Conciliação', from: '', to: recDate }] : []),
+                ...(compDate ? [{ field: 'Data Compensação', from: '', to: compDate }] : []),
+              ],
+            },
+            unitId: req.activeUnitId,
+          });
+        }
+        return rows;
+      });
 
       res.json({ updatedCount: updatedRows.length, movements: updatedRows });
     } catch (error) {
@@ -4371,11 +5155,15 @@ async function startServer() {
     }
   });
 
-  app.put('/api/finance/bank-movements/:id', requireAuth, async (req: AuthRequest, res) => {
+  app.put('/api/finance/bank-movements/:id', requireAuth, requireModule('finance'), async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de movimento inválido.' });
       const [existing] = await db.select().from(bankMovements).where(eq(bankMovements.id, id));
       if (!existing) return res.status(404).json({ error: 'Movimento não encontrado.' });
+      if (!isUnitPermitted(req, existing.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para alterar movimento desta unidade.' });
+      }
 
       const body = req.body as any;
       const isReconciliationOnly =
@@ -4392,9 +5180,12 @@ async function startServer() {
         });
       }
 
-      const nextAccountId = body.bankAccountId !== undefined ? Number(body.bankAccountId) : existing.bankAccountId;
+      const nextAccountId = body.bankAccountId !== undefined ? parsePositiveIntId(body.bankAccountId) : existing.bankAccountId;
+      if (!nextAccountId) return res.status(400).json({ error: 'Conta bancária inválida.' });
+
       const nextType = body.movementType !== undefined ? normalizeMovType(body.movementType) : normalizeMovType(existing.movementType);
-      const nextAmt = body.amountCents !== undefined ? Math.round(Number(body.amountCents) || 0) : existing.amountCents;
+      const parsedAmt = body.amountCents !== undefined ? parseFiniteNumber(body.amountCents) : existing.amountCents;
+      const nextAmt = parsedAmt !== null ? Math.round(parsedAmt) : 0;
       if (nextAmt <= 0) return res.status(400).json({ error: 'O valor deve ser maior que zero.' });
 
       const nextDesc = body.description !== undefined ? String(body.description).trim() : existing.description;
@@ -4417,7 +5208,7 @@ async function startServer() {
       let nextCatId = existing.categoryId;
       let nextCatName = existing.categoryName;
       if (body.categoryId !== undefined) {
-        nextCatId = body.categoryId ? Number(body.categoryId) : null;
+        nextCatId = body.categoryId ? parsePositiveIntId(body.categoryId) : null;
         if (nextCatId) {
           const [cat] = await db.select().from(chartOfAccounts).where(eq(chartOfAccounts.id, nextCatId));
           nextCatName = cat ? `${cat.code} - ${cat.name}` : String(body.categoryName || '');
@@ -4427,89 +5218,101 @@ async function startServer() {
       }
 
       let nextDate = existing.movementDate;
-      if (body.movementDate !== undefined && body.movementDate) {
-        const d = new Date(`${String(body.movementDate).slice(0, 10)}T12:00:00`);
-        if (!Number.isNaN(d.getTime())) nextDate = d;
+      if (body.movementDate !== undefined && body.movementDate !== null && String(body.movementDate).trim() !== '') {
+        const d = parseSafeDate(`${String(body.movementDate).slice(0, 10)}T12:00:00`);
+        if (!d) return res.status(400).json({ error: 'Data da movimentação inválida.' });
+        nextDate = d;
       }
 
-      // Update account balances if account/type/amount changed
       const oldType = normalizeMovType(existing.movementType);
       const oldDelta = oldType === 'CREDITO' ? existing.amountCents : -existing.amountCents;
       const newDelta = nextType === 'CREDITO' ? nextAmt : -nextAmt;
 
-      if (nextAccountId === existing.bankAccountId) {
-        const diff = newDelta - oldDelta;
-        if (diff !== 0) {
-          const [acc] = await db.select().from(bankAccounts).where(eq(bankAccounts.id, existing.bankAccountId));
-          if (acc) {
-            await db.update(bankAccounts).set({ currentBalanceCents: acc.currentBalanceCents + diff }).where(eq(bankAccounts.id, acc.id));
+      const updated = await db.transaction(async (tx) => {
+        if (nextAccountId === existing.bankAccountId) {
+          const diff = newDelta - oldDelta;
+          if (diff !== 0) {
+            const [acc] = await tx.select().from(bankAccounts).where(eq(bankAccounts.id, existing.bankAccountId));
+            if (acc) {
+              await tx.update(bankAccounts).set({ currentBalanceCents: acc.currentBalanceCents + diff }).where(eq(bankAccounts.id, acc.id));
+            }
           }
+        } else {
+          const [oldAcc] = await tx.select().from(bankAccounts).where(eq(bankAccounts.id, existing.bankAccountId));
+          const [newAcc] = await tx.select().from(bankAccounts).where(eq(bankAccounts.id, nextAccountId));
+          if (!newAcc) throw Object.assign(new Error('Conta bancária de destino não encontrada.'), { status: 404 });
+          if (!isUnitPermitted(req, newAcc.unitId)) {
+            throw Object.assign(new Error('Conta bancária de destino não autorizada para esta unidade.'), { status: 403 });
+          }
+          if (oldAcc) {
+            await tx.update(bankAccounts).set({ currentBalanceCents: oldAcc.currentBalanceCents - oldDelta }).where(eq(bankAccounts.id, oldAcc.id));
+          }
+          await tx.update(bankAccounts).set({ currentBalanceCents: newAcc.currentBalanceCents + newDelta }).where(eq(bankAccounts.id, newAcc.id));
         }
-      } else {
-        const [oldAcc] = await db.select().from(bankAccounts).where(eq(bankAccounts.id, existing.bankAccountId));
-        const [newAcc] = await db.select().from(bankAccounts).where(eq(bankAccounts.id, nextAccountId));
-        if (!newAcc) return res.status(404).json({ error: 'Conta bancária de destino não encontrada.' });
-        if (oldAcc) {
-          await db.update(bankAccounts).set({ currentBalanceCents: oldAcc.currentBalanceCents - oldDelta }).where(eq(bankAccounts.id, oldAcc.id));
-        }
-        await db.update(bankAccounts).set({ currentBalanceCents: newAcc.currentBalanceCents + newDelta }).where(eq(bankAccounts.id, newAcc.id));
-      }
 
-      const [updated] = await db
-        .update(bankMovements)
-        .set({
-          bankAccountId: nextAccountId,
-          movementType: nextType,
-          amountCents: nextAmt,
-          description: nextDesc,
-          documentNumber: nextDoc,
-          movementDate: nextDate,
-          categoryId: nextCatId,
-          categoryName: nextCatName,
-          origin: nextOrigin,
-          status: nextStatus,
-          reconciled: nextReconciled,
-          reconciliationDate: nextRecDate,
-          compensationDate: nextCompDate,
-        })
-        .where(eq(bankMovements.id, id))
-        .returning();
+        const [saved] = await tx
+          .update(bankMovements)
+          .set({
+            bankAccountId: nextAccountId,
+            movementType: nextType,
+            amountCents: nextAmt,
+            description: nextDesc,
+            documentNumber: nextDoc,
+            movementDate: nextDate,
+            categoryId: nextCatId,
+            categoryName: nextCatName,
+            origin: nextOrigin,
+            status: nextStatus,
+            reconciled: nextReconciled,
+            reconciliationDate: nextRecDate,
+            compensationDate: nextCompDate,
+          })
+          .where(eq(bankMovements.id, id))
+          .returning();
 
-      const changes: Array<{ field: string; from: string; to: string }> = [];
-      if (existing.description !== updated.description) changes.push({ field: 'Descrição', from: existing.description, to: updated.description });
-      if (existing.amountCents !== updated.amountCents) changes.push({ field: 'Valor (centavos)', from: String(existing.amountCents), to: String(updated.amountCents) });
-      if (oldType !== updated.movementType) changes.push({ field: 'Tipo', from: oldType, to: updated.movementType });
-      if (existing.documentNumber !== updated.documentNumber) changes.push({ field: 'Documento', from: existing.documentNumber, to: updated.documentNumber });
-      if (existing.categoryName !== updated.categoryName) changes.push({ field: 'Categoria', from: existing.categoryName, to: updated.categoryName });
-      if (existing.origin !== updated.origin) changes.push({ field: 'Origem', from: existing.origin, to: updated.origin });
-      if (existing.status !== updated.status) changes.push({ field: 'Status', from: existing.status, to: updated.status });
-      if (existing.reconciled !== updated.reconciled) changes.push({ field: 'Conciliado', from: existing.reconciled ? 'Sim' : 'Não', to: updated.reconciled ? 'Sim' : 'Não' });
-      const oldDateStr = new Date(existing.movementDate).toISOString().slice(0, 10);
-      const newDateStr = new Date(updated.movementDate).toISOString().slice(0, 10);
-      if (oldDateStr !== newDateStr) changes.push({ field: 'Data', from: oldDateStr, to: newDateStr });
+        const changes: Array<{ field: string; from: string; to: string }> = [];
+        if (existing.description !== saved.description) changes.push({ field: 'Descrição', from: existing.description, to: saved.description });
+        if (existing.amountCents !== saved.amountCents) changes.push({ field: 'Valor (centavos)', from: String(existing.amountCents), to: String(saved.amountCents) });
+        if (oldType !== saved.movementType) changes.push({ field: 'Tipo', from: oldType, to: saved.movementType });
+        if (existing.documentNumber !== saved.documentNumber) changes.push({ field: 'Documento', from: existing.documentNumber, to: saved.documentNumber });
+        if (existing.categoryName !== saved.categoryName) changes.push({ field: 'Categoria', from: existing.categoryName, to: saved.categoryName });
+        if (existing.origin !== saved.origin) changes.push({ field: 'Origem', from: existing.origin, to: saved.origin });
+        if (existing.status !== saved.status) changes.push({ field: 'Status', from: existing.status, to: saved.status });
+        if (existing.reconciled !== saved.reconciled) changes.push({ field: 'Conciliado', from: existing.reconciled ? 'Sim' : 'Não', to: saved.reconciled ? 'Sim' : 'Não' });
+        const oldDateStr = new Date(existing.movementDate).toISOString().slice(0, 10);
+        const newDateStr = new Date(saved.movementDate).toISOString().slice(0, 10);
+        if (oldDateStr !== newDateStr) changes.push({ field: 'Data', from: oldDateStr, to: newDateStr });
 
-      await db.insert(auditLogs).values({
-        userId: req.authUser!.id,
-        userName: req.authUser!.name,
-        action: 'UPDATE_BANK_MOVEMENT',
-        entityType: 'bank_movement',
-        entityId: String(id),
-        details: { changes },
-        unitId: req.activeUnitId,
+        await tx.insert(auditLogs).values({
+          userId: req.authUser!.id,
+          userName: req.authUser!.name,
+          action: 'UPDATE_BANK_MOVEMENT',
+          entityType: 'bank_movement',
+          entityId: String(id),
+          details: { changes },
+          unitId: req.activeUnitId,
+        });
+
+        return saved;
       });
 
       res.json({ movement: updated });
     } catch (error) {
+      const status = typeof error === 'object' && error !== null && 'status' in error && typeof (error as any).status === 'number' ? (error as any).status : 500;
       console.error('Update bank movement error:', error);
-      res.status(500).json({ error: 'Erro ao atualizar lançamento bancário.' });
+      res.status(status).json({ error: sanitizeErrorMessage(error, 'Erro ao atualizar lançamento bancário.') });
     }
   });
 
-  app.delete('/api/finance/bank-movements/:id', requireAuth, async (req: AuthRequest, res) => {
+  app.delete('/api/finance/bank-movements/:id', requireAuth, requireModule('finance'), async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de movimento inválido.' });
       const [existing] = await db.select().from(bankMovements).where(eq(bankMovements.id, id));
       if (!existing) return res.status(404).json({ error: 'Lançamento não encontrado.' });
+      if (!isUnitPermitted(req, existing.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para excluir lançamento desta unidade.' });
+      }
 
       if (existing.titleId && existing.titleSource) {
         return res.status(400).json({
@@ -4517,34 +5320,36 @@ async function startServer() {
         });
       }
 
-      const [acc] = await db.select().from(bankAccounts).where(eq(bankAccounts.id, existing.bankAccountId));
-      if (acc) {
-        const normType = normalizeMovType(existing.movementType);
-        const delta = normType === 'CREDITO' ? existing.amountCents : -existing.amountCents;
-        await db.update(bankAccounts).set({ currentBalanceCents: acc.currentBalanceCents - delta }).where(eq(bankAccounts.id, acc.id));
-      }
+      await db.transaction(async (tx) => {
+        const [acc] = await tx.select().from(bankAccounts).where(eq(bankAccounts.id, existing.bankAccountId));
+        if (acc) {
+          const normType = normalizeMovType(existing.movementType);
+          const delta = normType === 'CREDITO' ? existing.amountCents : -existing.amountCents;
+          await tx.update(bankAccounts).set({ currentBalanceCents: acc.currentBalanceCents - delta }).where(eq(bankAccounts.id, acc.id));
+        }
 
-      await db.delete(bankMovements).where(eq(bankMovements.id, id));
+        await tx.delete(bankMovements).where(eq(bankMovements.id, id));
 
-      await db.insert(auditLogs).values({
-        userId: req.authUser!.id,
-        userName: req.authUser!.name,
-        action: 'DELETE_BANK_MOVEMENT',
-        entityType: 'bank_movement',
-        entityId: String(id),
-        details: {
-          changes: [
-            { field: 'Descrição', from: existing.description, to: '(Excluído)' },
-            { field: 'Valor (centavos)', from: String(existing.amountCents), to: '0' },
-          ],
-        },
-        unitId: req.activeUnitId,
+        await tx.insert(auditLogs).values({
+          userId: req.authUser!.id,
+          userName: req.authUser!.name,
+          action: 'DELETE_BANK_MOVEMENT',
+          entityType: 'bank_movement',
+          entityId: String(id),
+          details: {
+            changes: [
+              { field: 'Descrição', from: existing.description, to: '(Excluído)' },
+              { field: 'Valor (centavos)', from: String(existing.amountCents), to: '0' },
+            ],
+          },
+          unitId: req.activeUnitId,
+        });
       });
 
       res.json({ ok: true });
     } catch (error) {
       console.error('Delete bank movement error:', error);
-      res.status(500).json({ error: 'Não foi possível excluir o lançamento.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Não foi possível excluir o lançamento.') });
     }
   });
 
@@ -4557,13 +5362,31 @@ async function startServer() {
   registerCollectionTasksRoutes(app, { broadcast });
 
   // Fixed WhatsApp Dock APIs
-  app.get('/api/whatsapp/threads', requireAuth, async (_req: AuthRequest, res) => {
+  app.get('/api/whatsapp/threads', requireAuth, async (req: AuthRequest, res) => {
     try {
       await ensureInitialSeed();
-      const [threads, msgs] = await Promise.all([
-        db.select().from(whatsappThreads).orderBy(desc(whatsappThreads.updatedAt)),
-        db.select().from(whatsappMessages).orderBy(whatsappMessages.createdAt),
-      ]);
+      const allowedUnits = getAllowedUnitIds(req);
+      const threads =
+        allowedUnits === null
+          ? await db.select().from(whatsappThreads).orderBy(desc(whatsappThreads.updatedAt))
+          : allowedUnits.length === 0
+          ? []
+          : await db
+              .select()
+              .from(whatsappThreads)
+              .where(inArray(whatsappThreads.unitId, allowedUnits))
+              .orderBy(desc(whatsappThreads.updatedAt));
+      const threadIds = threads.map((t) => t.id);
+      const msgs =
+        allowedUnits === null
+          ? await db.select().from(whatsappMessages).orderBy(whatsappMessages.createdAt)
+          : threadIds.length === 0
+          ? []
+          : await db
+              .select()
+              .from(whatsappMessages)
+              .where(inArray(whatsappMessages.threadId, threadIds))
+              .orderBy(whatsappMessages.createdAt);
       res.json({ threads, messages: msgs });
     } catch (error) {
       console.error('WhatsApp threads error:', error);
@@ -4573,12 +5396,16 @@ async function startServer() {
 
   app.post('/api/whatsapp/threads/:id/messages', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const threadId = Number(req.params.id);
+      const threadId = parsePositiveIntId(req.params.id);
+      if (!threadId) return res.status(400).json({ error: 'ID de conversa inválido.' });
       const { body, contentType, direction } = req.body as {
         body: string;
         contentType?: string;
         direction?: string;
       };
+      if (!body || !String(body).trim()) {
+        return res.status(400).json({ error: 'O texto da mensagem é obrigatório.' });
+      }
       const existingThreads = await db
         .select()
         .from(whatsappThreads)
@@ -4586,6 +5413,9 @@ async function startServer() {
         .limit(1);
       const thread = existingThreads[0];
       if (!thread) return res.status(404).json({ error: 'Conversa WhatsApp não encontrada.' });
+      if (!isUnitPermitted(req, thread.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para operar conversa desta unidade.' });
+      }
 
       let iviTranscript: string | null = null;
       if (contentType === 'audio') {
@@ -4668,7 +5498,8 @@ async function startServer() {
 
   app.post('/api/whatsapp/threads/:id/send-file', requireAuth, upload.single('file'), async (req: AuthRequest, res) => {
     try {
-      const threadId = Number(req.params.id);
+      const threadId = parsePositiveIntId(req.params.id);
+      if (!threadId) return res.status(400).json({ error: 'ID de conversa inválido.' });
       const caption = typeof req.body?.caption === 'string' ? req.body.caption.trim() : '';
       const file = req.file;
       if (!file) {
@@ -4681,6 +5512,9 @@ async function startServer() {
         .limit(1);
       const thread = existingThreads[0];
       if (!thread) return res.status(404).json({ error: 'Conversa WhatsApp não encontrada.' });
+      if (!isUnitPermitted(req, thread.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para enviar arquivos nesta conversa.' });
+      }
 
       const validationErr = validateUploadFile(file.originalname, file.mimetype, file.size);
       if (validationErr) return res.status(400).json({ error: validationErr });
@@ -4830,10 +5664,17 @@ async function startServer() {
 
   app.post('/api/whatsapp/messages/:id/transcribe', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de mensagem inválido.' });
       const rows = await db.select().from(whatsappMessages).where(eq(whatsappMessages.id, id)).limit(1);
       const msg = rows[0];
       if (!msg) return res.status(404).json({ error: 'Mensagem não encontrada.' });
+
+      const threadRows = await db.select().from(whatsappThreads).where(eq(whatsappThreads.id, msg.threadId)).limit(1);
+      const th = threadRows[0];
+      if (th && !isUnitPermitted(req, th.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para acessar mensagem desta unidade.' });
+      }
 
       let audioInput = msg.body;
       let mimeType = msg.attachmentMimeType || 'audio/webm';
@@ -4851,8 +5692,6 @@ async function startServer() {
         .where(eq(whatsappMessages.id, id))
         .returning();
 
-      const threadRows = await db.select().from(whatsappThreads).where(eq(whatsappThreads.id, msg.threadId)).limit(1);
-      const th = threadRows[0];
       if (th) {
         await mirrorCommunicationToProspection({
           unitId: th.unitId,
@@ -7019,7 +7858,8 @@ async function startServer() {
 
   app.post('/api/whatsapp/uazapi/calls/:id/terminate', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const logId = Number(req.params.id);
+      const logId = parsePositiveIntId(req.params.id);
+      if (!logId) return res.status(400).json({ ok: false, error: 'ID de ligação inválido.' });
       const rows = await db
         .select()
         .from(whatsappCallLogs)
@@ -7028,6 +7868,9 @@ async function startServer() {
       const callRow = rows[0];
       if (!callRow) {
         return res.status(404).json({ ok: false, error: 'Registro de ligação não encontrado.' });
+      }
+      if (!isUnitPermitted(req, callRow.unitId)) {
+        return res.status(403).json({ ok: false, error: 'Sem permissão para encerrar ligação desta unidade.' });
       }
 
       const creds = await resolveUazapiCredentials({
@@ -7134,18 +7977,25 @@ async function startServer() {
 
   app.post('/api/config/units', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
     try {
-      const { id, minAdmissionCostCents, phone, address, active } = req.body as {
+      const { id: rawId, minAdmissionCostCents, phone, address, active } = req.body as {
         id: number;
         minAdmissionCostCents: number;
         phone?: string;
         address?: string;
         active?: boolean;
       };
+      const id = parsePositiveIntId(rawId);
+      if (!id) return res.status(400).json({ error: 'ID de unidade inválido.' });
+      const costNum = parseFiniteNumber(minAdmissionCostCents);
+      if (costNum === null || costNum < 0) {
+        return res.status(400).json({ error: 'Custo mínimo de admissão inválido.' });
+      }
       const [updated] = await db
         .update(units)
-        .set({ minAdmissionCostCents, ...(phone !== undefined ? { phone } : {}), ...(address !== undefined ? { address } : {}), ...(active !== undefined ? { active } : {}) })
+        .set({ minAdmissionCostCents: Math.round(costNum), ...(phone !== undefined ? { phone } : {}), ...(address !== undefined ? { address } : {}), ...(active !== undefined ? { active } : {}) })
         .where(eq(units.id, id))
         .returning();
+      if (!updated) return res.status(404).json({ error: 'Unidade não encontrada.' });
       res.json({ unit: updated });
     } catch (error) {
       console.error('Update unit error:', error);
@@ -7218,7 +8068,8 @@ async function startServer() {
 
   app.post('/api/config/groups/:id/permissions', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de grupo inválido.' });
       const { modulePermissions, fieldPermissions } = req.body as {
         modulePermissions: Record<string, boolean>;
         fieldPermissions: Record<string, Record<string, 'edit' | 'read' | 'hidden'>>;
@@ -7228,6 +8079,7 @@ async function startServer() {
         .set({ modulePermissions, fieldPermissions })
         .where(eq(userGroups.id, id))
         .returning();
+      if (!updated) return res.status(404).json({ error: 'Grupo não encontrado.' });
       res.json({ group: updated });
     } catch (error) {
       console.error('Update group permissions error:', error);
@@ -7237,21 +8089,23 @@ async function startServer() {
 
   app.post('/api/config/users/:id/revoke-sessions', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de usuário inválido.' });
       const [updated] = await db
         .update(users)
         .set({ sessionVersion: sql`${users.sessionVersion} + 1`, lockedUntil: null, failedLoginAttempts: 0 })
         .where(eq(users.id, id))
         .returning();
+      if (!updated) return res.status(404).json({ error: 'Usuário não encontrado.' });
       await db.insert(auditLogs).values({
         userId: req.authUser!.id,
         userName: req.authUser!.name,
         action: 'REVOKE_USER_SESSIONS',
         entityType: 'user',
         entityId: String(id),
-        details: { targetEmail: updated?.email },
+        details: { targetEmail: updated.email },
       });
-      res.json({ ok: true, sessionVersion: updated?.sessionVersion });
+      res.json({ ok: true, sessionVersion: updated.sessionVersion });
     } catch (error) {
       console.error('Revoke session error:', error);
       res.status(500).json({ error: 'Erro ao revogar sessões.' });
@@ -7447,34 +8301,7 @@ async function startServer() {
     }
   });
 
-  // Internal Messaging
-  app.post('/api/messages', requireAuth, async (req: AuthRequest, res) => {
-    try {
-      const { targetSector, subject, body, recipientId } = req.body as {
-        targetSector: string;
-        subject: string;
-        body: string;
-        recipientId?: number;
-      };
-      const [msg] = await db
-        .insert(internalMessages)
-        .values({
-          senderId: req.authUser!.id,
-          senderName: req.authUser!.name,
-          recipientId: recipientId || null,
-          targetSector: targetSector || 'geral',
-          subject,
-          body,
-        })
-        .returning();
-      broadcast('internal:message', msg);
-      res.json({ message: msg });
-    } catch (error) {
-      console.error('Internal message error:', error);
-      res.status(500).json({ error: 'Erro ao enviar mensagem interna.' });
-    }
-  });
-
+  registerInternalMessagingRoutes(app, { broadcast });
   registerCadastrosRoutes(app, broadcast);
   registerConfigRoutes(app);
   registerAppointmentsRoutes(app, { broadcast, resolveUazapiCredentials });
@@ -7486,6 +8313,8 @@ async function startServer() {
   registerCompanyLegalRoutes(app, { broadcast });
   registerDataHubRoutes(app, { broadcast });
   registerMigrationRoutes(app, { broadcast });
+  registerBackupRoutes(app, broadcast);
+  startBackupScheduler(broadcast, ensureSqlHostProxySocket);
 
   // Garante resposta JSON em qualquer rota /api inexistente ou erro de middleware (nunca HTML <!doctype>)
   app.use('/api', (_req, res) => {
@@ -7499,7 +8328,7 @@ async function startServer() {
         typeof err === 'object' && err !== null && 'status' in err && typeof (err as { status?: number }).status === 'number'
           ? (err as { status: number }).status
           : 500;
-      const message = err instanceof Error ? err.message : 'Erro interno no servidor API.';
+      const message = sanitizeErrorMessage(err, 'Erro interno no servidor API.');
       console.error(`API Error [${req.method} ${req.path}]:`, err);
       return res.status(status).json({ error: message });
     }

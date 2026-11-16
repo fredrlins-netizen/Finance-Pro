@@ -5,6 +5,8 @@ import { db } from '../db/index.ts';
 import { userGroups, users, workSchedules } from '../db/schema.ts';
 import { getOrCreateUser } from '../db/users.ts';
 import { eq } from 'drizzle-orm';
+import { setAuditContextUser } from '../utils/auditContext.ts';
+import { ensureSecuritySchemaAndAutoAudit } from '../services/autoAudit.ts';
 
 const SESSION_SECRET =
   process.env.SESSION_SECRET ||
@@ -20,6 +22,20 @@ export interface CorporateSessionPayload {
   role: string;
   sessionVersion: number;
   exp: number;
+}
+
+export interface ScheduleClosingWarning {
+  minutesRemaining: number;
+  endTime: string;
+  ruleLabel: string;
+  message: string;
+}
+
+export interface ScheduleWindowCheckResult {
+  allowed: boolean;
+  adminExempt?: boolean;
+  message?: string;
+  closingWarning?: ScheduleClosingWarning | null;
 }
 
 export function signCorporateToken(payload: Omit<CorporateSessionPayload, 'exp'>): string {
@@ -59,8 +75,11 @@ export function hashPassword(password: string): string {
 export function verifyPassword(password: string, stored: string): boolean {
   if (!stored || !stored.includes(':')) return false;
   const [salt, original] = stored.split(':');
-  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
-  return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(original));
+  if (!salt || !original) return false;
+  const hashBuf = Buffer.from(crypto.scryptSync(password, salt, 64).toString('hex'));
+  const origBuf = Buffer.from(original);
+  if (hashBuf.length !== origBuf.length) return false;
+  return crypto.timingSafeEqual(hashBuf, origBuf);
 }
 
 const MODULE_KEY_ALIASES: Record<string, string[]> = {
@@ -70,6 +89,7 @@ const MODULE_KEY_ALIASES: Record<string, string[]> = {
   audit: ['audit', 'auditoria'],
   legal: ['legal', 'juridico'],
   negotiations: ['negotiations', 'negociacoes'],
+  internal_messaging: ['internal_messaging', 'mensageria', 'mensagens'],
   finance: ['finance', 'financeiro'],
   collection: ['collection', 'cobranca'],
   forms: ['forms', 'formularios', 'analises'],
@@ -106,42 +126,164 @@ export interface AuthRequest extends Request {
     modulePermissions: Record<string, boolean>;
   };
   activeUnitId?: number;
+  scheduleWarning?: ScheduleClosingWarning | null;
+}
+
+const WEEKDAY_MAP: Record<string, number> = {
+  Sun: 0,
+  Mon: 1,
+  Tue: 2,
+  Wed: 3,
+  Thu: 4,
+  Fri: 5,
+  Sat: 6,
+};
+
+function getSaoPauloClock(refDate = new Date()): { day: number; hhmm: string; nowMinutes: number } {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Sao_Paulo',
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(refDate);
+
+  const weekdayPart = parts.find((p) => p.type === 'weekday')?.value || 'Mon';
+  let hour = Number(parts.find((p) => p.type === 'hour')?.value || '0');
+  if (hour === 24) hour = 0;
+  const minute = Number(parts.find((p) => p.type === 'minute')?.value || '0');
+
+  return {
+    day: WEEKDAY_MAP[weekdayPart] ?? 1,
+    hhmm: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
+    nowMinutes: hour * 60 + minute,
+  };
+}
+
+function parseTimeToMinutes(hhmm: string): number {
+  const [hRaw, mRaw] = String(hhmm || '00:00').split(':');
+  const h = Number(hRaw || 0);
+  const m = Number(mRaw || 0);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return 0;
+  return Math.max(0, Math.min(1439, h * 60 + m));
 }
 
 export async function checkUserScheduleWindow(
   user: { id: number; role: string; groupId: number | null; defaultUnitId: number | null },
-  unitId?: number
-): Promise<{ allowed: boolean; message?: string }> {
-  if (user.role === 'admin') return { allowed: true };
-  const schedules = await db.select().from(workSchedules).where(eq(workSchedules.active, true));
-  const applicable = schedules.filter(
-    (s) =>
-      (s.targetType === 'user' && s.targetId === user.id) ||
-      (s.targetType === 'group' && user.groupId && s.targetId === user.groupId) ||
-      (s.targetType === 'unit' && (unitId || user.defaultUnitId) && s.targetId === (unitId || user.defaultUnitId))
-  );
-  if (applicable.length === 0) return { allowed: true };
-
-  const rule =
-    applicable.find((s) => s.targetType === 'user') ||
-    applicable.find((s) => s.targetType === 'group') ||
-    applicable[0];
-
-  const now = new Date();
-  const brTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
-  const day = brTime.getDay();
-  const allowedDays = Array.isArray(rule.allowedDays) ? rule.allowedDays : [1, 2, 3, 4, 5];
-  if (!allowedDays.includes(day)) {
-    return { allowed: false, message: `Acesso bloqueado fora dos dias permitidos (${rule.targetLabel}).` };
+  unitId?: number,
+  referenceDate?: Date
+): Promise<ScheduleWindowCheckResult> {
+  // Somente Administradores podem acessar fora dos horários estabelecidos
+  if (user.role === 'admin') {
+    return { allowed: true, adminExempt: true, closingWarning: null };
   }
-  const hhmm = `${String(brTime.getHours()).padStart(2, '0')}:${String(brTime.getMinutes()).padStart(2, '0')}`;
-  if (hhmm < rule.startTime || hhmm > rule.endTime) {
+
+  await ensureSecuritySchemaAndAutoAudit();
+  const schedules = await db.select().from(workSchedules).where(eq(workSchedules.active, true));
+  const effectiveUnitId = unitId || user.defaultUnitId;
+
+  const applicable = schedules.filter((s) => {
+    const ruleUnitId = s.unitId || (s.targetType === 'unit' || s.targetType === 'unit_group' ? s.targetId : null);
+    if (s.targetType === 'user') {
+      return s.targetId === user.id;
+    }
+    if (s.targetType === 'group') {
+      return Boolean(user.groupId) && (s.groupId || s.targetId) === user.groupId;
+    }
+    if (s.targetType === 'unit_group') {
+      return (
+        Boolean(effectiveUnitId) &&
+        Boolean(user.groupId) &&
+        ruleUnitId === effectiveUnitId &&
+        s.groupId === user.groupId
+      );
+    }
+    if (s.targetType === 'unit') {
+      if (!effectiveUnitId || ruleUnitId !== effectiveUnitId) return false;
+      if (s.groupId && s.groupId !== user.groupId) return false;
+      return true;
+    }
+    return false;
+  });
+
+  if (applicable.length === 0) {
+    return { allowed: true, closingWarning: null };
+  }
+
+  const { day, hhmm, nowMinutes } = getSaoPauloClock(referenceDate);
+
+  const todayRules = applicable.filter((s) => {
+    const allowedDays = Array.isArray(s.allowedDays) ? s.allowedDays : [1, 2, 3, 4, 5];
+    return allowedDays.includes(day);
+  });
+
+  const isRuleOpenNow = (s: typeof applicable[number]): boolean => {
+    const allowedDays = Array.isArray(s.allowedDays) ? s.allowedDays : [1, 2, 3, 4, 5];
+    if (!allowedDays.includes(day)) return false;
+    const startMin = parseTimeToMinutes(s.startTime);
+    const endMin = parseTimeToMinutes(s.endTime);
+    if (endMin < startMin) return false;
+    if (endMin === 1439) {
+      return nowMinutes >= startMin && nowMinutes <= endMin;
+    }
+    return nowMinutes >= startMin && nowMinutes < endMin;
+  };
+
+  const openRules = todayRules.filter(isRuleOpenNow);
+
+  if (openRules.length === 0) {
+    const windowsSummary = applicable
+      .slice(0, 4)
+      .map((r) => `${r.targetLabel} (${r.startTime}–${r.endTime})`)
+      .join(' | ');
     return {
       allowed: false,
-      message: `Acesso permitido apenas entre ${rule.startTime} e ${rule.endTime} (${rule.targetLabel}). Horário atual: ${hhmm}.`,
+      closingWarning: null,
+      message: `Acesso bloqueado fora do quadro de horários: ${windowsSummary}. Horário atual (BRT): ${hhmm}. Apenas administradores têm acesso irrestrito.`,
     };
   }
-  return { allowed: true };
+
+  // Determinar o fim contínuo de cobertura somando janelas contíguas/sobrepostas para o mesmo dia
+  let closingRule = openRules[0];
+  let maxEndMin = parseTimeToMinutes(closingRule.endTime);
+  for (const r of openRules) {
+    const endMin = parseTimeToMinutes(r.endTime);
+    if (endMin > maxEndMin) {
+      maxEndMin = endMin;
+      closingRule = r;
+    }
+  }
+
+  let extended = true;
+  while (extended) {
+    extended = false;
+    for (const r of todayRules) {
+      const sMin = parseTimeToMinutes(r.startTime);
+      const eMin = parseTimeToMinutes(r.endTime);
+      if (sMin <= maxEndMin && eMin > maxEndMin) {
+        maxEndMin = eMin;
+        closingRule = r;
+        extended = true;
+      }
+    }
+  }
+
+  const minutesRemaining = maxEndMin - nowMinutes;
+  let closingWarning: ScheduleClosingWarning | null = null;
+
+  if (minutesRemaining > 0 && minutesRemaining <= 15) {
+    const customMsg = String(closingRule.closingWarningMessage || '').trim();
+    closingWarning = {
+      minutesRemaining,
+      endTime: closingRule.endTime,
+      ruleLabel: closingRule.targetLabel,
+      message:
+        customMsg ||
+        `Aviso de encerramento: seu quadro de horário (${closingRule.targetLabel}) encerra às ${closingRule.endTime} (em ${minutesRemaining} min). Conclua e salve seus atendimentos antes do bloqueio automático.`,
+    };
+  }
+
+  return { allowed: true, closingWarning };
 }
 
 export const requireAuth = async (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -152,6 +294,8 @@ export const requireAuth = async (req: AuthRequest, res: Response, next: NextFun
 
   const token = authHeader.split('Bearer ')[1];
   try {
+    await ensureSecuritySchemaAndAutoAudit();
+
     let dbUser;
     let tokenSessionVersion: number | undefined;
 
@@ -168,8 +312,21 @@ export const requireAuth = async (req: AuthRequest, res: Response, next: NextFun
       dbUser = await getOrCreateUser(decodedToken.uid, decodedToken.email || '', decodedToken.name);
     }
 
-    if (!dbUser || !dbUser.active) {
-      return res.status(403).json({ error: 'Usuário inativo ou não encontrado.' });
+    if (!dbUser) {
+      return res.status(401).json({ error: 'Usuário não encontrado.' });
+    }
+
+    if (dbUser.suspended) {
+      return res.status(403).json({
+        error:
+          'Acesso suspenso automaticamente após tentativas inválidas. Apenas um Administrador pode autorizar a reabilitação.',
+        code: 'USER_SUSPENDED',
+        suspendedReason: dbUser.suspendedReason,
+      });
+    }
+
+    if (!dbUser.active) {
+      return res.status(403).json({ error: 'Usuário inativo.', code: 'USER_INACTIVE' });
     }
 
     if (tokenSessionVersion !== undefined && dbUser.sessionVersion !== tokenSessionVersion) {
@@ -188,9 +345,14 @@ export const requireAuth = async (req: AuthRequest, res: Response, next: NextFun
       }
     }
 
+    setAuditContextUser({ id: dbUser.id, name: dbUser.name, unitId: activeUnitId });
+
     const scheduleCheck = await checkUserScheduleWindow(dbUser, activeUnitId);
     if (!scheduleCheck.allowed) {
-      return res.status(403).json({ error: scheduleCheck.message });
+      return res.status(403).json({
+        error: scheduleCheck.message,
+        code: 'SCHEDULE_BLOCKED',
+      });
     }
 
     let modulePermissions: Record<string, boolean> = {};
@@ -213,6 +375,7 @@ export const requireAuth = async (req: AuthRequest, res: Response, next: NextFun
       modulePermissions,
     };
     req.activeUnitId = activeUnitId;
+    req.scheduleWarning = scheduleCheck.closingWarning || null;
     next();
   } catch (error) {
     console.error('Auth verification error:', error);
@@ -238,3 +401,29 @@ export const requireModule = (moduleId: string) => {
     next();
   };
 };
+
+export const requireAnyModule = (...moduleIds: string[]) => {
+  return (req: AuthRequest, res: Response, next: NextFunction) => {
+    if (!req.authUser) return res.status(401).json({ error: 'Não autenticado.' });
+    if (req.authUser.role === 'admin') return next();
+    const perms = req.authUser.modulePermissions || {};
+    const anyAllowed = moduleIds.some((id) => perms[id] !== false);
+    if (!anyAllowed) {
+      return res.status(403).json({ error: 'Acesso negado para o seu grupo de permissões.' });
+    }
+    next();
+  };
+};
+
+export function getAllowedUnitIds(req: AuthRequest): number[] | null {
+  if (!req.authUser) return [];
+  if (req.authUser.role === 'admin') return null;
+  return Array.isArray(req.authUser.allowedUnitIds) ? req.authUser.allowedUnitIds : [];
+}
+
+export function isUnitPermitted(req: AuthRequest, unitId: number | null | undefined): boolean {
+  if (!req.authUser) return false;
+  if (req.authUser.role === 'admin') return true;
+  if (!unitId || !Number.isSafeInteger(unitId)) return false;
+  return (req.authUser.allowedUnitIds || []).includes(unitId);
+}

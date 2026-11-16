@@ -8,6 +8,7 @@ import {
   Download,
   Eye,
   FileAudio,
+  History,
   Mic,
   Phone,
   PhoneCall,
@@ -37,6 +38,7 @@ import {
   WhatsappCallLogItem,
 } from '../../types.ts';
 import { CollapsibleFilterBar } from '../CollapsibleFilterBar.tsx';
+import { EntityAuditModal } from './cadastros/CadastrosShared.tsx';
 
 const SecureBucketAudio: React.FC<{
   sha256: string;
@@ -196,6 +198,7 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
   const [newLeadModalOpen, setNewLeadModalOpen] = useState(false);
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [basicContactModalOpen, setBasicContactModalOpen] = useState(false);
+  const [auditModalOpen, setAuditModalOpen] = useState(false);
   const [basicContactAutoTriggeredFor, setBasicContactAutoTriggeredFor] = useState<Record<number, boolean>>({});
   const [contactNameDraft, setContactNameDraft] = useState('');
   const [contactPhoneDraft, setContactPhoneDraft] = useState('+55 ');
@@ -1063,6 +1066,16 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                     >
                       <Calendar className="w-3.5 h-3.5" />
                       Agendar
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setAuditModalOpen(true)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                      title="Consultar Auditoria Completa do Lead"
+                    >
+                      <History className="w-3.5 h-3.5" />
+                      Auditoria
                     </button>
 
                     {onNavigate && (
@@ -2183,6 +2196,13 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
           </div>
         </div>
       )}
+      <EntityAuditModal
+        open={auditModalOpen && Boolean(activeLead)}
+        title={activeLead ? `Prospecção · ${activeLead.name || activeLead.phone}` : 'Lead'}
+        entityType="prospection_leads"
+        entityId={activeLead?.id || 0}
+        onClose={() => setAuditModalOpen(false)}
+      />
     </div>
   );
 };

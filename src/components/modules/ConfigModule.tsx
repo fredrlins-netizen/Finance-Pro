@@ -10,6 +10,7 @@ import {
   Download,
   Edit3,
   FileSpreadsheet,
+  HardDrive,
   KeyRound,
   MessageSquare,
   Palette,
@@ -21,7 +22,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { apiFetch, getAuthToken } from '../../lib/api.ts';
+import { apiFetch, getActiveUnitHeader, getAuthToken } from '../../lib/api.ts';
 import {
   AuditChecklistItem,
   AuthUser,
@@ -53,10 +54,12 @@ import {
 } from './config/ConfigGovernanceViews.tsx';
 import { ConfigDataHubView } from './config/ConfigDataHubView.tsx';
 import { ConfigR2MigrationView } from './config/ConfigR2MigrationView.tsx';
+import { ConfigBackupRestoreView } from './config/ConfigBackupRestoreView.tsx';
 
 interface ConfigModuleProps {
   currentUser: AuthUser;
   wsTick?: number;
+  initialTab?: ConfigTab | string;
   onUnitsUpdated: () => void;
   onBrandingUpdated?: (branding: PortalBrandingConfig) => void;
   onGoBack?: () => void;
@@ -76,6 +79,7 @@ type ConfigTab =
   | 'ai_regua'
   | 'import'
   | 'r2_migration'
+  | 'backup_restore'
   | 'sql';
 
 const DEFAULT_PORTAL_BRANDING_FALLBACK: PortalBrandingConfig = {
@@ -102,15 +106,51 @@ const DEFAULT_PORTAL_BRANDING_FALLBACK: PortalBrandingConfig = {
 export const ConfigModule: React.FC<ConfigModuleProps> = ({
   currentUser,
   wsTick,
+  initialTab,
   onUnitsUpdated,
   onBrandingUpdated,
   onGoBack,
   previousScreenLabel,
 }) => {
   const isAdmin = currentUser.role === 'admin';
-  const [tab, setTab] = useState<ConfigTab>('units');
+  const resolvedInitialTab: ConfigTab =
+    initialTab === 'backup_restore' && isAdmin
+      ? 'backup_restore'
+      : initialTab === 'r2_migration' && isAdmin
+      ? 'r2_migration'
+      : initialTab === 'sql' && isAdmin
+      ? 'sql'
+      : 'units';
+  const [tab, setTab] = useState<ConfigTab>(resolvedInitialTab);
   const [tabHistory, setTabHistory] = useState<ConfigTab[]>([]);
-  const tabRef = React.useRef<ConfigTab>('units');
+  const tabRef = React.useRef<ConfigTab>(resolvedInitialTab);
+
+  useEffect(() => {
+    if (!initialTab) return;
+    if (initialTab === 'backup_restore' && !isAdmin) return;
+    if ((initialTab === 'r2_migration' || initialTab === 'sql') && !isAdmin) return;
+    const validTabs: ConfigTab[] = [
+      'units',
+      'uazapi',
+      'gotalk',
+      'groups',
+      'audit_checklist',
+      'schedules',
+      'fields_categories',
+      'help_center',
+      'branding',
+      'ai_regua',
+      'import',
+      'r2_migration',
+      'backup_restore',
+      'sql',
+    ];
+    if (validTabs.includes(initialTab as ConfigTab)) {
+      tabRef.current = initialTab as ConfigTab;
+      setTab(initialTab as ConfigTab);
+      setTabHistory([]);
+    }
+  }, [initialTab, isAdmin]);
 
   const switchTab = useCallback((nextTab: ConfigTab) => {
     const curr = tabRef.current;
@@ -468,18 +508,37 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
   };
 
   const handleExportScoped = async () => {
-    const token = getAuthToken();
-    const res = await fetch(`/api/export?table=${exportTable}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `financepro_${exportTable}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast(`Exportação operacional (${exportTable}) concluída e auditada.`);
+    try {
+      const token = getAuthToken();
+      const res = await fetch(`/api/export?table=${encodeURIComponent(exportTable)}`, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          'x-unit-id': String(getActiveUnitHeader()),
+        },
+      });
+      if (!res.ok) {
+        const rawText = await res.text();
+        let errMsg = `Falha na exportação (${res.status}).`;
+        try {
+          const parsed = JSON.parse(rawText) as { error?: string };
+          if (parsed?.error) errMsg = parsed.error;
+        } catch {
+          // keep default message
+        }
+        showToast(errMsg);
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `financepro_${exportTable}.csv`;
+      a.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      showToast(`Exportação operacional (${exportTable}) concluída e auditada.`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Erro ao exportar dados.');
+    }
   };
 
   const handleExecuteSql = async (e: React.FormEvent) => {
@@ -517,6 +576,7 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
     { id: 'ai_regua', label: 'IA Ivi & Régua', icon: KeyRound },
     { id: 'import', label: 'Modelos & Importação Excel', icon: FileSpreadsheet },
     ...(isAdmin ? [{ id: 'r2_migration' as ConfigTab, label: 'Migração R2 (64 GB)', icon: CloudUpload }] : []),
+    ...(isAdmin ? [{ id: 'backup_restore' as ConfigTab, label: 'Backup & Restore (Google Drive)', icon: HardDrive }] : []),
     ...(isAdmin ? [{ id: 'sql' as ConfigTab, label: 'Console SQL Admin', icon: Database }] : []),
   ];
 
@@ -1284,6 +1344,18 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
       {/* 11B. MIGRAÇÃO R2 (64 GB) & CÓDIGO SEGURO INTEGRATIVO */}
       {tab === 'r2_migration' && isAdmin && (
         <ConfigR2MigrationView wsTick={wsTick} onToast={showToast} />
+      )}
+
+      {/* 11C. BACKUP & RESTORE COMPLETO (CLOUD / GOOGLE DRIVE + AGENDAMENTO AUTOMÁTICO) */}
+      {tab === 'backup_restore' && isAdmin && (
+        <ConfigBackupRestoreView
+          wsTick={wsTick}
+          onToast={showToast}
+          onDatabaseRestored={async () => {
+            await loadAll();
+            onUnitsUpdated();
+          }}
+        />
       )}
 
       {/* 12. ADMIN POSTGRESQL SQL CONSOLE */}

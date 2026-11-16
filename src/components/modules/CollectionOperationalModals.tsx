@@ -27,7 +27,9 @@ import {
   formatBytes,
   formatDateBR,
   formatDateTimeBR,
+  getActiveUnitHeader,
   getAuthToken,
+  parseJsonResponse,
 } from '../../lib/api.ts';
 import {
   Admission,
@@ -571,11 +573,17 @@ export const CollectionContactModal: React.FC<{
       const token = getAuthToken();
       const resp = await fetch('/api/documents/upload', {
         method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: {
+          'x-unit-id': String(getActiveUnitHeader()),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: formData,
       });
-      const json = (await resp.json()) as { document?: DocumentObject; error?: string };
-      if (!resp.ok || !json.document) {
+      const json = await parseJsonResponse<{ document?: DocumentObject; error?: string }>(
+        resp,
+        'Falha ao enviar anexo ao Bucket da Invicta.'
+      );
+      if (!json.document) {
         throw new Error(json.error || 'Falha ao enviar anexo ao Bucket da Invicta.');
       }
       const doc = json.document;
@@ -1610,11 +1618,17 @@ export const CollectionSidePanel: React.FC<{
       const token = getAuthToken();
       const resp = await fetch('/api/documents/upload', {
         method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: {
+          'x-unit-id': String(getActiveUnitHeader()),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: formData,
       });
-      const json = (await resp.json()) as { document?: DocumentObject; error?: string };
-      if (!resp.ok || !json.document) {
+      const json = await parseJsonResponse<{ document?: DocumentObject; error?: string }>(
+        resp,
+        'Erro ao enviar arquivo ao Bucket da Invicta.'
+      );
+      if (!json.document) {
         throw new Error(json.error || 'Erro ao enviar arquivo ao Bucket da Invicta.');
       }
       await onReload(`Documento "${json.document.fileName}" salvo no Bucket da Invicta.`);

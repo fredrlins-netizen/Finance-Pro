@@ -32,6 +32,7 @@ import type {
   Unit,
 } from '../../types.ts';
 import { ConfirmDeleteModal } from './CollectionCoordinatorModalViews.tsx';
+import { EntityAuditModal } from './cadastros/CadastrosShared.tsx';
 import type { FormsBootstrapPayload } from './forms/types.ts';
 import { FormTemplatesManagerContainer } from './forms/FormTemplatesManagerContainer.tsx';
 import { FormCatalogContainer } from './forms/FormCatalogContainer.tsx';
@@ -88,6 +89,7 @@ export const FormsModule: React.FC<{
   const [modalRunnerForm, setModalRunnerForm] = useState<CustomFormItem | null>(null);
   const [responsesFormFilter, setResponsesFormFilter] = useState<string>('TODOS');
   const [deleteTarget, setDeleteTarget] = useState<CustomFormItem | null>(null);
+  const [auditFormTarget, setAuditFormTarget] = useState<CustomFormItem | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
   const [fetchedBranding, setFetchedBranding] = useState<PortalBrandingConfig | null>(() =>
@@ -547,6 +549,7 @@ export const FormsModule: React.FC<{
           onDeleteForm={(fm) => setDeleteTarget(fm)}
           onExportCsv={handleExportCsv}
           onSavePresentationOptions={handleSavePresentationOptions}
+          onViewAudit={(fm) => setAuditFormTarget(fm)}
         />
       )}
 
@@ -692,6 +695,14 @@ export const FormsModule: React.FC<{
         busy={deleting}
         onCancel={() => setDeleteTarget(null)}
         onConfirm={handleConfirmDelete}
+      />
+
+      <EntityAuditModal
+        open={Boolean(auditFormTarget)}
+        title={auditFormTarget ? `Formulário · ${auditFormTarget.title}` : 'Formulário'}
+        entityType="custom_forms"
+        entityId={auditFormTarget?.id || 0}
+        onClose={() => setAuditFormTarget(null)}
       />
     </div>
   );

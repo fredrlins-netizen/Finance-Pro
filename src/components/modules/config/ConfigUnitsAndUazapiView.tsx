@@ -17,7 +17,14 @@ import {
   Unplug,
   X,
 } from 'lucide-react';
-import { apiFetch, formatBRL, formatDateTimeBR, getAuthToken } from '../../../lib/api.ts';
+import {
+  apiFetch,
+  formatBRL,
+  formatDateTimeBR,
+  getActiveUnitHeader,
+  getAuthToken,
+  parseJsonResponse,
+} from '../../../lib/api.ts';
 import {
   AuthUser,
   CollaboratorItem,
@@ -84,18 +91,20 @@ export const UazapiQrModal: React.FC<{
       setLoadingQr(true);
       setErr('');
       try {
+        const token = getAuthToken();
         const resp = await fetch('/api/integrations/uazapi/connect', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${getAuthToken()}`,
+            'x-unit-id': String(getActiveUnitHeader()),
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
           body: JSON.stringify({
             instanceId: instance.uazapiInstanceId,
             phone: (customPhone ?? phoneHint).replace(/\D/g, '') || undefined,
           }),
         });
-        const data = (await resp.json()) as {
+        const data = await parseJsonResponse<{
           ok?: boolean;
           connected?: boolean;
           connectedPhone?: string | null;
@@ -103,8 +112,8 @@ export const UazapiQrModal: React.FC<{
           qrCode?: string | null;
           pairCode?: string | null;
           error?: string;
-        };
-        if (!resp.ok || !data.ok) {
+        }>(resp, 'Não foi possível gerar o QR Code no servidor UaZapi.');
+        if (!data.ok) {
           setErr(data.error || 'Não foi possível gerar o QR Code no servidor UaZapi.');
           return;
         }
@@ -144,16 +153,23 @@ export const UazapiQrModal: React.FC<{
     const timer = window.setInterval(async () => {
       setCountdown((prev) => {
         if (prev <= 1) {
+          const token = getAuthToken();
           fetch('/api/integrations/uazapi/test', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              Authorization: `Bearer ${getAuthToken()}`,
+              'x-unit-id': String(getActiveUnitHeader()),
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
             },
             body: JSON.stringify({ instanceId: instance.uazapiInstanceId }),
           })
-            .then((r) => r.json())
-            .then((data: { ok?: boolean; liveStatus?: { connected: boolean; connectedPhone?: string | null; profileName?: string | null } }) => {
+            .then((r) =>
+              parseJsonResponse<{
+                ok?: boolean;
+                liveStatus?: { connected: boolean; connectedPhone?: string | null; profileName?: string | null };
+              }>(r)
+            )
+            .then((data) => {
               if (data.ok && data.liveStatus?.connected) {
                 setConnected(true);
                 setConnectedPhone(data.liveStatus.connectedPhone || null);
@@ -1251,19 +1267,31 @@ export const ConfigUazapiView: React.FC<{
     setRemoveBusy(true);
     setRemoveErr('');
     try {
+      const token = getAuthToken();
       const resp = await fetch(
         `/api/config/uazapi/instances/${removeTarget.id}${forceLocal ? '?force=true' : ''}`,
         {
           method: 'DELETE',
-          headers: { Authorization: `Bearer ${getAuthToken()}` },
+          headers: {
+            'x-unit-id': String(getActiveUnitHeader()),
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
         }
       );
-      const data = (await resp.json()) as { ok?: boolean; canForceLocal?: boolean; error?: string };
+      const rawText = await resp.text();
+      let data: { ok?: boolean; canForceLocal?: boolean; error?: string } = {};
+      if (rawText.trim() && !rawText.trim().startsWith('<')) {
+        try {
+          data = JSON.parse(rawText) as { ok?: boolean; canForceLocal?: boolean; error?: string };
+        } catch {
+          // ignore
+        }
+      }
       if (!resp.ok || !data.ok) {
         if (data.canForceLocal) {
           setRemoveCanForce(true);
         }
-        setRemoveErr(data.error || 'Erro ao remover instância.');
+        setRemoveErr(data.error || `Erro ao remover instância (HTTP ${resp.status}).`);
         return;
       }
       onToast(`Instância ${removeTarget.label} removida.`);
@@ -1285,21 +1313,28 @@ export const ConfigUazapiView: React.FC<{
   ) => {
     setBusyAction(key);
     try {
+      const token = getAuthToken();
       const resp = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${getAuthToken()}`,
+          'x-unit-id': String(getActiveUnitHeader()),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify(body),
       });
-      const data = (await resp.json()) as { ok?: boolean; error?: string; detail?: string };
-      if (resp.ok && data.ok) {
+      const data = await parseJsonResponse<{ ok?: boolean; error?: string; detail?: string }>(
+        resp,
+        'Operação retornou alerta no provedor UaZapi.'
+      );
+      if (data.ok) {
         onToast(successMsg);
         await onRefresh();
       } else {
         onToast(data.error || data.detail || 'Operação retornou alerta no provedor UaZapi.');
       }
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : 'Falha de comunicação com UaZapi.');
     } finally {
       setBusyAction('');
     }

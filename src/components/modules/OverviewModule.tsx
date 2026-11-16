@@ -6,13 +6,13 @@ import {
   CheckCircle2,
   ClipboardCheck,
   FileStack,
+  MessageSquareText,
   PhoneCall,
   Plus,
   Scale,
-  Send,
   TrendingDown,
 } from 'lucide-react';
-import { apiFetch, formatBRL, formatBytes, formatDateTimeBR } from '../../lib/api.ts';
+import { apiFetch, formatBRL, formatBytes } from '../../lib/api.ts';
 import { ModuleId, NavigationIntent, Unit } from '../../types.ts';
 
 interface OverviewData {
@@ -80,10 +80,6 @@ interface ActionTask {
 export const OverviewModule: React.FC<OverviewModuleProps> = ({ onNavigate, activeUnitId }) => {
   const [data, setData] = useState<OverviewData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [msgSector, setMsgSector] = useState('juridico');
-  const [msgSubject, setMsgSubject] = useState('');
-  const [msgBody, setMsgBody] = useState('');
-  const [sending, setSending] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -98,23 +94,6 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({ onNavigate, acti
   useEffect(() => {
     load();
   }, [activeUnitId]);
-
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!msgSubject.trim() || !msgBody.trim()) return;
-    setSending(true);
-    try {
-      await apiFetch('/api/messages', {
-        method: 'POST',
-        body: JSON.stringify({ targetSector: msgSector, subject: msgSubject, body: msgBody }),
-      });
-      setMsgSubject('');
-      setMsgBody('');
-      await load();
-    } finally {
-      setSending(false);
-    }
-  };
 
   const priorityTasks = useMemo<ActionTask[]>(() => {
     if (!data) return [];
@@ -332,10 +311,10 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({ onNavigate, acti
         })}
       </div>
 
-      {/* Main Action Inbox + Team Messaging */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* Left: Prioritized Action Queue */}
-        <div className="lg:col-span-7 rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
+      {/* Main Action Inbox */}
+      <div className="grid grid-cols-1 gap-5">
+        {/* Prioritized Action Queue */}
+        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden dark:border-slate-700 dark:bg-slate-900">
           <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between dark:border-slate-800">
             <div>
               <h2 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
@@ -411,6 +390,14 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({ onNavigate, acti
               </button>
               <button
                 type="button"
+                onClick={() => onNavigate('internal_messaging')}
+                className="font-semibold text-emerald-700 hover:underline inline-flex items-center gap-1 dark:text-emerald-300"
+              >
+                <MessageSquareText className="w-3.5 h-3.5" />
+                Mensageria Interna ({data.internalMessages.length})
+              </button>
+              <button
+                type="button"
                 onClick={() => onNavigate('collection')}
                 className="font-semibold text-blue-700 hover:underline dark:text-blue-300"
               >
@@ -425,75 +412,6 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({ onNavigate, acti
               </button>
             </div>
           </div>
-        </div>
-
-        {/* Right: Internal Team Messaging */}
-        <div className="lg:col-span-5 rounded-xl border border-slate-200 bg-white p-5 flex flex-col justify-between dark:border-slate-700 dark:bg-slate-900">
-          <div>
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-              <h2 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
-                Mensageria Entre Setores
-              </h2>
-              <span className="text-[11px] text-emerald-700 font-semibold dark:text-emerald-300">Tempo Real</span>
-            </div>
-
-            <div className="mt-3 space-y-2.5 max-h-64 overflow-y-auto pr-1">
-              {data.internalMessages.map((m) => (
-                <div key={m.id} className="rounded-lg border border-slate-100 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-800/60">
-                  <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
-                    <span className="font-semibold text-slate-800 dark:text-slate-100">
-                      {m.senderName} · <span className="text-blue-700 dark:text-blue-300">{m.targetSector}</span>
-                    </span>
-                    <span className="font-mono">{formatDateTimeBR(m.createdAt)}</span>
-                  </div>
-                  <div className="mt-1 text-xs font-semibold text-slate-900 dark:text-slate-100">{m.subject}</div>
-                  <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-300">{m.body}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <form onSubmit={handleSendMessage} className="mt-4 pt-3 border-t border-slate-100 space-y-2 dark:border-slate-800">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <select
-                value={msgSector}
-                onChange={(e) => setMsgSector(e.target.value)}
-                className="rounded-lg border border-slate-200 px-2.5 py-2 text-xs text-slate-800 dark:border-slate-700 dark:text-slate-100 dark:bg-slate-950"
-              >
-                <option value="comercial">Comercial</option>
-                <option value="admissao">Admissão</option>
-                <option value="auditoria">Auditoria</option>
-                <option value="juridico">Jurídico</option>
-                <option value="negociacoes">Negociações</option>
-                <option value="financeiro">Financeiro</option>
-                <option value="cobranca">Cobrança</option>
-              </select>
-              <input
-                type="text"
-                value={msgSubject}
-                onChange={(e) => setMsgSubject(e.target.value)}
-                placeholder="Assunto rápido..."
-                className="sm:col-span-2 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-900 dark:border-slate-700 dark:text-slate-100 dark:bg-slate-950"
-              />
-            </div>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={msgBody}
-                onChange={(e) => setMsgBody(e.target.value)}
-                placeholder="Enviar aviso para outro setor..."
-                className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-900 dark:border-slate-700 dark:text-slate-100 dark:bg-slate-950"
-              />
-              <button
-                type="submit"
-                disabled={sending}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 whitespace-nowrap dark:bg-emerald-600 dark:hover:bg-emerald-500"
-              >
-                <Send className="w-3.5 h-3.5" />
-                Enviar
-              </button>
-            </div>
-          </form>
         </div>
       </div>
     </div>

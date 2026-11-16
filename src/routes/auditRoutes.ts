@@ -21,8 +21,11 @@ import {
   recalcScenarios,
   units,
 } from '../db/schema.ts';
-import { AuthRequest, requireAuth } from '../middleware/auth.ts';
+import { AuthRequest, getAllowedUnitIds, isUnitPermitted, requireAuth, requireModule } from '../middleware/auth.ts';
+import { dispatchIviSectorNotification } from '../services/internalMessaging.ts';
 import { getBucketObjectBuffer } from '../services/bucketStorage.ts';
+import { getEntityTypeAliases, normalizeAuditLogRecord } from '../utils/auditDiff.ts';
+import { parseFiniteNumber, parsePositiveIntId, parseSafeDate, sanitizeErrorMessage } from '../utils/validation.ts';
 import {
   buildChecklistVerificationReport,
   computeAuditFingerprint,
@@ -38,15 +41,9 @@ function formatBrlServer(cents: number): string {
   return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-function parseIsoDateOrFallback(raw: unknown, fallback: Date): Date {
-  if (!raw) return fallback;
-  const s = String(raw).trim();
-  if (!s) return fallback;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
-    return new Date(`${s}T12:00:00.000Z`);
-  }
-  const d = new Date(s);
-  return Number.isNaN(d.getTime()) ? fallback : d;
+function parseIsoDateStrict(raw: unknown, fallback: Date): Date | null {
+  if (raw === undefined || raw === null || String(raw).trim() === '') return fallback;
+  return parseSafeDate(raw);
 }
 
 async function resolveDefaultAuditBillingRefs() {
@@ -173,13 +170,16 @@ export function registerAuditRoutes(
   }
 
   // 1. Contexto completo do dossiê para Auditoria & Boletos (1 único round-trip)
-  app.get('/api/audit/:admissionId/context', requireAuth, async (req: AuthRequest, res) => {
+  app.get('/api/audit/:admissionId/context', requireAuth, requireModule('audit'), async (req: AuthRequest, res) => {
     try {
-      const admissionId = Number(req.params.admissionId);
+      const admissionId = parsePositiveIntId(req.params.admissionId);
       if (!admissionId) return res.status(400).json({ error: 'ID de admissão inválido.' });
 
       const [adm] = await db.select().from(admissions).where(eq(admissions.id, admissionId)).limit(1);
       if (!adm) return res.status(404).json({ error: 'Ficha de admissão não encontrada.' });
+      if (!isUnitPermitted(req, adm.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para acessar admissão desta unidade.' });
+      }
 
       const [
         clientRows,
@@ -220,8 +220,13 @@ export function registerAuditRoutes(
         db
           .select()
           .from(auditLogs)
-          .where(and(eq(auditLogs.entityType, 'admission'), eq(auditLogs.entityId, String(adm.id))))
-          .orderBy(desc(auditLogs.id))
+          .where(
+            and(
+              inArray(auditLogs.entityType, getEntityTypeAliases('admissions')),
+              eq(auditLogs.entityId, String(adm.id))
+            )
+          )
+          .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id))
           .limit(200),
         db.select().from(auditChecklistItems).orderBy(auditChecklistItems.sortOrder, auditChecklistItems.id),
       ]);
@@ -255,19 +260,20 @@ export function registerAuditRoutes(
         recalcScenarios: scenarios,
         legalProcesses: processes,
         legalMovements: movements,
-        auditLogs: logs,
+        auditLogs: logs.map((r) => normalizeAuditLogRecord(r)),
         checklistItems: checklist,
       });
     } catch (error) {
       console.error('GET /api/audit/:admissionId/context error:', error);
-      res.status(500).json({ error: 'Erro ao carregar contexto do dossiê.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao carregar contexto do dossiê.') });
     }
   });
 
   // 2. Salvar progresso real da auditoria (checklist + parecer manual + veículo elétrico + status Em Análise)
-  app.patch('/api/audit/:admissionId/progress', requireAuth, async (req: AuthRequest, res) => {
+  app.patch('/api/audit/:admissionId/progress', requireAuth, requireModule('audit'), async (req: AuthRequest, res) => {
     try {
-      const admissionId = Number(req.params.admissionId);
+      const admissionId = parsePositiveIntId(req.params.admissionId);
+      if (!admissionId) return res.status(400).json({ error: 'ID de admissão inválido.' });
       const body = (req.body || {}) as {
         status?: 'aguardando_auditoria' | 'auditada';
         checklistState?: Record<string, boolean>;
@@ -278,6 +284,9 @@ export function registerAuditRoutes(
 
       const [adm] = await db.select().from(admissions).where(eq(admissions.id, admissionId)).limit(1);
       if (!adm) return res.status(404).json({ error: 'Ficha de admissão não encontrada.' });
+      if (!isUnitPermitted(req, adm.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para alterar admissão desta unidade.' });
+      }
 
       const nextStatus =
         body.status && ['aguardando_auditoria', 'auditada'].includes(body.status) && ['aguardando_auditoria', 'devolvida_admissao', 'retorno_auditoria', 'auditada'].includes(adm.status)
@@ -343,14 +352,15 @@ export function registerAuditRoutes(
       res.json({ admission: updated });
     } catch (error) {
       console.error('PATCH /api/audit/:admissionId/progress error:', error);
-      res.status(500).json({ error: 'Erro ao salvar progresso da auditoria.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao salvar progresso da auditoria.') });
     }
   });
 
   // 3. Gerar Boletos / Lançamentos vinculados à admissão (Taxa Adm / 1ª Parcela / Par Inicial)
-  app.post('/api/audit/:admissionId/generate-boletos', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/audit/:admissionId/generate-boletos', requireAuth, requireModule('audit'), async (req: AuthRequest, res) => {
     try {
-      const admissionId = Number(req.params.admissionId);
+      const admissionId = parsePositiveIntId(req.params.admissionId);
+      if (!admissionId) return res.status(400).json({ error: 'ID de admissão inválido.' });
       const body = (req.body || {}) as {
         mode?: 'taxa_adm' | 'primeira_parcela' | 'par_inicial';
         boletoProvider?: string;
@@ -362,6 +372,9 @@ export function registerAuditRoutes(
 
       const [adm] = await db.select().from(admissions).where(eq(admissions.id, admissionId)).limit(1);
       if (!adm) return res.status(404).json({ error: 'Admissão não encontrada.' });
+      if (!isUnitPermitted(req, adm.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para gerar boletos nesta unidade.' });
+      }
 
       const [clRows, existingTitles] = await Promise.all([
         db.select().from(clients).where(eq(clients.id, adm.clientId)).limit(1),
@@ -383,70 +396,44 @@ export function registerAuditRoutes(
       const provider = body.boletoProvider || 'santander';
       const { defaultCat, boletoDocType, collectionBearer } = await resolveDefaultAuditBillingRefs();
       const now = new Date();
-      const created: typeof existingTitles = [];
 
+      let singleDueDate: Date | null = null;
+      let singleValCents = 0;
       if (mode === 'taxa_adm' || mode === 'primeira_parcela') {
         const isFirst = mode === 'primeira_parcela';
-        const valCents = Math.max(
-          100,
-          Math.round(Number(body.amountCents || (isFirst ? adm.initialInstallmentCents : adm.serviceInitialCents || adm.initialInstallmentCents || 50000)))
-        );
         const defaultDue = new Date(Date.now() + (isFirst ? 30 : 5) * 86400000);
-        const dueDate = parseIsoDateOrFallback(body.dueDate, defaultDue);
-        const seqNum = isFirst ? 2 : 1;
-        const docNum = isFirst ? `${adm.contractNumber}-01` : adm.contractNumber;
-        const desc =
-          body.description?.trim() ||
-          `${isFirst ? '1ª Parcela' : 'Taxa Administrativa'} — Contrato #${adm.contractNumber} | ${client?.fullName || 'Cliente'} (${adm.bankName})`;
+        singleDueDate = parseIsoDateStrict(body.dueDate, defaultDue);
+        if (!singleDueDate) {
+          return res.status(400).json({ error: 'Data de vencimento inválida.' });
+        }
+        const rawAmt = body.amountCents !== undefined
+          ? parseFiniteNumber(body.amountCents)
+          : Number(isFirst ? adm.initialInstallmentCents : adm.serviceInitialCents || adm.initialInstallmentCents || 50000);
+        if (rawAmt === null || rawAmt <= 0) {
+          return res.status(400).json({ error: 'Valor do boleto inválido.' });
+        }
+        singleValCents = Math.max(100, Math.round(rawAmt));
+      }
 
-        const [title] = await db
-          .insert(financialTitles)
-          .values({
-            titleCode: `TIT-${now.getFullYear()}-${adm.id}-${Date.now().toString().slice(-4)}`,
-            scope: 'RECEBER',
-            titleType: 'PADRAO',
-            origin: 'AUDITORIA',
-            documentNumber: docNum,
-            description: desc,
-            clientId: adm.clientId,
-            clientName: client?.fullName || '',
-            admissionId: adm.id,
-            unitId: adm.unitId,
-            categoryId: defaultCat?.id || null,
-            documentTypeId: boletoDocType?.id || null,
-            bearerId: collectionBearer?.id || null,
-            sellerId: adm.consultantId || null,
-            assignedCollaboratorId: adm.consultantId || null,
-            installmentNumber: seqNum,
-            totalInstallments: adm.installmentsCount || 2,
-            isInitialFee: !isFirst,
-            amountCents: valCents,
-            originalValueCents: valCents,
-            currentBalanceCents: valCents,
-            issueDate: now,
-            dueDate,
-            status: 'ABERTO',
-            collectionStatus: 'COBRAR',
-            boletoProvider: provider,
-            barcode: `03399.63290 64000.00${adm.id} 00100.${seqNum}01014 8 ${Math.floor(10000000000000 + Math.random() * 89999999999999)}`,
-            ourNumber: `${adm.id}00${Date.now().toString().slice(-4)}`,
-            contractNumber: adm.contractNumber,
-          })
-          .returning();
-        created.push(title);
-      } else {
-        for (let i = 1; i <= 2; i++) {
-          const valCents = Math.max(100, Number(adm.initialInstallmentCents || 50000));
-          const dueDate = new Date(Date.now() + (i === 1 ? 5 : 35) * 86400000);
-          const [title] = await db
+      const created = await db.transaction(async (tx) => {
+        const insertedList: typeof existingTitles = [];
+        if (mode === 'taxa_adm' || mode === 'primeira_parcela') {
+          const isFirst = mode === 'primeira_parcela';
+          const seqNum = isFirst ? 2 : 1;
+          const docNum = isFirst ? `${adm.contractNumber}-01` : adm.contractNumber;
+          const desc =
+            body.description?.trim() ||
+            `${isFirst ? '1ª Parcela' : 'Taxa Administrativa'} — Contrato #${adm.contractNumber} | ${client?.fullName || 'Cliente'} (${adm.bankName})`;
+
+          const [title] = await tx
             .insert(financialTitles)
             .values({
-              titleCode: `TIT-${now.getFullYear()}-${adm.id}0${i}-${Math.floor(100 + Math.random() * 899)}`,
+              titleCode: `TIT-${now.getFullYear()}-${adm.id}-${Date.now().toString().slice(-4)}`,
               scope: 'RECEBER',
               titleType: 'PADRAO',
               origin: 'AUDITORIA',
-              documentNumber: i === 1 ? adm.contractNumber : `${adm.contractNumber}-01`,
-              description: `${i === 1 ? 'Taxa Administrativa' : '1ª Parcela'} — Contrato #${adm.contractNumber} | ${client?.fullName || 'Cliente'} (${adm.bankName})`,
+              documentNumber: docNum,
+              description: desc,
               clientId: adm.clientId,
               clientName: client?.fullName || '',
               admissionId: adm.id,
@@ -456,52 +443,95 @@ export function registerAuditRoutes(
               bearerId: collectionBearer?.id || null,
               sellerId: adm.consultantId || null,
               assignedCollaboratorId: adm.consultantId || null,
-              installmentNumber: i,
+              installmentNumber: seqNum,
               totalInstallments: adm.installmentsCount || 2,
-              isInitialFee: true,
-              amountCents: valCents,
-              originalValueCents: valCents,
-              currentBalanceCents: valCents,
+              isInitialFee: !isFirst,
+              amountCents: singleValCents,
+              originalValueCents: singleValCents,
+              currentBalanceCents: singleValCents,
               issueDate: now,
-              dueDate,
+              dueDate: singleDueDate!,
               status: 'ABERTO',
               collectionStatus: 'COBRAR',
               boletoProvider: provider,
-              barcode: `03399.63290 64000.00${adm.id} 00100.${i}01014 8 ${Math.floor(10000000000000 + Math.random() * 89999999999999)}`,
-              ourNumber: `${adm.id}000${i}${Math.floor(10 + Math.random() * 89)}`,
+              barcode: `03399.63290 64000.00${adm.id} 00100.${seqNum}01014 8 ${Math.floor(10000000000000 + Math.random() * 89999999999999)}`,
+              ourNumber: `${adm.id}00${Date.now().toString().slice(-4)}`,
               contractNumber: adm.contractNumber,
             })
             .returning();
-          created.push(title);
+          insertedList.push(title);
+        } else {
+          for (let i = 1; i <= 2; i++) {
+            const valCents = Math.max(100, Number(adm.initialInstallmentCents || 50000));
+            const dueDate = new Date(Date.now() + (i === 1 ? 5 : 35) * 86400000);
+            const [title] = await tx
+              .insert(financialTitles)
+              .values({
+                titleCode: `TIT-${now.getFullYear()}-${adm.id}0${i}-${Math.floor(100 + Math.random() * 899)}`,
+                scope: 'RECEBER',
+                titleType: 'PADRAO',
+                origin: 'AUDITORIA',
+                documentNumber: i === 1 ? adm.contractNumber : `${adm.contractNumber}-01`,
+                description: `${i === 1 ? 'Taxa Administrativa' : '1ª Parcela'} — Contrato #${adm.contractNumber} | ${client?.fullName || 'Cliente'} (${adm.bankName})`,
+                clientId: adm.clientId,
+                clientName: client?.fullName || '',
+                admissionId: adm.id,
+                unitId: adm.unitId,
+                categoryId: defaultCat?.id || null,
+                documentTypeId: boletoDocType?.id || null,
+                bearerId: collectionBearer?.id || null,
+                sellerId: adm.consultantId || null,
+                assignedCollaboratorId: adm.consultantId || null,
+                installmentNumber: i,
+                totalInstallments: adm.installmentsCount || 2,
+                isInitialFee: true,
+                amountCents: valCents,
+                originalValueCents: valCents,
+                currentBalanceCents: valCents,
+                issueDate: now,
+                dueDate,
+                status: 'ABERTO',
+                collectionStatus: 'COBRAR',
+                boletoProvider: provider,
+                barcode: `03399.63290 64000.00${adm.id} 00100.${i}01014 8 ${Math.floor(10000000000000 + Math.random() * 89999999999999)}`,
+                ourNumber: `${adm.id}000${i}${Math.floor(10 + Math.random() * 89)}`,
+                contractNumber: adm.contractNumber,
+              })
+              .returning();
+            insertedList.push(title);
+          }
         }
-      }
 
-      await db.insert(auditLogs).values({
-        userId: req.authUser?.id ?? null,
-        userName: req.authUser?.name || 'Auditor',
-        action: 'AUDIT_BOLETOS_GENERATED',
-        entityType: 'admission',
-        entityId: String(adm.id),
-        details: {
-          mode,
-          provider,
-          count: created.length,
-          titleCodes: created.map((c) => c.titleCode),
-        },
-        unitId: adm.unitId,
+        await tx.insert(auditLogs).values({
+          userId: req.authUser?.id ?? null,
+          userName: req.authUser?.name || 'Auditor',
+          action: 'AUDIT_BOLETOS_GENERATED',
+          entityType: 'admission',
+          entityId: String(adm.id),
+          details: {
+            mode,
+            provider,
+            count: insertedList.length,
+            titleCodes: insertedList.map((c) => c.titleCode),
+          },
+          unitId: adm.unitId,
+        });
+
+        return insertedList;
       });
 
       res.json({ titles: created });
     } catch (error) {
       console.error('POST /api/audit/:admissionId/generate-boletos error:', error);
-      res.status(500).json({ error: 'Erro ao gerar lançamentos financeiros da auditoria.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao gerar lançamentos financeiros da auditoria.') });
     }
   });
 
   // 4. Aprovar Auditoria + Emitir 2 Boletos (se ainda não gerados) + Rotear Jurídico/Negociações + Notificar
-  app.post('/api/audit/:admissionId/approve', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/audit/:admissionId/approve', requireAuth, requireModule('audit'), async (req: AuthRequest, res) => {
     try {
-      const admissionId = Number(req.params.admissionId);
+      const admissionId = parsePositiveIntId(req.params.admissionId);
+      if (!admissionId) return res.status(400).json({ error: 'ID de admissão inválido.' });
       const {
         boletoProvider,
         hasSearchSeizure,
@@ -523,6 +553,9 @@ export function registerAuditRoutes(
       const rows = await db.select().from(admissions).where(eq(admissions.id, admissionId)).limit(1);
       const adm = rows[0];
       if (!adm) return res.status(404).json({ error: 'Admissão não encontrada.' });
+      if (!isUnitPermitted(req, adm.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para aprovar admissão desta unidade.' });
+      }
 
       const effectiveElectric =
         isElectricVehicle !== undefined ? Boolean(isElectricVehicle) : Boolean(adm.isElectricVehicle);
@@ -534,14 +567,9 @@ export function registerAuditRoutes(
         });
       }
 
-      const [clientRows, existingTitles, existingProcs, existingNegs] = await Promise.all([
+      const [clientRows, existingProcs] = await Promise.all([
         db.select().from(clients).where(eq(clients.id, adm.clientId)).limit(1),
-        db
-          .select()
-          .from(financialTitles)
-          .where(and(eq(financialTitles.admissionId, adm.id), eq(financialTitles.scope, 'RECEBER'))),
         db.select().from(legalProcesses).where(eq(legalProcesses.admissionId, adm.id)),
-        db.select().from(negotiations).where(eq(negotiations.admissionId, adm.id)),
       ]);
       const client = clientRows[0];
 
@@ -570,178 +598,220 @@ export function registerAuditRoutes(
             ]
           : prevApproveCons;
 
-      const [updatedAdm] = await db
-        .update(admissions)
-        .set({
-          status: 'aprovada',
-          auditorId: req.authUser!.id,
-          activeReviewerId: null,
-          activeReviewerName: '',
-          activeReviewerSince: null,
-          auditedAt: approveNow,
-          slaMinutes,
-          escavadorAlert: Boolean(hasSearchSeizure),
-          isElectricVehicle: effectiveElectric,
-          auditChecklistStateJson: checklistState ?? adm.auditChecklistStateJson ?? {},
-          auditManualNotes: approveNotes,
-          auditManualNotesBy: approveNotesChanged ? approveAuthor : adm.auditManualNotesBy || '',
-          auditManualNotesAt: approveNotesChanged ? approveNow : adm.auditManualNotesAt,
-          auditConsiderationsJson: nextApproveCons,
-        })
-        .where(eq(admissions.id, admissionId))
-        .returning();
+      let searchSeizureDispatchText = '';
+      if (hasSearchSeizure && existingProcs.length === 0) {
+        const dispatch = 'Varredura Escavador/Detran identificou distribuição de ação de busca e apreensão com restrição RENAJUD ativa.';
+        const tr = await iviTranslateLegalDispatch(dispatch);
+        searchSeizureDispatchText = tr.text;
+      }
 
-      const activeTitles = existingTitles.filter((t) => String(t.status).toUpperCase() !== 'CANCELADO');
-      const createdTitles = [];
+      const { defaultCat, boletoDocType, collectionBearer } = await resolveDefaultAuditBillingRefs();
 
-      if (activeTitles.length === 0) {
-        const { defaultCat, boletoDocType, collectionBearer } = await resolveDefaultAuditBillingRefs();
-        const now = new Date();
-        for (let i = 1; i <= 2; i++) {
-          const valCents = Math.max(100, Number(adm.initialInstallmentCents || 50000));
-          const dueDate = new Date(Date.now() + (i === 1 ? 5 : 35) * 86400000);
-          const [title] = await db
-            .insert(financialTitles)
+      const txResult = await db.transaction(async (tx) => {
+        const [updatedAdm] = await tx
+          .update(admissions)
+          .set({
+            status: 'aprovada',
+            auditorId: req.authUser!.id,
+            activeReviewerId: null,
+            activeReviewerName: '',
+            activeReviewerSince: null,
+            auditedAt: approveNow,
+            slaMinutes,
+            escavadorAlert: Boolean(hasSearchSeizure),
+            isElectricVehicle: effectiveElectric,
+            auditChecklistStateJson: checklistState ?? adm.auditChecklistStateJson ?? {},
+            auditManualNotes: approveNotes,
+            auditManualNotesBy: approveNotesChanged ? approveAuthor : adm.auditManualNotesBy || '',
+            auditManualNotesAt: approveNotesChanged ? approveNow : adm.auditManualNotesAt,
+            auditConsiderationsJson: nextApproveCons,
+          })
+          .where(eq(admissions.id, admissionId))
+          .returning();
+
+        const txExistingTitles = await tx
+          .select()
+          .from(financialTitles)
+          .where(and(eq(financialTitles.admissionId, adm.id), eq(financialTitles.scope, 'RECEBER')));
+        const activeTitles = txExistingTitles.filter((t) => String(t.status).toUpperCase() !== 'CANCELADO');
+        const createdTitles = [];
+
+        if (activeTitles.length === 0) {
+          const now = new Date();
+          for (let i = 1; i <= 2; i++) {
+            const valCents = Math.max(100, Number(adm.initialInstallmentCents || 50000));
+            const dueDate = new Date(Date.now() + (i === 1 ? 5 : 35) * 86400000);
+            const [title] = await tx
+              .insert(financialTitles)
+              .values({
+                titleCode: `TIT-${now.getFullYear()}-${admissionId}0${i}-${Math.floor(100 + Math.random() * 899)}`,
+                scope: 'RECEBER',
+                titleType: 'PADRAO',
+                origin: 'AUDITORIA',
+                documentNumber: i === 1 ? adm.contractNumber : `${adm.contractNumber}-01`,
+                description: `${i === 1 ? 'Taxa Administrativa' : '1ª Parcela'} — Contrato #${adm.contractNumber} | ${client?.fullName || 'Cliente'} (${adm.bankName})`,
+                clientId: adm.clientId,
+                clientName: client?.fullName || '',
+                admissionId: adm.id,
+                unitId: adm.unitId,
+                categoryId: defaultCat?.id || null,
+                documentTypeId: boletoDocType?.id || null,
+                bearerId: collectionBearer?.id || null,
+                sellerId: adm.consultantId || null,
+                assignedCollaboratorId: adm.consultantId || null,
+                installmentNumber: i,
+                totalInstallments: adm.installmentsCount || 2,
+                isInitialFee: true,
+                amountCents: valCents,
+                originalValueCents: valCents,
+                currentBalanceCents: valCents,
+                issueDate: now,
+                dueDate,
+                status: 'ABERTO',
+                collectionStatus: 'COBRAR',
+                boletoProvider: provider,
+                barcode: `03399.63290 64000.00${admissionId} 00100.${i}01014 8 ${Math.floor(10000000000000 + Math.random() * 89999999999999)}`,
+                ourNumber: `${admissionId}000${i}`,
+                contractNumber: adm.contractNumber,
+              })
+              .returning();
+            createdTitles.push(title);
+          }
+        }
+
+        const txExistingProcs = await tx.select().from(legalProcesses).where(eq(legalProcesses.admissionId, adm.id));
+        let legalProc = txExistingProcs[0];
+        if (!legalProc) {
+          const processNumber = `00${Math.floor(10000 + Math.random() * 89999)}-${Math.floor(10 + Math.random() * 89)}.2026.8.17.2001`;
+          const [insertedProc] = await tx
+            .insert(legalProcesses)
             .values({
-              titleCode: `TIT-${now.getFullYear()}-${admissionId}0${i}-${Math.floor(100 + Math.random() * 899)}`,
-              scope: 'RECEBER',
-              titleType: 'PADRAO',
-              origin: 'AUDITORIA',
-              documentNumber: i === 1 ? adm.contractNumber : `${adm.contractNumber}-01`,
-              description: `${i === 1 ? 'Taxa Administrativa' : '1ª Parcela'} — Contrato #${adm.contractNumber} | ${client?.fullName || 'Cliente'} (${adm.bankName})`,
+              processNumber,
               clientId: adm.clientId,
-              clientName: client?.fullName || '',
               admissionId: adm.id,
               unitId: adm.unitId,
-              categoryId: defaultCat?.id || null,
-              documentTypeId: boletoDocType?.id || null,
-              bearerId: collectionBearer?.id || null,
-              sellerId: adm.consultantId || null,
-              assignedCollaboratorId: adm.consultantId || null,
-              installmentNumber: i,
-              totalInstallments: adm.installmentsCount || 2,
-              isInitialFee: true,
-              amountCents: valCents,
-              originalValueCents: valCents,
-              currentBalanceCents: valCents,
-              issueDate: now,
-              dueDate,
-              status: 'ABERTO',
-              collectionStatus: 'COBRAR',
-              boletoProvider: provider,
-              barcode: `03399.63290 64000.00${admissionId} 00100.${i}01014 8 ${Math.floor(10000000000000 + Math.random() * 89999999999999)}`,
-              ourNumber: `${admissionId}000${i}`,
-              contractNumber: adm.contractNumber,
+              courtName: hasSearchSeizure ? 'TJPE - Vara Cível (Varredura Escavador)' : 'Acompanhamento Preventivo Escavador + Detran',
+              actionType: hasSearchSeizure ? 'busca_apreensao' : 'revisional',
+              hasSearchSeizure: Boolean(hasSearchSeizure),
+              vehicleSeized: false,
+              status: hasSearchSeizure ? 'alerta_movimentacao' : 'em_acompanhamento',
+              hasUnreadMovement: Boolean(hasSearchSeizure),
             })
             .returning();
-          createdTitles.push(title);
+          legalProc = insertedProc;
+
+          if (hasSearchSeizure) {
+            await tx.insert(legalMovements).values({
+              processId: legalProc.id,
+              source: 'detran_scan',
+              originalDispatch: 'Varredura Escavador/Detran identificou distribuição de ação de busca e apreensão com restrição RENAJUD ativa.',
+              iviTranslationPtBr: searchSeizureDispatchText,
+            });
+          }
         }
-      }
 
-      let legalProc = existingProcs[0];
-      if (!legalProc) {
-        const processNumber = `00${Math.floor(10000 + Math.random() * 89999)}-${Math.floor(10 + Math.random() * 89)}.2026.8.17.2001`;
-        const [insertedProc] = await db
-          .insert(legalProcesses)
-          .values({
-            processNumber,
-            clientId: adm.clientId,
+        const txExistingNegs = await tx.select().from(negotiations).where(eq(negotiations.admissionId, adm.id));
+        if (txExistingNegs.length === 0) {
+          await tx.insert(negotiations).values({
             admissionId: adm.id,
+            clientId: adm.clientId,
             unitId: adm.unitId,
-            courtName: hasSearchSeizure ? 'TJPE - Vara Cível (Varredura Escavador)' : 'Acompanhamento Preventivo Escavador + Detran',
-            actionType: hasSearchSeizure ? 'busca_apreensao' : 'revisional',
-            hasSearchSeizure: Boolean(hasSearchSeizure),
-            vehicleSeized: false,
-            status: hasSearchSeizure ? 'alerta_movimentacao' : 'em_acompanhamento',
-            hasUnreadMovement: Boolean(hasSearchSeizure),
-          })
-          .returning();
-        legalProc = insertedProc;
-
-        if (hasSearchSeizure) {
-          const dispatch = 'Varredura Escavador/Detran identificou distribuição de ação de busca e apreensão com restrição RENAJUD ativa.';
-          const tr = await iviTranslateLegalDispatch(dispatch);
-          await db.insert(legalMovements).values({
-            processId: legalProc.id,
-            source: 'detran_scan',
-            originalDispatch: dispatch,
-            iviTranslationPtBr: tr.text,
+            bankName: adm.bankName,
+            originalDebtCents: adm.debtAmountCents,
+            targetReductionPct: 55,
+            currentReductionPct: 0,
+            estimatedSavingsCents: 0,
+            targetDeadline: new Date(Date.now() + 45 * 86400000),
+            status: 'em_negociacao',
           });
         }
-      }
 
-      if (existingNegs.length === 0) {
-        await db.insert(negotiations).values({
-          admissionId: adm.id,
-          clientId: adm.clientId,
+        await tx.insert(auditLogs).values({
+          userId: req.authUser!.id,
+          userName: req.authUser!.name,
+          action: 'AUDIT_APPROVED',
+          entityType: 'admission',
+          entityId: String(adm.id),
+          details: {
+            provider,
+            boletosGeradosAgora: createdTitles.length,
+            boletosExistentes: activeTitles.length,
+            hasSearchSeizure: Boolean(hasSearchSeizure),
+          },
           unitId: adm.unitId,
-          bankName: adm.bankName,
-          originalDebtCents: adm.debtAmountCents,
-          targetReductionPct: 55,
-          currentReductionPct: 0,
-          estimatedSavingsCents: 0,
-          targetDeadline: new Date(Date.now() + 45 * 86400000),
-          status: 'em_negociacao',
         });
-      }
 
-      await db.insert(auditLogs).values({
-        userId: req.authUser!.id,
-        userName: req.authUser!.name,
-        action: 'AUDIT_APPROVED',
-        entityType: 'admission',
-        entityId: String(adm.id),
-        details: {
-          provider,
-          boletosGeradosAgora: createdTitles.length,
-          boletosExistentes: activeTitles.length,
-          hasSearchSeizure: Boolean(hasSearchSeizure),
-        },
-        unitId: adm.unitId,
+        const dispatchedMessages: Array<typeof internalMessages.$inferSelect> = [];
+        if (notifyDepartments !== false) {
+          const clientLabel = client?.fullName || `Cliente #${adm.clientId}`;
+          const mJur = await dispatchIviSectorNotification(
+            {
+              targetSector: 'juridico',
+              targetUnitId: adm.unitId,
+              relatedEntityType: 'legal_process',
+              relatedEntityId: legalProc.id,
+              senderName: 'Ivi IA · Auditoria',
+              subject: `Auditoria Aprovada · ${adm.protocolCode}`,
+              body: `Dossiê de ${clientLabel} (${adm.bankName}, Contrato ${adm.contractNumber}) aprovado na Auditoria por ${req.authUser!.name} e encaminhado para Jurídico & Escavador.${hasSearchSeizure ? ' [ALERTA BUSCA E APREENSÃO]' : ''}`,
+            },
+            tx
+          );
+          const mNeg = await dispatchIviSectorNotification(
+            {
+              targetSector: 'negociacoes',
+              targetUnitId: adm.unitId,
+              relatedEntityType: 'admission',
+              relatedEntityId: adm.id,
+              senderName: 'Ivi IA · Auditoria',
+              subject: `Dossiê liberado para Negociações · ${adm.protocolCode}`,
+              body: `Contrato ${adm.contractNumber} (${adm.bankName} · ${clientLabel}) aprovado pela Auditoria e aberto em Negociações Bancárias.`,
+            },
+            tx
+          );
+          const mFin = await dispatchIviSectorNotification(
+            {
+              targetSector: 'financeiro',
+              targetUnitId: adm.unitId,
+              relatedEntityType: 'admission',
+              relatedEntityId: adm.id,
+              senderName: 'Ivi IA · Auditoria',
+              subject: `Boletos Liberados · ${adm.protocolCode}`,
+              body: `Auditoria concluída para ${clientLabel} (Contrato ${adm.contractNumber}). Parcela inicial de ${formatBrlServer(adm.initialInstallmentCents || 50000)} disponível em Administração Financeira.`,
+            },
+            tx
+          );
+          dispatchedMessages.push(mJur, mNeg, mFin);
+        }
+
+        return { updatedAdm, createdTitles, activeTitles, legalProc, dispatchedMessages };
       });
 
-      // Notificações aos setores ocorrem somente APÓS persistência confirmada no banco
-      if (notifyDepartments !== false) {
-        const clientLabel = client?.fullName || `Cliente #${adm.clientId}`;
-        await db.insert(internalMessages).values([
-          {
-            senderId: req.authUser!.id,
-            senderName: `${req.authUser!.name} (Auditoria)`,
-            targetSector: 'juridico',
-            subject: `Auditoria Aprovada · ${adm.protocolCode}`,
-            body: `Dossiê de ${clientLabel} (${adm.bankName}, Contrato ${adm.contractNumber}) aprovado na Auditoria e encaminhado para acompanhamento jurídico.${hasSearchSeizure ? ' [ALERTA BUSCA E APREENSÃO]' : ''}`,
-          },
-          {
-            senderId: req.authUser!.id,
-            senderName: `${req.authUser!.name} (Auditoria)`,
-            targetSector: 'financeiro',
-            subject: `Boletos Liberados · ${adm.protocolCode}`,
-            body: `Auditoria concluída para ${clientLabel} (Contrato ${adm.contractNumber}). Parcela inicial de ${formatBrlServer(adm.initialInstallmentCents || 50000)} disponível em Contas a Receber.`,
-          },
-        ]);
+      for (const msg of txResult.dispatchedMessages) {
+        broadcast('internal:message', msg);
       }
 
       broadcast('legal:update', {
-        processNumber: legalProc.processNumber,
+        processNumber: txResult.legalProc.processNumber,
         hasSearchSeizure: Boolean(hasSearchSeizure),
       });
 
       res.json({
-        admission: updatedAdm,
-        titles: createdTitles.length > 0 ? createdTitles : activeTitles,
-        legalProcess: legalProc,
-        generatedNow: createdTitles.length,
+        admission: txResult.updatedAdm,
+        titles: txResult.createdTitles.length > 0 ? txResult.createdTitles : txResult.activeTitles,
+        legalProcess: txResult.legalProc,
+        generatedNow: txResult.createdTitles.length,
       });
     } catch (error) {
       console.error('Audit approve error:', error);
-      res.status(500).json({ error: 'Erro ao aprovar auditoria.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao aprovar auditoria.') });
     }
   });
 
   // 5. Devolver para Admissão / Comercial (persistindo checklist e notas também)
-  app.post('/api/audit/:admissionId/reject', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/audit/:admissionId/reject', requireAuth, requireModule('audit'), async (req: AuthRequest, res) => {
     try {
-      const admissionId = Number(req.params.admissionId);
+      const admissionId = parsePositiveIntId(req.params.admissionId);
+      if (!admissionId) return res.status(400).json({ error: 'ID de admissão inválido.' });
       const { reason, checklistState, auditManualNotes } = (req.body || {}) as {
         reason: string;
         checklistState?: Record<string, boolean>;
@@ -752,6 +822,9 @@ export function registerAuditRoutes(
       const rows = await db.select().from(admissions).where(eq(admissions.id, admissionId)).limit(1);
       const adm = rows[0];
       if (!adm) return res.status(404).json({ error: 'Admissão não encontrada.' });
+      if (!isUnitPermitted(req, adm.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para devolver admissão desta unidade.' });
+      }
 
       const prevCritiques = Array.isArray(adm.auditCritiquesJson) ? adm.auditCritiquesJson : [];
       const nextRound = prevCritiques.length + 1;
@@ -785,61 +858,75 @@ export function registerAuditRoutes(
             ]
           : prevRejectCons;
 
-      const [updated] = await db
-        .update(admissions)
-        .set({
-          status: 'devolvida_admissao',
-          auditRejectionReason: reason.trim(),
-          auditCritiquesJson: updatedCritiques,
-          auditChecklistStateJson: checklistState ?? adm.auditChecklistStateJson ?? {},
-          auditManualNotes: rejectNotes,
-          auditManualNotesBy: rejectNotesChanged ? rejectAuthor : adm.auditManualNotesBy || '',
-          auditManualNotesAt: rejectNotesChanged ? rejectNow : adm.auditManualNotesAt,
-          auditConsiderationsJson: nextRejectCons,
-          returnedCount: (adm.returnedCount || 0) + 1,
-          auditorId: req.authUser!.id,
-          activeReviewerId: null,
-          activeReviewerName: '',
-          activeReviewerSince: null,
-          auditedAt: rejectNow,
-        })
-        .where(eq(admissions.id, admissionId))
-        .returning();
+      const updated = await db.transaction(async (tx) => {
+        const [updatedAdm] = await tx
+          .update(admissions)
+          .set({
+            status: 'devolvida_admissao',
+            auditRejectionReason: reason.trim(),
+            auditCritiquesJson: updatedCritiques,
+            auditChecklistStateJson: checklistState ?? adm.auditChecklistStateJson ?? {},
+            auditManualNotes: rejectNotes,
+            auditManualNotesBy: rejectNotesChanged ? rejectAuthor : adm.auditManualNotesBy || '',
+            auditManualNotesAt: rejectNotesChanged ? rejectNow : adm.auditManualNotesAt,
+            auditConsiderationsJson: nextRejectCons,
+            returnedCount: (adm.returnedCount || 0) + 1,
+            auditorId: req.authUser!.id,
+            activeReviewerId: null,
+            activeReviewerName: '',
+            activeReviewerSince: null,
+            auditedAt: rejectNow,
+          })
+          .where(eq(admissions.id, admissionId))
+          .returning();
 
-      await db.insert(auditLogs).values({
-        userId: req.authUser!.id,
-        userName: req.authUser!.name,
-        action: 'AUDIT_RETURNED',
-        entityType: 'admission',
-        entityId: String(adm.id),
-        details: { round: nextRound, reason: reason.trim() },
-        unitId: adm.unitId,
+        await tx.insert(auditLogs).values({
+          userId: req.authUser!.id,
+          userName: req.authUser!.name,
+          action: 'AUDIT_RETURNED',
+          entityType: 'admission',
+          entityId: String(adm.id),
+          details: { round: nextRound, reason: reason.trim() },
+          unitId: adm.unitId,
+        });
+
+        const rejectMsg = await dispatchIviSectorNotification(
+          {
+            targetSector: 'admissao',
+            targetUnitId: adm.unitId,
+            recipientId: adm.consultantId,
+            relatedEntityType: 'admission',
+            relatedEntityId: adm.id,
+            senderName: 'Ivi IA · Auditoria',
+            subject: `Devolução de Auditoria (Round ${nextRound}) · ${adm.protocolCode}`,
+            body: `Auditoria (${req.authUser!.name}) devolveu a ficha ${adm.protocolCode} para Comercial → Admissão: ${reason.trim()}.`,
+          },
+          tx
+        );
+
+        return { updatedAdm, rejectMsg };
       });
 
-      await db.insert(internalMessages).values({
-        senderId: req.authUser!.id,
-        senderName: `${req.authUser!.name} (Auditoria)`,
-        recipientId: adm.consultantId,
-        targetSector: 'admissao',
-        subject: `Devolução de Auditoria (Round ${nextRound}) · ${adm.protocolCode}`,
-        body: `Inconsistência encontrada: ${reason.trim()}. Por favor contatar o comercial para correção e reenvio.`,
-      });
-
+      broadcast('internal:message', updated.rejectMsg);
       broadcast('audit:update', { admissionId: adm.id, status: 'devolvida_admissao' });
-      res.json({ admission: updated });
+      res.json({ admission: updated.updatedAdm });
     } catch (error) {
       console.error('Audit reject error:', error);
-      res.status(500).json({ error: 'Erro ao devolver admissão.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao devolver admissão.') });
     }
   });
 
   // 6. Ivi · Verificação de Checklist e Análise (com cache em base de dados para minimizar custos de IA)
-  app.post('/api/audit/:admissionId/ivi-analyze', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/audit/:admissionId/ivi-analyze', requireAuth, requireModule('audit'), async (req: AuthRequest, res) => {
     try {
-      const admissionId = Number(req.params.admissionId);
+      const admissionId = parsePositiveIntId(req.params.admissionId);
+      if (!admissionId) return res.status(400).json({ error: 'ID de admissão inválido.' });
       const { forceAi } = (req.body || {}) as { forceAi?: boolean };
       const [adm] = await db.select().from(admissions).where(eq(admissions.id, admissionId)).limit(1);
       if (!adm) return res.status(404).json({ error: 'Admissão não encontrada.' });
+      if (!isUnitPermitted(req, adm.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para analisar admissão desta unidade.' });
+      }
 
       const [clientRows, titularRows, docs, titles, procs, allChecklist] = await Promise.all([
         db.select().from(clients).where(eq(clients.id, adm.clientId)).limit(1),
@@ -1004,29 +1091,31 @@ export function registerAuditRoutes(
       res.json({ analysis: finalSnap, fromCache: false });
     } catch (error) {
       console.error('POST /api/audit/:admissionId/ivi-analyze error:', error);
-      res.status(500).json({ error: 'Erro ao executar verificação do checklist pela Ivi.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao executar verificação do checklist pela Ivi.') });
     }
   });
 
   // 7. Ivi · Inspeção Multimodal de Documento Anexado (com cache em base por SHA-256)
-  app.post('/api/audit/:admissionId/ivi-inspect-document', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/audit/:admissionId/ivi-inspect-document', requireAuth, requireModule('audit'), async (req: AuthRequest, res) => {
     try {
-      const admissionId = Number(req.params.admissionId);
-      const { documentId, forceAi } = (req.body || {}) as { documentId?: number; forceAi?: boolean };
+      const admissionId = parsePositiveIntId(req.params.admissionId);
+      if (!admissionId) return res.status(400).json({ error: 'ID de admissão inválido.' });
+      const documentId = parsePositiveIntId(req.body?.documentId);
+      const forceAi = Boolean(req.body?.forceAi);
       if (!documentId) return res.status(400).json({ error: 'documentId é obrigatório.' });
 
       const [admRows, docRows] = await Promise.all([
         db.select().from(admissions).where(eq(admissions.id, admissionId)).limit(1),
-        db.select().from(documentObjects).where(eq(documentObjects.id, Number(documentId))).limit(1),
+        db.select().from(documentObjects).where(eq(documentObjects.id, documentId)).limit(1),
       ]);
       const adm = admRows[0];
       const doc = docRows[0];
       if (!adm) return res.status(404).json({ error: 'Admissão não encontrada.' });
+      if (!isUnitPermitted(req, adm.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para auditar admissão desta unidade.' });
+      }
       if (!doc || doc.deletedAt) return res.status(404).json({ error: 'Documento não encontrado ou na lixeira.' });
-
-      const isAdmin = req.authUser?.role === 'admin';
-      const allowedUnits = req.authUser?.allowedUnitIds || [];
-      if (!isAdmin && !allowedUnits.includes(doc.unitId)) {
+      if (!isUnitPermitted(req, doc.unitId)) {
         return res.status(403).json({ error: 'Sem permissão para ler documento desta unidade.' });
       }
 
@@ -1102,19 +1191,23 @@ export function registerAuditRoutes(
       res.json({ inspection, fromCache: false });
     } catch (error) {
       console.error('POST /api/audit/:admissionId/ivi-inspect-document error:', error);
-      res.status(500).json({ error: 'Erro ao inspecionar documento com a Ivi.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao inspecionar documento com a Ivi.') });
     }
   });
 
   // 8. Ivi · Pergunta Contextual sobre este Dossiê de Auditoria
-  app.post('/api/audit/:admissionId/ivi-ask', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/audit/:admissionId/ivi-ask', requireAuth, requireModule('audit'), async (req: AuthRequest, res) => {
     try {
-      const admissionId = Number(req.params.admissionId);
+      const admissionId = parsePositiveIntId(req.params.admissionId);
+      if (!admissionId) return res.status(400).json({ error: 'ID de admissão inválido.' });
       const { question } = (req.body || {}) as { question?: string };
       if (!question?.trim()) return res.status(400).json({ error: 'Informe uma pergunta para a Ivi.' });
 
       const [adm] = await db.select().from(admissions).where(eq(admissions.id, admissionId)).limit(1);
       if (!adm) return res.status(404).json({ error: 'Admissão não encontrada.' });
+      if (!isUnitPermitted(req, adm.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para consultar admissão desta unidade.' });
+      }
 
       const [clientRows, docs] = await Promise.all([
         db.select().from(clients).where(eq(clients.id, adm.clientId)).limit(1),
@@ -1143,14 +1236,15 @@ export function registerAuditRoutes(
       res.json({ answer: out.text, provider: out.provider });
     } catch (error) {
       console.error('POST /api/audit/:admissionId/ivi-ask error:', error);
-      res.status(500).json({ error: 'Erro ao consultar a Ivi neste dossiê.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao consultar a Ivi neste dossiê.') });
     }
   });
 
   // 9. Painel de Insights Ivi (Análise automática do documento selecionado + cache em DB para reduzir custos de IA)
-  app.post('/api/audit/:admissionId/ivi-insights', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/audit/:admissionId/ivi-insights', requireAuth, requireModule('audit'), async (req: AuthRequest, res) => {
     try {
-      const admissionId = Number(req.params.admissionId);
+      const admissionId = parsePositiveIntId(req.params.admissionId);
+      if (!admissionId) return res.status(400).json({ error: 'ID de admissão inválido.' });
       const { documentId, checklistState, forceAi } = (req.body || {}) as {
         documentId?: number | null;
         checklistState?: Record<string, boolean>;
@@ -1159,6 +1253,9 @@ export function registerAuditRoutes(
 
       const [adm] = await db.select().from(admissions).where(eq(admissions.id, admissionId)).limit(1);
       if (!adm) return res.status(404).json({ error: 'Admissão não encontrada.' });
+      if (!isUnitPermitted(req, adm.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para analisar insights desta unidade.' });
+      }
 
       const [clientRows, titularRows, docs, titles, procs, allChecklist] = await Promise.all([
         db.select().from(clients).where(eq(clients.id, adm.clientId)).limit(1),
@@ -1377,14 +1474,15 @@ export function registerAuditRoutes(
       res.json({ insights });
     } catch (error) {
       console.error('POST /api/audit/:admissionId/ivi-insights error:', error);
-      res.status(500).json({ error: 'Erro ao gerar Painel de Insights da Ivi.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao gerar Painel de Insights da Ivi.') });
     }
   });
 
   // 10. Registrar Consideração do Usuário na Auditoria (carimbando nome, data e hora)
-  app.post('/api/audit/:admissionId/considerations', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/audit/:admissionId/considerations', requireAuth, requireModule('audit'), async (req: AuthRequest, res) => {
     try {
-      const admissionId = Number(req.params.admissionId);
+      const admissionId = parsePositiveIntId(req.params.admissionId);
+      if (!admissionId) return res.status(400).json({ error: 'ID de admissão inválido.' });
       const { text } = (req.body || {}) as { text?: string };
       const cleanText = String(text || '').trim();
       if (!cleanText) {
@@ -1393,6 +1491,9 @@ export function registerAuditRoutes(
 
       const [adm] = await db.select().from(admissions).where(eq(admissions.id, admissionId)).limit(1);
       if (!adm) return res.status(404).json({ error: 'Admissão não encontrada.' });
+      if (!isUnitPermitted(req, adm.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para registrar consideração nesta unidade.' });
+      }
 
       const authorName = req.authUser?.name || req.authUser?.email || 'Usuário';
       const now = new Date();
@@ -1430,22 +1531,28 @@ export function registerAuditRoutes(
       res.json({ admission: updated, consideration: entry });
     } catch (error) {
       console.error('POST /api/audit/:admissionId/considerations error:', error);
-      res.status(500).json({ error: 'Erro ao registrar consideração do usuário.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao registrar consideração do usuário.') });
     }
   });
 
   // 11. Varredura em lote do Checklist pela Ivi (sem chamadas externas de IA, gravando decisões na base)
-  app.post('/api/audit/ivi-sweep-all', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/audit/ivi-sweep-all', requireAuth, requireModule('audit'), async (req: AuthRequest, res) => {
     try {
       const { onlyMissing } = (req.body || {}) as { onlyMissing?: boolean };
-      const [allAdmissions, allClients, allDocs, allTitles, allProcs, allChecklist] = await Promise.all([
-        db.select().from(admissions).orderBy(desc(admissions.id)),
+      const allowedUnitIds = getAllowedUnitIds(req);
+      const [rawAdmissions, allClients, allDocs, allTitles, allProcs, allChecklist] = await Promise.all([
+        allowedUnitIds === null
+          ? db.select().from(admissions).orderBy(desc(admissions.id))
+          : allowedUnitIds.length === 0
+          ? Promise.resolve([])
+          : db.select().from(admissions).where(inArray(admissions.unitId, allowedUnitIds)).orderBy(desc(admissions.id)),
         db.select().from(clients),
         db.select().from(documentObjects),
         db.select().from(financialTitles).where(eq(financialTitles.scope, 'RECEBER')),
         db.select().from(legalProcesses),
         db.select().from(auditChecklistItems).orderBy(auditChecklistItems.sortOrder, auditChecklistItems.id),
       ]);
+      const allAdmissions = rawAdmissions;
 
       let sweptCount = 0;
       let cacheHits = 0;
@@ -1458,7 +1565,10 @@ export function registerAuditRoutes(
         const client = allClients.find((c) => c.id === adm.clientId);
         const titular = adm.assetOwnerId ? allClients.find((c) => c.id === adm.assetOwnerId) : null;
         const visibleDocs = allDocs.filter(
-          (d) => !d.deletedAt && (d.admissionId === adm.id || d.admissionId === null)
+          (d) =>
+            !d.deletedAt &&
+            (d.admissionId === adm.id || d.admissionId === null) &&
+            (allowedUnitIds === null || allowedUnitIds.includes(d.unitId))
         );
         const modText = `${adm.modality || ''} ${adm.debtType || ''}`.toLowerCase();
         const checklistState = adm.auditChecklistStateJson || {};
@@ -1591,14 +1701,20 @@ export function registerAuditRoutes(
       });
     } catch (error) {
       console.error('POST /api/audit/ivi-sweep-all error:', error);
-      res.status(500).json({ error: 'Erro ao executar varredura em lote do checklist.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao executar varredura em lote do checklist.') });
     }
   });
 
   // 12. Bloquear/Marcar em análise quando usuário abre o modal do cliente no Data Grid
-  app.post('/api/audit/:admissionId/lock', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/audit/:admissionId/lock', requireAuth, requireModule('audit'), async (req: AuthRequest, res) => {
     try {
-      const admissionId = Number(req.params.admissionId);
+      const admissionId = parsePositiveIntId(req.params.admissionId);
+      if (!admissionId) return res.status(400).json({ error: 'ID de admissão inválido.' });
+      const [adm] = await db.select().from(admissions).where(eq(admissions.id, admissionId)).limit(1);
+      if (!adm) return res.status(404).json({ error: 'Admissão não encontrada.' });
+      if (!isUnitPermitted(req, adm.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para bloquear admissão desta unidade.' });
+      }
       const reviewerName = req.authUser?.name || req.authUser?.email || 'Auditor';
       const now = new Date();
       const [updated] = await db
@@ -1610,7 +1726,6 @@ export function registerAuditRoutes(
         })
         .where(eq(admissions.id, admissionId))
         .returning();
-      if (!updated) return res.status(404).json({ error: 'Admissão não encontrada.' });
 
       broadcast('audit:lock', {
         admissionId: updated.id,
@@ -1620,16 +1735,20 @@ export function registerAuditRoutes(
       res.json({ admission: updated });
     } catch (error) {
       console.error('POST /api/audit/:admissionId/lock error:', error);
-      res.status(500).json({ error: 'Erro ao registrar usuário em análise.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao registrar usuário em análise.') });
     }
   });
 
   // 13. Liberar sinalização de análise ao fechar o modal do cliente
-  app.post('/api/audit/:admissionId/unlock', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/audit/:admissionId/unlock', requireAuth, requireModule('audit'), async (req: AuthRequest, res) => {
     try {
-      const admissionId = Number(req.params.admissionId);
+      const admissionId = parsePositiveIntId(req.params.admissionId);
+      if (!admissionId) return res.status(400).json({ error: 'ID de admissão inválido.' });
       const [adm] = await db.select().from(admissions).where(eq(admissions.id, admissionId)).limit(1);
       if (!adm) return res.status(404).json({ error: 'Admissão não encontrada.' });
+      if (!isUnitPermitted(req, adm.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para liberar admissão desta unidade.' });
+      }
 
       const isAdmin = req.authUser?.role === 'admin';
       if (adm.activeReviewerId && adm.activeReviewerId !== req.authUser?.id && !isAdmin) {
@@ -1654,26 +1773,49 @@ export function registerAuditRoutes(
       res.json({ admission: updated });
     } catch (error) {
       console.error('POST /api/audit/:admissionId/unlock error:', error);
-      res.status(500).json({ error: 'Erro ao liberar status em análise.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao liberar status em análise.') });
     }
   });
 
   // 14. Estatísticas do Cache de Decisões Ivi (economia de IA)
-  app.get('/api/audit/cache-stats', requireAuth, async (_req: AuthRequest, res) => {
+  app.get('/api/audit/cache-stats', requireAuth, requireModule('audit'), async (req: AuthRequest, res) => {
     try {
-      const [row] = await db
-        .select({
-          cachedDecisions: sql<number>`count(*)`,
-          totalAiCallsSaved: sql<number>`coalesce(sum(${iviAuditDecisionsCache.aiCallsSaved}), 0)`,
-        })
-        .from(iviAuditDecisionsCache);
+      const allowedUnits = getAllowedUnitIds(req);
+      let row;
+      if (allowedUnits === null) {
+        [row] = await db
+          .select({
+            cachedDecisions: sql<number>`count(*)`,
+            totalAiCallsSaved: sql<number>`coalesce(sum(${iviAuditDecisionsCache.aiCallsSaved}), 0)`,
+          })
+          .from(iviAuditDecisionsCache);
+      } else if (allowedUnits.length === 0) {
+        row = { cachedDecisions: 0, totalAiCallsSaved: 0 };
+      } else {
+        const unitAdmissions = await db
+          .select({ id: admissions.id })
+          .from(admissions)
+          .where(inArray(admissions.unitId, allowedUnits));
+        const admIds = unitAdmissions.map((a) => a.id);
+        if (admIds.length === 0) {
+          row = { cachedDecisions: 0, totalAiCallsSaved: 0 };
+        } else {
+          [row] = await db
+            .select({
+              cachedDecisions: sql<number>`count(*)`,
+              totalAiCallsSaved: sql<number>`coalesce(sum(${iviAuditDecisionsCache.aiCallsSaved}), 0)`,
+            })
+            .from(iviAuditDecisionsCache)
+            .where(inArray(iviAuditDecisionsCache.admissionId, admIds));
+        }
+      }
       res.json({
         cachedDecisions: Number(row?.cachedDecisions || 0),
         totalAiCallsSaved: Number(row?.totalAiCallsSaved || 0),
       });
     } catch (error) {
       console.error('GET /api/audit/cache-stats error:', error);
-      res.status(500).json({ error: 'Erro ao consultar cache de decisões da Ivi.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao consultar cache de decisões da Ivi.') });
     }
   });
 }

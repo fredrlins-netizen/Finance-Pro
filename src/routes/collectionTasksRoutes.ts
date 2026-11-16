@@ -1,6 +1,6 @@
 import type { Express } from 'express';
 import multer from 'multer';
-import { asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { db } from '../db/index.ts';
 import {
   auditLogs,
@@ -18,7 +18,13 @@ import {
   users,
   type TaskTimerPauseEntry,
 } from '../db/schema.ts';
-import { AuthRequest, requireAuth } from '../middleware/auth.ts';
+import {
+  AuthRequest,
+  getAllowedUnitIds,
+  isUnitPermitted,
+  requireAuth,
+  requireModule,
+} from '../middleware/auth.ts';
 import {
   canPreviewInline,
   getBucketObjectBuffer,
@@ -27,6 +33,13 @@ import {
   validateUploadFile,
 } from '../services/bucketStorage.ts';
 import { runIviOrchestrator } from '../services/ivi.ts';
+import { dispatchIviSectorNotification } from '../services/internalMessaging.ts';
+import {
+  parsePositiveIntArray,
+  parsePositiveIntId,
+  parseSafeDate,
+  sanitizeErrorMessage,
+} from '../utils/validation.ts';
 
 const taskAttachmentUpload = multer({
   storage: multer.memoryStorage(),
@@ -125,10 +138,12 @@ export function registerCollectionTasksRoutes(
   app: Express,
   deps: { broadcast: (event: string, payload: unknown) => void }
 ) {
+  const requireCollection = requireModule('collection');
+
   // ---------------------------------------------------------------------------
   // 1. BOOTSTRAP TAREFAS DO COORDENADOR LOGADO (+ COMPARTILHADAS COM ELE)
   // ---------------------------------------------------------------------------
-  app.get('/api/collection/coordinator/tasks', requireAuth, async (req: AuthRequest, res) => {
+  app.get('/api/collection/coordinator/tasks', requireAuth, requireCollection, async (req: AuthRequest, res) => {
     try {
       const userId = req.authUser!.id;
       const columns = await ensureDefaultColumnsForOwner(userId);
@@ -255,7 +270,7 @@ export function registerCollectionTasksRoutes(
   // ---------------------------------------------------------------------------
   // 2. CONFIGURAR COLUNAS DO QUADRO KANBAN (§6.4)
   // ---------------------------------------------------------------------------
-  app.put('/api/collection/coordinator/tasks/columns', requireAuth, async (req: AuthRequest, res) => {
+  app.put('/api/collection/coordinator/tasks/columns', requireAuth, requireCollection, async (req: AuthRequest, res) => {
     try {
       const userId = req.authUser!.id;
       const incoming = (req.body?.columns || []) as Array<{
@@ -350,7 +365,7 @@ export function registerCollectionTasksRoutes(
   // ---------------------------------------------------------------------------
   // 3. CRIAR TAREFA (associada ao usuário/coordenador logado)
   // ---------------------------------------------------------------------------
-  app.post('/api/collection/coordinator/tasks', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/collection/coordinator/tasks', requireAuth, requireCollection, async (req: AuthRequest, res) => {
     try {
       const userId = req.authUser!.id;
       const body = (req.body || {}) as {
@@ -391,6 +406,12 @@ export function registerCollectionTasksRoutes(
         });
       }
 
+      let parsedDueAt: Date | null = null;
+      if (body.dueAt !== undefined && body.dueAt !== null && String(body.dueAt).trim() !== '') {
+        parsedDueAt = parseSafeDate(body.dueAt);
+        if (!parsedDueAt) return res.status(400).json({ error: 'Data de vencimento inválida.' });
+      }
+
       const columns = await ensureDefaultColumnsForOwner(userId);
       const targetCol =
         (body.statusColumnId && columns.find((c) => c.id === Number(body.statusColumnId))) ||
@@ -399,8 +420,13 @@ export function registerCollectionTasksRoutes(
       let clientName = '';
       let validClientId: number | null = null;
       if (body.clientId) {
-        const cRows = await db.select().from(clients).where(eq(clients.id, Number(body.clientId))).limit(1);
+        const cid = parsePositiveIntId(body.clientId);
+        if (!cid) return res.status(400).json({ error: 'ID de cliente inválido.' });
+        const cRows = await db.select().from(clients).where(eq(clients.id, cid)).limit(1);
         if (cRows[0]) {
+          if (!isUnitPermitted(req, cRows[0].unitId)) {
+            return res.status(403).json({ error: 'Sem permissão para vincular clientes desta unidade.' });
+          }
           validClientId = cRows[0].id;
           clientName = cRows[0].fullName;
         }
@@ -409,16 +435,20 @@ export function registerCollectionTasksRoutes(
       let collaboratorName = '';
       let validCollabId: number | null = null;
       if (body.collaboratorId) {
+        const colId = parsePositiveIntId(body.collaboratorId);
+        if (!colId) return res.status(400).json({ error: 'ID de colaborador inválido.' });
         const colRows = await db
           .select()
           .from(collaborators)
-          .where(eq(collaborators.id, Number(body.collaboratorId)))
+          .where(eq(collaborators.id, colId))
           .limit(1);
         if (colRows[0]) {
           validCollabId = colRows[0].id;
           collaboratorName = colRows[0].name;
         }
       }
+
+      const validTitleId = body.titleId ? parsePositiveIntId(body.titleId) : null;
 
       let iviReviewNote = '';
       if (body.reviewWithIvi && (body.description?.trim() || title)) {
@@ -442,7 +472,7 @@ export function registerCollectionTasksRoutes(
           unitId: req.activeUnitId || req.authUser!.defaultUnitId || null,
           clientId: validClientId,
           clientName,
-          titleId: body.titleId ? Number(body.titleId) : null,
+          titleId: validTitleId,
           collaboratorId: validCollabId,
           collaboratorName,
           projectLabel: String(body.projectLabel || '').trim(),
@@ -456,7 +486,7 @@ export function registerCollectionTasksRoutes(
           statusKey,
           statusLabel: targetCol.title,
           isCompleted: targetCol.isFinal,
-          dueAt: body.dueAt ? new Date(body.dueAt) : null,
+          dueAt: parsedDueAt,
           estimatedMinutes: body.estimatedMinutes ? Math.max(1, Math.round(Number(body.estimatedMinutes))) : null,
           iviReviewNote,
           completedAt: targetCol.isFinal ? new Date() : null,
@@ -486,6 +516,20 @@ export function registerCollectionTasksRoutes(
         criticality: created.criticality,
       });
 
+      await dispatchIviSectorNotification(
+        {
+          targetSector: 'cobranca',
+          targetUnitId: req.activeUnitId || null,
+          relatedEntityType: 'coordinator_task',
+          relatedEntityId: created.id,
+          senderName: 'Ivi IA · Coordenação Cobrança',
+          subject: `Nova Tarefa de Cobrança · ${created.title}`,
+          body: `${req.authUser!.name} atribuiu a tarefa "${created.title}"${collaboratorName ? ` para ${collaboratorName}` : ''} (${created.criticality.toUpperCase()}).`,
+        },
+        db,
+        deps.broadcast
+      );
+
       deps.broadcast('collection:payment', { type: 'task_created', taskId: created.id });
       res.json({ task: created });
     } catch (error) {
@@ -497,9 +541,10 @@ export function registerCollectionTasksRoutes(
   // ---------------------------------------------------------------------------
   // 4. ATUALIZAR / MOVER / ENCERRAR TAREFA (§5, §6.1, §8)
   // ---------------------------------------------------------------------------
-  app.patch('/api/collection/coordinator/tasks/:id', requireAuth, async (req: AuthRequest, res) => {
+  app.patch('/api/collection/coordinator/tasks/:id', requireAuth, requireCollection, async (req: AuthRequest, res) => {
     try {
-      const taskId = Number(req.params.id);
+      const taskId = parsePositiveIntId(req.params.id);
+      if (!taskId) return res.status(400).json({ error: 'ID de tarefa inválido.' });
       const userId = req.authUser!.id;
       const access = await getTaskWithAccess(taskId, userId);
       if (!access.task) {
@@ -728,6 +773,17 @@ export function registerCollectionTasksRoutes(
         }
       }
 
+      let nextDueAt = task.dueAt;
+      if (body.dueAt !== undefined) {
+        if (body.dueAt === null || String(body.dueAt).trim() === '') {
+          nextDueAt = null;
+        } else {
+          const parsed = parseSafeDate(body.dueAt);
+          if (!parsed) return res.status(400).json({ error: 'Data de vencimento inválida.' });
+          nextDueAt = parsed;
+        }
+      }
+
       const [updated] = await db
         .update(coordinatorTasks)
         .set({
@@ -752,12 +808,7 @@ export function registerCollectionTasksRoutes(
           statusKey: resolvedStatusKey,
           statusLabel: resolvedStatusLabel,
           isCompleted: targetWillComplete,
-          dueAt:
-            body.dueAt !== undefined
-              ? body.dueAt
-                ? new Date(body.dueAt)
-                : null
-              : task.dueAt,
+          dueAt: nextDueAt,
           estimatedMinutes:
             body.estimatedMinutes !== undefined
               ? body.estimatedMinutes
@@ -802,9 +853,10 @@ export function registerCollectionTasksRoutes(
   // ---------------------------------------------------------------------------
   // 5. EXCLUIR TAREFA (INDIVIDUAL OU EM LOTE)
   // ---------------------------------------------------------------------------
-  app.delete('/api/collection/coordinator/tasks/:id', requireAuth, async (req: AuthRequest, res) => {
+  app.delete('/api/collection/coordinator/tasks/:id', requireAuth, requireCollection, async (req: AuthRequest, res) => {
     try {
-      const taskId = Number(req.params.id);
+      const taskId = parsePositiveIntId(req.params.id);
+      if (!taskId) return res.status(400).json({ error: 'ID de tarefa inválido.' });
       const userId = req.authUser!.id;
       const rows = await db.select().from(coordinatorTasks).where(eq(coordinatorTasks.id, taskId)).limit(1);
       const task = rows[0];
@@ -818,17 +870,15 @@ export function registerCollectionTasksRoutes(
       res.json({ ok: true });
     } catch (error) {
       console.error('Delete coordinator task error:', error);
-      res.status(500).json({ error: 'Erro ao excluir tarefa.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao excluir tarefa.') });
     }
   });
 
-  app.post('/api/collection/coordinator/tasks/batch-delete', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/collection/coordinator/tasks/batch-delete', requireAuth, requireCollection, async (req: AuthRequest, res) => {
     try {
       const userId = req.authUser!.id;
-      const ids = Array.isArray(req.body?.taskIds)
-        ? req.body.taskIds.map((n: unknown) => Number(n)).filter((n: number) => Number.isFinite(n) && n > 0)
-        : [];
-      if (ids.length === 0) return res.status(400).json({ error: 'Selecione ao menos uma tarefa.' });
+      const ids = parsePositiveIntArray(req.body?.taskIds);
+      if (ids.length === 0) return res.status(400).json({ error: 'Selecione ao menos uma tarefa válida.' });
 
       const rows = await db.select().from(coordinatorTasks).where(inArray(coordinatorTasks.id, ids));
       const deletable = rows.filter((t) => t.ownerUserId === userId || req.authUser!.role === 'admin');
@@ -843,16 +893,17 @@ export function registerCollectionTasksRoutes(
       res.json({ ok: true, deletedCount: delIds.length });
     } catch (error) {
       console.error('Batch delete tasks error:', error);
-      res.status(500).json({ error: 'Erro ao excluir tarefas selecionadas.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao excluir tarefas selecionadas.') });
     }
   });
 
   // ---------------------------------------------------------------------------
   // 6. CRONÔMETRO DA TAREFA (Iniciar / Pausar com justificativa §6.2)
   // ---------------------------------------------------------------------------
-  app.post('/api/collection/coordinator/tasks/:id/timer', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/collection/coordinator/tasks/:id/timer', requireAuth, requireCollection, async (req: AuthRequest, res) => {
     try {
-      const taskId = Number(req.params.id);
+      const taskId = parsePositiveIntId(req.params.id);
+      if (!taskId) return res.status(400).json({ error: 'ID de tarefa inválido.' });
       const userId = req.authUser!.id;
       const access = await getTaskWithAccess(taskId, userId);
       if (!access.task || access.permission === 'view') {
@@ -926,9 +977,10 @@ export function registerCollectionTasksRoutes(
   // ---------------------------------------------------------------------------
   // 7. SUBTAREFAS CRUD + CRONÔMETRO + PRECEDÊNCIA (§4.3 & §5.3)
   // ---------------------------------------------------------------------------
-  app.post('/api/collection/coordinator/tasks/:id/subtasks', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/collection/coordinator/tasks/:id/subtasks', requireAuth, requireCollection, async (req: AuthRequest, res) => {
     try {
-      const taskId = Number(req.params.id);
+      const taskId = parsePositiveIntId(req.params.id);
+      if (!taskId) return res.status(400).json({ error: 'ID de tarefa inválido.' });
       const access = await getTaskWithAccess(taskId, req.authUser!.id);
       if (!access.task || access.permission === 'view') {
         return res.status(403).json({ error: 'Sem permissão para adicionar subtarefa.' });
@@ -947,6 +999,12 @@ export function registerCollectionTasksRoutes(
       const title = String(body.title || '').trim();
       if (!title) return res.status(400).json({ error: 'Informe o título da subtarefa.' });
 
+      let subDueAt: Date | null = null;
+      if (body.dueAt !== undefined && body.dueAt !== null && String(body.dueAt).trim() !== '') {
+        subDueAt = parseSafeDate(body.dueAt);
+        if (!subDueAt) return res.status(400).json({ error: 'Data de vencimento da subtarefa inválida.' });
+      }
+
       const existingSubs = await db
         .select()
         .from(coordinatorTaskSubtasks)
@@ -956,10 +1014,12 @@ export function registerCollectionTasksRoutes(
       let collabName = '';
       let validCollabId: number | null = null;
       if (body.assignedCollaboratorId) {
+        const colId = parsePositiveIntId(body.assignedCollaboratorId);
+        if (!colId) return res.status(400).json({ error: 'ID de colaborador inválido.' });
         const colRows = await db
           .select()
           .from(collaborators)
-          .where(eq(collaborators.id, Number(body.assignedCollaboratorId)))
+          .where(eq(collaborators.id, colId))
           .limit(1);
         if (colRows[0]) {
           validCollabId = colRows[0].id;
@@ -978,7 +1038,7 @@ export function registerCollectionTasksRoutes(
           criticality: String(body.criticality || 'medio').toLowerCase(),
           assignedCollaboratorId: validCollabId,
           assignedCollaboratorName: collabName,
-          dueAt: body.dueAt ? new Date(body.dueAt) : null,
+          dueAt: subDueAt,
           estimatedMinutes: body.estimatedMinutes
             ? Math.max(1, Math.round(Number(body.estimatedMinutes)))
             : null,
@@ -990,14 +1050,15 @@ export function registerCollectionTasksRoutes(
       res.json({ subtask: created });
     } catch (error) {
       console.error('Create subtask error:', error);
-      res.status(500).json({ error: 'Erro ao criar subtarefa.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao criar subtarefa.') });
     }
   });
 
-  app.patch('/api/collection/coordinator/tasks/:id/subtasks/:subId', requireAuth, async (req: AuthRequest, res) => {
+  app.patch('/api/collection/coordinator/tasks/:id/subtasks/:subId', requireAuth, requireCollection, async (req: AuthRequest, res) => {
     try {
-      const taskId = Number(req.params.id);
-      const subId = Number(req.params.subId);
+      const taskId = parsePositiveIntId(req.params.id);
+      const subId = parsePositiveIntId(req.params.subId);
+      if (!taskId || !subId) return res.status(400).json({ error: 'Identificador inválido.' });
       const access = await getTaskWithAccess(taskId, req.authUser!.id);
       if (!access.task || access.permission === 'view') {
         return res.status(403).json({ error: 'Sem permissão para editar subtarefa.' });
@@ -1062,6 +1123,17 @@ export function registerCollectionTasksRoutes(
         timerRunningSince = null;
       }
 
+      let nextSubDueAt = sub.dueAt;
+      if (body.dueAt !== undefined) {
+        if (body.dueAt === null || String(body.dueAt).trim() === '') {
+          nextSubDueAt = null;
+        } else {
+          const parsed = parseSafeDate(body.dueAt);
+          if (!parsed) return res.status(400).json({ error: 'Data de vencimento da subtarefa inválida.' });
+          nextSubDueAt = parsed;
+        }
+      }
+
       const [updated] = await db
         .update(coordinatorTaskSubtasks)
         .set({
@@ -1073,7 +1145,7 @@ export function registerCollectionTasksRoutes(
             body.criticality !== undefined ? String(body.criticality).toLowerCase() : sub.criticality,
           assignedCollaboratorId: collabId,
           assignedCollaboratorName: collabName,
-          dueAt: body.dueAt !== undefined ? (body.dueAt ? new Date(body.dueAt) : null) : sub.dueAt,
+          dueAt: nextSubDueAt,
           estimatedMinutes:
             body.estimatedMinutes !== undefined
               ? body.estimatedMinutes
@@ -1094,14 +1166,15 @@ export function registerCollectionTasksRoutes(
       res.json({ subtask: updated });
     } catch (error) {
       console.error('Update subtask error:', error);
-      res.status(500).json({ error: 'Erro ao atualizar subtarefa.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao atualizar subtarefa.') });
     }
   });
 
-  app.post('/api/collection/coordinator/tasks/:id/subtasks/:subId/timer', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/collection/coordinator/tasks/:id/subtasks/:subId/timer', requireAuth, requireCollection, async (req: AuthRequest, res) => {
     try {
-      const taskId = Number(req.params.id);
-      const subId = Number(req.params.subId);
+      const taskId = parsePositiveIntId(req.params.id);
+      const subId = parsePositiveIntId(req.params.subId);
+      if (!taskId || !subId) return res.status(400).json({ error: 'Identificador inválido.' });
       const access = await getTaskWithAccess(taskId, req.authUser!.id);
       if (!access.task || access.permission === 'view') {
         return res.status(403).json({ error: 'Sem permissão para operar o cronômetro.' });
@@ -1162,28 +1235,34 @@ export function registerCollectionTasksRoutes(
     }
   });
 
-  app.delete('/api/collection/coordinator/tasks/:id/subtasks/:subId', requireAuth, async (req: AuthRequest, res) => {
+  app.delete('/api/collection/coordinator/tasks/:id/subtasks/:subId', requireAuth, requireCollection, async (req: AuthRequest, res) => {
     try {
-      const taskId = Number(req.params.id);
-      const subId = Number(req.params.subId);
+      const taskId = parsePositiveIntId(req.params.id);
+      const subId = parsePositiveIntId(req.params.subId);
+      if (!taskId || !subId) return res.status(400).json({ error: 'Identificador inválido.' });
       const access = await getTaskWithAccess(taskId, req.authUser!.id);
       if (!access.task || access.permission === 'view') {
         return res.status(403).json({ error: 'Sem permissão para excluir subtarefa.' });
       }
-      await db.delete(coordinatorTaskSubtasks).where(eq(coordinatorTaskSubtasks.id, subId));
+      const deleted = await db
+        .delete(coordinatorTaskSubtasks)
+        .where(and(eq(coordinatorTaskSubtasks.id, subId), eq(coordinatorTaskSubtasks.taskId, taskId)))
+        .returning({ id: coordinatorTaskSubtasks.id });
+      if (deleted.length === 0) return res.status(404).json({ error: 'Subtarefa não encontrada nesta tarefa.' });
       res.json({ ok: true });
     } catch (error) {
       console.error('Delete subtask error:', error);
-      res.status(500).json({ error: 'Erro ao excluir subtarefa.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao excluir subtarefa.') });
     }
   });
 
   // ---------------------------------------------------------------------------
   // 8. COMPARTILHAMENTO ENTRE COORDENADORES (§6.6 — NÃO TRANSFERE PROPRIEDADE)
   // ---------------------------------------------------------------------------
-  app.post('/api/collection/coordinator/tasks/:id/shares', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/collection/coordinator/tasks/:id/shares', requireAuth, requireCollection, async (req: AuthRequest, res) => {
     try {
-      const taskId = Number(req.params.id);
+      const taskId = parsePositiveIntId(req.params.id);
+      if (!taskId) return res.status(400).json({ error: 'ID de tarefa inválido.' });
       const userId = req.authUser!.id;
       const rows = await db.select().from(coordinatorTasks).where(eq(coordinatorTasks.id, taskId)).limit(1);
       const task = rows[0];
@@ -1192,7 +1271,7 @@ export function registerCollectionTasksRoutes(
         return res.status(403).json({ error: 'Apenas o coordenador proprietário pode compartilhar esta tarefa.' });
       }
 
-      const targetUserId = Number(req.body?.sharedWithUserId);
+      const targetUserId = parsePositiveIntId(req.body?.sharedWithUserId);
       const permission = req.body?.permission === 'view' ? 'view' : 'edit';
       if (!targetUserId || targetUserId === task.ownerUserId) {
         return res.status(400).json({ error: 'Selecione outro coordenador válido para compartilhar.' });
@@ -1236,18 +1315,35 @@ export function registerCollectionTasksRoutes(
         permission,
       });
 
+      await dispatchIviSectorNotification(
+        {
+          targetSector: 'cobranca',
+          targetUnitId: req.activeUnitId || null,
+          recipientId: targetUser.id,
+          targetGroupId: targetUser.groupId,
+          relatedEntityType: 'coordinator_task',
+          relatedEntityId: taskId,
+          senderName: 'Ivi IA · Coordenação Cobrança',
+          subject: `Tarefa Compartilhada · ${task.title}`,
+          body: `${req.authUser!.name} compartilhou a tarefa "${task.title}" com ${targetUser.name} (permissão: ${permission === 'view' ? 'Visualização' : 'Edição'}).`,
+        },
+        db,
+        deps.broadcast
+      );
+
       deps.broadcast('collection:payment', { type: 'task_shared', taskId, targetUserId: targetUser.id });
       res.json({ share });
     } catch (error) {
       console.error('Share task error:', error);
-      res.status(500).json({ error: 'Erro ao conceder compartilhamento.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao conceder compartilhamento.') });
     }
   });
 
-  app.delete('/api/collection/coordinator/tasks/:id/shares/:shareId', requireAuth, async (req: AuthRequest, res) => {
+  app.delete('/api/collection/coordinator/tasks/:id/shares/:shareId', requireAuth, requireCollection, async (req: AuthRequest, res) => {
     try {
-      const taskId = Number(req.params.id);
-      const shareId = Number(req.params.shareId);
+      const taskId = parsePositiveIntId(req.params.id);
+      const shareId = parsePositiveIntId(req.params.shareId);
+      if (!taskId || !shareId) return res.status(400).json({ error: 'Identificador inválido.' });
       const userId = req.authUser!.id;
       const rows = await db.select().from(coordinatorTasks).where(eq(coordinatorTasks.id, taskId)).limit(1);
       const task = rows[0];
@@ -1256,13 +1352,17 @@ export function registerCollectionTasksRoutes(
         return res.status(403).json({ error: 'Apenas o proprietário pode revogar acessos desta tarefa.' });
       }
 
-      await db.delete(coordinatorTaskShares).where(eq(coordinatorTaskShares.id, shareId));
+      const deleted = await db
+        .delete(coordinatorTaskShares)
+        .where(and(eq(coordinatorTaskShares.id, shareId), eq(coordinatorTaskShares.taskId, taskId)))
+        .returning({ id: coordinatorTaskShares.id });
+      if (deleted.length === 0) return res.status(404).json({ error: 'Compartilhamento não encontrado nesta tarefa.' });
       await logTaskAudit(req, 'COORDINATOR_TASK_SHARE_REVOKED', taskId, { shareId });
       deps.broadcast('collection:payment', { type: 'task_share_revoked', taskId });
       res.json({ ok: true });
     } catch (error) {
       console.error('Revoke share error:', error);
-      res.status(500).json({ error: 'Erro ao revogar compartilhamento.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao revogar compartilhamento.') });
     }
   });
 
@@ -1272,10 +1372,12 @@ export function registerCollectionTasksRoutes(
   app.post(
     '/api/collection/coordinator/tasks/:id/attachments',
     requireAuth,
+    requireCollection,
     taskAttachmentUpload.single('file'),
     async (req: AuthRequest, res) => {
       try {
-        const taskId = Number(req.params.id);
+        const taskId = parsePositiveIntId(req.params.id);
+        if (!taskId) return res.status(400).json({ error: 'ID de tarefa inválido.' });
         const access = await getTaskWithAccess(taskId, req.authUser!.id);
         if (!access.task || access.permission === 'view') {
           return res.status(403).json({ error: 'Sem permissão para anexar arquivos nesta tarefa.' });
@@ -1320,7 +1422,7 @@ export function registerCollectionTasksRoutes(
           .insert(coordinatorTaskAttachments)
           .values({
             taskId: task.id,
-            subtaskId: req.body?.subtaskId ? Number(req.body.subtaskId) : null,
+            subtaskId: req.body?.subtaskId ? parsePositiveIntId(req.body.subtaskId) : null,
             documentObjectId,
             source: 'local_bucket',
             fileName: sanitizeFileName(file.originalname),
@@ -1334,15 +1436,16 @@ export function registerCollectionTasksRoutes(
         res.json({ attachment });
       } catch (error) {
         console.error('Upload task attachment error:', error);
-        res.status(500).json({ error: 'Erro ao armazenar anexo no bucketdainvicta.' });
+        res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao armazenar anexo no bucketdainvicta.') });
       }
     }
   );
 
-  app.get('/api/collection/coordinator/tasks/:id/attachments/:attId/file', requireAuth, async (req: AuthRequest, res) => {
+  app.get('/api/collection/coordinator/tasks/:id/attachments/:attId/file', requireAuth, requireCollection, async (req: AuthRequest, res) => {
     try {
-      const taskId = Number(req.params.id);
-      const attId = Number(req.params.attId);
+      const taskId = parsePositiveIntId(req.params.id);
+      const attId = parsePositiveIntId(req.params.attId);
+      if (!taskId || !attId) return res.status(400).json({ error: 'Identificador inválido.' });
       const access = await getTaskWithAccess(taskId, req.authUser!.id);
       if (!access.task) return res.status(403).json({ error: 'Sem acesso a este anexo.' });
 
@@ -1368,30 +1471,35 @@ export function registerCollectionTasksRoutes(
       res.send(buf);
     } catch (error) {
       console.error('Download task attachment error:', error);
-      res.status(500).json({ error: 'Erro ao carregar arquivo anexo.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao carregar arquivo anexo.') });
     }
   });
 
-  app.delete('/api/collection/coordinator/tasks/:id/attachments/:attId', requireAuth, async (req: AuthRequest, res) => {
+  app.delete('/api/collection/coordinator/tasks/:id/attachments/:attId', requireAuth, requireCollection, async (req: AuthRequest, res) => {
     try {
-      const taskId = Number(req.params.id);
-      const attId = Number(req.params.attId);
+      const taskId = parsePositiveIntId(req.params.id);
+      const attId = parsePositiveIntId(req.params.attId);
+      if (!taskId || !attId) return res.status(400).json({ error: 'Identificador inválido.' });
       const access = await getTaskWithAccess(taskId, req.authUser!.id);
       if (!access.task || access.permission === 'view') {
         return res.status(403).json({ error: 'Sem permissão para remover anexo.' });
       }
-      await db.delete(coordinatorTaskAttachments).where(eq(coordinatorTaskAttachments.id, attId));
+      const deleted = await db
+        .delete(coordinatorTaskAttachments)
+        .where(and(eq(coordinatorTaskAttachments.id, attId), eq(coordinatorTaskAttachments.taskId, taskId)))
+        .returning({ id: coordinatorTaskAttachments.id });
+      if (deleted.length === 0) return res.status(404).json({ error: 'Anexo não encontrado nesta tarefa.' });
       res.json({ ok: true });
     } catch (error) {
       console.error('Delete task attachment error:', error);
-      res.status(500).json({ error: 'Erro ao remover anexo.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao remover anexo.') });
     }
   });
 
   // ---------------------------------------------------------------------------
   // 10. REVISÃO E SUGESTÕES DA IVI PARA TAREFAS DA COORDENAÇÃO
   // ---------------------------------------------------------------------------
-  app.post('/api/collection/coordinator/tasks/ivi-review', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/collection/coordinator/tasks/ivi-review', requireAuth, requireCollection, async (req: AuthRequest, res) => {
     try {
       const { mode, title, description, occurrence, solution } = (req.body || {}) as {
         mode?: 'creation' | 'closure';
@@ -1431,18 +1539,25 @@ export function registerCollectionTasksRoutes(
       }
     } catch (error) {
       console.error('Ivi task review error:', error);
-      res.status(500).json({ error: 'Erro ao consultar Ivi para revisão da tarefa.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao consultar Ivi para revisão da tarefa.') });
     }
   });
 
-  app.post('/api/collection/coordinator/tasks/ivi-suggest', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/collection/coordinator/tasks/ivi-suggest', requireAuth, requireCollection, async (req: AuthRequest, res) => {
     try {
       const todayIso = new Date().toISOString().slice(0, 10);
-      const [allTitles, allClients, allNotes] = await Promise.all([
+      const allowedUnits = getAllowedUnitIds(req);
+      const allowUnit = (uId: number | null | undefined) =>
+        allowedUnits === null || (uId != null && allowedUnits.includes(uId));
+
+      const [rawAllTitles, rawAllClients, rawAllNotes] = await Promise.all([
         db.select().from(financialTitles),
-        db.select({ id: clients.id, fullName: clients.fullName }).from(clients),
-        db.select().from(collectionNotes).orderBy(desc(collectionNotes.createdAt)).limit(40),
+        db.select({ id: clients.id, fullName: clients.fullName, unitId: clients.unitId }).from(clients),
+        db.select().from(collectionNotes).orderBy(desc(collectionNotes.createdAt)).limit(60),
       ]);
+      const allTitles = allowedUnits === null ? rawAllTitles : rawAllTitles.filter((t) => allowUnit(t.unitId));
+      const allClients = allowedUnits === null ? rawAllClients : rawAllClients.filter((c) => allowUnit(c.unitId));
+      const allNotes = allowedUnits === null ? rawAllNotes : rawAllNotes.filter((n) => allowUnit(n.unitId));
 
       const clientMap = new Map(allClients.map((c) => [c.id, c.fullName]));
       const overdueTop = allTitles
@@ -1498,7 +1613,7 @@ export function registerCollectionTasksRoutes(
       res.json({ suggestions });
     } catch (error) {
       console.error('Ivi task suggest error:', error);
-      res.status(500).json({ error: 'Erro ao gerar sugestões de tarefas com a Ivi.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao gerar sugestões de tarefas com a Ivi.') });
     }
   });
 }

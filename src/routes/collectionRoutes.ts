@@ -18,7 +18,6 @@ import {
   gotalkChannels,
   gotalkHsmTemplates,
   gotalkOperators,
-  internalMessages,
   legalMovements,
   legalProcesses,
   modalities,
@@ -38,7 +37,15 @@ import {
   type CollectionNoteAttachment,
 } from '../db/schema.ts';
 import { ensureCommonCadastrosSeed, ensureInitialSeed } from '../db/seed.ts';
-import { AuthRequest, requireAuth } from '../middleware/auth.ts';
+import { dispatchIviSectorNotification } from '../services/internalMessaging.ts';
+import {
+  AuthRequest,
+  getAllowedUnitIds,
+  isUnitPermitted,
+  requireAnyModule,
+  requireAuth,
+  requireModule,
+} from '../middleware/auth.ts';
 import { syncClientLegalAndEscavadorStatus } from '../services/legalSync.ts';
 import { putBucketObject, sanitizeFileName, validateUploadFile } from '../services/bucketStorage.ts';
 import {
@@ -47,6 +54,11 @@ import {
   iviSummarizeCollectionWhatsapp,
   runIviOrchestrator,
 } from '../services/ivi.ts';
+import {
+  parsePositiveIntArray,
+  parsePositiveIntId,
+  sanitizeErrorMessage,
+} from '../utils/validation.ts';
 
 const receiptUpload = multer({
   storage: multer.memoryStorage(),
@@ -102,34 +114,37 @@ export function registerCollectionRoutes(
   // ---------------------------------------------------------------------------
   // 1. OPERACIONAL: Carga certificada com paridade total Coordenação & Gerencial
   // ---------------------------------------------------------------------------
-  app.get('/api/collection', requireAuth, async (_req: AuthRequest, res) => {
+  app.get('/api/collection', requireAuth, requireModule('collection'), async (req: AuthRequest, res) => {
     try {
       await ensureCollectionNotesColumns();
       await ensureInitialSeed();
       await ensureCommonCadastrosSeed();
+      const allowedUnits = getAllowedUnitIds(req);
+      const allowUnit = (uId: number | null | undefined) =>
+        allowedUnits === null || (uId != null && allowedUnits.includes(uId));
 
       const [
-        cases,
-        receberTitles,
-        settlements,
-        allClients,
+        rawCases,
+        rawReceberTitles,
+        rawSettlements,
+        rawAllClients,
         cats,
         allUsers,
         allGroups,
-        docs,
+        rawDocs,
         collabs,
-        notes,
-        allAdmissions,
+        rawNotes,
+        rawAllAdmissions,
         allUnits,
         allBanks,
         allBankServices,
         allModalities,
         allSeries,
-        allProcesses,
-        allScenarios,
-        allNegotiations,
-        threads,
-        messages,
+        rawAllProcesses,
+        rawAllScenarios,
+        rawAllNegotiations,
+        rawThreads,
+        rawMessages,
         channels,
         operators,
         hsmTemplates,
@@ -186,6 +201,22 @@ export function registerCollectionRoutes(
         db.select().from(gotalkHsmTemplates).orderBy(asc(gotalkHsmTemplates.templateName)),
         db.select().from(systemSettings).where(eq(systemSettings.key, 'gotalk_config')).limit(1),
       ]);
+
+      const cases = allowedUnits === null ? rawCases : rawCases.filter((c) => allowUnit(c.unitId));
+      const receberTitles = allowedUnits === null ? rawReceberTitles : rawReceberTitles.filter((t) => allowUnit(t.unitId));
+      const receberTitleIdSet = new Set(receberTitles.map((t) => t.id));
+      const settlements = allowedUnits === null ? rawSettlements : rawSettlements.filter((s) => receberTitleIdSet.has(s.titleId));
+      const allClients = allowedUnits === null ? rawAllClients : rawAllClients.filter((c) => allowUnit(c.unitId));
+      const docs = allowedUnits === null ? rawDocs : rawDocs.filter((d) => allowUnit(d.unitId));
+      const notes = allowedUnits === null ? rawNotes : rawNotes.filter((n) => allowUnit(n.unitId));
+      const allAdmissions = allowedUnits === null ? rawAllAdmissions : rawAllAdmissions.filter((a) => allowUnit(a.unitId));
+      const admIdSet = new Set(allAdmissions.map((a) => a.id));
+      const allProcesses = allowedUnits === null ? rawAllProcesses : rawAllProcesses.filter((p) => allowUnit(p.unitId));
+      const allScenarios = allowedUnits === null ? rawAllScenarios : rawAllScenarios.filter((s) => s.admissionId && admIdSet.has(s.admissionId));
+      const allNegotiations = allowedUnits === null ? rawAllNegotiations : rawAllNegotiations.filter((n) => allowUnit(n.unitId));
+      const threads = allowedUnits === null ? rawThreads : rawThreads.filter((th) => allowUnit(th.unitId));
+      const threadIdSet = new Set(threads.map((th) => th.id));
+      const messages = allowedUnits === null ? rawMessages : rawMessages.filter((m) => threadIdSet.has(m.threadId));
 
       const portfolioTitles = receberTitles.filter((t) => {
         const type = String(t.titleType || 'PADRAO').toUpperCase();
@@ -307,32 +338,35 @@ export function registerCollectionRoutes(
   // ---------------------------------------------------------------------------
   // 2. COORDENAÇÃO: Carga completa global da carteira RECEBER + KPIs + auxiliares
   // ---------------------------------------------------------------------------
-  app.get('/api/collection/coordinator', requireAuth, async (_req: AuthRequest, res) => {
+  app.get('/api/collection/coordinator', requireAuth, requireModule('collection'), async (req: AuthRequest, res) => {
     try {
       await ensureCollectionNotesColumns();
       await ensureInitialSeed();
       await ensureCommonCadastrosSeed();
+      const allowedUnits = getAllowedUnitIds(req);
+      const allowUnit = (uId: number | null | undefined) =>
+        allowedUnits === null || (uId != null && allowedUnits.includes(uId));
 
       const [
-        receberTitles,
-        allClients,
+        rawReceberTitles,
+        rawAllClients,
         allCollabs,
         allUsers,
-        allAdmissions,
-        allDocs,
+        rawAllAdmissions,
+        rawAllDocs,
         allUnits,
         allBanks,
         allBankServices,
         allModalities,
         allSeries,
-        notesRows,
-        allProcesses,
-        allScenarios,
-        allNegotiations,
-        allSettlements,
-        savedReports,
-        threads,
-        messages,
+        rawNotesRows,
+        rawAllProcesses,
+        rawAllScenarios,
+        rawAllNegotiations,
+        rawAllSettlements,
+        rawSavedReports,
+        rawThreads,
+        rawMessages,
         channels,
         operators,
         hsmTemplates,
@@ -383,6 +417,22 @@ export function registerCollectionRoutes(
         db.select().from(gotalkHsmTemplates).orderBy(asc(gotalkHsmTemplates.templateName)),
         db.select().from(systemSettings).where(eq(systemSettings.key, 'gotalk_config')).limit(1),
       ]);
+
+      const receberTitles = allowedUnits === null ? rawReceberTitles : rawReceberTitles.filter((t) => allowUnit(t.unitId));
+      const titleIdSet = new Set(receberTitles.map((t) => t.id));
+      const allClients = allowedUnits === null ? rawAllClients : rawAllClients.filter((c) => allowUnit(c.unitId));
+      const allAdmissions = allowedUnits === null ? rawAllAdmissions : rawAllAdmissions.filter((a) => allowUnit(a.unitId));
+      const admIdSet = new Set(allAdmissions.map((a) => a.id));
+      const allDocs = allowedUnits === null ? rawAllDocs : rawAllDocs.filter((d) => allowUnit(d.unitId));
+      const notesRows = allowedUnits === null ? rawNotesRows : rawNotesRows.filter((n) => allowUnit(n.unitId));
+      const allProcesses = allowedUnits === null ? rawAllProcesses : rawAllProcesses.filter((p) => allowUnit(p.unitId));
+      const allScenarios = allowedUnits === null ? rawAllScenarios : rawAllScenarios.filter((s) => s.admissionId && admIdSet.has(s.admissionId));
+      const allNegotiations = allowedUnits === null ? rawAllNegotiations : rawAllNegotiations.filter((n) => allowUnit(n.unitId));
+      const allSettlements = allowedUnits === null ? rawAllSettlements : rawAllSettlements.filter((s) => titleIdSet.has(s.titleId));
+      const savedReports = allowedUnits === null ? rawSavedReports : rawSavedReports.filter((r) => allowUnit(r.unitId));
+      const threads = allowedUnits === null ? rawThreads : rawThreads.filter((th) => allowUnit(th.unitId));
+      const threadIdSet = new Set(threads.map((th) => th.id));
+      const messages = allowedUnits === null ? rawMessages : rawMessages.filter((m) => threadIdSet.has(m.threadId));
 
       // Títulos elegíveis ativos para KPIs (PADRAO e fora da lista de exclusão)
       const portfolioTitles = receberTitles.filter((t) => {
@@ -500,29 +550,28 @@ export function registerCollectionRoutes(
   // ---------------------------------------------------------------------------
   // 3. COORDENAÇÃO: Atribuição & Transferência em lote (audit_logs completo)
   // ---------------------------------------------------------------------------
-  app.post('/api/collection/coordinator/assign', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/collection/coordinator/assign', requireAuth, requireModule('collection'), async (req: AuthRequest, res) => {
     try {
-      const { titleIds, collaboratorId, collectionStatus, transferReason } = req.body as {
+      const { titleIds, collaboratorId, collectionStatus, transferReason } = (req.body || {}) as {
         titleIds?: number[];
         collaboratorId?: number;
         collectionStatus?: string;
         transferReason?: string;
       };
 
-      const cleanIds = Array.isArray(titleIds)
-        ? [...new Set(titleIds.map(Number).filter((n) => Number.isInteger(n) && n > 0))]
-        : [];
-      if (!collaboratorId || Number(collaboratorId) <= 0) {
-        return res.status(400).json({ error: 'Selecione um colaborador.' });
+      const cleanIds = parsePositiveIntArray(titleIds);
+      const validCollabId = parsePositiveIntId(collaboratorId);
+      if (!validCollabId) {
+        return res.status(400).json({ error: 'Selecione um colaborador válido.' });
       }
       if (cleanIds.length === 0) {
-        return res.status(400).json({ error: 'Selecione pelo menos um título.' });
+        return res.status(400).json({ error: 'Selecione pelo menos um título válido.' });
       }
 
       const [collab] = await db
         .select()
         .from(collaborators)
-        .where(eq(collaborators.id, Number(collaboratorId)))
+        .where(eq(collaborators.id, validCollabId))
         .limit(1);
       if (!collab) {
         return res.status(404).json({ error: 'Colaborador responsável não encontrado.' });
@@ -534,6 +583,11 @@ export function registerCollectionRoutes(
         .where(inArray(financialTitles.id, cleanIds));
       if (targetTitles.length === 0) {
         return res.status(404).json({ error: 'Nenhum título válido encontrado.' });
+      }
+      for (const t of targetTitles) {
+        if (!isUnitPermitted(req, t.unitId)) {
+          return res.status(403).json({ error: 'Sem permissão para atribuir títulos desta unidade.' });
+        }
       }
 
       const clientIds = [...new Set(targetTitles.map((t) => t.clientId))];
@@ -679,13 +733,20 @@ export function registerCollectionRoutes(
   // ---------------------------------------------------------------------------
   // 4. OPERACIONAL: Baixar pagamento (via case ou diretamente via titleId vencido)
   // ---------------------------------------------------------------------------
-  app.post('/api/collection/cases/:id/settle', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/collection/cases/:id/settle', requireAuth, requireModule('collection'), async (req: AuthRequest, res) => {
     try {
-      const caseId = Number(req.params.id);
-      const { categoryId, receiptDocId } = req.body as { categoryId?: number; receiptDocId?: number };
+      const caseId = parsePositiveIntId(req.params.id);
+      if (!caseId) return res.status(400).json({ error: 'ID de caso de cobrança inválido.' });
+      const body = (req.body || {}) as { categoryId?: number; receiptDocId?: number };
+      const categoryId = body.categoryId ? parsePositiveIntId(body.categoryId) : undefined;
+      const receiptDocId = body.receiptDocId ? parsePositiveIntId(body.receiptDocId) : undefined;
+
       const rows = await db.select().from(collectionCases).where(eq(collectionCases.id, caseId)).limit(1);
       const colCase = rows[0];
       if (!colCase) return res.status(404).json({ error: 'Caso de cobrança não encontrado.' });
+      if (!isUnitPermitted(req, colCase.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para baixar casos desta unidade.' });
+      }
 
       const [titleRow] = await db
         .select()
@@ -693,6 +754,12 @@ export function registerCollectionRoutes(
         .where(eq(financialTitles.id, colCase.titleId))
         .limit(1);
       if (!titleRow) return res.status(404).json({ error: 'Título vinculado não encontrado.' });
+      if (!isUnitPermitted(req, titleRow.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para baixar títulos desta unidade.' });
+      }
+      if (normStatusUpper(titleRow.status) === 'PAGO' || normStatusUpper(titleRow.status) === 'CANCELADO') {
+        return res.status(409).json({ error: `O título já se encontra com status "${normStatusUpper(titleRow.status)}".` });
+      }
 
       const existingSettlements = await db
         .select()
@@ -715,77 +782,81 @@ export function registerCollectionRoutes(
         const [catRow] = await db
           .select()
           .from(paymentCategories)
-          .where(eq(paymentCategories.id, Number(categoryId)))
+          .where(eq(paymentCategories.id, categoryId))
           .limit(1);
         if (catRow?.name) categoryLabel = catRow.name;
       }
 
-      const now = new Date();
-      await db
-        .update(financialTitles)
-        .set({
-          status: 'PAGO',
-          currentBalanceCents: 0,
-          paidAt: now,
-          ...(categoryId ? { categoryId } : {}),
-          ...(receiptDocId ? { receiptDocId } : {}),
-          collectorId: req.authUser!.id,
-          updatedAt: now,
-        })
-        .where(eq(financialTitles.id, colCase.titleId));
-
-      if (remainingBalanceCents > 0) {
-        const origCents = Number(titleRow.originalValueCents || titleRow.amountCents || remainingBalanceCents);
-        await db.insert(titleSettlements).values({
-          titleId: titleRow.id,
-          settlementDate: now,
-          principalCents: Math.min(remainingBalanceCents, origCents),
-          interestCents: Number(titleRow.interestCents || 0),
-          fineCents: Number(titleRow.fineCents || 0),
-          discountCents: Number(titleRow.discountCents || 0),
-          amountCents: remainingBalanceCents,
-          origin: 'COBRANCA_OPERACIONAL',
-          paymentMethod: categoryLabel,
-          history: `Baixa operacional registrada por ${req.authUser!.name}`,
-          createdByName: req.authUser!.name,
-        });
-      }
-
-      await db.insert(auditLogs).values({
-        userId: req.authUser!.id,
-        userName: req.authUser!.name,
-        action: 'SETTLE_COLLECTION',
-        entityType: 'CONTA_RECEBER',
-        entityId: String(titleRow.id),
-        details: {
-          changes: [
-            {
-              field: 'Baixa em Cobrança Operacional',
-              from: titleRow.status || 'ABERTO',
-              to: `PAGO (${(remainingBalanceCents / 100).toLocaleString('pt-BR', {
-                style: 'currency',
-                currency: 'BRL',
-              })})`,
-            },
-          ],
-          caseId,
-          settledAmountCents: remainingBalanceCents,
-          paymentMethod: categoryLabel,
-        },
-        unitId: titleRow.unitId,
-      });
-
       const points = 25;
-      const [updatedCase] = await db
-        .update(collectionCases)
-        .set({ status: 'pago', pointsAwarded: colCase.pointsAwarded + points, updatedAt: now })
-        .where(eq(collectionCases.id, caseId))
-        .returning();
+      const now = new Date();
+      const updatedCase = await db.transaction(async (tx) => {
+        await tx
+          .update(financialTitles)
+          .set({
+            status: 'PAGO',
+            currentBalanceCents: 0,
+            paidAt: now,
+            ...(categoryId ? { categoryId } : {}),
+            ...(receiptDocId ? { receiptDocId } : {}),
+            collectorId: req.authUser!.id,
+            updatedAt: now,
+          })
+          .where(eq(financialTitles.id, colCase.titleId));
 
-      await db
-        .update(users)
-        .set({ points: sql`${users.points} + ${points}` })
-        .where(eq(users.id, req.authUser!.id));
+        if (remainingBalanceCents > 0) {
+          const origCents = Number(titleRow.originalValueCents || titleRow.amountCents || remainingBalanceCents);
+          await tx.insert(titleSettlements).values({
+            titleId: titleRow.id,
+            settlementDate: now,
+            principalCents: Math.min(remainingBalanceCents, origCents),
+            interestCents: Number(titleRow.interestCents || 0),
+            fineCents: Number(titleRow.fineCents || 0),
+            discountCents: Number(titleRow.discountCents || 0),
+            amountCents: remainingBalanceCents,
+            origin: 'COBRANCA_OPERACIONAL',
+            paymentMethod: categoryLabel,
+            history: `Baixa operacional registrada por ${req.authUser!.name}`,
+            createdByName: req.authUser!.name,
+          });
+        }
+
+        await tx.insert(auditLogs).values({
+          userId: req.authUser!.id,
+          userName: req.authUser!.name,
+          action: 'SETTLE_COLLECTION',
+          entityType: 'CONTA_RECEBER',
+          entityId: String(titleRow.id),
+          details: {
+            changes: [
+              {
+                field: 'Baixa em Cobrança Operacional',
+                from: titleRow.status || 'ABERTO',
+                to: `PAGO (${(remainingBalanceCents / 100).toLocaleString('pt-BR', {
+                  style: 'currency',
+                  currency: 'BRL',
+                })})`,
+              },
+            ],
+            caseId,
+            settledAmountCents: remainingBalanceCents,
+            paymentMethod: categoryLabel,
+          },
+          unitId: titleRow.unitId,
+        });
+
+        const [savedCase] = await tx
+          .update(collectionCases)
+          .set({ status: 'pago', pointsAwarded: colCase.pointsAwarded + points, updatedAt: now })
+          .where(eq(collectionCases.id, caseId))
+          .returning();
+
+        await tx
+          .update(users)
+          .set({ points: sql`${users.points} + ${points}` })
+          .where(eq(users.id, req.authUser!.id));
+
+        return savedCase;
+      });
 
       deps.broadcast('collection:payment', {
         caseId,
@@ -796,19 +867,25 @@ export function registerCollectionRoutes(
       res.json({ case: updatedCase, pointsAwarded: points, settledAmountCents: remainingBalanceCents });
     } catch (error) {
       console.error('Settle collection error:', error);
-      res.status(500).json({ error: 'Erro ao baixar título em cobrança.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao baixar título em cobrança.') });
     }
   });
 
-  app.post('/api/collection/titles/:titleId/ensure-case', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/collection/titles/:titleId/ensure-case', requireAuth, requireModule('collection'), async (req: AuthRequest, res) => {
     try {
-      const titleId = Number(req.params.titleId);
+      const titleId = parsePositiveIntId(req.params.titleId);
+      if (!titleId) return res.status(400).json({ error: 'ID de título inválido.' });
       const existing = await db
         .select()
         .from(collectionCases)
         .where(eq(collectionCases.titleId, titleId))
         .limit(1);
-      if (existing[0]) return res.json({ case: existing[0] });
+      if (existing[0]) {
+        if (!isUnitPermitted(req, existing[0].unitId)) {
+          return res.status(403).json({ error: 'Sem permissão para acessar tratativa desta unidade.' });
+        }
+        return res.json({ case: existing[0] });
+      }
 
       const [titleRow] = await db
         .select()
@@ -816,6 +893,9 @@ export function registerCollectionRoutes(
         .where(eq(financialTitles.id, titleId))
         .limit(1);
       if (!titleRow) return res.status(404).json({ error: 'Título não encontrado.' });
+      if (!isUnitPermitted(req, titleRow.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para abrir tratativa nesta unidade.' });
+      }
 
       const [cl] = await db.select().from(clients).where(eq(clients.id, titleRow.clientId)).limit(1);
       let linkedUserId: number | null = req.authUser?.id ?? null;
@@ -845,23 +925,33 @@ export function registerCollectionRoutes(
       res.json({ case: created });
     } catch (error) {
       console.error('POST /api/collection/titles/:titleId/ensure-case error:', error);
-      res.status(500).json({ error: 'Erro ao abrir tratativa do título vencido.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao abrir tratativa do título vencido.') });
     }
   });
 
   // ---------------------------------------------------------------------------
   // 5. SUSPENSÃO / CANCELAMENTO / REATIVAÇÃO INTEGRADA AO JURÍDICO & ESCAVADOR
   // ---------------------------------------------------------------------------
-  app.post('/api/collection/clients/:clientId/status', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/collection/clients/:clientId/status', requireAuth, requireModule('collection'), async (req: AuthRequest, res) => {
     try {
-      const clientId = Number(req.params.clientId);
-      const { status, reason, cancelFutureTitles } = req.body as {
+      const clientId = parsePositiveIntId(req.params.clientId);
+      if (!clientId) return res.status(400).json({ error: 'ID de cliente inválido.' });
+      const { status, reason, cancelFutureTitles } = (req.body || {}) as {
         status: 'suspenso' | 'cancelado' | 'ativo';
         reason?: string;
         cancelFutureTitles?: boolean;
       };
+      if (!['suspenso', 'cancelado', 'ativo'].includes(String(status))) {
+        return res.status(400).json({ error: 'Status alvo inválido.' });
+      }
       if ((status === 'suspenso' || status === 'cancelado') && !reason?.trim()) {
         return res.status(400).json({ error: 'Informe a causa da suspensão/cancelamento.' });
+      }
+
+      const [cl] = await db.select({ id: clients.id, unitId: clients.unitId }).from(clients).where(eq(clients.id, clientId)).limit(1);
+      if (!cl) return res.status(404).json({ error: 'Cliente não encontrado.' });
+      if (!isUnitPermitted(req, cl.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para alterar clientes desta unidade.' });
       }
 
       const synced = await syncClientLegalAndEscavadorStatus({
@@ -898,26 +988,32 @@ export function registerCollectionRoutes(
       });
     } catch (error) {
       console.error('Client status error:', error);
-      res.status(500).json({ error: 'Erro ao atualizar status do cliente.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao atualizar status do cliente.') });
     }
   });
 
   // ---------------------------------------------------------------------------
   // 6. NOTAS DE COBRANÇA & SOLICITAÇÕES DE CANCELAMENTO (PostgreSQL)
   // ---------------------------------------------------------------------------
-  app.get('/api/collection-notes', requireAuth, async (req: AuthRequest, res) => {
+  app.get('/api/collection-notes', requireAuth, requireModule('collection'), async (req: AuthRequest, res) => {
     try {
       await ensureCollectionNotesColumns();
-      const clientId = req.query.clientId ? Number(req.query.clientId) : null;
-      const collaboratorId = req.query.collaboratorId ? Number(req.query.collaboratorId) : null;
-      const titleId = req.query.titleId ? Number(req.query.titleId) : null;
+      const clientId = req.query.clientId ? parsePositiveIntId(req.query.clientId) : null;
+      const collaboratorId = req.query.collaboratorId ? parsePositiveIntId(req.query.collaboratorId) : null;
+      const titleId = req.query.titleId ? parsePositiveIntId(req.query.titleId) : null;
+      if (req.query.clientId && !clientId) return res.status(400).json({ error: 'clientId inválido.' });
+      if (req.query.collaboratorId && !collaboratorId) return res.status(400).json({ error: 'collaboratorId inválido.' });
+      if (req.query.titleId && !titleId) return res.status(400).json({ error: 'titleId inválido.' });
+
       const negotiationStatus = req.query.negotiationStatus ? String(req.query.negotiationStatus) : null;
+      const allowedUnits = getAllowedUnitIds(req);
 
       const conditions = [];
       if (clientId) conditions.push(eq(collectionNotes.clientId, clientId));
       if (collaboratorId) conditions.push(eq(collectionNotes.collaboratorId, collaboratorId));
       if (titleId) conditions.push(eq(collectionNotes.titleId, titleId));
       if (negotiationStatus) conditions.push(eq(collectionNotes.negotiationStatus, negotiationStatus));
+      if (allowedUnits !== null) conditions.push(inArray(collectionNotes.unitId, allowedUnits));
 
       const rows =
         conditions.length > 0
@@ -931,11 +1027,11 @@ export function registerCollectionRoutes(
       res.json({ notes: rows });
     } catch (error) {
       console.error('GET /api/collection-notes error:', error);
-      res.status(500).json({ error: 'Erro ao listar notas de cobrança.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao listar notas de cobrança.') });
     }
   });
 
-  app.post('/api/collection-notes', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/collection-notes', requireAuth, requireModule('collection'), async (req: AuthRequest, res) => {
     try {
       await ensureCollectionNotesColumns();
       const b = req.body as {
@@ -955,17 +1051,20 @@ export function registerCollectionRoutes(
         cancelRequest?: CollectionCancelRequestInfo | null;
       };
 
-      const clientId = Number(b.clientId || 0);
+      const clientId = parsePositiveIntId(b.clientId);
       const noteText = String(b.note || '').trim();
-      if (!clientId) return res.status(400).json({ error: 'Cliente é obrigatório para registrar a nota.' });
+      if (!clientId) return res.status(400).json({ error: 'Cliente válido é obrigatório para registrar a nota.' });
       if (!noteText) return res.status(400).json({ error: 'Informe a descrição da nota/tratativa.' });
 
       const [clientRow] = await db.select().from(clients).where(eq(clients.id, clientId)).limit(1);
       if (!clientRow) return res.status(404).json({ error: 'Cliente não encontrado.' });
+      if (!isUnitPermitted(req, clientRow.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para registrar notas para clientes desta unidade.' });
+      }
 
       let resolvedCollabName = String(b.collaboratorName || '').trim() || req.authUser?.name || 'Equipe';
       let resolvedCollabUserId: number | null = req.authUser?.id ?? null;
-      const numericCollabId = b.collaboratorId ? Number(b.collaboratorId) : null;
+      const numericCollabId = b.collaboratorId ? parsePositiveIntId(b.collaboratorId) : null;
 
       if (numericCollabId) {
         const [collabRow] = await db
@@ -1142,31 +1241,51 @@ export function registerCollectionRoutes(
 
           if (targetUserIds.length > 0) {
             for (const recipientId of targetUserIds) {
-              await db.insert(internalMessages).values({
-                senderId: req.authUser?.id ?? null,
-                senderName: req.authUser?.name || resolvedCollabName,
-                recipientId,
-                targetSector: 'cobranca_coordenacao',
-                subject: msgSubject,
-                body: msgBody,
-              });
+              await dispatchIviSectorNotification(
+                {
+                  targetSector: 'cobranca',
+                  targetUnitId: targetUnitId,
+                  recipientId,
+                  relatedEntityType: 'collection_note',
+                  relatedEntityId: created.id,
+                  senderName: 'Ivi IA · Cobrança',
+                  subject: msgSubject,
+                  body: msgBody,
+                },
+                db,
+                deps.broadcast
+              );
               notificationsSentCount += 1;
             }
           } else {
-            await db.insert(internalMessages).values({
-              senderId: req.authUser?.id ?? null,
-              senderName: req.authUser?.name || resolvedCollabName,
-              recipientId: null,
-              targetSector: 'cobranca_coordenacao',
-              subject: msgSubject,
-              body: msgBody,
-            });
+            await dispatchIviSectorNotification(
+              {
+                targetSector: 'cobranca',
+                targetUnitId: targetUnitId,
+                relatedEntityType: 'collection_note',
+                relatedEntityId: created.id,
+                senderName: 'Ivi IA · Cobrança',
+                subject: msgSubject,
+                body: msgBody,
+              },
+              db,
+              deps.broadcast
+            );
             notificationsSentCount = 1;
           }
-          deps.broadcast('internal:message', {
-            sector: 'cobranca_coordenacao',
-            subject: msgSubject,
-          });
+          await dispatchIviSectorNotification(
+            {
+              targetSector: 'admissao',
+              targetUnitId: targetUnitId,
+              relatedEntityType: 'collection_note',
+              relatedEntityId: created.id,
+              senderName: 'Ivi IA · Cobrança',
+              subject: `Solicitação de Cancelamento — ${clientRow.fullName}`,
+              body: `Cobrança sinalizou solicitação de cancelamento para ${clientRow.fullName}${contractRef}. Verificar histórico comercial.`,
+            },
+            db,
+            deps.broadcast
+          );
         } catch (notifErr) {
           console.error('Cancel request notification warning:', notifErr);
         }
@@ -1220,19 +1339,35 @@ export function registerCollectionRoutes(
             deps.broadcast('appointments:update', { action: 'created', appointmentId: appt.id });
 
             const brDate = nextContactDate.split('-').reverse().join('/');
-            await db.insert(internalMessages).values({
-              senderId: req.authUser?.id ?? null,
-              senderName: req.authUser?.name || resolvedCollabName,
-              recipientId: consultantUserId,
-              targetSector: 'cobranca',
-              subject: `Cobrança — ${clientRow.fullName}`,
-              body: `Retorno de cobrança agendado para ${brDate} (${channelUpper}): ${noteText}`,
-            });
-            notificationsSentCount += 1;
-            deps.broadcast('internal:message', {
-              sector: 'cobranca',
-              recipientId: consultantUserId,
-            });
+            await dispatchIviSectorNotification(
+              {
+                targetSector: 'agendamentos',
+                targetUnitId: targetUnitId,
+                recipientId: consultantUserId,
+                relatedEntityType: 'appointment',
+                relatedEntityId: appt.id,
+                senderName: 'Ivi IA · Cobrança',
+                subject: `Retorno de Cobrança Agendado — ${clientRow.fullName}`,
+                body: `Agendado retorno de cobrança para ${brDate} (${channelUpper}) por ${resolvedCollabName}: ${noteText}`,
+              },
+              db,
+              deps.broadcast
+            );
+            await dispatchIviSectorNotification(
+              {
+                targetSector: 'cobranca',
+                targetUnitId: targetUnitId,
+                recipientId: consultantUserId,
+                relatedEntityType: 'collection_note',
+                relatedEntityId: created.id,
+                senderName: 'Ivi IA · Cobrança',
+                subject: `Cobrança — ${clientRow.fullName}`,
+                body: `Retorno de cobrança agendado para ${brDate} (${channelUpper}): ${noteText}`,
+              },
+              db,
+              deps.broadcast
+            );
+            notificationsSentCount += 2;
           }
         } catch (apptErr) {
           console.error('Collection nextContactDate appointment error:', apptErr);
@@ -1255,12 +1390,16 @@ export function registerCollectionRoutes(
     }
   });
 
-  app.put('/api/collection-notes/:id', requireAuth, async (req: AuthRequest, res) => {
+  app.put('/api/collection-notes/:id', requireAuth, requireModule('collection'), async (req: AuthRequest, res) => {
     try {
       await ensureCollectionNotesColumns();
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de nota inválido.' });
       const [existing] = await db.select().from(collectionNotes).where(eq(collectionNotes.id, id)).limit(1);
       if (!existing) return res.status(404).json({ error: 'Nota não encontrada.' });
+      if (!isUnitPermitted(req, existing.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para editar notas desta unidade.' });
+      }
 
       const b = req.body as Partial<{
         negotiationStatus: string;
@@ -1335,12 +1474,16 @@ export function registerCollectionRoutes(
     }
   });
 
-  app.delete('/api/collection-notes/:id', requireAuth, async (req: AuthRequest, res) => {
+  app.delete('/api/collection-notes/:id', requireAuth, requireModule('collection'), async (req: AuthRequest, res) => {
     try {
       await ensureCollectionNotesColumns();
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de nota inválido.' });
       const [existing] = await db.select().from(collectionNotes).where(eq(collectionNotes.id, id)).limit(1);
       if (!existing) return res.status(404).json({ error: 'Nota não encontrada.' });
+      if (!isUnitPermitted(req, existing.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para excluir notas desta unidade.' });
+      }
 
       await db.delete(collectionNotes).where(eq(collectionNotes.id, id));
 
@@ -1374,20 +1517,25 @@ export function registerCollectionRoutes(
   // ---------------------------------------------------------------------------
   // 7. DETALHE DO CLIENTE / FICHAS E ADITIVOS PARA MODAL DA COORDENAÇÃO (§3.3 / §4.5)
   // ---------------------------------------------------------------------------
-  app.post('/api/admissions/collection-summary', requireAuth, async (req: AuthRequest, res) => {
+  const requireAdmView = requireAnyModule('collection', 'audit', 'admission', 'legal');
+
+  app.post('/api/admissions/collection-summary', requireAuth, requireAdmView, async (req: AuthRequest, res) => {
     try {
-      const clientIds = Array.isArray(req.body?.clientIds)
-        ? (req.body.clientIds as unknown[]).map(Number).filter((n) => Number.isInteger(n) && n > 0)
-        : [];
+      const clientIds = parsePositiveIntArray(req.body?.clientIds);
       if (clientIds.length === 0) return res.json({ summary: {} });
 
-      const [clientAdmissions, docs] = await Promise.all([
+      const allowedUnits = getAllowedUnitIds(req);
+      const [rawClientAdmissions, rawDocs] = await Promise.all([
         db.select().from(admissions).where(inArray(admissions.clientId, clientIds)),
         db
           .select()
           .from(documentObjects)
           .where(and(inArray(documentObjects.clientId, clientIds), eq(documentObjects.docCategory, 'aditivo'), isNull(documentObjects.deletedAt))),
       ]);
+      const clientAdmissions =
+        allowedUnits === null ? rawClientAdmissions : rawClientAdmissions.filter((a) => allowedUnits.includes(a.unitId));
+      const docs =
+        allowedUnits === null ? rawDocs : rawDocs.filter((d) => d.unitId != null && allowedUnits.includes(d.unitId));
 
       const summary: Record<number, { fichas: number; aditivos: number; latestAddendumDate: string | null }> = {};
       for (const cid of clientIds) {
@@ -1410,13 +1558,20 @@ export function registerCollectionRoutes(
       res.json({ summary });
     } catch (error) {
       console.error('POST /api/admissions/collection-summary error:', error);
-      res.status(500).json({ error: 'Erro ao calcular resumo de fichas e aditivos.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao calcular resumo de fichas e aditivos.') });
     }
   });
 
-  app.get('/api/admissions/client-detail/:clientId', requireAuth, async (req: AuthRequest, res) => {
+  app.get('/api/admissions/client-detail/:clientId', requireAuth, requireAdmView, async (req: AuthRequest, res) => {
     try {
-      const clientId = Number(req.params.clientId);
+      const clientId = parsePositiveIntId(req.params.clientId);
+      if (!clientId) return res.status(400).json({ error: 'ID de cliente inválido.' });
+      const [cl] = await db.select({ id: clients.id, unitId: clients.unitId }).from(clients).where(eq(clients.id, clientId)).limit(1);
+      if (!cl) return res.status(404).json({ error: 'Cliente não encontrado.' });
+      if (!isUnitPermitted(req, cl.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para consultar detalhes desta unidade.' });
+      }
+
       const clientAdmissions = await db
         .select()
         .from(admissions)
@@ -1436,19 +1591,12 @@ export function registerCollectionRoutes(
               .from(documentObjects)
               .where(and(inArray(documentObjects.admissionId, admIds), isNull(documentObjects.deletedAt)))
           : Promise.resolve([]),
-        admIds.length > 0
-          ? db
-              .select()
-              .from(financialTitles)
-              .where(and(eq(financialTitles.clientId, clientId), eq(financialTitles.scope, 'RECEBER')))
-              .orderBy(asc(financialTitles.dueDate), asc(financialTitles.id))
-              .limit(200)
-          : db
-              .select()
-              .from(financialTitles)
-              .where(and(eq(financialTitles.clientId, clientId), eq(financialTitles.scope, 'RECEBER')))
-              .orderBy(asc(financialTitles.dueDate), asc(financialTitles.id))
-              .limit(200),
+        db
+          .select()
+          .from(financialTitles)
+          .where(and(eq(financialTitles.clientId, clientId), eq(financialTitles.scope, 'RECEBER')))
+          .orderBy(asc(financialTitles.dueDate), asc(financialTitles.id))
+          .limit(200),
       ]);
 
       const admissionsDetail = eligibleAdmissions.map((adm) => {
@@ -1478,16 +1626,20 @@ export function registerCollectionRoutes(
       });
     } catch (error) {
       console.error('GET /api/admissions/client-detail/:clientId error:', error);
-      res.status(500).json({ error: 'Erro ao consultar detalhamento do cliente.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao consultar detalhamento do cliente.') });
     }
   });
 
   // Consulta histórica jurídica / auditoria para Ficha (sem disparar nova varredura Escavador)
-  app.get('/api/admissions/:id/legal-scan', requireAuth, async (req: AuthRequest, res) => {
+  app.get('/api/admissions/:id/legal-scan', requireAuth, requireAdmView, async (req: AuthRequest, res) => {
     try {
-      const admissionId = Number(req.params.id);
+      const admissionId = parsePositiveIntId(req.params.id);
+      if (!admissionId) return res.status(400).json({ error: 'ID de admissão inválido.' });
       const [adm] = await db.select().from(admissions).where(eq(admissions.id, admissionId)).limit(1);
       if (!adm) return res.status(404).json({ error: 'Ficha de admissão não encontrada.' });
+      if (!isUnitPermitted(req, adm.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para acessar fichas desta unidade.' });
+      }
 
       const processes = await db
         .select()
@@ -1534,7 +1686,7 @@ export function registerCollectionRoutes(
       });
     } catch (error) {
       console.error('GET /api/admissions/:id/legal-scan error:', error);
-      res.status(500).json({ error: 'Erro ao carregar histórico jurídico da ficha.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao carregar histórico jurídico da ficha.') });
     }
   });
 
@@ -1544,16 +1696,21 @@ export function registerCollectionRoutes(
   app.post(
     '/api/financial-titles/:id/receipt',
     requireAuth,
+    requireAnyModule('finance', 'collection'),
     receiptUpload.single('file'),
     async (req: AuthRequest, res) => {
       try {
-        const titleId = Number(req.params.id);
+        const titleId = parsePositiveIntId(req.params.id);
+        if (!titleId) return res.status(400).json({ error: 'ID de título inválido.' });
         const [titleRow] = await db
           .select()
           .from(financialTitles)
           .where(eq(financialTitles.id, titleId))
           .limit(1);
         if (!titleRow) return res.status(404).json({ error: 'Título financeiro não encontrado.' });
+        if (!isUnitPermitted(req, titleRow.unitId)) {
+          return res.status(403).json({ error: 'Sem permissão para anexar comprovante neste título.' });
+        }
 
         const file = req.file;
         if (!file) return res.status(400).json({ error: 'Selecione um arquivo de comprovante.' });
@@ -1641,9 +1798,10 @@ export function registerCollectionRoutes(
   // ---------------------------------------------------------------------------
   // 9. ESPELHAMENTO SILENCIOSO DA TELA DO OPERADOR (Somente Leitura — ZERO Notificações)
   // ---------------------------------------------------------------------------
-  app.get('/api/collection/coordinator/operator-mirror/:collaboratorId', requireAuth, async (req: AuthRequest, res) => {
+  app.get('/api/collection/coordinator/operator-mirror/:collaboratorId', requireAuth, requireModule('collection'), async (req: AuthRequest, res) => {
     try {
-      const collaboratorId = Number(req.params.collaboratorId);
+      const collaboratorId = parsePositiveIntId(req.params.collaboratorId);
+      if (!collaboratorId) return res.status(400).json({ error: 'ID de colaborador inválido.' });
       const [collab] = await db
         .select()
         .from(collaborators)
@@ -1651,7 +1809,11 @@ export function registerCollectionRoutes(
         .limit(1);
       if (!collab) return res.status(404).json({ error: 'Colaborador não encontrado.' });
 
-      const [allTitles, allCases, allClients, allNotes, allUsers] = await Promise.all([
+      const allowedUnits = getAllowedUnitIds(req);
+      const allowUnit = (uId: number | null | undefined) =>
+        allowedUnits === null || (uId != null && allowedUnits.includes(uId));
+
+      const [rawTitles, rawCases, rawClients, rawNotes, allUsers] = await Promise.all([
         db
           .select()
           .from(financialTitles)
@@ -1670,6 +1832,10 @@ export function registerCollectionRoutes(
           })
           .from(users),
       ]);
+      const allTitles = allowedUnits === null ? rawTitles : rawTitles.filter((t) => allowUnit(t.unitId));
+      const allCases = allowedUnits === null ? rawCases : rawCases.filter((c) => allowUnit(c.unitId));
+      const allClients = allowedUnits === null ? rawClients : rawClients.filter((c) => allowUnit(c.unitId));
+      const allNotes = allowedUnits === null ? rawNotes : rawNotes.filter((n) => allowUnit(n.unitId));
 
       const rankingUsers = [...allUsers].sort((a, b) => b.points - a.points);
       const linkedUserIndex = collab.userId ? rankingUsers.findIndex((u) => u.id === collab.userId) : -1;
@@ -1784,21 +1950,25 @@ export function registerCollectionRoutes(
   // ---------------------------------------------------------------------------
   // 10. IVI COBRANÇA: Resumo WhatsApp (3-Colunas), Insights Proativos e Relatórios Salvos
   // ---------------------------------------------------------------------------
-  app.post('/api/collection/coordinator/whatsapp-summary', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/collection/coordinator/whatsapp-summary', requireAuth, requireModule('collection'), async (req: AuthRequest, res) => {
     try {
       const { clientId, threadId } = (req.body || {}) as { clientId?: number; threadId?: number };
-      if (!clientId) return res.status(400).json({ error: 'clientId obrigatório.' });
+      const validClientId = parsePositiveIntId(clientId);
+      if (!validClientId) return res.status(400).json({ error: 'clientId inválido.' });
 
       const [clientRows, threads, clientTitles] = await Promise.all([
-        db.select().from(clients).where(eq(clients.id, Number(clientId))).limit(1),
+        db.select().from(clients).where(eq(clients.id, validClientId)).limit(1),
         db.select().from(whatsappThreads).orderBy(desc(whatsappThreads.updatedAt)),
         db
           .select()
           .from(financialTitles)
-          .where(and(eq(financialTitles.clientId, Number(clientId)), eq(financialTitles.scope, 'RECEBER'))),
+          .where(and(eq(financialTitles.clientId, validClientId), eq(financialTitles.scope, 'RECEBER'))),
       ]);
       const cl = clientRows[0];
       if (!cl) return res.status(404).json({ error: 'Cliente não encontrado.' });
+      if (!isUnitPermitted(req, cl.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para resumir conversas desta unidade.' });
+      }
 
       const phoneDigits = (cl.whatsapp || cl.phone || '').replace(/\D/g, '').slice(-8);
       const clientThreads = threads.filter(
@@ -1850,18 +2020,24 @@ export function registerCollectionRoutes(
       res.json(summary);
     } catch (error) {
       console.error('POST /api/collection/coordinator/whatsapp-summary error:', error);
-      res.status(500).json({ error: 'Erro ao gerar resumo da Ivi para conversa WhatsApp.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao gerar resumo da Ivi para conversa WhatsApp.') });
     }
   });
 
-  app.post('/api/collection/coordinator/ivi-insights', requireAuth, async (_req: AuthRequest, res) => {
+  app.post('/api/collection/coordinator/ivi-insights', requireAuth, requireModule('collection'), async (req: AuthRequest, res) => {
     try {
-      const [receberTitles, allClients, allCollabs, notesRows] = await Promise.all([
+      const allowedUnits = getAllowedUnitIds(req);
+      const allowUnit = (uId: number | null | undefined) =>
+        allowedUnits === null || (uId != null && allowedUnits.includes(uId));
+      const [rawReceberTitles, rawAllClients, allCollabs, rawNotesRows] = await Promise.all([
         db.select().from(financialTitles).where(eq(financialTitles.scope, 'RECEBER')),
         db.select().from(clients),
         db.select().from(collaborators),
         db.select().from(collectionNotes),
       ]);
+      const receberTitles = allowedUnits === null ? rawReceberTitles : rawReceberTitles.filter((t) => allowUnit(t.unitId));
+      const allClients = allowedUnits === null ? rawAllClients : rawAllClients.filter((c) => allowUnit(c.unitId));
+      const notesRows = allowedUnits === null ? rawNotesRows : rawNotesRows.filter((n) => allowUnit(n.unitId));
 
       const clientMap = new Map(allClients.map((c) => [c.id, c]));
       const collabMap = new Map(allCollabs.map((c) => [c.id, c]));
@@ -1963,14 +2139,17 @@ export function registerCollectionRoutes(
     }
   });
 
-  app.post('/api/collection/coordinator/reports', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/collection/coordinator/reports', requireAuth, requireModule('collection'), async (req: AuthRequest, res) => {
     try {
       const { reportType, customPrompt } = (req.body || {}) as {
         reportType?: 'carteira_vencida' | 'ranking_operadores' | 'recebimentos' | 'inadimplencia_uf' | 'custom_ivi';
         customPrompt?: string;
       };
+      const allowedUnits = getAllowedUnitIds(req);
+      const allowUnit = (uId: number | null | undefined) =>
+        allowedUnits === null || (uId != null && allowedUnits.includes(uId));
 
-      const [receberTitles, settlementsRows, allClients, allCollabs, allUsers, notesRows] = await Promise.all([
+      const [rawReceberTitles, settlementsRows, rawAllClients, allCollabs, allUsers, rawNotesRows] = await Promise.all([
         db.select().from(financialTitles).where(eq(financialTitles.scope, 'RECEBER')),
         db.select().from(titleSettlements),
         db.select().from(clients),
@@ -1978,6 +2157,9 @@ export function registerCollectionRoutes(
         db.select({ id: users.id, name: users.name, role: users.role, points: users.points }).from(users),
         db.select().from(collectionNotes),
       ]);
+      const receberTitles = allowedUnits === null ? rawReceberTitles : rawReceberTitles.filter((t) => allowUnit(t.unitId));
+      const allClients = allowedUnits === null ? rawAllClients : rawAllClients.filter((c) => allowUnit(c.unitId));
+      const notesRows = allowedUnits === null ? rawNotesRows : rawNotesRows.filter((n) => allowUnit(n.unitId));
 
       const clientMap = new Map(allClients.map((c) => [c.id, c]));
       const collabMap = new Map(allCollabs.map((c) => [c.id, c]));
@@ -2113,24 +2295,28 @@ export function registerCollectionRoutes(
     }
   });
 
-  app.delete('/api/collection/coordinator/reports/:id', requireAuth, async (req: AuthRequest, res) => {
+  app.delete('/api/collection/coordinator/reports/:id', requireAuth, requireModule('collection'), async (req: AuthRequest, res) => {
     try {
-      const id = Number(req.params.id);
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de relatório inválido.' });
       const [existing] = await db
         .select()
         .from(collectionReports)
         .where(eq(collectionReports.id, id))
         .limit(1);
       if (!existing) return res.status(404).json({ error: 'Relatório não encontrado.' });
+      if (!isUnitPermitted(req, existing.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para excluir relatórios desta unidade.' });
+      }
       await db.delete(collectionReports).where(eq(collectionReports.id, id));
       res.json({ ok: true });
     } catch (error) {
       console.error('DELETE /api/collection/coordinator/reports/:id error:', error);
-      res.status(500).json({ error: 'Erro ao remover relatório salvo.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao remover relatório salvo.') });
     }
   });
 
-  app.post('/api/collection/coordinator/ivi-state-analysis', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/collection/coordinator/ivi-state-analysis', requireAuth, requireModule('collection'), async (req: AuthRequest, res) => {
     try {
       const body = (req.body || {}) as {
         month?: string;

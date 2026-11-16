@@ -24,6 +24,7 @@ import {
   FileText,
   FolderKanban,
   FolderTree,
+  HardDrive,
   Hash,
   Landmark,
   Layers,
@@ -32,6 +33,7 @@ import {
   LogOut,
   Menu,
   MessageSquare,
+  MessageSquareText,
   Moon,
   Network,
   Package,
@@ -77,6 +79,7 @@ import { AdmissionVaultModule } from './components/modules/AdmissionVaultModule.
 import { AuditModule } from './components/modules/AuditModule.tsx';
 import { LegalModule } from './components/modules/LegalModule.tsx';
 import { NegotiationsModule } from './components/modules/NegotiationsModule.tsx';
+import { InternalMessagingModule } from './components/modules/InternalMessagingModule.tsx';
 import { FinanceModule } from './components/modules/FinanceModule.tsx';
 import { CollectionModule } from './components/modules/CollectionModule.tsx';
 import { FormsModule } from './components/modules/FormsModule.tsx';
@@ -148,11 +151,13 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'audit', label: 'Auditoria & Boletos', shortLabel: 'Auditoria', group: 'operacao', icon: ClipboardCheck },
   { id: 'legal', label: 'Jurídico & Escavador', shortLabel: 'Jurídico', group: 'operacao', icon: Scale },
   { id: 'negotiations', label: 'Negociações Bancárias', shortLabel: 'Negociar', group: 'operacao', icon: TrendingDown },
+  { id: 'internal_messaging', label: 'Mensageria Interna', shortLabel: 'Mensagens', group: 'operacao', icon: MessageSquareText },
   { id: 'collection', label: 'Cobrança & Ranking', shortLabel: 'Cobrança', group: 'gestao', icon: Briefcase },
   { id: 'forms', label: 'Formulários', shortLabel: 'Forms', group: 'analises', icon: ClipboardList },
   { id: 'reports', label: 'Relatórios Gerais', shortLabel: 'Relatórios', group: 'analises', icon: FileBarChart2 },
   { id: 'acomp_juridico', label: 'Acompanhamento Jurídico', shortLabel: 'Acomp. Jur.', group: 'governanca', icon: Scale },
   { id: 'config', label: 'Configurações & SQL', shortLabel: 'Config', group: 'governanca', icon: Settings },
+  { id: 'backup_restore', label: 'Backup & Restore (Nuvem)', shortLabel: 'Backup', group: 'governanca', icon: HardDrive },
 ];
 
 const NAV_GROUPS: Array<{ key: NavItem['group']; title: string }> = [
@@ -188,8 +193,10 @@ export default function App() {
   const [acompJuridicoExpanded, setAcompJuridicoExpanded] = useState(false);
   const [cadastrosVersion, setCadastrosVersion] = useState(0);
 
-  // Live Nav Badges (real pending counts from /api/overview)
+  // Live Nav Badges (real pending counts from /api/overview + unread messages per sector)
   const [navCounts, setNavCounts] = useState<Partial<Record<ModuleId, number>>>({});
+  const [sectorUnreadCounts, setSectorUnreadCounts] = useState<Record<string, number>>({});
+  const [totalUnreadMessages, setTotalUnreadMessages] = useState<number>(0);
 
   // Responsive Drawers, Search & Modals
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -243,42 +250,61 @@ export default function App() {
 
   const refreshNavCounts = useCallback(async () => {
     try {
-      const res = await apiFetch<{
-        admissions: Array<{ status: string }>;
-        leads: Array<{ stage: string }>;
-        appointments?: Array<{ status: string }>;
-        processes: Array<{ hasUnreadMovement: boolean }>;
-        titles: Array<{ status: string; scope?: string; dueDate?: string }>;
-        collectionCases: Array<{ status: string }>;
-      }>('/api/overview');
-      const todayIso = new Date().toISOString().slice(0, 10);
-      const overdueReceberCount = res.titles.filter((t) => {
-        if ((t.scope || 'RECEBER') !== 'RECEBER') return false;
-        const st = String(t.status || '').toUpperCase();
-        if (st === 'CANCELADO' || st === 'PAGO' || st === 'AGRUPADO' || st === 'FATURA_GERADA') return false;
-        if (st === 'VENCIDO') return true;
-        if (st === 'ABERTO' || st === 'PARCIAL' || st === 'PROTESTADO' || st === 'PROVISAO') {
-          return Boolean(t.dueDate && String(t.dueDate).slice(0, 10) < todayIso);
+      const [overviewRes, msgRes] = await Promise.allSettled([
+        apiFetch<{
+          admissions: Array<{ status: string }>;
+          leads: Array<{ stage: string }>;
+          appointments?: Array<{ status: string }>;
+          processes: Array<{ hasUnreadMovement: boolean }>;
+          titles: Array<{ status: string; scope?: string; dueDate?: string }>;
+          collectionCases: Array<{ status: string }>;
+        }>('/api/overview'),
+        apiFetch<{
+          totalUnreadMessages?: number;
+          sectorSummary?: Array<{ sector: string; unreadMessages: number }>;
+        }>('/api/internal-messages'),
+      ]);
+
+      if (overviewRes.status === 'fulfilled' && overviewRes.value) {
+        const res = overviewRes.value;
+        const todayIso = new Date().toISOString().slice(0, 10);
+        const overdueReceberCount = res.titles.filter((t) => {
+          if ((t.scope || 'RECEBER') !== 'RECEBER') return false;
+          const st = String(t.status || '').toUpperCase();
+          if (st === 'CANCELADO' || st === 'PAGO' || st === 'AGRUPADO' || st === 'FATURA_GERADA') return false;
+          if (st === 'VENCIDO') return true;
+          if (st === 'ABERTO' || st === 'PARCIAL' || st === 'PROTESTADO' || st === 'PROVISAO') {
+            return Boolean(t.dueDate && String(t.dueDate).slice(0, 10) < todayIso);
+          }
+          return false;
+        }).length;
+        setNavCounts({
+          prospection: res.leads.filter((l) => l.stage === 'escalado_humano').length,
+          appointments: (res.appointments || []).filter(
+            (a) => a.status === 'agendado' || a.status === 'aguardando' || a.status === 'confirmado'
+          ).length,
+          audit: res.admissions.filter((a) =>
+            ['aguardando_auditoria', 'auditada', 'devolvida_admissao', 'retorno_auditoria'].includes(
+              a.status
+            )
+          ).length,
+          legal: res.processes.filter((p) => p.hasUnreadMovement).length,
+          finance: overdueReceberCount,
+          collection: Math.max(
+            overdueReceberCount,
+            res.collectionCases.filter((c) => c.status === 'em_cobranca').length
+          ),
+        });
+      }
+
+      if (msgRes.status === 'fulfilled' && msgRes.value) {
+        const nextMap: Record<string, number> = {};
+        for (const sec of msgRes.value.sectorSummary || []) {
+          nextMap[sec.sector] = sec.unreadMessages || 0;
         }
-        return false;
-      }).length;
-      setNavCounts({
-        prospection: res.leads.filter((l) => l.stage === 'escalado_humano').length,
-        appointments: (res.appointments || []).filter(
-          (a) => a.status === 'agendado' || a.status === 'aguardando' || a.status === 'confirmado'
-        ).length,
-        audit: res.admissions.filter((a) =>
-          ['aguardando_auditoria', 'auditada', 'devolvida_admissao', 'retorno_auditoria'].includes(
-            a.status
-          )
-        ).length,
-        legal: res.processes.filter((p) => p.hasUnreadMovement).length,
-        finance: overdueReceberCount,
-        collection: Math.max(
-          overdueReceberCount,
-          res.collectionCases.filter((c) => c.status === 'em_cobranca').length
-        ),
-      });
+        setSectorUnreadCounts(nextMap);
+        setTotalUnreadMessages(msgRes.value.totalUnreadMessages || 0);
+      }
     } catch {
       // ignore background badge refresh failure
     }
@@ -303,6 +329,7 @@ export default function App() {
       setTokenReady(true);
       await refreshNavCounts();
     } catch {
+      sessionStorage.removeItem('fp_corp_token');
       setAuthToken(null);
       setCurrentUser(null);
       setTokenReady(false);
@@ -310,6 +337,11 @@ export default function App() {
       setAuthChecking(false);
     }
   }, [refreshNavCounts]);
+
+  const tokenReadyRef = React.useRef(false);
+  useEffect(() => {
+    tokenReadyRef.current = tokenReady;
+  }, [tokenReady]);
 
   useEffect(() => {
     const savedCorpToken = sessionStorage.getItem('fp_corp_token');
@@ -319,6 +351,7 @@ export default function App() {
     } else {
       const unsub = onAuthStateChanged(auth, async (fbUser) => {
         if (fbUser) {
+          if (tokenReadyRef.current) return;
           const idToken = await fbUser.getIdToken();
           setAuthToken(idToken);
           await loadProfile();
@@ -375,6 +408,7 @@ export default function App() {
     const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     let ws: WebSocket | null = null;
     let disposed = false;
+    let alertTimer: number | null = null;
     try {
       ws = new WebSocket(`${proto}//${window.location.host}/ws`);
       ws.onopen = () => {
@@ -388,20 +422,28 @@ export default function App() {
       ws.onmessage = (evt) => {
         try {
           const msg = JSON.parse(evt.data) as { event: string; payload?: Record<string, unknown> };
-          if (msg.event && msg.event !== 'connected') {
+          if (msg.event && msg.event !== 'connected' && !disposed) {
             setWsTick((t) => t + 1);
             if (msg.event === 'legal:update') {
               setLiveAlert(`Escavador: Nova movimentação jurídica no processo ${msg.payload?.processNumber || ''}`);
             } else if (msg.event === 'collection:payment') {
               setLiveAlert(`Cobrança: Título liquidado por ${msg.payload?.operator || 'equipe'} (+${msg.payload?.points || 25} pts)`);
             } else if (msg.event === 'internal:message') {
-              setLiveAlert(`Nova mensagem interna: ${msg.payload?.subject || 'Comunicado da equipe'}`);
+              const prefix = msg.payload?.isAutoIvi ? 'Ivi · Movimentação de Setor' : 'Nova mensagem interna';
+              setLiveAlert(`${prefix}: ${msg.payload?.subject || 'Comunicado da equipe'}`);
             } else if (msg.event === 'audit:event') {
               setLiveAlert(`Auditoria: Nova ficha ${msg.payload?.protocolCode || ''} aguardando conferência`);
             } else if (msg.event === 'appointments:update') {
               setLiveAlert('Agenda: Horário ou bloqueio atualizado em tempo real');
             }
-            setTimeout(() => setLiveAlert(''), 4500);
+            if (msg.event !== 'internal:message:read') {
+              if (alertTimer !== null) {
+                window.clearTimeout(alertTimer);
+              }
+              alertTimer = window.setTimeout(() => {
+                if (!disposed) setLiveAlert('');
+              }, 4500);
+            }
           }
         } catch {
           // ignore invalid ws payload
@@ -412,6 +454,9 @@ export default function App() {
     }
     return () => {
       disposed = true;
+      if (alertTimer !== null) {
+        window.clearTimeout(alertTimer);
+      }
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.close();
       }
@@ -513,6 +558,19 @@ export default function App() {
     setAuthToken(null);
     setCurrentUser(null);
     setTokenReady(false);
+    activeModuleRef.current = 'overview';
+    navIntentRef.current = null;
+    navHistoryRef.current = [];
+    setActiveModule('overview');
+    setNavIntent(null);
+    setNavHistory([]);
+    setDesktopWaOpen(false);
+    setMobileWaOpen(false);
+    setMobileNavOpen(false);
+    setHelpOpen(false);
+    setIviOpen(false);
+    setSearchModalOpen(false);
+    setLiveAlert('');
     await signOut(auth).catch(() => {});
   };
 
@@ -574,6 +632,7 @@ export default function App() {
   }
 
   const visibleNavItems = NAV_ITEMS.filter((item) => {
+    if (item.id === 'backup_restore' && currentUser.role !== 'admin') return false;
     if (currentUser.role === 'admin') return true;
     if (!group?.modulePermissions) return true;
     return group.modulePermissions[item.id] !== false;
@@ -639,9 +698,58 @@ export default function App() {
   const hasDedicatedBackButton =
     activeModule === 'appointments' ||
     activeModule === 'config' ||
+    activeModule === 'backup_restore' ||
     activeModule === 'forms' ||
     activeModule === 'negotiations' ||
     activeModule.startsWith('cad_');
+
+  const getSectorKeyForModule = (modId: ModuleId): string | null => {
+    if (modId === 'appointments') return 'agendamentos';
+    if (modId === 'prospection') return 'prospeccao';
+    if (modId === 'admission') return 'admissao';
+    if (modId === 'audit') return 'auditoria';
+    if (modId === 'legal') return 'juridico';
+    if (modId === 'negotiations') return 'negociacoes';
+    if (
+      modId === 'finance' ||
+      modId === 'finance_operacao' ||
+      modId === 'finance_receber' ||
+      modId === 'finance_regua' ||
+      modId === 'finance_pagar'
+    ) {
+      return 'financeiro';
+    }
+    if (
+      modId === 'collection' ||
+      modId === 'collection_operacional' ||
+      modId === 'collection_coordenacao'
+    ) {
+      return 'cobranca';
+    }
+    return null;
+  };
+
+  const getUnreadMsgForModule = (modId: ModuleId): number => {
+    if (modId === 'internal_messaging') return totalUnreadMessages;
+    const secKey = getSectorKeyForModule(modId);
+    return secKey ? sectorUnreadCounts[secKey] || 0 : 0;
+  };
+
+  const prospectionUnread = sectorUnreadCounts.prospeccao || 0;
+  const admissionUnread = sectorUnreadCounts.admissao || 0;
+  const comercialUnread = prospectionUnread + admissionUnread;
+  const comercialPendingTotal = (navCounts.prospection || 0) + comercialUnread;
+  const financeUnread = sectorUnreadCounts.financeiro || 0;
+  const collectionUnread = sectorUnreadCounts.cobranca || 0;
+  const activeSectorKey = getSectorKeyForModule(activeModule);
+  const activeSectorUnread = activeSectorKey ? sectorUnreadCounts[activeSectorKey] || 0 : 0;
+
+  const renderBlinkingDot = (className = '') => (
+    <span className={`relative flex h-2 w-2 shrink-0 ${className}`} title="Novas movimentações ou mensagens (Ivi / equipe)">
+      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
+      <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500" />
+    </span>
+  );
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col">
@@ -832,14 +940,23 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => navigateTo('finance_receber')}
-                    title="Administração Financeira"
-                    className={`w-10 h-9 rounded-lg flex items-center justify-center transition-colors ${
+                    title={
+                      financeUnread > 0
+                        ? `Administração Financeira (${financeUnread} nova(s) mensagem(ns))`
+                        : 'Administração Financeira'
+                    }
+                    className={`relative w-10 h-9 rounded-lg flex items-center justify-center transition-colors ${
                       isFinanceActive
                         ? 'bg-slate-900 text-white dark:bg-emerald-600'
                         : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
                     }`}
                   >
                     <Banknote className="w-4 h-4" />
+                    {financeUnread > 0 && (
+                      <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center">
+                        {renderBlinkingDot()}
+                      </span>
+                    )}
                   </button>
                 )}
                 {visibleNavItems.map((item) => {
@@ -848,6 +965,8 @@ export default function App() {
                     activeModule === item.id ||
                     (item.id === 'collection' && isCollectionActive) ||
                     (item.id === 'acomp_juridico' && isAcompJuridicoActive);
+                  const itemUnread = getUnreadMsgForModule(item.id);
+                  const itemBadgeCount = (navCounts[item.id] || 0) + itemUnread;
                   return (
                     <React.Fragment key={item.id}>
                       <button
@@ -857,14 +976,25 @@ export default function App() {
                           else if (item.id === 'acomp_juridico') navigateTo('jur_dashboard');
                           else navigateTo(item.id);
                         }}
-                        title={item.label}
-                        className={`w-10 h-9 rounded-lg flex items-center justify-center transition-colors ${
+                        title={
+                          itemUnread > 0
+                            ? `${item.label} (${itemUnread} nova(s) mensagem(ns) / ${itemBadgeCount} alerta(s))`
+                            : item.label
+                        }
+                        className={`relative w-10 h-9 rounded-lg flex items-center justify-center transition-colors ${
                           active
                             ? 'bg-slate-900 text-white dark:bg-emerald-600'
                             : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
                         }`}
                       >
                         <Icon className="w-4 h-4" />
+                        {itemUnread > 0 ? (
+                          <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center">
+                            {renderBlinkingDot()}
+                          </span>
+                        ) : itemBadgeCount > 0 ? (
+                          <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-amber-500" />
+                        ) : null}
                       </button>
                       {item.id === cadastrosAnchorId && visibleCadastrosSubmenus.length > 0 && (
                         <button
@@ -884,14 +1014,23 @@ export default function App() {
                         <button
                           type="button"
                           onClick={() => navigateTo('admission')}
-                          title="Comercial (Prospecção & Admissão)"
-                          className={`w-10 h-9 rounded-lg flex items-center justify-center transition-colors ${
+                          title={
+                            comercialUnread > 0
+                              ? `Comercial (${comercialUnread} nova(s) mensagem(ns))`
+                              : 'Comercial (Prospecção & Admissão)'
+                          }
+                          className={`relative w-10 h-9 rounded-lg flex items-center justify-center transition-colors ${
                             activeModule === 'prospection' || activeModule === 'admission'
                               ? 'bg-slate-900 text-white dark:bg-emerald-600'
                               : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
                           }`}
                         >
                           <Store className="w-4 h-4" />
+                          {comercialUnread > 0 && (
+                            <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center">
+                              {renderBlinkingDot()}
+                            </span>
+                          )}
                         </button>
                       )}
                     </React.Fragment>
@@ -964,15 +1103,21 @@ export default function App() {
                             }`}
                           />
                           <span className="truncate">Administração Financeira</span>
+                          {financeUnread > 0 && renderBlinkingDot()}
                         </span>
                         <span className="flex items-center gap-1.5 shrink-0">
-                          {!adminFinanceExpanded && financePendingCount > 0 && (
+                          {(financePendingCount + financeUnread) > 0 && (
                             <span
-                              className={`font-mono text-[11px] font-bold tabular-nums ${
-                                isFinanceActive ? 'text-emerald-300 dark:text-white' : 'text-amber-700 dark:text-amber-300'
+                              title={`${financePendingCount} título(s) vencido(s) · ${financeUnread} nova(s) mensagem(ns)`}
+                              className={`inline-flex items-center justify-center rounded-full px-1.5 py-0.5 font-mono text-[10px] font-bold tabular-nums ${
+                                financeUnread > 0
+                                  ? 'bg-rose-500 text-white'
+                                  : isFinanceActive && !adminFinanceExpanded
+                                  ? 'bg-emerald-500/20 text-emerald-200'
+                                  : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200'
                               }`}
                             >
-                              {financePendingCount}
+                              {financePendingCount + financeUnread}
                             </span>
                           )}
                           {adminFinanceExpanded ? (
@@ -1180,16 +1325,19 @@ export default function App() {
                                 }`}
                               />
                               <span className="truncate">Contas a Receber</span>
+                              {financeUnread > 0 && renderBlinkingDot()}
                             </span>
-                            {financePendingCount > 0 && (
+                            {(financePendingCount + financeUnread) > 0 && (
                               <span
-                                className={`font-mono text-[10px] font-bold tabular-nums shrink-0 ${
-                                  activeModule === 'finance_receber' || activeModule === 'finance' || activeModule === 'finance_operacao'
-                                    ? 'text-emerald-300 dark:text-white'
-                                    : 'text-amber-700 dark:text-amber-300'
+                                className={`inline-flex items-center justify-center rounded-full px-1.5 py-0.5 font-mono text-[10px] font-bold tabular-nums shrink-0 ${
+                                  financeUnread > 0
+                                    ? 'bg-rose-500 text-white'
+                                    : activeModule === 'finance_receber' || activeModule === 'finance' || activeModule === 'finance_operacao'
+                                    ? 'bg-emerald-500/20 text-emerald-200 dark:text-white'
+                                    : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200'
                                 }`}
                               >
-                                {financePendingCount}
+                                {financePendingCount + financeUnread}
                               </span>
                             )}
                           </button>
@@ -1266,15 +1414,21 @@ export default function App() {
                                 }`}
                               />
                               <span className="truncate">{item.label}</span>
+                              {collectionUnread > 0 && renderBlinkingDot()}
                             </span>
                             <span className="flex items-center gap-1.5 shrink-0">
-                              {!collectionExpanded && pendingCount > 0 && (
+                              {(pendingCount + collectionUnread) > 0 && (
                                 <span
-                                  className={`font-mono text-[11px] font-bold tabular-nums ${
-                                    isCollectionActive ? 'text-emerald-300 dark:text-white' : 'text-amber-700 dark:text-amber-300'
+                                  title={`${pendingCount} em cobrança · ${collectionUnread} nova(s) mensagem(ns)`}
+                                  className={`inline-flex items-center justify-center rounded-full px-1.5 py-0.5 font-mono text-[10px] font-bold tabular-nums ${
+                                    collectionUnread > 0
+                                      ? 'bg-rose-500 text-white'
+                                      : isCollectionActive && !collectionExpanded
+                                      ? 'bg-emerald-500/20 text-emerald-200 dark:text-white'
+                                      : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200'
                                   }`}
                                 >
-                                  {pendingCount}
+                                  {pendingCount + collectionUnread}
                                 </span>
                               )}
                               {collectionExpanded ? (
@@ -1386,6 +1540,8 @@ export default function App() {
                       );
                     }
 
+                    const itemUnread = getUnreadMsgForModule(item.id);
+                    const totalBadge = pendingCount + itemUnread;
                     return (
                       <React.Fragment key={item.id}>
                         <button
@@ -1400,14 +1556,24 @@ export default function App() {
                           <span className="flex items-center gap-2.5 min-w-0">
                             <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-emerald-400 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`} />
                             <span className="truncate">{item.label}</span>
+                            {itemUnread > 0 && renderBlinkingDot()}
                           </span>
-                          {pendingCount > 0 && (
+                          {totalBadge > 0 && (
                             <span
-                              className={`font-mono text-[11px] font-bold tabular-nums shrink-0 ${
-                                active ? 'text-emerald-300 dark:text-white' : 'text-amber-700 dark:text-amber-300'
+                              title={
+                                item.id === 'internal_messaging'
+                                  ? `${itemUnread} mensagem(ns) não lida(s)`
+                                  : `${pendingCount} pendência(s) · ${itemUnread} nova(s) mensagem(ns)`
+                              }
+                              className={`inline-flex items-center justify-center rounded-full px-1.5 py-0.5 font-mono text-[10px] font-bold tabular-nums shrink-0 ${
+                                itemUnread > 0
+                                  ? 'bg-rose-500 text-white'
+                                  : active
+                                  ? 'bg-emerald-500/20 text-emerald-200 dark:text-white'
+                                  : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200'
                               }`}
                             >
-                              {pendingCount}
+                              {totalBadge}
                             </span>
                           )}
                         </button>
@@ -1493,12 +1659,27 @@ export default function App() {
                                   }`}
                                 />
                                 <span className="truncate">Comercial</span>
+                                {comercialUnread > 0 && renderBlinkingDot()}
                               </span>
-                              {comercialExpanded ? (
-                                <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
-                              ) : (
-                                <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
-                              )}
+                              <span className="flex items-center gap-1.5 shrink-0">
+                                {comercialPendingTotal > 0 && (
+                                  <span
+                                    title={`${navCounts.prospection || 0} escalado(s) · ${comercialUnread} nova(s) mensagem(ns)`}
+                                    className={`inline-flex items-center justify-center rounded-full px-1.5 py-0.5 font-mono text-[10px] font-bold tabular-nums ${
+                                      comercialUnread > 0
+                                        ? 'bg-rose-500 text-white'
+                                        : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200'
+                                    }`}
+                                  >
+                                    {comercialPendingTotal}
+                                  </span>
+                                )}
+                                {comercialExpanded ? (
+                                  <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
+                                ) : (
+                                  <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
+                                )}
+                              </span>
                             </button>
 
                             {comercialExpanded && (
@@ -1506,23 +1687,42 @@ export default function App() {
                                 {COMERCIAL_SUBMENUS.map((sub) => {
                                   const SubIcon = sub.icon;
                                   const subActive = activeModule === sub.id;
+                                  const subUnread = getUnreadMsgForModule(sub.id);
+                                  const subMov = sub.id === 'prospection' ? (navCounts.prospection || 0) : 0;
+                                  const subBadge = subMov + subUnread;
                                   return (
                                     <button
                                       key={sub.id}
                                       type="button"
                                       onClick={() => navigateTo(sub.id)}
-                                      className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors text-left ${
+                                      className={`w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors text-left ${
                                         subActive
                                           ? 'bg-slate-900 text-white dark:bg-emerald-600'
                                           : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
                                       }`}
                                     >
-                                      <SubIcon
-                                        className={`w-3.5 h-3.5 shrink-0 ${
-                                          subActive ? 'text-emerald-400 dark:text-white' : 'text-slate-400 dark:text-slate-400'
-                                        }`}
-                                      />
-                                      <span className="truncate">{sub.label}</span>
+                                      <span className="flex items-center gap-2 min-w-0">
+                                        <SubIcon
+                                          className={`w-3.5 h-3.5 shrink-0 ${
+                                            subActive ? 'text-emerald-400 dark:text-white' : 'text-slate-400 dark:text-slate-400'
+                                          }`}
+                                        />
+                                        <span className="truncate">{sub.label}</span>
+                                        {subUnread > 0 && renderBlinkingDot()}
+                                      </span>
+                                      {subBadge > 0 && (
+                                        <span
+                                          className={`inline-flex items-center justify-center rounded-full px-1.5 py-0.5 font-mono text-[10px] font-bold tabular-nums shrink-0 ${
+                                            subUnread > 0
+                                              ? 'bg-rose-500 text-white'
+                                              : subActive
+                                              ? 'bg-emerald-500/20 text-emerald-200'
+                                              : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200'
+                                          }`}
+                                        >
+                                          {subBadge}
+                                        </span>
+                                      )}
                                     </button>
                                   );
                                 })}
@@ -1616,11 +1816,18 @@ export default function App() {
                               <span className="flex items-center gap-2.5">
                                 <Banknote className="w-4 h-4 shrink-0 text-slate-500 dark:text-slate-400" />
                                 <span>Administração Financeira</span>
+                                {financeUnread > 0 && renderBlinkingDot()}
                               </span>
                               <span className="flex items-center gap-1.5">
-                                {!adminFinanceExpanded && financePendingCount > 0 && (
-                                  <span className="font-mono text-[11px] font-bold text-amber-700 dark:text-amber-300">
-                                    {financePendingCount}
+                                {(financePendingCount + financeUnread) > 0 && (
+                                  <span
+                                    className={`inline-flex items-center justify-center rounded-full px-1.5 py-0.5 font-mono text-[10px] font-bold ${
+                                      financeUnread > 0
+                                        ? 'bg-rose-500 text-white'
+                                        : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200'
+                                    }`}
+                                  >
+                                    {financePendingCount + financeUnread}
                                   </span>
                                 )}
                                 {adminFinanceExpanded ? (
@@ -1839,11 +2046,18 @@ export default function App() {
                                   <span className="flex items-center gap-2.5">
                                     <Icon className="w-4 h-4 shrink-0 text-slate-500 dark:text-slate-400" />
                                     <span>{item.label}</span>
+                                    {collectionUnread > 0 && renderBlinkingDot()}
                                   </span>
                                   <span className="flex items-center gap-1.5">
-                                    {!collectionExpanded && pendingCount > 0 && (
-                                      <span className="font-mono text-[11px] font-bold text-amber-700 dark:text-amber-300">
-                                        {pendingCount}
+                                    {(pendingCount + collectionUnread) > 0 && (
+                                      <span
+                                        className={`inline-flex items-center justify-center rounded-full px-1.5 py-0.5 font-mono text-[10px] font-bold ${
+                                          collectionUnread > 0
+                                            ? 'bg-rose-500 text-white'
+                                            : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200'
+                                        }`}
+                                      >
+                                        {pendingCount + collectionUnread}
                                       </span>
                                     )}
                                     {collectionExpanded ? (
@@ -1929,6 +2143,8 @@ export default function App() {
                             );
                           }
 
+                          const mobUnread = getUnreadMsgForModule(item.id);
+                          const mobBadge = pendingCount + mobUnread;
                           return (
                             <React.Fragment key={item.id}>
                               <button
@@ -1941,10 +2157,19 @@ export default function App() {
                                 <span className="flex items-center gap-2.5">
                                   <Icon className="w-4 h-4 shrink-0" />
                                   <span>{item.label}</span>
+                                  {mobUnread > 0 && renderBlinkingDot()}
                                 </span>
-                                {pendingCount > 0 && (
-                                  <span className={`font-mono text-[11px] font-bold ${active ? 'text-emerald-300 dark:text-white' : 'text-amber-700 dark:text-amber-300'}`}>
-                                    {pendingCount}
+                                {mobBadge > 0 && (
+                                  <span
+                                    className={`inline-flex items-center justify-center rounded-full px-1.5 py-0.5 font-mono text-[10px] font-bold ${
+                                      mobUnread > 0
+                                        ? 'bg-rose-500 text-white'
+                                        : active
+                                        ? 'bg-emerald-500/20 text-emerald-200 dark:text-white'
+                                        : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200'
+                                    }`}
+                                  >
+                                    {mobBadge}
                                   </span>
                                 )}
                               </button>
@@ -2008,29 +2233,60 @@ export default function App() {
                                     <span className="flex items-center gap-2.5">
                                       <Store className="w-4 h-4 shrink-0 text-slate-500 dark:text-slate-400" />
                                       <span>Comercial</span>
+                                      {comercialUnread > 0 && renderBlinkingDot()}
                                     </span>
-                                    {comercialExpanded ? (
-                                      <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
-                                    ) : (
-                                      <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
-                                    )}
+                                    <span className="flex items-center gap-1.5">
+                                      {comercialPendingTotal > 0 && (
+                                        <span
+                                          className={`inline-flex items-center justify-center rounded-full px-1.5 py-0.5 font-mono text-[10px] font-bold ${
+                                            comercialUnread > 0
+                                              ? 'bg-rose-500 text-white'
+                                              : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200'
+                                          }`}
+                                        >
+                                          {comercialPendingTotal}
+                                        </span>
+                                      )}
+                                      {comercialExpanded ? (
+                                        <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
+                                      ) : (
+                                        <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
+                                      )}
+                                    </span>
                                   </button>
                                   {comercialExpanded && (
                                     <div className="ml-4 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5 dark:border-slate-700">
                                       {COMERCIAL_SUBMENUS.map((sub) => {
                                         const SubIcon = sub.icon;
                                         const subActive = activeModule === sub.id;
+                                        const subUnread = getUnreadMsgForModule(sub.id);
+                                        const subMov = sub.id === 'prospection' ? (navCounts.prospection || 0) : 0;
+                                        const subBadge = subMov + subUnread;
                                         return (
                                           <button
                                             key={sub.id}
                                             type="button"
                                             onClick={() => navigateTo(sub.id)}
-                                            className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold min-h-[40px] ${
+                                            className={`w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold min-h-[40px] ${
                                               subActive ? 'bg-slate-900 text-white dark:bg-emerald-600' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
                                             }`}
                                           >
-                                            <SubIcon className="w-3.5 h-3.5 shrink-0" />
-                                            <span>{sub.label}</span>
+                                            <span className="flex items-center gap-2">
+                                              <SubIcon className="w-3.5 h-3.5 shrink-0" />
+                                              <span>{sub.label}</span>
+                                              {subUnread > 0 && renderBlinkingDot()}
+                                            </span>
+                                            {subBadge > 0 && (
+                                              <span
+                                                className={`inline-flex items-center justify-center rounded-full px-1.5 py-0.5 font-mono text-[10px] font-bold ${
+                                                  subUnread > 0
+                                                    ? 'bg-rose-500 text-white'
+                                                    : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200'
+                                                }`}
+                                              >
+                                                {subBadge}
+                                              </span>
+                                            )}
                                           </button>
                                         );
                                       })}
@@ -2068,6 +2324,39 @@ export default function App() {
                   <span>Voltar para a tela anterior</span>
                   <span className="hidden sm:inline text-slate-400 dark:text-slate-400 font-normal">({previousModMeta})</span>
                 </button>
+              </div>
+            )}
+
+            {activeSectorKey && activeSectorUnread > 0 && activeModule !== 'internal_messaging' && (
+              <div className="rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/90 dark:bg-rose-950/30 px-4 py-2.5 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5 text-xs font-semibold text-rose-900 dark:text-rose-200">
+                  {renderBlinkingDot()}
+                  <span>
+                    Ivi / Mensageria Interna: {activeSectorUnread} nova(s) mensagem(ns) ou movimentação(ões) aguardando leitura neste setor.
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => navigateTo('internal_messaging', { tab: activeSectorKey })}
+                    className="rounded-lg bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 text-xs font-semibold transition-colors"
+                  >
+                    Ver Mensagens
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await apiFetch('/api/internal-messages/mark-read', {
+                        method: 'POST',
+                        body: JSON.stringify({ sector: activeSectorKey }),
+                      }).catch(() => {});
+                      await refreshNavCounts();
+                    }}
+                    className="rounded-lg border border-rose-300 dark:border-rose-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-semibold text-rose-800 dark:text-rose-200 hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors"
+                  >
+                    Confirmar Leitura
+                  </button>
+                </div>
               </div>
             )}
 
@@ -2157,6 +2446,18 @@ export default function App() {
                 previousScreenLabel={previousModMeta}
               />
             )}
+            {activeModule === 'internal_messaging' && (
+              <InternalMessagingModule
+                currentUser={currentUser}
+                units={allUnits}
+                activeUnitId={activeUnitId}
+                wsTick={wsTick}
+                navIntent={navIntent}
+                onClearIntent={clearIntent}
+                onNavigate={navigateTo}
+                onMessagesUpdated={refreshNavCounts}
+              />
+            )}
             {(activeModule === 'finance' || activeModule.startsWith('finance_')) && (
               <FinanceModule
                 units={allUnits}
@@ -2217,10 +2518,11 @@ export default function App() {
                 onNavigate={navigateTo}
               />
             )}
-            {activeModule === 'config' && (
+            {(activeModule === 'config' || activeModule === 'backup_restore') && (
               <ConfigModule
                 currentUser={currentUser}
                 wsTick={wsTick}
+                initialTab={activeModule === 'backup_restore' ? 'backup_restore' : (navIntent?.tab || 'units')}
                 onUnitsUpdated={loadProfile}
                 onBrandingUpdated={(nextBranding) => {
                   setPortalBranding(nextBranding);

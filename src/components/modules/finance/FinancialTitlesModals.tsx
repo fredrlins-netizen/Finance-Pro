@@ -2002,7 +2002,8 @@ interface AuditLogRow {
   userName: string;
   action: string;
   createdAt: string;
-  details?: { changes?: Array<{ field: string; from: string; to: string }> };
+  changes?: Array<{ field?: string; label?: string; from?: string; to?: string; previousValue?: string; newValue?: string }>;
+  details?: { changes?: Array<{ field?: string; label?: string; from?: string; to?: string; previousValue?: string; newValue?: string }> };
 }
 
 export const TitleAuditModal: React.FC<TitleAuditModalProps> = ({ target, scope, onClose }) => {
@@ -2073,11 +2074,11 @@ export const TitleAuditModal: React.FC<TitleAuditModalProps> = ({ target, scope,
                       <td className="px-3 py-2 font-semibold text-slate-800 dark:text-slate-100">{l.userName}</td>
                       <td className="px-3 py-2 font-mono text-slate-700 dark:text-slate-200">{l.action}</td>
                       <td className="px-3 py-2 space-y-0.5">
-                        {(l.details?.changes || []).map((c, idx) => (
+                        {(l.changes && l.changes.length > 0 ? l.changes : l.details?.changes || []).map((c, idx) => (
                           <div key={idx} className="text-slate-700 dark:text-slate-200">
-                            <span className="font-semibold">{c.field}:</span>{' '}
-                            <span className="text-slate-500 dark:text-slate-400">{c.from || '—'}</span> →{' '}
-                            <span className="font-semibold text-slate-900 dark:text-slate-100">{c.to || '—'}</span>
+                            <span className="font-semibold">{c.label || c.field || 'Campo'}:</span>{' '}
+                            <span className="text-slate-500 dark:text-slate-400">{c.previousValue ?? c.from ?? '—'}</span> →{' '}
+                            <span className="font-semibold text-slate-900 dark:text-slate-100">{c.newValue ?? c.to ?? '—'}</span>
                           </div>
                         ))}
                       </td>

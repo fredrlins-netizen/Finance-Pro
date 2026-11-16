@@ -70,8 +70,65 @@ export interface AuditLogRow {
   createdAt: string;
 }
 
+interface NormalizedAuditChange {
+  field: string;
+  label: string;
+  previousValue: string;
+  newValue: string;
+}
+
+function extractAuditChangesForDisplay(log: AuditLogRow): NormalizedAuditChange[] {
+  const rec = log as AuditLogRow & {
+    changes?: Array<{
+      field?: string;
+      label?: string;
+      previousValue?: unknown;
+      newValue?: unknown;
+      from?: unknown;
+      to?: unknown;
+    }>;
+  };
+  if (Array.isArray(rec.changes) && rec.changes.length > 0) {
+    return rec.changes.map((c) => ({
+      field: String(c.field || 'campo'),
+      label: String(c.label || c.field || 'Campo'),
+      previousValue: String(c.previousValue ?? c.from ?? '—'),
+      newValue: String(c.newValue ?? c.to ?? '—'),
+    }));
+  }
+  const details = log.details as Record<string, unknown> | undefined;
+  if (details && Array.isArray(details.changes) && details.changes.length > 0) {
+    return (details.changes as Array<Record<string, unknown>>).map((c) => ({
+      field: String(c.field || 'campo'),
+      label: String(c.label || c.field || 'Campo'),
+      previousValue: String(c.previousValue ?? c.from ?? '—'),
+      newValue: String(c.newValue ?? c.to ?? '—'),
+    }));
+  }
+  if (details && typeof details === 'object') {
+    const ignored = new Set(['autoAudit', 'tableName', 'operation', 'route', 'source', 'method']);
+    const entries = Object.entries(details).filter(([k]) => !ignored.has(k));
+    if (entries.length > 0) {
+      return entries.map(([k, v]) => ({
+        field: k,
+        label: k.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/_/g, ' '),
+        previousValue: '—',
+        newValue: typeof v === 'object' ? JSON.stringify(v) : String(v ?? '—'),
+      }));
+    }
+  }
+  return [
+    {
+      field: 'evento',
+      label: 'Ação Executada',
+      previousValue: '—',
+      newValue: log.action,
+    },
+  ];
+}
+
 // -----------------------------------------------------------------------------
-// MODAL: HISTÓRICO DE AUDITORIA DA ENTIDADE
+// MODAL: HISTÓRICO DE AUDITORIA DA ENTIDADE (Usuário, Data/Hora, Label Anterior -> Novo)
 // -----------------------------------------------------------------------------
 export const EntityAuditModal: React.FC<{
   open: boolean;
@@ -83,11 +140,13 @@ export const EntityAuditModal: React.FC<{
   const [loading, setLoading] = useState(false);
   const [logs, setLogs] = useState<AuditLogRow[]>([]);
   const [err, setErr] = useState('');
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     if (!open) return;
     setLoading(true);
     setErr('');
+    setSearch('');
     apiFetch<{ logs: AuditLogRow[] }>(`/api/cadastros/audit/${entityType}/${entityId}`)
       .then((res) => setLogs(res.logs || []))
       .catch((e) => setErr(e instanceof Error ? e.message : 'Falha ao carregar auditoria.'))
@@ -96,45 +155,117 @@ export const EntityAuditModal: React.FC<{
 
   if (!open) return null;
 
+  const q = search.trim().toLowerCase();
+  const filteredLogs = q
+    ? logs.filter((log) => {
+        const changes = extractAuditChangesForDisplay(log);
+        const hay = `${log.userName} ${log.action} ${changes
+          .map((c) => `${c.label} ${c.previousValue} ${c.newValue}`)
+          .join(' ')}`.toLowerCase();
+        return hay.includes(q);
+      })
+    : logs;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80">
-      <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs max-h-[85vh] flex flex-col dark:border-slate-700 dark:bg-slate-900">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
-          <div className="flex items-center gap-2">
-            <History className="w-4 h-4 text-slate-700 dark:text-slate-200" />
-            <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
-              Auditoria · {title}
-            </h3>
+      <div className="w-full max-w-4xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs max-h-[88vh] flex flex-col dark:border-slate-700 dark:bg-slate-900">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3 dark:border-slate-800">
+          <div className="flex items-center gap-2 min-w-0">
+            <History className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <div className="min-w-0">
+              <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
+                Auditoria Completa · {title}
+              </h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Rastreamento automático de usuário, data/horário, campo (label) anterior e atualizado.
+              </p>
+            </div>
           </div>
-          <button type="button" onClick={onClose} className="rounded-lg p-1 text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800"
+          >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Filtrar por usuário, campo (label), valor anterior ou novo..."
+            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+          />
+          <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap">
+            {filteredLogs.length} evento(s)
+          </span>
+        </div>
+
+        <div className="flex-1 overflow-y-auto space-y-3 pr-1">
           {loading ? (
-            <div className="py-8 text-center text-slate-500 dark:text-slate-400">Carregando trilha de auditoria...</div>
+            <div className="py-8 text-center text-slate-500 dark:text-slate-400">
+              Carregando trilha de auditoria...
+            </div>
           ) : err ? (
-            <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-red-700 dark:bg-red-950/50 dark:border-red-800/70 dark:text-red-300">{err}</div>
-          ) : logs.length === 0 ? (
-            <div className="py-8 text-center text-slate-500 dark:text-slate-400">Nenhum evento registrado para este cadastro.</div>
+            <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-red-700 dark:bg-red-950/50 dark:border-red-800/70 dark:text-red-300">
+              {err}
+            </div>
+          ) : filteredLogs.length === 0 ? (
+            <div className="py-8 text-center text-slate-500 dark:text-slate-400">
+              Nenhum evento registrado para este filtro.
+            </div>
           ) : (
-            logs.map((log) => (
-              <div key={log.id} className="py-3 space-y-1">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-[11px] font-bold text-slate-900 dark:text-slate-100">{log.action}</span>
-                  <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400">{formatDateTimeBR(log.createdAt)}</span>
+            filteredLogs.map((log) => {
+              const changes = extractAuditChangesForDisplay(log);
+              return (
+                <div
+                  key={log.id}
+                  className="rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden dark:border-slate-800 dark:bg-slate-950/40"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2 bg-slate-100/80 border-b border-slate-200 dark:bg-slate-800/80 dark:border-slate-700">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-[11px] font-bold text-slate-900 dark:text-slate-100">
+                        {log.action}
+                      </span>
+                      <span className="text-[11px] text-slate-600 dark:text-slate-300">
+                        · Usuário: <strong className="text-slate-900 dark:text-white">{log.userName}</strong>
+                      </span>
+                    </div>
+                    <span className="font-mono text-[11px] font-semibold text-slate-600 tabular-nums dark:text-slate-300">
+                      {formatDateTimeBR(log.createdAt)}
+                    </span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-[11px]">
+                      <thead className="border-b border-slate-200/80 text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                        <tr>
+                          <th className="px-3.5 py-1.5 font-semibold w-1/4">Campo (Label)</th>
+                          <th className="px-3.5 py-1.5 font-semibold w-[37.5%]">Conteúdo Anterior</th>
+                          <th className="px-3.5 py-1.5 font-semibold w-[37.5%]">Conteúdo Atualizado</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                        {changes.map((chg, idx) => (
+                          <tr key={`${log.id}-${chg.field}-${idx}`}>
+                            <td className="px-3.5 py-2 font-semibold text-slate-800 dark:text-slate-200 align-top">
+                              {chg.label}
+                            </td>
+                            <td className="px-3.5 py-2 font-mono text-slate-600 dark:text-slate-400 break-words align-top">
+                              {chg.previousValue}
+                            </td>
+                            <td className="px-3.5 py-2 font-mono font-semibold text-emerald-800 dark:text-emerald-300 break-words align-top">
+                              {chg.newValue}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-                <div className="text-slate-600 dark:text-slate-300">
-                  Responsável: <strong className="text-slate-800 dark:text-slate-100">{log.userName}</strong>
-                </div>
-                {log.details && Object.keys(log.details).length > 0 && (
-                  <pre className="rounded-lg bg-slate-50 border border-slate-100 px-2.5 py-1.5 font-mono text-[10px] text-slate-600 overflow-x-auto dark:bg-slate-800/70 dark:border-slate-800 dark:text-slate-300">
-                    {JSON.stringify(log.details)}
-                  </pre>
-                )}
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>

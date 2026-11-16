@@ -59,17 +59,24 @@ export const users = pgTable('users', {
   failedLoginAttempts: integer('failed_login_attempts').notNull().default(0),
   lockedUntil: timestamp('locked_until'),
   sessionVersion: integer('session_version').notNull().default(1),
+  suspended: boolean('suspended').notNull().default(false),
+  suspendedReason: text('suspended_reason').notNull().default(''),
+  suspendedAt: timestamp('suspended_at'),
+  suspendedBy: text('suspended_by').notNull().default(''),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
 export const workSchedules = pgTable('work_schedules', {
   id: serial('id').primaryKey(),
-  targetType: text('target_type').notNull(), // 'unit' | 'user' | 'group'
+  targetType: text('target_type').notNull(), // 'unit' | 'user' | 'group' | 'unit_group'
   targetId: integer('target_id').notNull(),
+  unitId: integer('unit_id'),
+  groupId: integer('group_id'),
   targetLabel: text('target_label').notNull(),
   startTime: text('start_time').notNull().default('08:00'),
   endTime: text('end_time').notNull().default('18:00'),
   allowedDays: jsonb('allowed_days').$type<number[]>().notNull().default([1, 2, 3, 4, 5]),
+  closingWarningMessage: text('closing_warning_message').notNull().default(''),
   active: boolean('active').notNull().default(true),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
@@ -765,10 +772,20 @@ export const internalMessages = pgTable('internal_messages', {
   id: serial('id').primaryKey(),
   senderId: integer('sender_id').references(() => users.id),
   senderName: text('sender_name').notNull(),
+  senderGroupId: integer('sender_group_id'),
   recipientId: integer('recipient_id').references(() => users.id),
   targetSector: text('target_sector').notNull().default('geral'),
+  targetGroupId: integer('target_group_id').references(() => userGroups.id),
+  targetGroupName: text('target_group_name').notNull().default(''),
+  targetUnitId: integer('target_unit_id').references(() => units.id),
+  targetUnitName: text('target_unit_name').notNull().default(''),
+  isAutoIvi: boolean('is_auto_ivi').notNull().default(false),
+  eventType: text('event_type').notNull().default('manual_message'),
+  relatedEntityType: text('related_entity_type').notNull().default(''),
+  relatedEntityId: text('related_entity_id').notNull().default(''),
   subject: text('subject').notNull(),
   body: text('body').notNull(),
+  readByUserIds: jsonb('read_by_user_ids').$type<number[]>().notNull().default([]),
   readAt: timestamp('read_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
@@ -1586,8 +1603,58 @@ export const vaultMigrationItems = pgTable('vault_migration_items', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
+// =============================================================================
+// GOVERNANÇA -> BACKUP & RESTORE EM NUVEM (GOOGLE DRIVE) & AGENDAMENTO AUTOMÁTICO
+// =============================================================================
 
+export const backupSchedules = pgTable('backup_schedules', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  cloudProvider: text('cloud_provider').notNull().default('google_drive'), // 'google_drive' | 'server_snapshot'
+  targetFolderId: text('target_folder_id').notNull().default(''),
+  targetFolderName: text('target_folder_name').notNull().default('FinancePro_Backups'),
+  daysOfWeek: jsonb('days_of_week').$type<number[]>().notNull().default([1, 2, 3, 4, 5]), // 0=Dom .. 6=Sáb
+  executionTime: text('execution_time').notNull().default('02:00'), // HH:MM (America/Sao_Paulo)
+  includeUsersAndGroups: boolean('include_users_and_groups').notNull().default(true),
+  includeAuditLogs: boolean('include_audit_logs').notNull().default(true),
+  compressGzip: boolean('compress_gzip').notNull().default(true),
+  retentionCount: integer('retention_count').notNull().default(10),
+  active: boolean('active').notNull().default(true),
+  lastRunAt: timestamp('last_run_at', { withTimezone: true }),
+  lastRunStatus: text('last_run_status').notNull().default('pendente'), // 'pendente' | 'executando' | 'sucesso' | 'erro'
+  lastRunMessage: text('last_run_message').notNull().default(''),
+  nextRunAt: timestamp('next_run_at', { withTimezone: true }),
+  createdByUserId: integer('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByName: text('created_by_name').notNull().default('Administrador'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
 
-
-
-
+export const backupExecutions = pgTable('backup_executions', {
+  id: serial('id').primaryKey(),
+  scheduleId: integer('schedule_id').references(() => backupSchedules.id, { onDelete: 'set null' }),
+  operationType: text('operation_type').notNull().default('backup'), // 'backup' | 'restore'
+  triggerType: text('trigger_type').notNull().default('manual'), // 'manual' | 'agendado'
+  cloudProvider: text('cloud_provider').notNull().default('google_drive'), // 'google_drive' | 'local_download' | 'server_snapshot'
+  fileName: text('file_name').notNull(),
+  driveFileId: text('drive_file_id').notNull().default(''),
+  driveFolderId: text('drive_folder_id').notNull().default(''),
+  driveWebViewLink: text('drive_web_view_link').notNull().default(''),
+  localVaultSha256: text('local_vault_sha256').notNull().default(''),
+  localVaultUri: text('local_vault_uri').notNull().default(''),
+  sizeBytes: bigint('size_bytes', { mode: 'number' }).notNull().default(0),
+  sha256Hash: text('sha256_hash').notNull().default(''),
+  totalTables: integer('total_tables').notNull().default(0),
+  totalRows: integer('total_rows').notNull().default(0),
+  usersCount: integer('users_count').notNull().default(0),
+  userGroupsCount: integer('user_groups_count').notNull().default(0),
+  includesUsersAndGroups: boolean('includes_users_and_groups').notNull().default(true),
+  tablesSummaryJson: jsonb('tables_summary_json').$type<Record<string, number>>().notNull().default({}),
+  status: text('status').notNull().default('concluido'), // 'em_andamento' | 'concluido' | 'erro'
+  driveSyncStatus: text('drive_sync_status').notNull().default('sincronizado'), // 'sincronizado' | 'pendente_sync' | 'nao_aplicavel' | 'erro'
+  errorMessage: text('error_message').notNull().default(''),
+  executedByUserId: integer('executed_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  executedByName: text('executed_by_name').notNull().default('Sistema'),
+  startedAt: timestamp('started_at', { withTimezone: true }).defaultNow().notNull(),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+});
