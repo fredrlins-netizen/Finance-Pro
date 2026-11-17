@@ -93,8 +93,8 @@ export const FixedWhatsAppDock: React.FC<FixedWhatsAppDockProps> = ({
   const loadThreads = async () => {
     try {
       const [data, resData] = await Promise.all([
-        apiFetch<{ threads: WhatsappThread[]; messages: WhatsappMessage[] }>('/api/whatsapp/threads'),
-        apiFetch<{ templates: GotalkHsmTemplate[] }>('/api/integrations/gotalk/resources').catch(() => ({
+        apiFetch<{ threads: WhatsappThread[]; messages: WhatsappMessage[] }>('/api/whatsapp/threads', { passive: true }),
+        apiFetch<{ templates: GotalkHsmTemplate[] }>('/api/integrations/gotalk/resources', { passive: true }).catch(() => ({
           templates: [],
         })),
       ]);

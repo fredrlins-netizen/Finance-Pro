@@ -5,6 +5,7 @@ import {
   Clock,
   Edit3,
   Gavel,
+  History,
   Plus,
   Trash2,
   X,
@@ -16,6 +17,7 @@ import type {
   CompanyProcessDeadline,
   CompanyProcessHearing,
 } from '../../../types.ts';
+import { EntityAuditModal } from '../cadastros/CadastrosShared.tsx';
 import {
   DEADLINE_TYPES,
   formatDateBR,
@@ -99,6 +101,7 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
     label: string;
   } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
   const sentAlertsRef = useRef<Set<string>>(new Set());
 
   const allDeadlines = useMemo(() => {
@@ -405,7 +408,14 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
           </button>
         </div>
 
-        <div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setAuditOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            <History className="w-3.5 h-3.5" /> Auditoria
+          </button>
           {activeTab === 'DEADLINES' ? (
             <button
               type="button"
@@ -1075,6 +1085,14 @@ export const CompanyLegalDeadlinesPanel: React.FC<CompanyLegalDeadlinesPanelProp
           </form>
         </div>
       )}
+
+      <EntityAuditModal
+        open={auditOpen}
+        title="Prazos & Audiências · Auditoria Cumulativa"
+        entityType="company_legal_process_deadlines,company_legal_process_hearings,company_legal_processes"
+        entityId="all"
+        onClose={() => setAuditOpen(false)}
+      />
     </div>
   );
 };

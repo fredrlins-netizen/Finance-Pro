@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   BarChart3,
   FileText,
+  History,
   Kanban,
   Maximize2,
   Minimize2,
@@ -122,6 +123,7 @@ export const NegotiationsModule: React.FC<{
     clientName: string;
   } | null>(null);
   const [auditNegTarget, setAuditNegTarget] = useState<Negotiation | null>(null);
+  const [sectorAuditOpen, setSectorAuditOpen] = useState(false);
 
   // Sub-tabs state
   const [dashboardClientId, setDashboardClientId] = useState<string>('');
@@ -555,6 +557,14 @@ export const NegotiationsModule: React.FC<{
         <div className="flex items-center gap-2">
           <button
             type="button"
+            onClick={() => setSectorAuditOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            <History className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+            Auditoria
+          </button>
+          <button
+            type="button"
             onClick={() => void loadBootstrap({ force: true })}
             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
           >
@@ -874,6 +884,13 @@ export const NegotiationsModule: React.FC<{
         entityType="negotiations"
         entityId={auditNegTarget?.id || 0}
         onClose={() => setAuditNegTarget(null)}
+      />
+      <EntityAuditModal
+        open={sectorAuditOpen}
+        title="Negociações Bancárias · Auditoria Cumulativa"
+        entityType="negotiations,negotiation_actions,bank_contacts"
+        entityId="all"
+        onClose={() => setSectorAuditOpen(false)}
       />
     </div>
   );

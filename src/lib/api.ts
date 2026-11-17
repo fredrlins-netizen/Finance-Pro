@@ -52,17 +52,25 @@ export async function parseJsonResponse<T = unknown>(
   return (parsed ?? {}) as T;
 }
 
-export async function apiFetch<T = unknown>(url: string, options: RequestInit = {}): Promise<T> {
-  const headers = new Headers(options.headers || {});
+export interface ApiFetchOptions extends RequestInit {
+  passive?: boolean;
+}
+
+export async function apiFetch<T = unknown>(url: string, options: ApiFetchOptions = {}): Promise<T> {
+  const { passive, ...fetchOpts } = options;
+  const headers = new Headers(fetchOpts.headers || {});
   if (memoryToken) {
     headers.set('Authorization', `Bearer ${memoryToken}`);
   }
   headers.set('x-unit-id', String(memoryUnitId));
-  if (!(options.body instanceof FormData) && !headers.has('Content-Type')) {
+  if (passive) {
+    headers.set('x-fp-passive', '1');
+  }
+  if (!(fetchOpts.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
 
-  const res = await fetch(url, { ...options, headers });
+  const res = await fetch(url, { ...fetchOpts, headers });
   const contentType = (res.headers.get('content-type') || '').toLowerCase();
   const rawText = await res.text();
 
@@ -80,14 +88,23 @@ export async function apiFetch<T = unknown>(url: string, options: RequestInit = 
     } else if (rawText.trim().startsWith('<')) {
       errMsg = `O servidor retornou HTML inesperado (HTTP ${res.status}). Tente novamente em alguns instantes.`;
     }
+    const isAuthEndpoint =
+      url.includes('/api/auth/login') ||
+      url.includes('/api/auth/forgot-password') ||
+      url.includes('/api/auth/captcha') ||
+      url.includes('/api/auth/logout');
     if (
       typeof window !== 'undefined' &&
-      !url.includes('/api/auth/login') &&
-      !url.includes('/api/auth/forgot-password') &&
-      (errCode === 'SCHEDULE_BLOCKED' || errCode === 'USER_SUSPENDED' || errCode === 'USER_INACTIVE')
+      !isAuthEndpoint &&
+      (res.status === 401 ||
+        errCode === 'SESSION_IDLE_TIMEOUT' ||
+        errCode === 'SESSION_REVOKED' ||
+        errCode === 'SCHEDULE_BLOCKED' ||
+        errCode === 'USER_SUSPENDED' ||
+        errCode === 'USER_INACTIVE')
     ) {
       window.dispatchEvent(
-        new CustomEvent('fp:auth-blocked', { detail: { code: errCode, message: errMsg } })
+        new CustomEvent('fp:auth-blocked', { detail: { code: errCode || 'UNAUTHORIZED', message: errMsg } })
       );
     }
     throw new Error(errMsg);
@@ -104,6 +121,30 @@ export async function apiFetch<T = unknown>(url: string, options: RequestInit = 
   } catch {
     throw new Error('Resposta inválida do servidor (formato JSON esperado).');
   }
+}
+
+export async function fetchAuthenticatedBlob(url: string): Promise<{ blob: Blob; filename?: string }> {
+  const headers = new Headers();
+  if (memoryToken) {
+    headers.set('Authorization', `Bearer ${memoryToken}`);
+  }
+  headers.set('x-unit-id', String(memoryUnitId));
+  const res = await fetch(url, { headers });
+  if (!res.ok) {
+    if (res.status === 401 && typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('fp:auth-blocked', {
+          detail: { code: 'UNAUTHORIZED', message: 'Sessão expirada. Faça login novamente.' },
+        })
+      );
+    }
+    throw new Error(`Falha ao baixar arquivo autorizado (HTTP ${res.status}).`);
+  }
+  const disp = res.headers.get('content-disposition') || '';
+  const match = /filename\*?=(?:UTF-8''|")?([^";\n]+)/i.exec(disp);
+  const filename = match ? decodeURIComponent(match[1].replace(/"/g, '').trim()) : undefined;
+  const blob = await res.blob();
+  return { blob, filename };
 }
 
 export function formatBRL(cents: number | string | null | undefined): string {

@@ -199,6 +199,7 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [basicContactModalOpen, setBasicContactModalOpen] = useState(false);
   const [auditModalOpen, setAuditModalOpen] = useState(false);
+  const [sectorAuditOpen, setSectorAuditOpen] = useState(false);
   const [basicContactAutoTriggeredFor, setBasicContactAutoTriggeredFor] = useState<Record<number, boolean>>({});
   const [contactNameDraft, setContactNameDraft] = useState('');
   const [contactPhoneDraft, setContactPhoneDraft] = useState('+55 ');
@@ -875,6 +876,15 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
               </button>
             ))}
           </div>
+
+          <button
+            type="button"
+            onClick={() => setSectorAuditOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap min-h-[38px] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            <History className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+            Auditoria
+          </button>
 
           <button
             type="button"
@@ -2202,6 +2212,13 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
         entityType="prospection_leads"
         entityId={activeLead?.id || 0}
         onClose={() => setAuditModalOpen(false)}
+      />
+      <EntityAuditModal
+        open={sectorAuditOpen}
+        title="Prospecção & Funil Comercial · Auditoria Cumulativa"
+        entityType="prospection_leads,appointments,whatsapp_messages,whatsapp_call_logs"
+        entityId="all"
+        onClose={() => setSectorAuditOpen(false)}
       />
     </div>
   );

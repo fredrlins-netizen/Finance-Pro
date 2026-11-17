@@ -7,6 +7,7 @@ import {
   FileCheck2,
   FileText,
   Gavel,
+  History,
   Paperclip,
   Plus,
   Scale,
@@ -27,6 +28,7 @@ import type {
 import { getAuthToken } from '../../../lib/api.ts';
 import { FormTemplateButton } from '../../FormTemplateButton.tsx';
 import { DossierDocumentPreviewModal } from '../../DossierDocumentViewer.tsx';
+import { CompanyLegalAuditHistoryModal } from './CompanyLegalAuditHistoryModal.tsx';
 import {
   buildCompanyLegalMergeContext,
   DEADLINE_TYPES,
@@ -83,6 +85,7 @@ export const CompanyLegalProcessDetail: React.FC<CompanyLegalProcessDetailProps>
   const [hrLocation, setHrLocation] = useState('');
 
   const [busy, setBusy] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState<{
     kind: 'mov' | 'dl' | 'hr';
     id: string | number;
@@ -291,12 +294,21 @@ export const CompanyLegalProcessDetail: React.FC<CompanyLegalProcessDetailProps>
           <ArrowLeft className="w-3.5 h-3.5" /> Voltar à Lista
         </button>
 
-        <FormTemplateButton
-          menuId="jur_processos"
-          label="Gerar Documento"
-          getContext={() => buildCompanyLegalMergeContext(process, clients, units, currentUserName)}
-          onError={(msg) => onToast(msg)}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setAuditOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            <History className="w-3.5 h-3.5" /> Auditoria
+          </button>
+          <FormTemplateButton
+            menuId="jur_processos"
+            label="Gerar Documento"
+            getContext={() => buildCompanyLegalMergeContext(process, clients, units, currentUserName)}
+            onError={(msg) => onToast(msg)}
+          />
+        </div>
       </div>
 
       {/* Summary Card */}
@@ -823,6 +835,13 @@ export const CompanyLegalProcessDetail: React.FC<CompanyLegalProcessDetailProps>
           }
           setPreviewAtt(null);
         }}
+      />
+
+      <CompanyLegalAuditHistoryModal
+        open={auditOpen}
+        processId={process.id}
+        processNumber={process.processNumber}
+        onClose={() => setAuditOpen(false)}
       />
     </div>
   );

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { CalendarClock, LayoutDashboard, List, Scale } from 'lucide-react';
+import { CalendarClock, History, LayoutDashboard, List, Scale } from 'lucide-react';
 import { apiFetch } from '../../lib/api.ts';
 import type {
   AuthUser,
@@ -14,6 +14,7 @@ import { CompanyLegalProcessList } from './companylegal/CompanyLegalProcessList.
 import { CompanyLegalProcessForm } from './companylegal/CompanyLegalProcessForm.tsx';
 import { CompanyLegalProcessDetail } from './companylegal/CompanyLegalProcessDetail.tsx';
 import { CompanyLegalDeadlinesPanel } from './companylegal/CompanyLegalDeadlinesPanel.tsx';
+import { EntityAuditModal } from './cadastros/CadastrosShared.tsx';
 
 interface CompanyLegalModuleProps {
   activeSubmenu: ModuleId;
@@ -42,6 +43,7 @@ export const CompanyLegalModule: React.FC<CompanyLegalModuleProps> = ({
   // Processos screen sub-states: LIST | FORM | DETAIL
   const [processViewMode, setProcessViewMode] = useState<'LIST' | 'FORM' | 'DETAIL'>('LIST');
   const [selectedProcess, setSelectedProcess] = useState<CompanyLegalProcess | null>(null);
+  const [auditOpen, setAuditOpen] = useState(false);
 
   const resolvedView: 'jur_dashboard' | 'jur_processos' | 'jur_prazos' =
     activeSubmenu === 'jur_processos'
@@ -236,6 +238,13 @@ export const CompanyLegalModule: React.FC<CompanyLegalModuleProps> = ({
           >
             <CalendarClock className="w-3.5 h-3.5" /> Prazos e Audiências
           </button>
+          <button
+            type="button"
+            onClick={() => setAuditOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            <History className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" /> Auditoria
+          </button>
         </div>
       </div>
 
@@ -319,6 +328,14 @@ export const CompanyLegalModule: React.FC<CompanyLegalModuleProps> = ({
           onUpdateProcess={handleUpdateProcessInPlace}
         />
       )}
+
+      <EntityAuditModal
+        open={auditOpen}
+        title="Acompanhamento Jurídico · Auditoria Cumulativa"
+        entityType="company_legal_processes,company_legal_process_deadlines,company_legal_process_hearings,company_legal_process_movements"
+        entityId="all"
+        onClose={() => setAuditOpen(false)}
+      />
     </div>
   );
 };

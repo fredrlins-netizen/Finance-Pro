@@ -654,6 +654,50 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
               : 'Contas a Receber'}
           </h1>
         </div>
+        <button
+          type="button"
+          onClick={() => {
+            const scopeMap: Record<string, { entityType: string; label: string }> = {
+              finance_conta_corrente: {
+                entityType: 'bank_accounts,bank_movements',
+                label: 'Contas Correntes & Movimentações Bancárias',
+              },
+              finance_movimento: {
+                entityType: 'bank_movements,bank_accounts',
+                label: 'Movimentação Bancária',
+              },
+              finance_conciliacao: {
+                entityType: 'bank_movements,bank_accounts',
+                label: 'Conciliação Bancária',
+              },
+              finance_regua: {
+                entityType: 'financial_titles,system_settings,whatsapp_messages',
+                label: 'Régua de Cobrança (Ivi)',
+              },
+              finance_cadastros: {
+                entityType: 'suppliers,document_types,bearers,chart_of_accounts',
+                label: `Cadastros Financeiros (${activeCadLabel})`,
+              },
+              finance_cad_fornecedores: { entityType: 'suppliers', label: 'Fornecedores' },
+              finance_cad_documentos: { entityType: 'document_types', label: 'Tipos de Documento' },
+              finance_cad_portadores: { entityType: 'bearers', label: 'Portadores' },
+              finance_cad_plano_contas: { entityType: 'chart_of_accounts', label: 'Plano de Contas' },
+            };
+            const target = scopeMap[activeModule] || {
+              entityType: 'financial_titles,title_settlements,payment_batches',
+              label: activeModule === 'finance_pagar' ? 'Contas a Pagar' : 'Contas a Receber',
+            };
+            setAuditTarget({
+              entityType: target.entityType,
+              entityId: 'all',
+              label: `${target.label} · Auditoria Cumulativa`,
+            });
+          }}
+          className="inline-flex items-center gap-1.5 self-start sm:self-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+        >
+          <History className="w-3.5 h-3.5" />
+          Auditoria
+        </button>
       </div>
 
       {toast && (
@@ -797,6 +841,20 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                           {formatBRL(acc.currentBalanceCents)}
                         </td>
                         <td className="px-4 py-3 text-right space-x-2 whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setAuditTarget({
+                                entityType: 'bank_accounts',
+                                entityId: acc.id,
+                                label: `Conta Corrente · ${acc.bankName}`,
+                              })
+                            }
+                            className="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
+                            title="Auditoria da Conta Corrente"
+                          >
+                            <History className="w-3.5 h-3.5 inline" />
+                          </button>
                           <button
                             type="button"
                             onClick={() => openBankAccModal(acc)}

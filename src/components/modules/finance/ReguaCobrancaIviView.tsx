@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   Clock,
   FileSpreadsheet,
+  History,
   MessageSquare,
   RefreshCw,
   ScanSearch,
@@ -13,6 +14,7 @@ import {
 } from 'lucide-react';
 import { apiFetch, formatBRL, formatDateBR } from '../../../lib/api.ts';
 import { ReguaBatchCandidate } from '../../../types.ts';
+import { EntityAuditModal } from '../cadastros/CadastrosShared.tsx';
 
 interface CoverSheetCandidate {
   admissionId: number;
@@ -67,6 +69,7 @@ export const ReguaCobrancaIviView: React.FC<ReguaCobrancaIviViewProps> = ({ onRe
   const [dispatching, setDispatching] = useState(false);
   const [toast, setToast] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [auditOpen, setAuditOpen] = useState(false);
   const [lastDispatchReport, setLastDispatchReport] = useState<
     Array<{ titleId: number; titleCode: string; clientName: string; provider: string; message: string }>
   >([]);
@@ -239,6 +242,14 @@ export const ReguaCobrancaIviView: React.FC<ReguaCobrancaIviViewProps> = ({ onRe
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setAuditOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap min-h-[40px] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            <History className="w-3.5 h-3.5" />
+            Auditoria
+          </button>
           <button
             type="button"
             disabled={scanBusy}
@@ -703,6 +714,14 @@ export const ReguaCobrancaIviView: React.FC<ReguaCobrancaIviViewProps> = ({ onRe
           </div>
         </div>
       )}
+
+      <EntityAuditModal
+        open={auditOpen}
+        title="Régua de Cobrança Ivi · Auditoria Cumulativa"
+        entityType="financial_titles,system_settings,whatsapp_messages"
+        entityId="all"
+        onClose={() => setAuditOpen(false)}
+      />
     </div>
   );
 };

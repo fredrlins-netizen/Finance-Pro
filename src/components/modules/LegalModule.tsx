@@ -335,6 +335,7 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
   const [feedbackMsg, setFeedbackMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [auditProcess, setAuditProcess] = useState<LegalProcess | null>(null);
+  const [sectorAuditOpen, setSectorAuditOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -730,6 +731,14 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setSectorAuditOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap min-h-[38px] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            <History className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+            Auditoria
+          </button>
           {analyzedProcess && (
             <button
               type="button"
@@ -1714,6 +1723,13 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
         entityType="legal_processes"
         entityId={auditProcess?.id || 0}
         onClose={() => setAuditProcess(null)}
+      />
+      <EntityAuditModal
+        open={sectorAuditOpen}
+        title="Jurídico & Escavador · Auditoria Cumulativa"
+        entityType="legal_processes,legal_movements"
+        entityId="all"
+        onClose={() => setSectorAuditOpen(false)}
       />
     </div>
   );

@@ -6,6 +6,7 @@ import {
   Building2,
   CheckCheck,
   Filter,
+  History,
   Lock,
   MailCheck,
   MessageSquareText,
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react';
 import { apiFetch, formatDateTimeBR } from '../../lib/api.ts';
 import { AuthUser, ModuleId, NavigationIntent, Unit } from '../../types.ts';
+import { EntityAuditModal } from './cadastros/CadastrosShared.tsx';
 
 interface SectorSummaryItem {
   sector: string;
@@ -120,6 +122,7 @@ export const InternalMessagingModule: React.FC<InternalMessagingModuleProps> = (
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
   const [markingRead, setMarkingRead] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
 
   const loadMessages = useCallback(async () => {
     setError('');
@@ -265,6 +268,14 @@ export const InternalMessagingModule: React.FC<InternalMessagingModuleProps> = (
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setAuditOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 min-h-[38px]"
+          >
+            <History className="w-3.5 h-3.5" />
+            Auditoria
+          </button>
           <button
             type="button"
             onClick={() => loadMessages()}
@@ -734,6 +745,14 @@ export const InternalMessagingModule: React.FC<InternalMessagingModuleProps> = (
           )}
         </div>
       </div>
+
+      <EntityAuditModal
+        open={auditOpen}
+        title="Mensageria Interna & Alertas Ivi · Auditoria"
+        entityType="internal_messages"
+        entityId="all"
+        onClose={() => setAuditOpen(false)}
+      />
     </div>
   );
 };

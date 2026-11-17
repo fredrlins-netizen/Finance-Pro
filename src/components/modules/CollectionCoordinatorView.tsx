@@ -17,6 +17,7 @@ import {
   FileSpreadsheet,
   FileText,
   Filter,
+  History,
   ListFilter,
   ListTodo,
   MapPin,
@@ -96,6 +97,7 @@ import {
 } from './CollectionCoordinatorModalViews.tsx';
 import { CollectionCoordinatorTasksView } from './CollectionCoordinatorTasksView.tsx';
 import { CollaboratorRankingTables } from './CollaboratorRankingTables.tsx';
+import { EntityAuditModal } from './cadastros/CadastrosShared.tsx';
 
 interface CoordinatorPayload {
   portfolioTitles: FinancialTitle[];
@@ -212,6 +214,7 @@ export const CollectionCoordinatorView: React.FC<CollectionCoordinatorViewProps>
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [editingTitle, setEditingTitle] = useState<FinancialTitle | null>(null);
   const [historyTitle, setHistoryTitle] = useState<FinancialTitle | null>(null);
+  const [sectorAuditOpen, setSectorAuditOpen] = useState(false);
   const [deletingTitle, setDeletingTitle] = useState<FinancialTitle | null>(null);
   const [deleteTitleBusy, setDeleteTitleBusy] = useState(false);
   const [deletingCancelNote, setDeletingCancelNote] = useState<CollectionNote | null>(null);
@@ -1018,6 +1021,15 @@ export const CollectionCoordinatorView: React.FC<CollectionCoordinatorViewProps>
               Tarefas
             </button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setSectorAuditOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            <History className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+            Auditoria
+          </button>
 
           <button
             type="button"
@@ -2854,6 +2866,14 @@ export const CollectionCoordinatorView: React.FC<CollectionCoordinatorViewProps>
             : ''
         }
         onClose={() => setHistoryTitle(null)}
+      />
+
+      <EntityAuditModal
+        open={sectorAuditOpen}
+        title="Cobrança · Coordenação · Auditoria Cumulativa"
+        entityType="collection_cases,collection_notes,financial_titles,title_settlements,coordinator_tasks"
+        entityId="all"
+        onClose={() => setSectorAuditOpen(false)}
       />
 
       <ConfirmDeleteModal

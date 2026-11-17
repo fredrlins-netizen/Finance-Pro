@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { FileSpreadsheet, FileText } from 'lucide-react';
+import { FileSpreadsheet, FileText, History } from 'lucide-react';
 import {
   Area,
   AreaChart,
@@ -28,6 +28,7 @@ import {
   toIsoDateInput,
 } from './CollectionCoordinatorModalViews.tsx';
 import { computeTitleFinancialBreakdown } from './CollectionOperationalModals.tsx';
+import { EntityAuditModal } from './cadastros/CadastrosShared.tsx';
 
 interface CollectionOperationalDashboardProps {
   isAdmin: boolean;
@@ -58,6 +59,7 @@ export const CollectionOperationalDashboard: React.FC<CollectionOperationalDashb
   const [dueTo, setDueTo] = useState('');
   const [collaboratorFilter, setCollaboratorFilter] = useState('');
   const [refMonth, setRefMonth] = useState(() => toIsoDateInput(new Date()).slice(0, 7));
+  const [auditOpen, setAuditOpen] = useState(false);
 
   const todayIso = useMemo(() => toIsoDateInput(new Date()), []);
   const clientMap = useMemo(() => new Map(clients.map((c) => [c.id, c])), [clients]);
@@ -567,7 +569,15 @@ export const CollectionOperationalDashboard: React.FC<CollectionOperationalDashb
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setAuditOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            <History className="w-3.5 h-3.5" />
+            Auditoria
+          </button>
           <button
             type="button"
             onClick={() => exportDashboardSnapshotToExcel(buildExportInput())}
@@ -817,6 +827,14 @@ export const CollectionOperationalDashboard: React.FC<CollectionOperationalDashb
           )}
         </div>
       </div>
+
+      <EntityAuditModal
+        open={auditOpen}
+        title="Cobrança Operacional & Liquidações · Auditoria"
+        entityType="collection_cases,collection_notes,title_settlements,financial_titles"
+        entityId="all"
+        onClose={() => setAuditOpen(false)}
+      />
     </div>
   );
 };

@@ -25,6 +25,7 @@ import {
   CalendarClock,
   FileSpreadsheet,
   FileText,
+  History,
   Radio,
   RefreshCw,
   Scale,
@@ -41,6 +42,7 @@ import type {
   NavigationIntent,
   Unit,
 } from '../../types.ts';
+import { EntityAuditModal } from './cadastros/CadastrosShared.tsx';
 
 interface ManagerialDashboardModuleProps {
   units: Unit[];
@@ -102,6 +104,7 @@ export const ManagerialDashboardModule: React.FC<ManagerialDashboardModuleProps>
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [exportingType, setExportingType] = useState<'pdf' | 'excel' | null>(null);
+  const [auditOpen, setAuditOpen] = useState<boolean>(false);
   const hasLoadedRef = useRef(false);
 
   const loadDashboard = useCallback(
@@ -115,7 +118,8 @@ export const ManagerialDashboardModule: React.FC<ManagerialDashboardModuleProps>
       setError('');
       try {
         const res = await apiFetch<ManagerialDashboardPayload>(
-          `/api/managerial-dashboard?unitScope=${unitScope}&days=${periodDays}`
+          `/api/managerial-dashboard?unitScope=${unitScope}&days=${periodDays}`,
+          { passive: silent }
         );
         setData(res);
         hasLoadedRef.current = true;
@@ -343,6 +347,15 @@ export const ManagerialDashboardModule: React.FC<ManagerialDashboardModuleProps>
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
               <span>{exportingType === 'excel' ? 'Gerando...' : 'Exportar Excel'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setAuditOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0 min-h-[36px] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              <History className="w-3.5 h-3.5" />
+              <span>Auditoria</span>
             </button>
 
             <button
@@ -782,14 +795,24 @@ export const ManagerialDashboardModule: React.FC<ManagerialDashboardModuleProps>
                   {data.ivi.summary.auditSweepsCount} auditorias · {data.ivi.summary.legalTranslationsCount} traduções Escavador · {data.ivi.summary.prospectionLeadsHandled} leads triados (escalonamento humano {data.ivi.summary.humanEscalationRatePct.toFixed(1)}%) · {data.ivi.summary.audioTranscriptionsCount} áudios · {data.ivi.summary.savedReportsCount} relatórios salvos
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => onNavigate('audit')}
-                className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:underline whitespace-nowrap dark:text-blue-300"
-              >
-                <span>Ver Auditoria Ivi</span>
-                <ArrowUpRight className="w-3.5 h-3.5" />
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setAuditOpen(true)}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-slate-700 hover:underline whitespace-nowrap dark:text-slate-200"
+                >
+                  <History className="w-3.5 h-3.5" />
+                  <span>Auditoria Cumulativa</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onNavigate('audit')}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:underline whitespace-nowrap dark:text-blue-300"
+                >
+                  <span>Ver Auditoria Ivi</span>
+                  <ArrowUpRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
@@ -885,6 +908,14 @@ export const ManagerialDashboardModule: React.FC<ManagerialDashboardModuleProps>
           </section>
         </>
       )}
+
+      <EntityAuditModal
+        open={auditOpen}
+        title="Dashboard Gerencial · Auditoria Cumulativa"
+        entityType="commercial_deals,admissions,negotiations,legal_processes,financial_titles"
+        entityId="all"
+        onClose={() => setAuditOpen(false)}
+      />
     </div>
   );
 };

@@ -69,6 +69,12 @@ export function validateReportSql(sqlText: string): string | null {
     return 'Função de sistema restrita não permitida em consultas de relatório.';
   }
 
+  const forbiddenSensitiveIdentifiers =
+    /\b(password_hash|temp_password|uazapi_token_encrypted|pg_shadow|pg_authid|pg_roles|pg_stat_activity)\b/i;
+  if (forbiddenSensitiveIdentifiers.test(withoutStrings)) {
+    return 'Acesso a colunas ou tabelas internas de credenciais e tokens é bloqueado pela política LGPD.';
+  }
+
   return null;
 }
 
@@ -496,8 +502,8 @@ export function registerReportsRoutes(
     } catch (err) {
       console.error('POST /api/reports/execute-query error:', err instanceof Error ? err.message : err);
       res.status(400).json({
-        error: isAdmin && err instanceof Error
-          ? err.message
+        error: isAdmin
+          ? sanitizeErrorMessage(err, 'Erro ao executar consulta SQL.')
           : 'Erro ao executar consulta. Verifique os parâmetros informados.',
       });
     }

@@ -2,10 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
-  Banknote,
   CheckCircle2,
   ClipboardCheck,
   FileStack,
+  History,
   MessageSquareText,
   PhoneCall,
   Plus,
@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { apiFetch, formatBRL, formatBytes } from '../../lib/api.ts';
 import { ModuleId, NavigationIntent, Unit } from '../../types.ts';
+import { EntityAuditModal } from './cadastros/CadastrosShared.tsx';
 
 interface OverviewData {
   units: Unit[];
@@ -80,6 +81,7 @@ interface ActionTask {
 export const OverviewModule: React.FC<OverviewModuleProps> = ({ onNavigate, activeUnitId }) => {
   const [data, setData] = useState<OverviewData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [auditOpen, setAuditOpen] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -182,8 +184,8 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({ onNavigate, acti
     return (
       <div className="space-y-4 animate-pulse">
         <div className="h-20 rounded-xl bg-slate-200/70" />
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-          {[1, 2, 3, 4, 5].map((i) => (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          {[1, 2, 3, 4].map((i) => (
             <div key={i} className="h-24 rounded-xl bg-slate-200/70" />
           ))}
         </div>
@@ -192,21 +194,6 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({ onNavigate, acti
     );
   }
 
-  const todayIsoKpi = new Date().toISOString().slice(0, 10);
-  const receberOnly = data.titles.filter((t) => (t.scope || 'RECEBER') === 'RECEBER');
-  const paidTotal = receberOnly
-    .filter((t) => String(t.status || '').toUpperCase() === 'PAGO')
-    .reduce((a, b) => a + (b.originalValueCents || b.amountCents), 0);
-  const overdueTotal = receberOnly
-    .filter((t) => {
-      const st = String(t.status || '').toUpperCase();
-      if (st === 'VENCIDO') return true;
-      if (st === 'ABERTO' || st === 'PARCIAL') {
-        return Boolean(t.dueDate && String(t.dueDate).slice(0, 10) < todayIsoKpi);
-      }
-      return false;
-    })
-    .reduce((a, b) => a + ((b.currentBalanceCents ?? 0) > 0 ? (b.currentBalanceCents ?? 0) : b.amountCents), 0);
   const pendingAudits = data.admissions.filter(
     (a) => a.status === 'aguardando_auditoria' || a.status === 'devolvida_admissao'
   ).length;
@@ -243,11 +230,19 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({ onNavigate, acti
             <PhoneCall className="w-3.5 h-3.5 text-blue-700 dark:text-blue-300" />
             Atender Próximo Lead
           </button>
+          <button
+            type="button"
+            onClick={() => setAuditOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap min-h-[38px] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+          >
+            <History className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
+            Auditoria
+          </button>
         </div>
       </div>
 
-      {/* 5-Stage Client Lifecycle Funnel (Clickable Shortcuts) */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      {/* 4-Stage Client Lifecycle Funnel (Clickable Shortcuts) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
           {
             step: '1. Prospecção',
@@ -280,14 +275,6 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({ onNavigate, acti
             sub: `${data.negotiations.length} negociações ativas`,
             accent: unreadLegal > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-slate-100',
             icon: Scale,
-          },
-          {
-            step: '5. Financeiro',
-            mod: 'finance' as ModuleId,
-            value: formatBRL(paidTotal),
-            sub: overdueTotal > 0 ? `Atraso: ${formatBRL(overdueTotal)}` : 'Carteira em dia',
-            accent: 'text-emerald-700 dark:text-emerald-300',
-            icon: Banknote,
           },
         ].map((stage) => {
           const Icon = stage.icon;
@@ -414,6 +401,14 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({ onNavigate, acti
           </div>
         </div>
       </div>
+
+      <EntityAuditModal
+        open={auditOpen}
+        title="Visão Executiva · Auditoria Cumulativa do Sistema"
+        entityType="all"
+        entityId="all"
+        onClose={() => setAuditOpen(false)}
+      />
     </div>
   );
 };

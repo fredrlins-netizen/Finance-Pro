@@ -47,6 +47,7 @@ import { AuditDocumentWorkspace } from './audit/AuditDocumentWorkspace.tsx';
 import { AuditDossierSummaryTab } from './audit/AuditDossierSummaryTab.tsx';
 import { AuditBoletosTab } from './audit/AuditBoletosTab.tsx';
 import { AuditIviInsightsPanel } from './audit/AuditIviInsightsPanel.tsx';
+import { EntityAuditModal } from './cadastros/CadastrosShared.tsx';
 
 interface AuditModuleProps {
   units: Unit[];
@@ -159,6 +160,11 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
   const [inlineNoteText, setInlineNoteText] = useState('');
   const [inlineNoteSaving, setInlineNoteSaving] = useState(false);
   const [inlineIviBusyId, setInlineIviBusyId] = useState<number | null>(null);
+  const [auditModalTarget, setAuditModalTarget] = useState<{
+    title: string;
+    entityType: string;
+    entityId: number | string;
+  } | null>(null);
 
   const loadCacheStats = useCallback(async () => {
     try {
@@ -943,6 +949,20 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
+              onClick={() =>
+                setAuditModalTarget({
+                  title: 'Auditoria & Validação de Fichas · Setor Completo',
+                  entityType: 'admissions,document_objects',
+                  entityId: 'all',
+                })
+              }
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap min-h-[36px] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              <History className="w-3.5 h-3.5" />
+              Auditoria do Setor
+            </button>
+            <button
+              type="button"
               disabled={sweepBusy}
               onClick={() => runIviSweepAll(false, false)}
               className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50 whitespace-nowrap min-h-[36px] dark:border-slate-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
@@ -1352,6 +1372,20 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setAuditModalTarget({
+                      title: `Auditoria Cumulativa · ${activeAdmission.protocolCode}`,
+                      entityType: 'admission',
+                      entityId: activeAdmission.id,
+                    })
+                  }
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap min-h-[36px] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                >
+                  <History className="w-3.5 h-3.5" />
+                  Auditoria Completa
+                </button>
                 <button
                   type="button"
                   onClick={() => setInsightsOpen((prev) => !prev)}
@@ -2072,6 +2106,16 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {auditModalTarget && (
+        <EntityAuditModal
+          open={Boolean(auditModalTarget)}
+          title={auditModalTarget.title}
+          entityType={auditModalTarget.entityType}
+          entityId={auditModalTarget.entityId}
+          onClose={() => setAuditModalTarget(null)}
+        />
       )}
     </div>
   );

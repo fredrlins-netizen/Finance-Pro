@@ -217,6 +217,30 @@ export async function getPortalBranding(): Promise<PortalBrandingConfig> {
   }
 }
 
+function sanitizeUserResponse(u: typeof users.$inferSelect) {
+  return {
+    id: u.id,
+    uid: u.uid,
+    email: u.email,
+    name: u.name,
+    role: u.role,
+    groupId: u.groupId,
+    defaultUnitId: u.defaultUnitId,
+    allowedUnitIds: u.allowedUnitIds,
+    whatsappPhone: u.whatsappPhone,
+    active: u.active,
+    points: u.points,
+    mustChangePassword: u.mustChangePassword,
+    failedLoginAttempts: u.failedLoginAttempts,
+    lockedUntil: u.lockedUntil,
+    suspended: u.suspended,
+    suspendedReason: u.suspendedReason,
+    suspendedAt: u.suspendedAt,
+    suspendedBy: u.suspendedBy,
+    createdAt: u.createdAt,
+  };
+}
+
 export function registerConfigRoutes(app: Express) {
   // ---------------------------------------------------------------------------
   // 1. PORTAL & IDENTIDADE VISUAL (Público para Login + Protegido para Admin)
@@ -1655,13 +1679,16 @@ export function registerConfigRoutes(app: Express) {
           { changes }
         );
         markManualAuditLogged();
-        return res.json({ ok: true, userId: updated.id, user: updated });
+        return res.json({ ok: true, userId: updated.id, user: sanitizeUserResponse(updated) });
       } else {
         const dup = await db.select().from(users).where(eq(users.email, email)).limit(1);
         if (dup[0]) {
           return res.status(409).json({ error: `Já existe um usuário com o e-mail "${email}".` });
         }
-        const rawPwd = body.password && body.password.trim().length >= 6 ? body.password.trim() : 'Mudar@2026';
+        const rawPwd =
+          body.password && body.password.trim().length >= 6
+            ? body.password.trim()
+            : `FP-${crypto.randomBytes(6).toString('hex')}`;
         const [created] = await db
           .insert(users)
           .values({
@@ -1739,7 +1766,7 @@ export function registerConfigRoutes(app: Express) {
       });
       markManualAuditLogged();
 
-      res.json({ ok: true, user: updated });
+      res.json({ ok: true, user: sanitizeUserResponse(updated) });
     } catch (error) {
       res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao reabilitar usuário.') });
     }

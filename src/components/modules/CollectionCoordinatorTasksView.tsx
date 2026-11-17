@@ -9,6 +9,7 @@ import {
   Clock,
   Filter,
   GripVertical,
+  History,
   Maximize2,
   Mic,
   MicOff,
@@ -49,6 +50,7 @@ import {
   TaskShareModal,
   TaskStatusTransitionModal,
 } from './CollectionCoordinatorTasksModals.tsx';
+import { EntityAuditModal } from './cadastros/CadastrosShared.tsx';
 
 interface IviTaskSuggestion {
   title: string;
@@ -153,6 +155,7 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
   const [detailTaskId, setDetailTaskId] = useState<number | null>(null);
   const [shareTaskId, setShareTaskId] = useState<number | null>(null);
   const [pauseTask, setPauseTask] = useState<CoordinatorTaskItem | null>(null);
+  const [auditOpen, setAuditOpen] = useState(false);
   const [statusTransitionState, setStatusTransitionState] = useState<{
     task: CoordinatorTaskItem;
     mode: 'PAUSADO' | 'CANCELADO';
@@ -731,6 +734,15 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
             >
               <Bot className="w-3.5 h-3.5" />
               {iviSuggestBusy ? 'Ivi Gerando...' : 'Sugestões Ivi'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setAuditOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              <History className="w-3.5 h-3.5" />
+              Auditoria
             </button>
 
             <button
@@ -1674,6 +1686,14 @@ export const CollectionCoordinatorTasksView: React.FC<CollectionCoordinatorTasks
         busy={singleDeleteBusy}
         onCancel={() => setDeletingSingleTask(null)}
         onConfirm={handleConfirmSingleDelete}
+      />
+
+      <EntityAuditModal
+        open={auditOpen}
+        title="Tarefas Kanban da Coordenação · Auditoria Cumulativa"
+        entityType="coordinator_tasks,coordinator_task_subtasks,coordinator_task_columns"
+        entityId="all"
+        onClose={() => setAuditOpen(false)}
       />
     </div>
   );

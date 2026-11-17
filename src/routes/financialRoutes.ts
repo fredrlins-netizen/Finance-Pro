@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import type { Express } from 'express';
-import { and, asc, count, desc, eq, inArray, ne, or } from 'drizzle-orm';
+import { and, asc, count, desc, eq, ilike, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import { db } from '../db/index.ts';
 import {
   admissions,
@@ -36,7 +36,7 @@ import {
 } from '../middleware/auth.ts';
 import { iviDraftCollectionMessage } from '../services/ivi.ts';
 import { dispatchIviSectorNotification } from '../services/internalMessaging.ts';
-import { normalizeAuditLogRecord } from '../utils/auditDiff.ts';
+import { getEntityLabel, getEntityTypeAliases, normalizeAuditLogRecord } from '../utils/auditDiff.ts';
 import {
   parseFiniteNumber,
   parsePositiveIntArray,
@@ -1843,7 +1843,7 @@ export function registerFinancialRoutes(
     }
   });
 
-  // 19. Auditoria detalhada por ID do título (até 500 eventos, compatível com legacy, AUTO_UPDATE e CONTA_RECEBER/PAGAR)
+  // 19. Auditoria detalhada por ID / entidade (até 2000 eventos acumulativos, compatível com legacy e AUTO_UPDATE)
   app.get('/api/audit-logs', requireAuth, async (req: AuthRequest, res) => {
     try {
       const entityId = String(req.query.entityId || '').trim();
@@ -1851,34 +1851,130 @@ export function registerFinancialRoutes(
       if (!entityId) return res.json({ logs: [] });
 
       const allowedUnits = getAllowedUnitIds(req);
+      const aliases = entityType ? getEntityTypeAliases(entityType) : [];
+
       const rows = await db
         .select()
         .from(auditLogs)
         .where(
           and(
-            eq(auditLogs.entityId, entityId),
-            entityType
-              ? or(
-                  eq(auditLogs.entityType, entityType),
-                  eq(auditLogs.entityType, 'financial_title'),
-                  eq(auditLogs.entityType, 'financial_titles')
-                )
-              : or(
-                  eq(auditLogs.entityType, 'CONTA_RECEBER'),
-                  eq(auditLogs.entityType, 'CONTA_PAGAR'),
-                  eq(auditLogs.entityType, 'financial_title'),
-                  eq(auditLogs.entityType, 'financial_titles')
-                ),
-            allowedUnits !== null ? inArray(auditLogs.unitId, allowedUnits) : undefined
+            entityId.toLowerCase() !== 'all' ? eq(auditLogs.entityId, entityId) : undefined,
+            aliases.length > 0
+              ? inArray(auditLogs.entityType, aliases)
+              : entityType
+              ? eq(auditLogs.entityType, entityType)
+              : inArray(auditLogs.entityType, [
+                  'CONTA_RECEBER',
+                  'CONTA_PAGAR',
+                  'financial_title',
+                  'financial_titles',
+                ]),
+            allowedUnits !== null
+              ? allowedUnits.length > 0
+                ? or(inArray(auditLogs.unitId, allowedUnits), isNull(auditLogs.unitId))
+                : isNull(auditLogs.unitId)
+              : undefined
           )
         )
         .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id))
-        .limit(500);
+        .limit(2000);
 
       res.json({ logs: rows.map((r) => normalizeAuditLogRecord(r)) });
     } catch (error) {
       console.error('GET /api/audit-logs error:', error);
       res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao consultar auditoria.') });
+    }
+  });
+
+  // 19B. Trilha Global de Auditoria Paginada & Acumulativa (todas as rotinas atuais e futuras)
+  app.get('/api/audit-logs/all', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const page = Math.max(1, Number(req.query.page || 1) || 1);
+      const pageSize = Math.min(200, Math.max(10, Number(req.query.pageSize || 25) || 25));
+      const entityType = String(req.query.entityType || '').trim();
+      const entityId = String(req.query.entityId || '').trim();
+      const search = String(req.query.search || '').trim();
+      const allowedUnits = getAllowedUnitIds(req);
+
+      const conditions = [];
+
+      if (entityType && entityType !== 'all') {
+        const aliases = Array.from(
+          new Set(
+            entityType
+              .split(',')
+              .map((s) => s.trim())
+              .filter(Boolean)
+              .flatMap((s) => getEntityTypeAliases(s))
+          )
+        );
+        if (aliases.length > 0) {
+          conditions.push(inArray(auditLogs.entityType, aliases));
+        } else {
+          conditions.push(eq(auditLogs.entityType, entityType));
+        }
+      }
+
+      if (entityId && entityId !== 'all') {
+        conditions.push(eq(auditLogs.entityId, entityId));
+      }
+
+      if (allowedUnits !== null) {
+        if (allowedUnits.length > 0) {
+          conditions.push(or(inArray(auditLogs.unitId, allowedUnits), isNull(auditLogs.unitId)));
+        } else {
+          conditions.push(isNull(auditLogs.unitId));
+        }
+      }
+
+      if (search) {
+        const pat = `%${search}%`;
+        conditions.push(
+          or(
+            ilike(auditLogs.userName, pat),
+            ilike(auditLogs.action, pat),
+            ilike(auditLogs.entityType, pat),
+            ilike(auditLogs.entityId, pat),
+            sql`${auditLogs.details}::text ILIKE ${pat}`
+          )
+        );
+      }
+
+      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+      const [totalRes, rows, entityRows] = await Promise.all([
+        db.select({ value: count() }).from(auditLogs).where(whereClause),
+        db
+          .select()
+          .from(auditLogs)
+          .where(whereClause)
+          .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id))
+          .limit(pageSize)
+          .offset((page - 1) * pageSize),
+        db
+          .selectDistinct({ entityType: auditLogs.entityType })
+          .from(auditLogs)
+          .orderBy(asc(auditLogs.entityType)),
+      ]);
+
+      const total = Number(totalRes[0]?.value || 0);
+      const totalPages = Math.max(1, Math.ceil(total / pageSize));
+      const availableEntities = entityRows.map((e) => ({
+        entityType: e.entityType,
+        label: getEntityLabel(e.entityType),
+      }));
+
+      res.json({
+        logs: rows.map((r) => normalizeAuditLogRecord(r)),
+        total,
+        page,
+        pageSize,
+        totalPages,
+        availableEntities,
+      });
+    } catch (error) {
+      console.error('GET /api/audit-logs/all error:', error);
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao consultar trilha global de auditoria.') });
     }
   });
 

@@ -1062,15 +1062,18 @@ export const AuditHistoryModal: React.FC<{
       createdAt: string;
       userName: string;
       action: string;
-      field: string;
-      from: string;
-      to: string;
+      newLabel: string;
+      newValue: string;
+      previousLabel: string;
+      previousValue: string;
     }> = [];
     for (const log of logs) {
       const details = (log.details || {}) as {
         changes?: Array<{
           field?: string;
           label?: string;
+          previousLabel?: string;
+          newLabel?: string;
           from?: string;
           to?: string;
           previousValue?: string;
@@ -1086,16 +1089,22 @@ export const AuditHistoryModal: React.FC<{
           : Array.isArray(details.changes)
           ? details.changes
           : [];
+      const isInsert = String(log.action || '').toUpperCase().includes('INSERT') || String(log.action || '').toUpperCase().includes('CREATE');
+      const isDelete = String(log.action || '').toUpperCase().includes('DELETE');
       if (changes.length > 0) {
         changes.forEach((ch, idx) => {
+          const lbl = ch.label || ch.field || '—';
+          const prevV = String(ch.previousValue ?? ch.from ?? '—');
+          const nextV = String(ch.newValue ?? ch.to ?? '—');
           out.push({
             id: `${log.id}-${idx}`,
             createdAt: log.createdAt,
             userName: log.userName || 'Sistema',
             action: log.action,
-            field: ch.label || ch.field || '—',
-            from: String(ch.previousValue ?? ch.from ?? '—'),
-            to: String(ch.newValue ?? ch.to ?? '—'),
+            newLabel: ch.newLabel || (isDelete ? '— (Removido)' : lbl),
+            newValue: nextV,
+            previousLabel: ch.previousLabel || (isInsert ? '— (Novo registro)' : lbl),
+            previousValue: prevV,
           });
         });
       } else {
@@ -1104,9 +1113,10 @@ export const AuditHistoryModal: React.FC<{
           createdAt: log.createdAt,
           userName: log.userName || 'Sistema',
           action: log.action,
-          field: 'Ação Executada',
-          from: '—',
-          to: details.description || details.transferReason || log.action,
+          newLabel: 'Ação Executada',
+          newValue: details.description || details.transferReason || log.action,
+          previousLabel: isInsert ? '— (Novo registro)' : 'Ação Executada',
+          previousValue: '—',
         });
       }
     }
@@ -1115,7 +1125,7 @@ export const AuditHistoryModal: React.FC<{
 
   if (!title) return null;
 
-  const pageSize = 15;
+  const pageSize = 20;
   const totalPages = Math.max(1, Math.ceil(flatRows.length / pageSize));
   const pagedRows = flatRows.slice((page - 1) * pageSize, page * pageSize);
 
@@ -1134,7 +1144,7 @@ export const AuditHistoryModal: React.FC<{
       onClick={onClose}
     >
       <div
-        className="w-full max-w-4xl rounded-xl border border-slate-200 bg-white shadow-2xl overflow-hidden flex flex-col max-h-[88vh] dark:border-slate-700 dark:bg-slate-900"
+        className="w-full max-w-6xl rounded-xl border border-slate-200 bg-white shadow-2xl overflow-hidden flex flex-col max-h-[88vh] dark:border-slate-700 dark:bg-slate-900"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between gap-2 dark:border-slate-700">
@@ -1142,7 +1152,7 @@ export const AuditHistoryModal: React.FC<{
             <div className="flex items-center gap-2">
               <History className="w-4 h-4 text-slate-700 shrink-0 dark:text-slate-200" />
               <h3 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
-                Histórico de Movimentações
+                Auditoria Acumulativa de Movimentações
               </h3>
               <span className="text-[11px] font-mono text-slate-500 border border-slate-200 rounded px-1.5 py-0.5 dark:text-slate-400 dark:border-slate-700">
                 Somente Leitura
@@ -1181,29 +1191,32 @@ export const AuditHistoryModal: React.FC<{
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600 dark:bg-slate-800/70 dark:border-slate-700 dark:text-slate-300">
-                    <th className="py-2 px-3">Data/Hora</th>
-                    <th className="py-2 px-3">Usuário</th>
-                    <th className="py-2 px-3">Ação</th>
-                    <th className="py-2 px-3">Campo</th>
-                    <th className="py-2 px-3">De</th>
-                    <th className="py-2 px-2 text-center">→</th>
-                    <th className="py-2 px-3">Para</th>
+                    <th className="py-2 px-3 whitespace-nowrap">Usuário</th>
+                    <th className="py-2 px-3 whitespace-nowrap">Data e Horário</th>
+                    <th className="py-2 px-3 whitespace-nowrap">Campo Alterado (Label)</th>
+                    <th className="py-2 px-3">Conteúdo da Alteração</th>
+                    <th className="py-2 px-3 whitespace-nowrap">Campo Anterior (Label)</th>
+                    <th className="py-2 px-3">Valor Campo Anterior</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {pagedRows.map((row) => (
                     <tr key={row.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800">
-                      <td className="py-2 px-3 font-mono text-[11px] text-slate-600 whitespace-nowrap tabular-nums dark:text-slate-300">
+                      <td className="py-2 px-3 align-top whitespace-nowrap">
+                        <div className="font-semibold text-slate-800 dark:text-slate-100">{row.userName}</div>
+                        <div className={`font-mono text-[10px] font-bold ${actionColor(row.action)}`}>{row.action}</div>
+                      </td>
+                      <td className="py-2 px-3 font-mono text-[11px] text-slate-600 whitespace-nowrap tabular-nums align-top dark:text-slate-300">
                         {formatDateTimeBR(row.createdAt)}
                       </td>
-                      <td className="py-2 px-3 font-medium text-slate-800 dark:text-slate-100">{row.userName}</td>
-                      <td className={`py-2 px-3 font-mono text-[11px] font-bold ${actionColor(row.action)}`}>
-                        {row.action}
+                      <td className="py-2 px-3 font-semibold text-slate-900 align-top dark:text-slate-100">{row.newLabel}</td>
+                      <td className="py-2 px-3 font-mono font-semibold text-emerald-800 bg-emerald-50/40 max-w-[220px] break-words align-top dark:bg-emerald-950/20 dark:text-emerald-300">
+                        {row.newValue}
                       </td>
-                      <td className="py-2 px-3 text-slate-700 dark:text-slate-200">{row.field}</td>
-                      <td className="py-2 px-3 text-slate-500 dark:text-slate-400">{row.from}</td>
-                      <td className="py-2 px-2 text-center text-slate-400 dark:text-slate-400">→</td>
-                      <td className="py-2 px-3 font-medium text-slate-900 dark:text-slate-100">{row.to}</td>
+                      <td className="py-2 px-3 font-medium text-slate-700 align-top dark:text-slate-300">{row.previousLabel}</td>
+                      <td className="py-2 px-3 font-mono text-red-700 bg-red-50/40 max-w-[220px] break-words align-top dark:bg-red-950/20 dark:text-red-300">
+                        {row.previousValue}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

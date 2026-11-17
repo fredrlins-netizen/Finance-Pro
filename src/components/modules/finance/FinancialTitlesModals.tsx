@@ -2002,8 +2002,28 @@ interface AuditLogRow {
   userName: string;
   action: string;
   createdAt: string;
-  changes?: Array<{ field?: string; label?: string; from?: string; to?: string; previousValue?: string; newValue?: string }>;
-  details?: { changes?: Array<{ field?: string; label?: string; from?: string; to?: string; previousValue?: string; newValue?: string }> };
+  changes?: Array<{
+    field?: string;
+    label?: string;
+    previousLabel?: string;
+    newLabel?: string;
+    from?: string;
+    to?: string;
+    previousValue?: string;
+    newValue?: string;
+  }>;
+  details?: {
+    changes?: Array<{
+      field?: string;
+      label?: string;
+      previousLabel?: string;
+      newLabel?: string;
+      from?: string;
+      to?: string;
+      previousValue?: string;
+      newValue?: string;
+    }>;
+  };
 }
 
 export const TitleAuditModal: React.FC<TitleAuditModalProps> = ({ target, scope, onClose }) => {
@@ -2024,14 +2044,49 @@ export const TitleAuditModal: React.FC<TitleAuditModalProps> = ({ target, scope,
 
   if (!target) return null;
 
-  const pageSize = 15;
-  const totalPages = Math.max(1, Math.ceil(logs.length / pageSize));
-  const slice = logs.slice((page - 1) * pageSize, page * pageSize);
+  const flatRows = logs.flatMap((l) => {
+    const list = l.changes && l.changes.length > 0 ? l.changes : l.details?.changes || [];
+    const isInsert = String(l.action || '').toUpperCase().includes('INSERT') || String(l.action || '').toUpperCase().includes('CREATE');
+    const isDelete = String(l.action || '').toUpperCase().includes('DELETE');
+    if (list.length === 0) {
+      return [
+        {
+          key: `${l.id}-0`,
+          userName: l.userName || 'Sistema',
+          createdAt: l.createdAt,
+          action: l.action,
+          newLabel: 'Evento Operacional',
+          newValue: l.action,
+          previousLabel: isInsert ? '— (Novo registro)' : 'Evento Operacional',
+          previousValue: '—',
+        },
+      ];
+    }
+    return list.map((c, idx) => {
+      const lbl = c.label || c.field || 'Campo';
+      const prevV = String(c.previousValue ?? c.from ?? '—');
+      const nextV = String(c.newValue ?? c.to ?? '—');
+      return {
+        key: `${l.id}-${idx}`,
+        userName: l.userName || 'Sistema',
+        createdAt: l.createdAt,
+        action: l.action,
+        newLabel: c.newLabel || (isDelete ? '— (Removido)' : lbl),
+        newValue: nextV,
+        previousLabel: c.previousLabel || (isInsert ? '— (Novo registro)' : lbl),
+        previousValue: prevV,
+      };
+    });
+  });
+
+  const pageSize = 20;
+  const totalPages = Math.max(1, Math.ceil(flatRows.length / pageSize));
+  const slice = flatRows.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 dark:bg-slate-950/80" onClick={onClose}>
       <div
-        className="w-full max-w-4xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden text-xs max-h-[85vh] flex flex-col dark:border-slate-700 dark:bg-slate-900"
+        className="w-full max-w-6xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden text-xs max-h-[88vh] flex flex-col dark:border-slate-700 dark:bg-slate-900"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50 dark:border-slate-700 dark:bg-slate-800/70">
@@ -2039,9 +2094,11 @@ export const TitleAuditModal: React.FC<TitleAuditModalProps> = ({ target, scope,
             <History className="w-4 h-4 text-slate-700 dark:text-slate-200" />
             <div>
               <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
-                Auditoria do Título · {target.documentNumber || target.titleCode}
+                Auditoria Acumulativa do Título · {target.documentNumber || target.titleCode}
               </h3>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">Trilha completa de criação, edições, baixas, estornos e régua ({logs.length} eventos)</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Trilha acumulativa de Usuário, Data/Horário, Campo Alterado (Label), Conteúdo da Alteração, Campo Anterior (Label) e Valor Campo Anterior ({logs.length} eventos · {flatRows.length} registros)
+              </p>
             </div>
           </div>
           <button type="button" onClick={onClose}>
@@ -2052,35 +2109,38 @@ export const TitleAuditModal: React.FC<TitleAuditModalProps> = ({ target, scope,
         <div className="p-5 overflow-y-auto flex-1">
           {loading ? (
             <div className="py-10 text-center text-slate-500 dark:text-slate-400">Carregando trilha de auditoria...</div>
-          ) : logs.length === 0 ? (
+          ) : flatRows.length === 0 ? (
             <div className="py-10 text-center text-slate-500 dark:text-slate-400">Nenhum evento de auditoria registrado para este título.</div>
           ) : (
-            <div className="border border-slate-200 rounded-xl overflow-hidden dark:border-slate-700">
+            <div className="border border-slate-200 rounded-xl overflow-x-auto dark:border-slate-700">
               <table className="w-full text-left text-[11px]">
-                <thead className="bg-slate-50 text-slate-500 border-b border-slate-200 dark:bg-slate-800/70 dark:text-slate-400 dark:border-slate-700">
+                <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 dark:bg-slate-800/70 dark:text-slate-300 dark:border-slate-700">
                   <tr>
-                    <th className="px-3 py-2">Data/Hora</th>
-                    <th className="px-3 py-2">Usuário</th>
-                    <th className="px-3 py-2">Ação</th>
-                    <th className="px-3 py-2">Alterações (Campo · De → Para)</th>
+                    <th className="px-3 py-2 whitespace-nowrap">Usuário</th>
+                    <th className="px-3 py-2 whitespace-nowrap">Data e Horário</th>
+                    <th className="px-3 py-2 whitespace-nowrap">Campo Alterado (Label)</th>
+                    <th className="px-3 py-2">Conteúdo da Alteração</th>
+                    <th className="px-3 py-2 whitespace-nowrap">Campo Anterior (Label)</th>
+                    <th className="px-3 py-2">Valor Campo Anterior</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {slice.map((l) => (
-                    <tr key={l.id}>
-                      <td className="px-3 py-2 font-mono tabular-nums whitespace-nowrap text-slate-600 dark:text-slate-300">
-                        {new Date(l.createdAt).toLocaleString('pt-BR')}
+                  {slice.map((row) => (
+                    <tr key={row.key} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/60">
+                      <td className="px-3 py-2 align-top">
+                        <div className="font-semibold text-slate-800 dark:text-slate-100">{row.userName}</div>
+                        <div className="font-mono text-[10px] text-slate-500 dark:text-slate-400">{row.action}</div>
                       </td>
-                      <td className="px-3 py-2 font-semibold text-slate-800 dark:text-slate-100">{l.userName}</td>
-                      <td className="px-3 py-2 font-mono text-slate-700 dark:text-slate-200">{l.action}</td>
-                      <td className="px-3 py-2 space-y-0.5">
-                        {(l.changes && l.changes.length > 0 ? l.changes : l.details?.changes || []).map((c, idx) => (
-                          <div key={idx} className="text-slate-700 dark:text-slate-200">
-                            <span className="font-semibold">{c.label || c.field || 'Campo'}:</span>{' '}
-                            <span className="text-slate-500 dark:text-slate-400">{c.previousValue ?? c.from ?? '—'}</span> →{' '}
-                            <span className="font-semibold text-slate-900 dark:text-slate-100">{c.newValue ?? c.to ?? '—'}</span>
-                          </div>
-                        ))}
+                      <td className="px-3 py-2 font-mono tabular-nums whitespace-nowrap text-slate-600 align-top dark:text-slate-300">
+                        {new Date(row.createdAt).toLocaleString('pt-BR')}
+                      </td>
+                      <td className="px-3 py-2 font-semibold text-slate-900 align-top dark:text-slate-100">{row.newLabel}</td>
+                      <td className="px-3 py-2 font-mono font-semibold text-emerald-800 bg-emerald-50/40 max-w-[220px] break-words align-top dark:bg-emerald-950/20 dark:text-emerald-300">
+                        {row.newValue}
+                      </td>
+                      <td className="px-3 py-2 font-medium text-slate-700 align-top dark:text-slate-300">{row.previousLabel}</td>
+                      <td className="px-3 py-2 font-mono text-red-700 bg-red-50/40 max-w-[220px] break-words align-top dark:bg-red-950/20 dark:text-red-300">
+                        {row.previousValue}
                       </td>
                     </tr>
                   ))}

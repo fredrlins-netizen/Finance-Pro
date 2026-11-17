@@ -58,8 +58,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   forcedLockMessage,
 }) => {
   const { isDark, toggleTheme } = useTheme();
-  const [email, setEmail] = useState('admin@financepro.com.br');
-  const [password, setPassword] = useState('Invicta@2026');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [mathAnswer, setMathAnswer] = useState('');
   const [selectedTiles, setSelectedTiles] = useState<string[]>([]);
   const [captcha, setCaptcha] = useState<CaptchaData | null>(null);
@@ -155,16 +155,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     setForgotInfo('');
     setLoading(true);
     try {
-      const res = await apiFetch<{ message: string; demoTempPasswordPreview?: string }>(
+      const res = await apiFetch<{ message: string }>(
         '/api/auth/forgot-password',
         {
           method: 'POST',
           body: JSON.stringify({ email }),
         }
       );
-      setForgotInfo(
-        `${res.message}${res.demoTempPasswordPreview ? ` (Senha temporária gerada para teste: ${res.demoTempPasswordPreview})` : ''}`
-      );
+      setForgotInfo(res.message);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao solicitar senha temporária.');
     } finally {
@@ -218,7 +216,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             </div>
             <div className="flex items-center gap-2.5">
               <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span>Acesso de Demonstração: admin@financepro.com.br / Invicta@2026</span>
+              <span>Proteção LGPD · Desconexão automática por inatividade (3h)</span>
             </div>
           </div>
         </div>

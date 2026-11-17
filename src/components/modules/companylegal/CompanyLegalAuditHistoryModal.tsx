@@ -9,9 +9,28 @@ interface AuditHistoryEvent {
   action: string;
   entityType: string;
   entityId: string;
+  changes?: Array<{
+    field: string;
+    label?: string;
+    previousLabel?: string;
+    newLabel?: string;
+    previousValue?: string;
+    newValue?: string;
+    from?: string;
+    to?: string;
+  }>;
   details: {
     description?: string;
-    changes?: Array<{ field: string; label?: string; from?: string; to?: string }>;
+    changes?: Array<{
+      field: string;
+      label?: string;
+      previousLabel?: string;
+      newLabel?: string;
+      previousValue?: string;
+      newValue?: string;
+      from?: string;
+      to?: string;
+    }>;
   };
   createdAt: string;
 }
@@ -21,9 +40,10 @@ interface FlatAuditRow {
   createdAt: string;
   userName: string;
   action: string;
-  fieldLabel: string;
-  fromVal: string;
-  toVal: string;
+  newLabel: string;
+  newValue: string;
+  previousLabel: string;
+  previousValue: string;
 }
 
 interface CompanyLegalAuditHistoryModalProps {
@@ -39,7 +59,7 @@ const ACTION_LABELS: Record<string, { label: string; cls: string }> = {
   PROCESS_DELETED: { label: 'Exclusão', cls: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/60 dark:text-red-300 dark:border-red-800/70' },
 };
 
-const PAGE_SIZE = 15;
+const PAGE_SIZE = 20;
 
 export const CompanyLegalAuditHistoryModal: React.FC<CompanyLegalAuditHistoryModalProps> = ({
   open,
@@ -57,7 +77,7 @@ export const CompanyLegalAuditHistoryModal: React.FC<CompanyLegalAuditHistoryMod
     setEvents([]);
     setPage(1);
     setLoading(true);
-    apiFetch<{ logs: AuditHistoryEvent[] }>(`/api/company-legal/processes/${processId}/audit-history?limit=500`)
+    apiFetch<{ logs: AuditHistoryEvent[] }>(`/api/company-legal/processes/${processId}/audit-history?limit=2000`)
       .then((res) => {
         if (active) setEvents(Array.isArray(res.logs) ? res.logs : []);
       })
@@ -78,17 +98,28 @@ export const CompanyLegalAuditHistoryModal: React.FC<CompanyLegalAuditHistoryMod
     );
     const out: FlatAuditRow[] = [];
     for (const ev of sorted) {
-      const changes = Array.isArray(ev.details?.changes) ? ev.details.changes : [];
+      const changes =
+        Array.isArray(ev.changes) && ev.changes.length > 0
+          ? ev.changes
+          : Array.isArray(ev.details?.changes)
+          ? ev.details.changes
+          : [];
+      const isInsert = String(ev.action || '').toUpperCase().includes('INSERT') || String(ev.action || '').toUpperCase().includes('CREATED');
+      const isDelete = String(ev.action || '').toUpperCase().includes('DELETE');
       if (changes.length > 0) {
         changes.forEach((ch, idx) => {
+          const lbl = ch.label || ch.field || 'Campo';
+          const prevV = String(ch.previousValue ?? ch.from ?? '—');
+          const nextV = String(ch.newValue ?? ch.to ?? '—');
           out.push({
             rowKey: `${ev.id}-${idx}`,
             createdAt: ev.createdAt,
             userName: ev.userName || 'Sistema',
             action: ev.action,
-            fieldLabel: ch.label || ch.field,
-            fromVal: ch.from ?? '—',
-            toVal: ch.to ?? '—',
+            newLabel: ch.newLabel || (isDelete ? '— (Removido)' : lbl),
+            newValue: nextV,
+            previousLabel: ch.previousLabel || (isInsert ? '— (Novo registro)' : lbl),
+            previousValue: prevV,
           });
         });
       } else {
@@ -97,9 +128,10 @@ export const CompanyLegalAuditHistoryModal: React.FC<CompanyLegalAuditHistoryMod
           createdAt: ev.createdAt,
           userName: ev.userName || 'Sistema',
           action: ev.action,
-          fieldLabel: 'Registro',
-          fromVal: '—',
-          toVal: ev.details?.description || ev.action,
+          newLabel: 'Registro',
+          newValue: ev.details?.description || ev.action,
+          previousLabel: isInsert ? '— (Novo registro)' : 'Registro',
+          previousValue: '—',
         });
       }
     }
@@ -120,14 +152,14 @@ export const CompanyLegalAuditHistoryModal: React.FC<CompanyLegalAuditHistoryMod
       aria-label="Histórico de Movimentações"
     >
       <div
-        className="w-full max-w-5xl max-h-[90vh] rounded-2xl border border-slate-200 bg-white shadow-2xl flex flex-col overflow-hidden dark:border-slate-700 dark:bg-slate-900"
+        className="w-full max-w-6xl max-h-[90vh] rounded-2xl border border-slate-200 bg-white shadow-2xl flex flex-col overflow-hidden dark:border-slate-700 dark:bg-slate-900"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between gap-3 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/70">
           <div className="flex items-center gap-2 min-w-0">
             <History className="w-4 h-4 text-slate-600 shrink-0 dark:text-slate-300" />
             <h3 className="font-display text-sm font-bold text-slate-900 truncate dark:text-slate-100">
-              Histórico de Movimentações · <span className="font-mono">{processNumber}</span>
+              Auditoria Acumulativa · <span className="font-mono">{processNumber}</span>
             </h3>
             <span className="rounded border border-slate-300 bg-white px-2 py-0.5 text-[10px] font-bold uppercase text-slate-600 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
               Somente Leitura
@@ -153,14 +185,13 @@ export const CompanyLegalAuditHistoryModal: React.FC<CompanyLegalAuditHistoryMod
           ) : (
             <table className="w-full text-xs border-collapse">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-400">
-                  <th className="px-3 py-2">Data/Hora</th>
-                  <th className="px-3 py-2">Usuário</th>
-                  <th className="px-3 py-2">Ação</th>
-                  <th className="px-3 py-2">Campo</th>
-                  <th className="px-3 py-2">De</th>
-                  <th className="px-2 py-2 text-center">→</th>
-                  <th className="px-3 py-2">Para</th>
+                <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
+                  <th className="px-3 py-2 whitespace-nowrap">Usuário</th>
+                  <th className="px-3 py-2 whitespace-nowrap">Data e Horário</th>
+                  <th className="px-3 py-2 whitespace-nowrap">Campo Alterado (Label)</th>
+                  <th className="px-3 py-2">Conteúdo da Alteração</th>
+                  <th className="px-3 py-2 whitespace-nowrap">Campo Anterior (Label)</th>
+                  <th className="px-3 py-2">Valor Campo Anterior</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -171,24 +202,22 @@ export const CompanyLegalAuditHistoryModal: React.FC<CompanyLegalAuditHistoryMod
                   };
                   return (
                     <tr key={r.rowKey} className="hover:bg-slate-50/70 dark:hover:bg-slate-800">
-                      <td className="px-3 py-2 whitespace-nowrap tabular-nums text-slate-600 dark:text-slate-300">
-                        {formatDateTimeBR(r.createdAt)}
-                      </td>
-                      <td className="px-3 py-2 font-medium text-slate-800 whitespace-nowrap dark:text-slate-100">
-                        {r.userName}
-                      </td>
-                      <td className="px-3 py-2 whitespace-nowrap">
-                        <span className={`inline-block rounded border px-1.5 py-0.5 text-[10px] font-semibold ${act.cls}`}>
+                      <td className="px-3 py-2 align-top whitespace-nowrap">
+                        <div className="font-semibold text-slate-800 dark:text-slate-100">{r.userName}</div>
+                        <span className={`mt-0.5 inline-block rounded border px-1.5 py-0.5 text-[10px] font-semibold ${act.cls}`}>
                           {act.label}
                         </span>
                       </td>
-                      <td className="px-3 py-2 font-semibold text-slate-700 dark:text-slate-200">{r.fieldLabel}</td>
-                      <td className="px-3 py-2 text-red-700 max-w-[200px] truncate dark:text-red-300" title={r.fromVal}>
-                        {r.fromVal}
+                      <td className="px-3 py-2 whitespace-nowrap tabular-nums text-slate-600 align-top dark:text-slate-300">
+                        {formatDateTimeBR(r.createdAt)}
                       </td>
-                      <td className="px-2 py-2 text-center text-slate-400 dark:text-slate-400">→</td>
-                      <td className="px-3 py-2 text-emerald-700 max-w-[220px] truncate font-medium dark:text-emerald-300" title={r.toVal}>
-                        {r.toVal}
+                      <td className="px-3 py-2 font-semibold text-slate-900 align-top dark:text-slate-100">{r.newLabel}</td>
+                      <td className="px-3 py-2 text-emerald-700 bg-emerald-50/40 max-w-[220px] break-words font-medium align-top dark:bg-emerald-950/20 dark:text-emerald-300" title={r.newValue}>
+                        {r.newValue}
+                      </td>
+                      <td className="px-3 py-2 font-medium text-slate-700 align-top dark:text-slate-300">{r.previousLabel}</td>
+                      <td className="px-3 py-2 text-red-700 bg-red-50/40 max-w-[220px] break-words align-top dark:bg-red-950/20 dark:text-red-300" title={r.previousValue}>
+                        {r.previousValue}
                       </td>
                     </tr>
                   );

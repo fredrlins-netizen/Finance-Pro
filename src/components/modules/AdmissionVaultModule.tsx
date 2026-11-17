@@ -347,6 +347,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
   const [sortBy, setSortBy] = useState<'date' | 'contract' | 'client'>('date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
+  const [sectorAuditOpen, setSectorAuditOpen] = useState(false);
 
   // Form State (Sections 01..06)
   const [clientRoleSelected, setClientRoleSelected] = useState<'responsavel' | 'titular'>('responsavel');
@@ -1694,7 +1695,15 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                 Admissão · Fichas de Processo
               </h1>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setSectorAuditOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 whitespace-nowrap"
+              >
+                <History className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+                Auditoria
+              </button>
               <button
                 type="button"
                 onClick={() => navigateViewMode('vault')}
@@ -4461,6 +4470,13 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
         entityType="admissions"
         entityId={historyAdmission?.id || 0}
         onClose={() => setHistoryAdmission(null)}
+      />
+      <EntityAuditModal
+        open={sectorAuditOpen}
+        title="Comercial · Admissão & Cofre de Documentos · Auditoria Cumulativa"
+        entityType="admissions,document_objects"
+        entityId="all"
+        onClose={() => setSectorAuditOpen(false)}
       />
 
       {/* ===================================================================

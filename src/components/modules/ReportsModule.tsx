@@ -133,6 +133,7 @@ export const ReportsModule: React.FC<{
   const [saveError, setSaveError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<ReportTemplateItem | null>(null);
   const [auditTarget, setAuditTarget] = useState<ReportTemplateItem | null>(null);
+  const [sectorAuditOpen, setSectorAuditOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [pendingAction, setPendingAction] = useState<null | (() => void)>(null);
   const [trainingModalOpen, setTrainingModalOpen] = useState(false);
@@ -542,6 +543,15 @@ export const ReportsModule: React.FC<{
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-2 xl:justify-self-end">
+          <button
+            type="button"
+            onClick={() => setSectorAuditOpen(true)}
+            title="Auditoria cumulativa da biblioteca de relatórios"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            <History className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+            Auditoria
+          </button>
           <button
             type="button"
             onClick={() => setTrainingModalOpen(true)}
@@ -1128,6 +1138,13 @@ export const ReportsModule: React.FC<{
         entityType="report_templates"
         entityId={auditTarget?.id || ''}
         onClose={() => setAuditTarget(null)}
+      />
+      <EntityAuditModal
+        open={sectorAuditOpen}
+        title="Relatórios Gerenciais · Auditoria Cumulativa"
+        entityType="report_templates"
+        entityId="all"
+        onClose={() => setSectorAuditOpen(false)}
       />
     </div>
   );

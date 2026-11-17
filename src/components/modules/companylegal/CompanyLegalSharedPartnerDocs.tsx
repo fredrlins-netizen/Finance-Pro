@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { apiFetch, formatDateTimeBR, getAuthToken } from '../../../lib/api.ts';
 import { DossierDocumentPreviewModal } from '../../DossierDocumentViewer.tsx';
+import { EntityAuditModal } from '../cadastros/CadastrosShared.tsx';
 
 interface SharedPartnerDoc {
   id: number;
@@ -123,6 +124,7 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
   const [legacyHistoryTotal, setLegacyHistoryTotal] = useState(0);
   const [pendingUndo, setPendingUndo] = useState<LegacyProtectionRecord | null>(null);
   const [undoSaving, setUndoSaving] = useState(false);
+  const [docAuditOpen, setDocAuditOpen] = useState(false);
 
   useEffect(() => {
     const t = window.setTimeout(() => {
@@ -471,6 +473,14 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
           <option value="juridico">Jurídico</option>
           <option value="geral">Geral</option>
         </select>
+        <button
+          type="button"
+          onClick={() => setDocAuditOpen(true)}
+          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+        >
+          <History className="w-3.5 h-3.5" />
+          Auditoria
+        </button>
         {selectedIds.size > 0 && (
           <button
             type="button"
@@ -1018,6 +1028,14 @@ export const CompanyLegalSharedPartnerDocs: React.FC<CompanyLegalSharedPartnerDo
           if (previewDoc?.blobUrl) URL.revokeObjectURL(previewDoc.blobUrl);
           setPreviewDoc(null);
         }}
+      />
+
+      <EntityAuditModal
+        open={docAuditOpen}
+        title={`Documentos do Parceiro · ${clientName}`}
+        entityType="company_legal_process_attachments,document_objects"
+        entityId="all"
+        onClose={() => setDocAuditOpen(false)}
       />
     </div>
   );

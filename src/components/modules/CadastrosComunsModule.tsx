@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, History } from 'lucide-react';
 import { apiFetch } from '../../lib/api.ts';
 import {
   AuthUser,
@@ -18,6 +18,7 @@ import {
   ProductsCrudView,
   SeriesCrudView,
 } from './cadastros/CadastrosCommercialViews.tsx';
+import { EntityAuditModal } from './cadastros/CadastrosShared.tsx';
 
 export type CadastrosSubmenuId =
   | 'cad_clientes'
@@ -29,15 +30,15 @@ export type CadastrosSubmenuId =
   | 'cad_produtos'
   | 'cad_series';
 
-const SUBMENU_LABELS: Array<{ id: CadastrosSubmenuId; label: string }> = [
-  { id: 'cad_clientes', label: 'Clientes' },
-  { id: 'cad_cargos', label: 'Cargos' },
-  { id: 'cad_colaboradores', label: 'Colaboradores' },
-  { id: 'cad_departamentos', label: 'Departamentos' },
-  { id: 'cad_bancos', label: 'Bancos' },
-  { id: 'cad_modalidades', label: 'Modalidades' },
-  { id: 'cad_produtos', label: 'Produtos' },
-  { id: 'cad_series', label: 'Série/Números' },
+const SUBMENU_LABELS: Array<{ id: CadastrosSubmenuId; label: string; entityType: string }> = [
+  { id: 'cad_clientes', label: 'Clientes', entityType: 'clients' },
+  { id: 'cad_cargos', label: 'Cargos', entityType: 'roles' },
+  { id: 'cad_colaboradores', label: 'Colaboradores', entityType: 'collaborators' },
+  { id: 'cad_departamentos', label: 'Departamentos', entityType: 'departments' },
+  { id: 'cad_bancos', label: 'Bancos', entityType: 'banks' },
+  { id: 'cad_modalidades', label: 'Modalidades', entityType: 'modalities' },
+  { id: 'cad_produtos', label: 'Produtos', entityType: 'products,measurement_units' },
+  { id: 'cad_series', label: 'Série/Números', entityType: 'series' },
 ];
 
 interface CadastrosComunsModuleProps {
@@ -75,6 +76,9 @@ export const CadastrosComunsModule: React.FC<CadastrosComunsModuleProps> = ({
   const [measurementUnits, setMeasurementUnits] = useState<MeasurementUnitItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
+  const [auditOpen, setAuditOpen] = useState(false);
+
+  const activeSubmenuMeta = SUBMENU_LABELS.find((s) => s.id === activeSubmenu) || SUBMENU_LABELS[0];
 
   const loadAll = useCallback(async () => {
     setErr('');
@@ -138,6 +142,14 @@ export const CadastrosComunsModule: React.FC<CadastrosComunsModuleProps> = ({
               </button>
             );
           })}
+          <button
+            type="button"
+            onClick={() => setAuditOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0 min-h-[36px] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            <History className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+            Auditoria
+          </button>
         </div>
       </div>
 
@@ -208,6 +220,14 @@ export const CadastrosComunsModule: React.FC<CadastrosComunsModuleProps> = ({
           )}
         </div>
       )}
+
+      <EntityAuditModal
+        open={auditOpen}
+        title={`Cadastros Comuns · ${activeSubmenuMeta.label} · Auditoria Cumulativa`}
+        entityType={activeSubmenuMeta.entityType}
+        entityId="all"
+        onClose={() => setAuditOpen(false)}
+      />
     </div>
   );
 };

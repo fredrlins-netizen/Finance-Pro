@@ -26,6 +26,7 @@ import {
   FolderTree,
   HardDrive,
   Hash,
+  Home,
   Landmark,
   Layers,
   LayoutDashboard,
@@ -54,7 +55,7 @@ import {
   X,
 } from 'lucide-react';
 import { auth } from './lib/firebase.ts';
-import { apiFetch, setActiveUnitHeader, setAuthToken } from './lib/api.ts';
+import { apiFetch, getAuthToken, setActiveUnitHeader, setAuthToken } from './lib/api.ts';
 import { setCachedPortalBranding } from './lib/portalBrandingCache.ts';
 import { useTheme } from './lib/theme.tsx';
 import iviAvatarImg from './assets/images/ivi_avatar_1794682376813.jpg';
@@ -145,6 +146,7 @@ const ACOMP_JURIDICO_SUBMENUS: Array<{ id: ModuleId; label: string; icon: React.
 ];
 
 const NAV_ITEMS: NavItem[] = [
+  { id: 'home', label: 'Home', shortLabel: 'Home', group: 'entrada', icon: Home },
   { id: 'overview', label: 'Visão Executiva', shortLabel: 'Início', group: 'entrada', icon: LayoutDashboard },
   { id: 'managerial_dashboard', label: 'Dashboard Gerencial', shortLabel: 'Gerencial', group: 'entrada', icon: BarChart3 },
   { id: 'appointments', label: 'Agendamentos', shortLabel: 'Agendas', group: 'entrada', icon: CalendarDays },
@@ -176,11 +178,12 @@ export default function App() {
   const [units, setUnits] = useState<Unit[]>([]);
   const [allUnits, setAllUnits] = useState<Unit[]>([]);
   const [activeUnitId, setActiveUnitId] = useState<number>(1);
+  const [forcedLockMessage, setForcedLockMessage] = useState('');
   const [group, setGroup] = useState<UserGroup | null>(null);
-  const [activeModule, setActiveModule] = useState<ModuleId>('overview');
+  const [activeModule, setActiveModule] = useState<ModuleId>('home');
   const [navIntent, setNavIntent] = useState<NavigationIntent | null>(null);
   const [navHistory, setNavHistory] = useState<Array<{ mod: ModuleId; intent: NavigationIntent | null }>>([]);
-  const activeModuleRef = React.useRef<ModuleId>('overview');
+  const activeModuleRef = React.useRef<ModuleId>('home');
   const navIntentRef = React.useRef<NavigationIntent | null>(null);
   const navHistoryRef = React.useRef<Array<{ mod: ModuleId; intent: NavigationIntent | null }>>([]);
   const [cadastrosExpanded, setCadastrosExpanded] = useState(false);
@@ -258,11 +261,11 @@ export default function App() {
           processes: Array<{ hasUnreadMovement: boolean }>;
           titles: Array<{ status: string; scope?: string; dueDate?: string }>;
           collectionCases: Array<{ status: string }>;
-        }>('/api/overview'),
+        }>('/api/overview', { passive: true }),
         apiFetch<{
           totalUnreadMessages?: number;
           sectorSummary?: Array<{ sector: string; unreadMessages: number }>;
-        }>('/api/internal-messages'),
+        }>('/api/internal-messages', { passive: true }),
       ]);
 
       if (overviewRes.status === 'fulfilled' && overviewRes.value) {
@@ -412,8 +415,13 @@ export default function App() {
     try {
       ws = new WebSocket(`${proto}//${window.location.host}/ws`);
       ws.onopen = () => {
-        if (disposed && ws && ws.readyState === WebSocket.OPEN) {
-          ws.close();
+        if (disposed) {
+          if (ws && ws.readyState === WebSocket.OPEN) ws.close();
+          return;
+        }
+        const tok = getAuthToken();
+        if (tok && ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'auth', token: tok }));
         }
       };
       ws.onerror = () => {
@@ -522,9 +530,9 @@ export default function App() {
   const handleGoBack = useCallback(() => {
     const curr = navHistoryRef.current;
     if (curr.length === 0) {
-      activeModuleRef.current = 'overview';
+      activeModuleRef.current = 'home';
       navIntentRef.current = null;
-      setActiveModule('overview');
+      setActiveModule('home');
       setNavIntent(null);
       return;
     }
@@ -546,22 +554,44 @@ export default function App() {
   }, []);
 
   const handleAuthenticated = async (token: string) => {
+    setForcedLockMessage('');
+    try {
+      localStorage.setItem('fp_last_activity_at', String(Date.now()));
+    } catch {
+      // ignore storage failure
+    }
     if (token.startsWith('corp.')) {
       sessionStorage.setItem('fp_corp_token', token);
     }
+    activeModuleRef.current = 'home';
+    setActiveModule('home');
     setAuthToken(token);
     await loadProfile();
   };
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async (reasonMessage?: unknown) => {
+    const lockMsg = typeof reasonMessage === 'string' ? reasonMessage : '';
+    const currentTok = getAuthToken();
+    if (currentTok) {
+      fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${currentTok}` },
+      }).catch(() => {});
+    }
     sessionStorage.removeItem('fp_corp_token');
+    try {
+      localStorage.removeItem('fp_last_activity_at');
+    } catch {
+      // ignore storage failure
+    }
     setAuthToken(null);
     setCurrentUser(null);
     setTokenReady(false);
-    activeModuleRef.current = 'overview';
+    setForcedLockMessage(lockMsg);
+    activeModuleRef.current = 'home';
     navIntentRef.current = null;
     navHistoryRef.current = [];
-    setActiveModule('overview');
+    setActiveModule('home');
     setNavIntent(null);
     setNavHistory([]);
     setDesktopWaOpen(false);
@@ -572,7 +602,114 @@ export default function App() {
     setSearchModalOpen(false);
     setLiveAlert('');
     await signOut(auth).catch(() => {});
-  };
+  }, []);
+
+  // Monitor de Inatividade (3 horas) + Listener de bloqueio/expiração de sessão
+  useEffect(() => {
+    if (!tokenReady) return;
+    const IDLE_TIMEOUT_MS = 3 * 60 * 60 * 1000;
+    const STORAGE_KEY = 'fp_last_activity_at';
+    const nowInit = Date.now();
+    let storedAt = nowInit;
+    try {
+      const raw = Number(localStorage.getItem(STORAGE_KEY) || 0);
+      if (Number.isFinite(raw) && raw > 0) storedAt = raw;
+      if (nowInit - storedAt >= IDLE_TIMEOUT_MS) {
+        void handleLogout('Sessão encerrada automaticamente após 3 horas de inatividade (LGPD).');
+        return;
+      }
+      localStorage.setItem(STORAGE_KEY, String(nowInit));
+    } catch {
+      // ignore storage access errors
+    }
+
+    let lastActivityAt = nowInit;
+    let lastServerPingAt = nowInit;
+    let lastInteractionMarkAt = nowInit;
+
+    const markActivity = () => {
+      const now = Date.now();
+      if (now - lastActivityAt >= IDLE_TIMEOUT_MS) {
+        void handleLogout('Sessão encerrada automaticamente após 3 horas de inatividade (LGPD).');
+        return;
+      }
+      if (now - lastInteractionMarkAt < 5_000) return;
+      lastInteractionMarkAt = now;
+      lastActivityAt = now;
+      try {
+        localStorage.setItem(STORAGE_KEY, String(now));
+      } catch {
+        // ignore
+      }
+      if (now - lastServerPingAt >= 180_000) {
+        lastServerPingAt = now;
+        apiFetch('/api/auth/activity', { method: 'POST' }).catch(() => {});
+      }
+    };
+
+    const checkIdle = () => {
+      try {
+        const synced = Number(localStorage.getItem(STORAGE_KEY) || 0);
+        if (Number.isFinite(synced) && synced > lastActivityAt) {
+          lastActivityAt = synced;
+        }
+      } catch {
+        // ignore
+      }
+      if (Date.now() - lastActivityAt >= IDLE_TIMEOUT_MS) {
+        void handleLogout('Sessão encerrada automaticamente após 3 horas de inatividade (LGPD).');
+      }
+    };
+
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY && e.newValue) {
+        const val = Number(e.newValue);
+        if (Number.isFinite(val) && val > lastActivityAt) {
+          lastActivityAt = val;
+        }
+      }
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        checkIdle();
+      }
+    };
+
+    const onAuthBlocked = (e: Event) => {
+      const detail = (e as CustomEvent<{ error?: string }>).detail;
+      void handleLogout(
+        detail?.error || 'Sua sessão foi encerrada por segurança ou expiração. Faça login novamente.'
+      );
+    };
+
+    const activityEvents: Array<keyof WindowEventMap> = [
+      'pointerdown',
+      'mousedown',
+      'mousemove',
+      'keydown',
+      'touchstart',
+      'scroll',
+      'wheel',
+    ];
+    for (const evt of activityEvents) {
+      window.addEventListener(evt, markActivity, { passive: true });
+    }
+    window.addEventListener('storage', onStorage);
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('fp:auth-blocked', onAuthBlocked);
+
+    const idleInterval = window.setInterval(checkIdle, 15_000);
+    return () => {
+      for (const evt of activityEvents) {
+        window.removeEventListener(evt, markActivity);
+      }
+      window.removeEventListener('storage', onStorage);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('fp:auth-blocked', onAuthBlocked);
+      window.clearInterval(idleInterval);
+    };
+  }, [tokenReady, handleLogout]);
 
   const handleUnitSwitch = (unitId: number) => {
     setActiveUnitId(unitId);
@@ -625,13 +762,18 @@ export default function App() {
   if (!tokenReady || !currentUser) {
     return (
       <>
-        <LoginScreen onAuthenticated={handleAuthenticated} branding={portalBranding} />
+        <LoginScreen
+          onAuthenticated={handleAuthenticated}
+          branding={portalBranding}
+          forcedLockMessage={forcedLockMessage}
+        />
         <OfflineIndicator />
       </>
     );
   }
 
   const visibleNavItems = NAV_ITEMS.filter((item) => {
+    if (item.id === 'home') return true;
     if (item.id === 'backup_restore' && currentUser.role !== 'admin') return false;
     if (currentUser.role === 'admin') return true;
     if (!group?.modulePermissions) return true;
@@ -682,7 +824,7 @@ export default function App() {
     ? { id: activeAcompJuridicoMeta.id, label: `Acompanhamento Jurídico · ${activeAcompJuridicoMeta.label}` }
     : NAV_ITEMS.find((i) => i.id === activeModule);
   const previousModMeta = (() => {
-    const prevMod = navHistory.length > 0 ? navHistory[navHistory.length - 1].mod : 'overview';
+    const prevMod = navHistory.length > 0 ? navHistory[navHistory.length - 1].mod : 'home';
     const cad = CADASTROS_SUBMENUS.find((s) => s.id === prevMod);
     if (cad) return `Cadastros · ${cad.label}`;
     const com = COMERCIAL_SUBMENUS.find((s) => s.id === prevMod);
@@ -693,7 +835,7 @@ export default function App() {
     if (col) return `Cobrança & Ranking · ${col.label}`;
     const jur = ACOMP_JURIDICO_SUBMENUS.find((s) => s.id === prevMod);
     if (jur) return `Acompanhamento Jurídico · ${jur.label}`;
-    return NAV_ITEMS.find((i) => i.id === prevMod)?.label || 'Visão Executiva';
+    return NAV_ITEMS.find((i) => i.id === prevMod)?.label || 'Home';
   })();
   const hasDedicatedBackButton =
     activeModule === 'appointments' ||
@@ -767,7 +909,7 @@ export default function App() {
 
           <button
             type="button"
-            onClick={() => navigateTo('overview')}
+            onClick={() => navigateTo('home')}
             className="flex items-center gap-2 min-w-0 text-left"
           >
             {portalBranding?.logoDataUrl ? (
@@ -787,7 +929,7 @@ export default function App() {
                 <span className="truncate max-w-[160px]">
                   {portalBranding?.companyName?.trim() || 'FinancePro'}
                 </span>
-                {activeNavMeta && activeModule !== 'overview' && (
+                {activeNavMeta && activeModule !== 'home' && (
                   <>
                     <ChevronRight className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 hidden sm:inline shrink-0" />
                     <span className="hidden sm:inline text-slate-600 dark:text-slate-300 font-semibold truncate">
@@ -897,7 +1039,7 @@ export default function App() {
 
           <button
             type="button"
-            onClick={handleLogout}
+            onClick={() => void handleLogout()}
             title="Sair do sistema"
             aria-label="Sair do sistema"
             className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 min-h-[38px] min-w-[38px] flex items-center justify-center"
@@ -1040,7 +1182,7 @@ export default function App() {
               <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
                 <button
                   type="button"
-                  onClick={handleLogout}
+                  onClick={() => void handleLogout()}
                   title="Sair"
                   aria-label="Sair"
                   className="w-10 h-9 rounded-lg flex items-center justify-center text-red-700 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/60"
@@ -1741,7 +1883,7 @@ export default function App() {
           <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-700">
             <button
               type="button"
-              onClick={handleLogout}
+              onClick={() => void handleLogout()}
               className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 transition-colors text-left dark:text-red-300 dark:hover:bg-red-950/60"
             >
               <LogOut className="w-4 h-4 shrink-0 text-red-600 dark:text-red-400" />
@@ -2313,7 +2455,7 @@ export default function App() {
         {/* Active Module Fluid Canvas */}
         <main className="flex-1 min-w-0 p-3 sm:p-5 pb-24 md:pb-8 overflow-y-auto overflow-x-auto scroll-rulers">
           <div className="max-w-7xl mx-auto space-y-3">
-            {(navHistory.length > 0 || activeModule !== 'overview') && !hasDedicatedBackButton && (
+            {activeModule !== 'home' && (navHistory.length > 0 || activeModule !== 'overview') && !hasDedicatedBackButton && (
               <div className="flex items-center justify-between gap-2">
                 <button
                   type="button"
@@ -2327,7 +2469,7 @@ export default function App() {
               </div>
             )}
 
-            {activeSectorKey && activeSectorUnread > 0 && activeModule !== 'internal_messaging' && (
+            {activeModule !== 'home' && activeSectorKey && activeSectorUnread > 0 && activeModule !== 'internal_messaging' && (
               <div className="rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/90 dark:bg-rose-950/30 px-4 py-2.5 flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2.5 text-xs font-semibold text-rose-900 dark:text-rose-200">
                   {renderBlinkingDot()}
@@ -2360,6 +2502,22 @@ export default function App() {
               </div>
             )}
 
+            {activeModule === 'home' && (
+              <div className="w-full min-h-[calc(100vh-8.5rem)] flex items-center justify-center p-4 sm:p-8">
+                {portalBranding?.logoDataUrl ? (
+                  <img
+                    src={portalBranding.logoDataUrl}
+                    alt={portalBranding.companyName || 'Logotipo'}
+                    referrerPolicy="no-referrer"
+                    className="max-h-[70vh] max-w-[82vw] w-auto h-auto object-contain select-none"
+                  />
+                ) : (
+                  <div className="h-[36vh] w-[36vh] max-h-[320px] max-w-[320px] min-h-[140px] min-w-[140px] rounded-3xl bg-slate-900 dark:bg-emerald-600 text-emerald-400 dark:text-white flex items-center justify-center shadow-lg">
+                    <ShieldCheck className="w-1/2 h-1/2" />
+                  </div>
+                )}
+              </div>
+            )}
             {activeModule === 'overview' && (
               <OverviewModule onNavigate={navigateTo} activeUnitId={activeUnitId} />
             )}

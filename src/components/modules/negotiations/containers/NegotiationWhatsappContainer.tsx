@@ -10,7 +10,7 @@ import {
   Sparkles,
   Zap,
 } from 'lucide-react';
-import { apiFetch, getAuthToken } from '../../../../lib/api.ts';
+import { apiFetch, fetchAuthenticatedBlob } from '../../../../lib/api.ts';
 import type { BankContactItem, Negotiation, NegotiationIviAdvisorPayload } from '../../../../types.ts';
 import type { WhatsappDualPayload, WhatsappMessageItem } from '../types.ts';
 
@@ -207,14 +207,20 @@ export const NegotiationWhatsappContainer: React.FC<NegotiationWhatsappContainer
   const isProviderReady =
     provider === 'gotalk' ? Boolean(providersMeta?.gotalkConfigured) : Boolean(providersMeta?.uazapiConfigured);
 
-  const handleOpenAttachment = (url: string) => {
-    const token = getAuthToken();
-    const targetUrl = token ? `${url}${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}` : url;
-    const link = document.createElement('a');
-    link.href = targetUrl;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    link.click();
+  const handleOpenAttachment = async (url: string) => {
+    try {
+      const { blob, filename } = await fetchAuthenticatedBlob(url);
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename || 'anexo';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Falha ao abrir anexo autorizado.');
+    }
   };
 
   return (

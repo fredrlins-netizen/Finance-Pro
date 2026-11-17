@@ -11,6 +11,7 @@ import {
   Edit3,
   FileSpreadsheet,
   HardDrive,
+  History,
   KeyRound,
   MessageSquare,
   Palette,
@@ -39,7 +40,7 @@ import {
   Unit,
   UserGroup,
 } from '../../types.ts';
-import { ConfirmDeleteModal } from './cadastros/CadastrosShared.tsx';
+import { ConfirmDeleteModal, EntityAuditModal } from './cadastros/CadastrosShared.tsx';
 import {
   ConfigUazapiView,
   ConfigUnitsView,
@@ -275,6 +276,7 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
 
   const [toast, setToast] = useState('');
   const [busy, setBusy] = useState(false);
+  const [routineAuditOpen, setRoutineAuditOpen] = useState(false);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -601,19 +603,29 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
             Configurações Corporativas &amp; Segurança
           </h1>
         </div>
-        {(tabHistory.length > 0 || onGoBack) && (
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-center shrink-0">
           <button
             type="button"
-            onClick={handleBackClick}
-            className="inline-flex items-center gap-1.5 self-start sm:self-center rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 min-h-[38px] shrink-0"
+            onClick={() => setRoutineAuditOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 min-h-[38px]"
           >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Voltar para a tela anterior</span>
-            {tabHistory.length === 0 && previousScreenLabel && (
-              <span className="hidden sm:inline text-slate-400 font-normal dark:text-slate-400">({previousScreenLabel})</span>
-            )}
+            <History className="w-3.5 h-3.5" />
+            <span>Auditoria</span>
           </button>
-        )}
+          {(tabHistory.length > 0 || onGoBack) && (
+            <button
+              type="button"
+              onClick={handleBackClick}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 min-h-[38px] shrink-0"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Voltar para a tela anterior</span>
+              {tabHistory.length === 0 && previousScreenLabel && (
+                <span className="hidden sm:inline text-slate-400 font-normal dark:text-slate-400">({previousScreenLabel})</span>
+              )}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Sub-navigation with horizontal scroll ruler on mobile/tablet */}
@@ -1477,6 +1489,35 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
           loadAll();
         }}
       />
+
+      {(() => {
+        const configAuditMap: Record<ConfigTab, { entityType: string; title: string }> = {
+          units: { entityType: 'units', title: 'Unidades & Custos' },
+          uazapi: { entityType: 'unit_whatsapp_credentials,user_groups', title: 'WhatsApp UaZapi & Grupos' },
+          gotalk: { entityType: 'gotalk_channels,gotalk_operators,gotalk_hsm_templates', title: 'Canais, Operadores & HSM GoTalk' },
+          groups: { entityType: 'user_groups,users,units', title: 'Grupos, Usuários & RBAC' },
+          audit_checklist: { entityType: 'audit_checklist_items,modalities', title: 'Checklist & Modalidades' },
+          schedules: { entityType: 'access_schedules', title: 'Quadro de Horários' },
+          fields_categories: { entityType: 'custom_fields,payment_categories', title: 'Campos Customizados & Categorias' },
+          help_center: { entityType: 'help_center_topics', title: 'Central de Ajuda' },
+          branding: { entityType: 'system_settings', title: 'Portal & Identidade Visual' },
+          ai_regua: { entityType: 'system_settings', title: 'IA Ivi & Régua' },
+          import: { entityType: 'clients,admissions,legal_processes', title: 'Importação & Exportação' },
+          r2_migration: { entityType: 'vault_migration_items,document_objects', title: 'Migração R2' },
+          backup_restore: { entityType: 'backup_schedules,backup_executions', title: 'Backup & Restore (Google Drive)' },
+          sql: { entityType: 'all', title: 'Auditoria Global & Console SQL' },
+        };
+        const currentAudit = configAuditMap[tab] || { entityType: 'all', title: 'Configurações Corporativas' };
+        return (
+          <EntityAuditModal
+            open={routineAuditOpen}
+            title={`Configurações · ${currentAudit.title}`}
+            entityType={currentAudit.entityType}
+            entityId="all"
+            onClose={() => setRoutineAuditOpen(false)}
+          />
+        );
+      })()}
     </div>
   );
 };

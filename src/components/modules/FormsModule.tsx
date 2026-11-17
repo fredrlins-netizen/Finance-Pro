@@ -5,6 +5,7 @@ import {
   Database,
   FilePlus2,
   FileText,
+  History,
   Maximize2,
   Minimize2,
   RefreshCw,
@@ -13,7 +14,7 @@ import {
   Wrench,
   X,
 } from 'lucide-react';
-import { apiFetch, getAuthToken } from '../../lib/api.ts';
+import { apiFetch, fetchAuthenticatedBlob } from '../../lib/api.ts';
 import {
   ensurePortalBrandingLoaded,
   getCachedLogoNeedsDarkBackdrop,
@@ -90,6 +91,7 @@ export const FormsModule: React.FC<{
   const [responsesFormFilter, setResponsesFormFilter] = useState<string>('TODOS');
   const [deleteTarget, setDeleteTarget] = useState<CustomFormItem | null>(null);
   const [auditFormTarget, setAuditFormTarget] = useState<CustomFormItem | null>(null);
+  const [routineAuditOpen, setRoutineAuditOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
   const [fetchedBranding, setFetchedBranding] = useState<PortalBrandingConfig | null>(() =>
@@ -282,13 +284,20 @@ export const FormsModule: React.FC<{
     }
   };
 
-  const handleExportCsv = (formId: number) => {
-    const token = getAuthToken();
-    const url = `/api/forms/${formId}/export-csv${token ? `?token=${encodeURIComponent(token)}` : ''}`;
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `formulario_${formId}.csv`;
-    a.click();
+  const handleExportCsv = async (formId: number) => {
+    try {
+      const { blob, filename } = await fetchAuthenticatedBlob(`/api/forms/${formId}/export-csv`);
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename || `formulario_${formId}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Falha ao exportar CSV.');
+    }
   };
 
   if (loading && !data) {
@@ -363,6 +372,14 @@ export const FormsModule: React.FC<{
         </div>
 
         <div className="flex items-center justify-end gap-2 lg:justify-self-end">
+          <button
+            type="button"
+            onClick={() => setRoutineAuditOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            <History className="w-3.5 h-3.5" />
+            Auditoria
+          </button>
           <button
             type="button"
             onClick={() => void loadBootstrap(false)}
@@ -703,6 +720,14 @@ export const FormsModule: React.FC<{
         entityType="custom_forms"
         entityId={auditFormTarget?.id || 0}
         onClose={() => setAuditFormTarget(null)}
+      />
+
+      <EntityAuditModal
+        open={routineAuditOpen}
+        title="Formulários, Modelos A4 & Respostas · Auditoria Cumulativa"
+        entityType="custom_forms,custom_form_submissions,document_templates"
+        entityId="all"
+        onClose={() => setRoutineAuditOpen(false)}
       />
     </div>
   );

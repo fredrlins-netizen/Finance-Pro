@@ -1,4 +1,5 @@
 export type ModuleId =
+  | 'home'
   | 'overview'
   | 'cad_clientes'
   | 'cad_cargos'
@@ -159,14 +160,28 @@ export interface AuditCritiqueRound {
   respondedAt?: string;
 }
 
+export interface AuditFieldChangeItem {
+  field: string;
+  label: string;
+  previousLabel?: string;
+  newLabel?: string;
+  previousValue: string;
+  newValue: string;
+  from: string;
+  to: string;
+}
+
 export interface AuditLogEntry {
   id: number;
   userId?: number | null;
   userName: string;
   action: string;
   entityType: string;
+  entityLabel?: string;
   entityId: string;
   details?: Record<string, unknown> | null;
+  changes?: AuditFieldChangeItem[];
+  summaryText?: string;
   unitId?: number | null;
   createdAt: string;
 }
@@ -1093,6 +1108,12 @@ export interface ConfigUserItem {
   whatsappPhone: string;
   active: boolean;
   points: number;
+  failedLoginAttempts?: number;
+  lockedUntil?: string | null;
+  suspended?: boolean;
+  suspendedReason?: string | null;
+  suspendedAt?: string | null;
+  suspendedBy?: string | null;
 }
 
 // --- CADASTROS COMUNS ---

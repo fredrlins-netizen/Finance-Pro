@@ -159,6 +159,7 @@ export const UazapiQrModal: React.FC<{
             headers: {
               'Content-Type': 'application/json',
               'x-unit-id': String(getActiveUnitHeader()),
+              'x-fp-passive': '1',
               ...(token ? { Authorization: `Bearer ${token}` } : {}),
             },
             body: JSON.stringify({ instanceId: instance.uazapiInstanceId }),
@@ -1168,7 +1169,9 @@ export const ConfigUazapiView: React.FC<{
     if (!importState?.running) return;
     const t = window.setInterval(async () => {
       try {
-        const res = await apiFetch<{ importState: UazapiImportState }>('/api/config/uazapi/import-status');
+        const res = await apiFetch<{ importState: UazapiImportState }>('/api/config/uazapi/import-status', {
+          passive: true,
+        });
         setImportState(res.importState);
         if (!res.importState.running) {
           loadHistory(1);

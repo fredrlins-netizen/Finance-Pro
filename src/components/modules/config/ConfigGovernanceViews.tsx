@@ -898,13 +898,13 @@ export const ConfigGroupsAndUsersView: React.FC<{
               </div>
               <div className="sm:col-span-2">
                 <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">
-                  {editUsrId ? 'Nova Senha (Opcional — mínimo 6 caracteres)' : 'Senha Inicial (Padrão: Mudar@2026)'}
+                  {editUsrId ? 'Nova Senha (Opcional — mínimo 6 caracteres)' : 'Senha Inicial (Opcional — aleatória automática se vazia)'}
                 </label>
                 <input
                   type="password"
                   value={usrPassword}
                   onChange={(e) => setUsrPassword(e.target.value)}
-                  placeholder={editUsrId ? 'Deixe vazio para não alterar' : 'Mudar@2026'}
+                  placeholder={editUsrId ? 'Deixe vazio para não alterar' : 'Mínimo 6 caracteres (ou deixe vazio)'}
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700"
                 />
               </div>
@@ -1606,12 +1606,12 @@ export const ConfigAuditAndChecklistView: React.FC<{
               <table className="w-full text-left text-xs">
                 <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
                   <tr>
-                    <th className="px-4 py-2.5 whitespace-nowrap">Data / Horário</th>
-                    <th className="px-4 py-2.5 whitespace-nowrap">Usuário</th>
-                    <th className="px-4 py-2.5 whitespace-nowrap">Rotina / Ação</th>
-                    <th className="px-4 py-2.5">Campo (Label)</th>
-                    <th className="px-4 py-2.5">Conteúdo Anterior</th>
-                    <th className="px-4 py-2.5">Conteúdo Atualizado</th>
+                    <th className="px-3 py-2.5 whitespace-nowrap">Usuário</th>
+                    <th className="px-3 py-2.5 whitespace-nowrap">Data e Horário</th>
+                    <th className="px-3 py-2.5 whitespace-nowrap">Campo Alterado (Label)</th>
+                    <th className="px-3 py-2.5">Conteúdo da Alteração</th>
+                    <th className="px-3 py-2.5 whitespace-nowrap">Campo Anterior (Label)</th>
+                    <th className="px-3 py-2.5">Valor Campo Anterior</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -1630,28 +1630,28 @@ export const ConfigAuditAndChecklistView: React.FC<{
                   ) : (
                     globalLogs.map((log) => {
                       const changes = Array.isArray(log.changes) ? log.changes : [];
+                      const isInsert = String(log.action || '').toUpperCase().includes('INSERT') || String(log.action || '').toUpperCase().includes('CREATE');
+                      const isDelete = String(log.action || '').toUpperCase().includes('DELETE');
                       if (changes.length === 0) {
                         return (
                           <tr key={log.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/60">
-                            <td className="px-4 py-2.5 font-mono text-[11px] text-slate-500 tabular-nums whitespace-nowrap dark:text-slate-400">
+                            <td className="px-3 py-2.5 align-top whitespace-nowrap">
+                              <div className="font-semibold text-slate-800 dark:text-slate-100">{log.userName}</div>
+                              <div className="font-mono text-[10px] text-slate-500 dark:text-slate-400">
+                                {log.entityLabel || log.entityType} #{log.entityId} · {log.action}
+                              </div>
+                            </td>
+                            <td className="px-3 py-2.5 font-mono text-[11px] text-slate-500 tabular-nums whitespace-nowrap align-top dark:text-slate-400">
                               {formatDateTimeBR(log.createdAt)}
                             </td>
-                            <td className="px-4 py-2.5 font-semibold text-slate-800 whitespace-nowrap dark:text-slate-100">
-                              {log.userName}
-                            </td>
-                            <td className="px-4 py-2.5 whitespace-nowrap">
-                              <div className="font-semibold text-slate-900 dark:text-slate-100">
-                                {log.entityLabel || log.entityType} #{log.entityId}
-                              </div>
-                              <div className="font-mono text-[10px] text-slate-500 dark:text-slate-400">
-                                {log.action}
-                              </div>
-                            </td>
-                            <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">Evento operacional</td>
-                            <td className="px-4 py-2.5 text-slate-400 dark:text-slate-500">—</td>
-                            <td className="px-4 py-2.5 text-slate-700 dark:text-slate-200 max-w-md break-words">
+                            <td className="px-3 py-2.5 font-semibold text-slate-900 align-top dark:text-slate-100">Evento operacional</td>
+                            <td className="px-3 py-2.5 font-mono text-emerald-700 bg-emerald-50/40 dark:bg-emerald-950/20 dark:text-emerald-300 max-w-md break-words align-top">
                               {log.summaryText || 'Registro auditado'}
                             </td>
+                            <td className="px-3 py-2.5 text-slate-600 align-top dark:text-slate-400">
+                              {isInsert ? '— (Novo registro)' : 'Evento operacional'}
+                            </td>
+                            <td className="px-3 py-2.5 font-mono text-slate-400 align-top dark:text-slate-500">—</td>
                           </tr>
                         );
                       }
@@ -1660,34 +1660,26 @@ export const ConfigAuditAndChecklistView: React.FC<{
                           key={`${log.id}-${c.field}-${idx}`}
                           className="hover:bg-slate-50/80 dark:hover:bg-slate-800/60"
                         >
-                          <td className="px-4 py-2 font-mono text-[11px] text-slate-500 tabular-nums whitespace-nowrap dark:text-slate-400">
-                            {idx === 0 ? formatDateTimeBR(log.createdAt) : ''}
+                          <td className="px-3 py-2 align-top whitespace-nowrap">
+                            <div className="font-semibold text-slate-800 dark:text-slate-100">{log.userName}</div>
+                            <div className="font-mono text-[10px] text-slate-500 dark:text-slate-400">
+                              {log.entityLabel || log.entityType} #{log.entityId} · {log.action}
+                            </div>
                           </td>
-                          <td className="px-4 py-2 font-semibold text-slate-800 whitespace-nowrap dark:text-slate-100">
-                            {idx === 0 ? log.userName : ''}
+                          <td className="px-3 py-2 font-mono text-[11px] text-slate-500 tabular-nums whitespace-nowrap align-top dark:text-slate-400">
+                            {formatDateTimeBR(log.createdAt)}
                           </td>
-                          <td className="px-4 py-2 whitespace-nowrap">
-                            {idx === 0 ? (
-                              <>
-                                <div className="font-semibold text-slate-900 dark:text-slate-100">
-                                  {log.entityLabel || log.entityType} #{log.entityId}
-                                </div>
-                                <div className="font-mono text-[10px] text-slate-500 dark:text-slate-400">
-                                  {log.action}
-                                </div>
-                              </>
-                            ) : (
-                              <span className="text-[10px] text-slate-400 dark:text-slate-500">↳ continuação</span>
-                            )}
+                          <td className="px-3 py-2 font-semibold text-slate-900 align-top dark:text-slate-100">
+                            {c.newLabel || (isDelete ? '— (Removido)' : c.label)}
                           </td>
-                          <td className="px-4 py-2 font-semibold text-slate-900 dark:text-slate-100">
-                            {c.label}
-                          </td>
-                          <td className="px-4 py-2 text-red-700 dark:text-red-300 bg-red-50/40 dark:bg-red-950/20 max-w-[240px] break-words">
-                            {c.previousValue || '—'}
-                          </td>
-                          <td className="px-4 py-2 text-emerald-700 dark:text-emerald-300 bg-emerald-50/40 dark:bg-emerald-950/20 max-w-[240px] break-words font-medium">
+                          <td className="px-3 py-2 font-mono text-emerald-700 dark:text-emerald-300 bg-emerald-50/40 dark:bg-emerald-950/20 max-w-[240px] break-words font-medium align-top">
                             {c.newValue || '—'}
+                          </td>
+                          <td className="px-3 py-2 font-medium text-slate-700 align-top dark:text-slate-300">
+                            {c.previousLabel || (isInsert ? '— (Novo registro)' : c.label)}
+                          </td>
+                          <td className="px-3 py-2 font-mono text-red-700 dark:text-red-300 bg-red-50/40 dark:bg-red-950/20 max-w-[240px] break-words align-top">
+                            {c.previousValue || '—'}
                           </td>
                         </tr>
                       ));

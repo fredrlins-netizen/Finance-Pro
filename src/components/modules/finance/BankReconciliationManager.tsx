@@ -3,6 +3,7 @@ import {
   CheckCircle2,
   Eraser,
   FileSpreadsheet,
+  History,
   Plus,
   Sparkles,
   Upload,
@@ -10,6 +11,7 @@ import {
 } from 'lucide-react';
 import { apiFetch, formatBRL } from '../../../lib/api.ts';
 import { BankAccount, BankMovement, ChartAccountItem } from '../../../types.ts';
+import { EntityAuditModal } from '../cadastros/CadastrosShared.tsx';
 import {
   centsToMaskInput,
   formatCurrencyTyping,
@@ -58,6 +60,11 @@ export const BankReconciliationManager: React.FC<BankReconciliationManagerProps>
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [auditTarget, setAuditTarget] = useState<{
+    title: string;
+    entityType: string;
+    entityId: number | string;
+  } | null>(null);
 
   // Modal: Novo / Editar Lançamento (Seção 16)
   const [entryModalOpen, setEntryModalOpen] = useState(false);
@@ -565,6 +572,20 @@ export const BankReconciliationManager: React.FC<BankReconciliationManagerProps>
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
+                onClick={() =>
+                  setAuditTarget({
+                    title: `Conciliação Bancária · ${selectedAccount.bankName}`,
+                    entityType: 'bank_movements,bank_accounts',
+                    entityId: 'all',
+                  })
+                }
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                <History className="w-3.5 h-3.5" />
+                Auditoria
+              </button>
+              <button
+                type="button"
                 disabled={busy || statementRows.length === 0 || filteredMovements.length === 0}
                 onClick={handleAutoReconcile}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3.5 py-2 text-xs font-semibold text-blue-800 hover:bg-blue-100 disabled:opacity-50 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300 dark:hover:bg-blue-900/60"
@@ -805,12 +826,13 @@ export const BankReconciliationManager: React.FC<BankReconciliationManagerProps>
                     <th className="px-3 py-2.5 text-right">Valor</th>
                     <th className="px-2 py-2.5 text-center">Tipo</th>
                     <th className="px-3 py-2.5">Status</th>
+                    <th className="px-2 py-2.5 text-right">Aud.</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {filteredMovements.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-10 text-center text-slate-500 dark:text-slate-400">
+                      <td colSpan={7} className="py-10 text-center text-slate-500 dark:text-slate-400">
                         Nenhum movimento registrado para esta conta/período.
                       </td>
                     </tr>
@@ -880,6 +902,22 @@ export const BankReconciliationManager: React.FC<BankReconciliationManagerProps>
                                 {formatIsoDateToBR(mov.reconciliationDate)}
                               </div>
                             )}
+                          </td>
+                          <td className="px-2 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setAuditTarget({
+                                  title: `Movimento #${mov.id} · ${mov.description}`,
+                                  entityType: 'bank_movements',
+                                  entityId: mov.id,
+                                })
+                              }
+                              title="Auditoria do Movimento"
+                              className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                            >
+                              <History className="w-3.5 h-3.5" />
+                            </button>
                           </td>
                         </tr>
                       );
@@ -1049,6 +1087,16 @@ export const BankReconciliationManager: React.FC<BankReconciliationManagerProps>
             </form>
           </div>
         </div>
+      )}
+
+      {auditTarget && (
+        <EntityAuditModal
+          open={Boolean(auditTarget)}
+          title={auditTarget.title}
+          entityType={auditTarget.entityType}
+          entityId={auditTarget.entityId}
+          onClose={() => setAuditTarget(null)}
+        />
       )}
     </div>
   );

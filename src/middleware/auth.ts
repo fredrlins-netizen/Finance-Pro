@@ -15,6 +15,98 @@ const SESSION_SECRET =
     .update(process.env.SQL_PASSWORD || 'financepro-corp-secret-2026')
     .digest('hex');
 
+export const SESSION_IDLE_TIMEOUT_MS = 3 * 60 * 60 * 1000; // 3 horas sem interação -> desconexão LGPD
+const SESSION_TOKEN_MAX_TTL_MS = 1000 * 60 * 60 * 12;
+
+const sessionLastActivity = new Map<string, number>();
+const revokedSessionTokens = new Map<string, number>();
+
+function getTokenDigest(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+function pruneSessionStores(now = Date.now()) {
+  if (sessionLastActivity.size > 5000) {
+    for (const [k, ts] of sessionLastActivity.entries()) {
+      if (now - ts > SESSION_TOKEN_MAX_TTL_MS) sessionLastActivity.delete(k);
+    }
+  }
+  if (revokedSessionTokens.size > 5000) {
+    for (const [k, exp] of revokedSessionTokens.entries()) {
+      if (now > exp) revokedSessionTokens.delete(k);
+    }
+  }
+}
+
+export function recordSessionActivity(token: string, now = Date.now()): void {
+  if (!token) return;
+  pruneSessionStores(now);
+  sessionLastActivity.set(getTokenDigest(token), now);
+}
+
+export function revokeSessionToken(token: string): void {
+  if (!token) return;
+  const key = getTokenDigest(token);
+  sessionLastActivity.delete(key);
+  revokedSessionTokens.set(key, Date.now() + SESSION_TOKEN_MAX_TTL_MS);
+}
+
+export function isSessionIdleExpired(token: string, now = Date.now()): boolean {
+  if (!token) return true;
+  const key = getTokenDigest(token);
+  const lastSeen = sessionLastActivity.get(key);
+  if (lastSeen === undefined) return false;
+  return now - lastSeen > SESSION_IDLE_TIMEOUT_MS;
+}
+
+export function isSessionTokenRevoked(token: string, now = Date.now()): boolean {
+  if (!token) return true;
+  const key = getTokenDigest(token);
+  const exp = revokedSessionTokens.get(key);
+  if (!exp) return false;
+  if (now > exp) {
+    revokedSessionTokens.delete(key);
+    return false;
+  }
+  return true;
+}
+
+export async function verifySocketSessionToken(token: string): Promise<{
+  userId: number;
+  role: string;
+  allowedUnitIds: number[];
+} | null> {
+  if (!token || isSessionTokenRevoked(token) || isSessionIdleExpired(token)) {
+    return null;
+  }
+  try {
+    await ensureSecuritySchemaAndAutoAudit();
+    let dbUser;
+    let tokenSessionVersion: number | undefined;
+    if (token.startsWith('corp.')) {
+      const verified = verifyCorporateToken(token);
+      if (!verified) return null;
+      tokenSessionVersion = verified.sessionVersion;
+      const rows = await db.select().from(users).where(eq(users.id, verified.userId)).limit(1);
+      dbUser = rows[0];
+    } else {
+      const decoded = await adminAuth.verifyIdToken(token);
+      dbUser = await getOrCreateUser(decoded.uid, decoded.email || '', decoded.name);
+    }
+    if (!dbUser || dbUser.suspended || !dbUser.active) return null;
+    if (tokenSessionVersion !== undefined && dbUser.sessionVersion !== tokenSessionVersion) {
+      return null;
+    }
+    return {
+      userId: dbUser.id,
+      role: dbUser.role,
+      allowedUnitIds: Array.isArray(dbUser.allowedUnitIds) ? dbUser.allowedUnitIds : [1],
+    };
+  } catch {
+    return null;
+  }
+}
+
 export interface CorporateSessionPayload {
   userId: number;
   uid: string;
@@ -293,6 +385,23 @@ export const requireAuth = async (req: AuthRequest, res: Response, next: NextFun
   }
 
   const token = authHeader.split('Bearer ')[1];
+  const isPassiveRequest = req.headers['x-fp-passive'] === '1';
+
+  if (isSessionTokenRevoked(token)) {
+    return res.status(401).json({
+      error: 'Sessão encerrada. Faça login novamente.',
+      code: 'SESSION_REVOKED',
+    });
+  }
+
+  if (isSessionIdleExpired(token)) {
+    revokeSessionToken(token);
+    return res.status(401).json({
+      error: 'Sessão encerrada automaticamente após 3 horas sem interação para proteção de dados (LGPD).',
+      code: 'SESSION_IDLE_TIMEOUT',
+    });
+  }
+
   try {
     await ensureSecuritySchemaAndAutoAudit();
 
@@ -331,6 +440,10 @@ export const requireAuth = async (req: AuthRequest, res: Response, next: NextFun
 
     if (tokenSessionVersion !== undefined && dbUser.sessionVersion !== tokenSessionVersion) {
       return res.status(401).json({ error: 'Sessão revogada por alteração de senha ou comando administrativo.' });
+    }
+
+    if (!isPassiveRequest || !sessionLastActivity.has(getTokenDigest(token))) {
+      recordSessionActivity(token);
     }
 
     const headerUnit = req.headers['x-unit-id'];

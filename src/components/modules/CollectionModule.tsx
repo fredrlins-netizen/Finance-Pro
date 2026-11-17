@@ -66,6 +66,7 @@ import {
   CollectionSidePanel,
   computeTitleFinancialBreakdown,
 } from './CollectionOperationalModals.tsx';
+import { EntityAuditModal } from './cadastros/CadastrosShared.tsx';
 
 interface CollectionModuleProps {
   units: Unit[];
@@ -182,6 +183,7 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
   const [sidePanelTitleId, setSidePanelTitleId] = useState<number | null>(null);
   const [contactModalTitleId, setContactModalTitleId] = useState<number | null>(null);
   const [historyTitle, setHistoryTitle] = useState<FinancialTitle | null>(null);
+  const [sectorAuditOpen, setSectorAuditOpen] = useState(false);
   const [deletingTitle, setDeletingTitle] = useState<FinancialTitle | null>(null);
   const [deleteTitleBusy, setDeleteTitleBusy] = useState(false);
 
@@ -749,6 +751,15 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
               Ranking Colaboradores
             </button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setSectorAuditOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            <History className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+            Auditoria
+          </button>
 
           <button
             type="button"
@@ -1768,6 +1779,14 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
             : ''
         }
         onClose={() => setHistoryTitle(null)}
+      />
+
+      <EntityAuditModal
+        open={sectorAuditOpen}
+        title="Cobrança & Ranking · Auditoria Cumulativa"
+        entityType="collection_cases,collection_notes,financial_titles,title_settlements"
+        entityId="all"
+        onClose={() => setSectorAuditOpen(false)}
       />
 
       <ConfirmDeleteModal

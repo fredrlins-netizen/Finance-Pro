@@ -12,6 +12,7 @@ import {
   Edit3,
   Eye,
   FileText,
+  History,
   Lock,
   Mic,
   MicOff,
@@ -39,6 +40,7 @@ import {
   CoordinatorTaskItem,
   CoordinatorTaskSubtask,
 } from '../../types.ts';
+import { EntityAuditModal } from './cadastros/CadastrosShared.tsx';
 
 // -----------------------------------------------------------------------------
 // UTILITÁRIOS COMPARTILHADOS
@@ -1507,6 +1509,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   // Anexos & Preview modal
   const [uploadingFile, setUploadingFile] = useState(false);
   const [previewAtt, setPreviewAtt] = useState<{ att: CoordinatorTaskAttachment; url: string } | null>(null);
+  const [taskAuditOpen, setTaskAuditOpen] = useState(false);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -1514,6 +1517,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   useEffect(() => {
     if (!task) return;
     setEditing(false);
+    setTaskAuditOpen(false);
     setTitle(task.title);
     setClientId(task.clientId ? String(task.clientId) : '');
     setCollaboratorId(task.collaboratorId ? String(task.collaboratorId) : '');
@@ -1907,6 +1911,16 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                 {editing ? 'Cancelar Edição' : 'Editar'}
               </button>
             )}
+
+            <button
+              type="button"
+              onClick={() => setTaskAuditOpen(true)}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+              title="Auditoria da Tarefa"
+            >
+              <History className="w-3.5 h-3.5" />
+              Auditoria
+            </button>
 
             {task.isOwner && (
               <button
@@ -2568,6 +2582,14 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
           if (previewAtt?.url) URL.revokeObjectURL(previewAtt.url);
           setPreviewAtt(null);
         }}
+      />
+
+      <EntityAuditModal
+        open={taskAuditOpen}
+        title={`Tarefa #${task.id} · ${task.title}`}
+        entityType="coordinator_tasks"
+        entityId={task.id}
+        onClose={() => setTaskAuditOpen(false)}
       />
     </div>
   );

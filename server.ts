@@ -71,6 +71,8 @@ import { registerMigrationRoutes } from './src/routes/migrationRoutes.ts';
 import { registerBackupRoutes } from './src/routes/backupRoutes.ts';
 import { registerInternalMessagingRoutes } from './src/routes/internalMessagingRoutes.ts';
 import { dispatchIviSectorNotification } from './src/services/internalMessaging.ts';
+import { autoAuditRequestMiddleware } from './src/services/autoAudit.ts';
+import { getEntityTypeAliases, normalizeAuditLogRecord } from './src/utils/auditDiff.ts';
 import { startBackupScheduler } from './src/services/backupScheduler.ts';
 import { syncClientLegalAndEscavadorStatus } from './src/services/legalSync.ts';
 import {
@@ -80,12 +82,15 @@ import {
   hashPassword,
   isUnitPermitted,
   normalizeModulePermissions,
+  recordSessionActivity,
   requireAdmin,
   requireAnyModule,
   requireAuth,
   requireModule,
+  revokeSessionToken,
   signCorporateToken,
   verifyPassword,
+  verifySocketSessionToken,
 } from './src/middleware/auth.ts';
 import {
   parseFiniteNumber,
@@ -389,8 +394,12 @@ async function ensureSqlHostProxySocket(force = false): Promise<void> {
 async function startServer() {
   await ensureSqlHostProxySocket(true);
   const app = express();
+  app.disable('x-powered-by');
+
   const server = http.createServer(app);
   const wss = new WebSocketServer({ noServer: true });
+  const wsAuthMap = new Map<WebSocket, { authenticated: boolean; userId: number; role: string; allowedUnitIds: number[] }>();
+
   server.on('upgrade', (request, socket, head) => {
     const pathname = new URL(request.url || '/', 'http://localhost').pathname;
     if (pathname === '/ws') {
@@ -401,19 +410,87 @@ async function startServer() {
   });
 
   const broadcast = (event: string, payload: unknown) => {
+    const payloadObj = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : null;
+    const targetUnit =
+      typeof payloadObj?.targetUnitId === 'number'
+        ? payloadObj.targetUnitId
+        : typeof payloadObj?.unitId === 'number'
+        ? payloadObj.unitId
+        : null;
     const msg = JSON.stringify({ event, payload, ts: Date.now() });
     wss.clients.forEach((client) => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(msg);
+      if (client.readyState !== WebSocket.OPEN) return;
+      const authInfo = wsAuthMap.get(client);
+      if (!authInfo?.authenticated) return;
+      if (targetUnit !== null && authInfo.role !== 'admin' && !authInfo.allowedUnitIds.includes(targetUnit)) {
+        return;
       }
+      client.send(msg);
     });
   };
 
   wss.on('connection', (ws) => {
-    ws.send(JSON.stringify({ event: 'connected', payload: { status: 'online' } }));
+    const authTimer = setTimeout(() => {
+      if (!wsAuthMap.get(ws)?.authenticated) {
+        try {
+          ws.close(4001, 'Authentication required');
+        } catch {
+          // ignore
+        }
+      }
+    }, 5000);
+
+    ws.on('message', async (rawData) => {
+      try {
+        const parsed = JSON.parse(String(rawData || '{}')) as { type?: string; token?: string };
+        if (parsed.type === 'auth' && typeof parsed.token === 'string') {
+          const verified = await verifySocketSessionToken(parsed.token.trim());
+          if (!verified) {
+            clearTimeout(authTimer);
+            wsAuthMap.delete(ws);
+            ws.close(4001, 'Invalid session');
+            return;
+          }
+          clearTimeout(authTimer);
+          wsAuthMap.set(ws, {
+            authenticated: true,
+            userId: verified.userId,
+            role: verified.role,
+            allowedUnitIds: verified.allowedUnitIds,
+          });
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ event: 'connected', payload: { status: 'online' } }));
+          }
+        }
+      } catch {
+        // ignore invalid socket frames
+      }
+    });
+
+    ws.on('close', () => {
+      clearTimeout(authTimer);
+      wsAuthMap.delete(ws);
+    });
+  });
+
+  app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(self), geolocation=()');
+    if (req.secure || req.headers['x-forwarded-proto'] === 'https') {
+      res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
+    if (req.path.startsWith('/api')) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+    next();
   });
 
   app.use(express.json({ limit: '15mb' }));
+  app.use(autoAuditRequestMiddleware);
 
   app.use('/api', async (req, _res, next) => {
     if (req.path === '/health' || req.path === '/auth/captcha') return next();
@@ -498,6 +575,7 @@ async function startServer() {
         role: user.role,
         sessionVersion: user.sessionVersion || 1,
       });
+      recordSessionActivity(token);
 
       await db.insert(auditLogs).values({
         userId: user.id,
@@ -530,28 +608,48 @@ async function startServer() {
     }
   });
 
-  // Public Forgot Password (generates temp password, dispatches email log + Admin WhatsApp notification)
+  // Protected: Sync active user interaction (resets 3-hour idle timer)
+  app.post('/api/auth/activity', requireAuth, (_req: AuthRequest, res) => {
+    res.json({ ok: true });
+  });
+
+  // Protected/Graceful: Explicit Logout (revokes current token immediately on backend)
+  app.post('/api/auth/logout', (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith('Bearer ')) {
+      const tok = authHeader.split('Bearer ')[1]?.trim();
+      if (tok) revokeSessionToken(tok);
+    }
+    res.json({ ok: true });
+  });
+
+  // Public Forgot Password (generates temp password internally and notifies admin, zero credential/PII leak in HTTP response)
   app.post('/api/auth/forgot-password', async (req, res) => {
     try {
       await ensureInitialSeed();
       const { email } = req.body as { email: string };
       const cleanEmail = (email || '').trim().toLowerCase();
+      const genericMsg =
+        'Se o e-mail estiver cadastrado, o administrador foi notificado pelos canais internos para liberação segura da senha temporária.';
+      if (!cleanEmail) {
+        return res.status(400).json({ error: 'Informe o e-mail corporativo.' });
+      }
       const rows = await db.select().from(users).where(eq(users.email, cleanEmail)).limit(1);
       const targetUser = rows[0];
-      if (!targetUser) {
-        return res.status(404).json({ error: 'E-mail não localizado no cadastro de colaboradores.' });
+      if (!targetUser || !targetUser.active) {
+        return res.json({ message: genericMsg });
       }
 
-      const tempPassword = `FP-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+      const tempPassword = `FP-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
       await db
         .update(users)
         .set({ tempPassword, mustChangePassword: true })
         .where(eq(users.id, targetUser.id));
 
-      // Notify Admin via Internal Message + WhatsApp Thread log
+      // Notify Admin via Internal Message + WhatsApp Thread log (no secret returned to caller)
       const admins = await db.select().from(users).where(eq(users.role, 'admin'));
       const adminTarget = admins[0];
-      const alertText = `[ALERTA SEGURANÇA] Colaborador ${targetUser.name} (${targetUser.email}) solicitou redefinição de senha em ${new Date().toLocaleString('pt-BR')}.`;
+      const alertText = `[ALERTA SEGURANÇA] Colaborador ${targetUser.name} solicitou redefinição de senha em ${new Date().toLocaleString('pt-BR')}.`;
 
       if (adminTarget) {
         await db.insert(internalMessages).values({
@@ -570,7 +668,7 @@ async function startServer() {
           threadId: threads[0].id,
           direction: 'outbound',
           contentType: 'text',
-          body: `[WhatsApp Admin ${adminTarget?.whatsappPhone || '5581999990001'}] ${alertText}`,
+          body: `[Alerta Segurança Admin] ${alertText}`,
           senderName: 'Ivi Segurança',
         });
       }
@@ -581,15 +679,16 @@ async function startServer() {
         action: 'FORGOT_PASSWORD_REQUEST',
         entityType: 'user',
         entityId: String(targetUser.id),
-        details: { emailDispatchedTo: targetUser.email, adminWhatsappNotified: adminTarget?.whatsappPhone || '5581999990001' },
+        details: { requestRecorded: true },
+        unitId: targetUser.defaultUnitId,
       });
 
-      broadcast('internal:message', { subject: 'Solicitação de Esqueci a Senha', body: alertText });
-
-      res.json({
-        message: `Senha temporária enviada para ${targetUser.email}. O administrador foi notificado via WhatsApp (${adminTarget?.whatsappPhone || '5581999990001'}).`,
-        demoTempPasswordPreview: tempPassword,
+      broadcast('internal:message', {
+        subject: 'Solicitação de Esqueci a Senha',
+        targetUnitId: adminTarget?.defaultUnitId || 1,
       });
+
+      res.json({ message: genericMsg });
     } catch (error) {
       console.error('Forgot password error:', error);
       res.status(500).json({ error: 'Falha ao processar recuperação de senha.' });
@@ -701,14 +800,18 @@ async function startServer() {
     }
   });
 
-  // Protected: Bootstrap / Overview Dashboard
+  // Protected: Bootstrap / Overview Dashboard (escopado por unidades autorizadas)
   app.get('/api/overview', requireAuth, async (req: AuthRequest, res) => {
     try {
       await ensureInitialSeed();
+      const allowedUnits = getAllowedUnitIds(req);
+      const allowUnit = (uId: number | null | undefined) =>
+        allowedUnits === null || (typeof uId === 'number' && allowedUnits.includes(uId));
+
       const [allUnits, allClients, allAdmissions, allLeads, allAppointments, allProcesses, allNegotiations, allTitles, allCases, allDocs, allUsers, allMsgs] =
         await Promise.all([
           db.select().from(units).orderBy(units.id),
-          db.select().from(clients).orderBy(desc(clients.id)),
+          db.select({ id: clients.id, unitId: clients.unitId }).from(clients),
           db.select().from(admissions).orderBy(desc(admissions.id)),
           db.select().from(prospectionLeads).orderBy(desc(prospectionLeads.id)),
           db.select().from(appointments).orderBy(desc(appointments.scheduledFor)),
@@ -716,25 +819,30 @@ async function startServer() {
           db.select().from(negotiations).orderBy(desc(negotiations.id)),
           db.select().from(financialTitles).orderBy(desc(financialTitles.dueDate)),
           db.select().from(collectionCases).orderBy(desc(collectionCases.id)),
-          db.select().from(documentObjects).orderBy(desc(documentObjects.id)),
-          db.select({ id: users.id, name: users.name, email: users.email, role: users.role, points: users.points, defaultUnitId: users.defaultUnitId }).from(users),
-          db.select().from(internalMessages).orderBy(desc(internalMessages.id)).limit(15),
+          db.select({ id: documentObjects.id, unitId: documentObjects.unitId, sizeBytes: documentObjects.sizeBytes, deletedAt: documentObjects.deletedAt }).from(documentObjects),
+          db.select({ id: users.id, name: users.name, role: users.role, points: users.points, defaultUnitId: users.defaultUnitId }).from(users),
+          db.select().from(internalMessages).orderBy(desc(internalMessages.id)).limit(25),
         ]);
 
+      const scopedDocs = allDocs.filter((d) => !d.deletedAt && allowUnit(d.unitId));
+      const scopedClients = allClients.filter((c) => allowUnit(c.unitId));
+
       res.json({
-        units: allUnits,
-        clientsCount: allClients.length,
-        admissions: allAdmissions,
-        leads: allLeads,
-        appointments: allAppointments,
-        processes: allProcesses,
-        negotiations: allNegotiations,
-        titles: allTitles,
-        collectionCases: allCases,
-        documentsCount: allDocs.length,
-        totalVaultBytes: allDocs.reduce((acc, d) => acc + Number(d.sizeBytes || 0), 0),
-        collaborators: allUsers,
-        internalMessages: allMsgs,
+        units: allowedUnits === null ? allUnits : allUnits.filter((u) => allowedUnits.includes(u.id)),
+        clientsCount: scopedClients.length,
+        admissions: allAdmissions.filter((a) => allowUnit(a.unitId)),
+        leads: allLeads.filter((l) => allowUnit(l.unitId)),
+        appointments: allAppointments.filter((a) => allowUnit(a.unitId)),
+        processes: allProcesses.filter((p) => allowUnit(p.unitId)),
+        negotiations: allNegotiations.filter((n) => allowUnit(n.unitId)),
+        titles: allTitles.filter((t) => allowUnit(t.unitId)),
+        collectionCases: allCases.filter((c) => allowUnit(c.unitId)),
+        documentsCount: scopedDocs.length,
+        totalVaultBytes: scopedDocs.reduce((acc, d) => acc + Number(d.sizeBytes || 0), 0),
+        collaborators: allowedUnits === null ? allUsers : allUsers.filter((u) => !u.defaultUnitId || allowUnit(u.defaultUnitId)),
+        internalMessages: allMsgs
+          .filter((m) => m.targetUnitId === null || allowUnit(m.targetUnitId))
+          .slice(0, 15),
       });
     } catch (error) {
       console.error('Overview error:', error);
@@ -1036,26 +1144,30 @@ async function startServer() {
     }
   }
 
-  app.get('/api/prospection', requireAuth, requireModule('prospection'), async (_req: AuthRequest, res) => {
+  app.get('/api/prospection', requireAuth, requireModule('prospection'), async (req: AuthRequest, res) => {
     try {
       await ensureInitialSeed();
+      const allowedUnits = getAllowedUnitIds(req);
+      const allowUnit = (uId: number | null | undefined) =>
+        allowedUnits === null || (typeof uId === 'number' && allowedUnits.includes(uId));
+
       const [leads, kb, appts, allUsers, blocks, callLogs, archives] = await Promise.all([
         db.select().from(prospectionLeads).orderBy(desc(prospectionLeads.lastMessageAt)),
         db.select().from(iviKnowledgeArticles).orderBy(desc(iviKnowledgeArticles.hitCount)),
         db.select().from(appointments).orderBy(desc(appointments.scheduledFor)),
-        db.select({ id: users.id, name: users.name, role: users.role, defaultUnitId: users.defaultUnitId, whatsappPhone: users.whatsappPhone }).from(users),
+        db.select({ id: users.id, name: users.name, role: users.role, defaultUnitId: users.defaultUnitId }).from(users),
         db.select().from(scheduleBlocks).orderBy(desc(scheduleBlocks.startAt)),
         db.select().from(whatsappCallLogs).orderBy(desc(whatsappCallLogs.createdAt)).limit(150),
         db.select().from(communicationArchives).orderBy(desc(communicationArchives.createdAt)).limit(250),
       ]);
       res.json({
-        leads,
+        leads: leads.filter((l) => allowUnit(l.unitId)),
         knowledgeBase: kb,
-        appointments: appts,
-        consultants: allUsers,
-        scheduleBlocks: blocks,
-        callLogs,
-        archives,
+        appointments: appts.filter((a) => allowUnit(a.unitId)),
+        consultants: allowedUnits === null ? allUsers : allUsers.filter((u) => !u.defaultUnitId || allowUnit(u.defaultUnitId)),
+        scheduleBlocks: blocks.filter((b) => allowUnit(b.unitId)),
+        callLogs: callLogs.filter((c) => allowUnit(c.unitId)),
+        archives: archives.filter((a) => allowUnit(a.unitId)),
       });
     } catch (error) {
       console.error('Prospection get error:', error);
@@ -2785,12 +2897,19 @@ async function startServer() {
     try {
       const id = parsePositiveIntId(req.params.id);
       if (!id) return res.status(400).json({ error: 'ID de admissão inválido.' });
-      const logs = await db
+      const aliases = getEntityTypeAliases('admission');
+      const rows = await db
         .select()
         .from(auditLogs)
-        .where(and(eq(auditLogs.entityType, 'admission'), eq(auditLogs.entityId, String(id))))
-        .orderBy(desc(auditLogs.id));
-      res.json({ logs });
+        .where(
+          and(
+            aliases.length > 0 ? inArray(auditLogs.entityType, aliases) : eq(auditLogs.entityType, 'admission'),
+            eq(auditLogs.entityId, String(id))
+          )
+        )
+        .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id))
+        .limit(2000);
+      res.json({ logs: rows.map((r) => normalizeAuditLogRecord(r)) });
     } catch (error) {
       res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao buscar histórico.') });
     }
@@ -3466,7 +3585,7 @@ async function startServer() {
       res.setHeader('Content-Type', mime);
       res.setHeader('Content-Length', String(buf.length));
       res.setHeader('ETag', etag);
-      res.setHeader('Cache-Control', 'private, max-age=3600');
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
       res.setHeader('X-Content-Type-Options', 'nosniff');
       res.setHeader('Content-Disposition', `${disposition}; filename="${fileName}"`);
       return res.send(buf);
@@ -3594,7 +3713,7 @@ async function startServer() {
       const disposition = req.query.preview === '1' && canPreviewInline(doc.mimeType) ? 'inline' : 'attachment';
 
       res.setHeader('ETag', etag);
-      res.setHeader('Cache-Control', 'private, max-age=3600');
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
       res.setHeader('X-Content-Type-Options', 'nosniff');
 
       if (buf) {
@@ -7923,9 +8042,11 @@ async function startServer() {
   // ---------------------------------------------------------------------------
   // 8. CONFIGURAÇÕES, RBAC, IMPORTAÇÃO, QUADRO DE HORÁRIOS & CONSOLE SQL ADMIN
   // ---------------------------------------------------------------------------
-  app.get('/api/config', requireAuth, async (_req: AuthRequest, res) => {
+  app.get('/api/config', requireAuth, requireModule('config'), async (req: AuthRequest, res) => {
     try {
       await ensureInitialSeed();
+      const isAdmin = req.authUser!.role === 'admin';
+      const allowedUnits = getAllowedUnitIds(req);
       const [allUnits, allGroups, allUsers, schedules, fields, categories, settings, logs, channels, operators, templates] = await Promise.all([
         db.select().from(units).orderBy(units.id),
         db.select().from(userGroups).orderBy(userGroups.id),
@@ -7946,28 +8067,38 @@ async function startServer() {
         operatorsCount: operators.length,
         templatesCount: templates.length,
       };
-      const uazapiInstances = await listSanitizedUazapiInstances();
+      const uazapiInstances = isAdmin ? await listSanitizedUazapiInstances() : [];
       const uazapiRuntime = getUazapiGlobalRuntimeState();
       const uazapiConfig = {
         configured: uazapiRuntime.envConfigured || uazapiInstances.length > 0,
-        serverUrl: uazapiInstances[0]?.uazapiServerUrl || uazapiRuntime.defaultServerUrl,
+        serverUrl: isAdmin ? uazapiInstances[0]?.uazapiServerUrl || uazapiRuntime.defaultServerUrl : '',
         instancesCount: uazapiInstances.length,
         instances: uazapiInstances,
         ...uazapiRuntime,
       };
+      const safeSettings = Object.fromEntries(
+        settings
+          .filter((s) => !/(secret|token|password|api_?key|private|credential)/i.test(s.key))
+          .map((s) => [s.key, s.value])
+      );
       res.json({
-        units: allUnits,
+        units: allowedUnits === null ? allUnits : allUnits.filter((u) => allowedUnits.includes(u.id)),
         groups: allGroups,
-        users: allUsers,
-        schedules,
+        users: isAdmin
+          ? allUsers
+          : allUsers.map((u) => ({
+              ...u,
+              whatsappPhone: u.id === req.authUser!.id ? u.whatsappPhone : '',
+            })),
+        schedules: isAdmin ? schedules : schedules.filter((s) => s.unitId === null || (allowedUnits && allowedUnits.includes(s.unitId))),
         customFields: fields,
         paymentCategories: categories,
-        settings: Object.fromEntries(settings.map((s) => [s.key, s.value])),
+        settings: safeSettings,
         iviConfig,
         gotalkConfig,
-        gotalkResources: { channels, operators, templates },
+        gotalkResources: isAdmin ? { channels, operators, templates } : { channels: [], operators: [], templates: [] },
         uazapiConfig,
-        auditLogs: logs,
+        auditLogs: isAdmin ? logs : logs.filter((l) => l.unitId === null || (allowedUnits && allowedUnits.includes(l.unitId))),
       });
     } catch (error) {
       console.error('Config get error:', error);
@@ -8250,11 +8381,8 @@ async function startServer() {
   });
 
   // Admin-only Interactive PostgreSQL Console
-  app.post('/api/admin/sql', requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/admin/sql', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
     try {
-      if (req.authUser!.role !== 'admin') {
-        return res.status(403).json({ error: 'Acesso restrito a administradores.' });
-      }
       const { queryText } = req.body as { queryText: string };
       const clean = (queryText || '').trim();
       if (!clean) return res.status(400).json({ error: 'Informe uma instrução SQL.' });
@@ -8281,8 +8409,7 @@ async function startServer() {
         durationMs,
       });
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Erro SQL';
-      res.status(400).json({ error: msg });
+      res.status(400).json({ error: sanitizeErrorMessage(error, 'Erro ao executar instrução SQL.') });
     }
   });
 

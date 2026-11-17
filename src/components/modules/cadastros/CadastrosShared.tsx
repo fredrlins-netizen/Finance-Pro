@@ -65,6 +65,7 @@ export interface AuditLogRow {
   userName: string;
   action: string;
   entityType: string;
+  entityLabel?: string;
   entityId: string;
   details: Record<string, unknown>;
   createdAt: string;
@@ -73,15 +74,23 @@ export interface AuditLogRow {
 interface NormalizedAuditChange {
   field: string;
   label: string;
+  previousLabel: string;
+  newLabel: string;
   previousValue: string;
   newValue: string;
 }
 
 function extractAuditChangesForDisplay(log: AuditLogRow): NormalizedAuditChange[] {
+  const upperAct = String(log.action || '').toUpperCase();
+  const isInsert = upperAct.includes('INSERT') || upperAct.includes('CREATED');
+  const isDelete = upperAct.includes('DELETE') || upperAct.includes('REMOVE');
+
   const rec = log as AuditLogRow & {
     changes?: Array<{
       field?: string;
       label?: string;
+      previousLabel?: string;
+      newLabel?: string;
       previousValue?: unknown;
       newValue?: unknown;
       from?: unknown;
@@ -89,38 +98,69 @@ function extractAuditChangesForDisplay(log: AuditLogRow): NormalizedAuditChange[
     }>;
   };
   if (Array.isArray(rec.changes) && rec.changes.length > 0) {
-    return rec.changes.map((c) => ({
-      field: String(c.field || 'campo'),
-      label: String(c.label || c.field || 'Campo'),
-      previousValue: String(c.previousValue ?? c.from ?? '—'),
-      newValue: String(c.newValue ?? c.to ?? '—'),
-    }));
+    return rec.changes.map((c) => {
+      const lbl = String(c.label || c.field || 'Campo');
+      const prevVal = String(c.previousValue ?? c.from ?? '—');
+      const nextVal = String(c.newValue ?? c.to ?? '—');
+      const prevLbl =
+        String(c.previousLabel || '').trim() ||
+        (isInsert && (prevVal === '—' || prevVal.includes('Novo registro')) ? '— (Novo registro)' : lbl);
+      const newLbl =
+        String(c.newLabel || '').trim() ||
+        (isDelete && (nextVal === '—' || nextVal.includes('Removido')) ? '— (Removido)' : lbl);
+      return {
+        field: String(c.field || 'campo'),
+        label: lbl,
+        previousLabel: prevLbl,
+        newLabel: newLbl,
+        previousValue: prevVal,
+        newValue: nextVal,
+      };
+    });
   }
   const details = log.details as Record<string, unknown> | undefined;
   if (details && Array.isArray(details.changes) && details.changes.length > 0) {
-    return (details.changes as Array<Record<string, unknown>>).map((c) => ({
-      field: String(c.field || 'campo'),
-      label: String(c.label || c.field || 'Campo'),
-      previousValue: String(c.previousValue ?? c.from ?? '—'),
-      newValue: String(c.newValue ?? c.to ?? '—'),
-    }));
+    return (details.changes as Array<Record<string, unknown>>).map((c) => {
+      const lbl = String(c.label || c.field || 'Campo');
+      const prevVal = String(c.previousValue ?? c.from ?? '—');
+      const nextVal = String(c.newValue ?? c.to ?? '—');
+      return {
+        field: String(c.field || 'campo'),
+        label: lbl,
+        previousLabel:
+          String(c.previousLabel || '').trim() ||
+          (isInsert && (prevVal === '—' || prevVal.includes('Novo registro')) ? '— (Novo registro)' : lbl),
+        newLabel:
+          String(c.newLabel || '').trim() ||
+          (isDelete && (nextVal === '—' || nextVal.includes('Removido')) ? '— (Removido)' : lbl),
+        previousValue: prevVal,
+        newValue: nextVal,
+      };
+    });
   }
   if (details && typeof details === 'object') {
     const ignored = new Set(['autoAudit', 'tableName', 'operation', 'route', 'source', 'method']);
     const entries = Object.entries(details).filter(([k]) => !ignored.has(k));
     if (entries.length > 0) {
-      return entries.map(([k, v]) => ({
-        field: k,
-        label: k.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/_/g, ' '),
-        previousValue: '—',
-        newValue: typeof v === 'object' ? JSON.stringify(v) : String(v ?? '—'),
-      }));
+      return entries.map(([k, v]) => {
+        const lbl = k.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/_/g, ' ');
+        return {
+          field: k,
+          label: lbl,
+          previousLabel: isDelete ? lbl : '—',
+          newLabel: isDelete ? '— (Removido)' : lbl,
+          previousValue: isDelete ? (typeof v === 'object' ? JSON.stringify(v) : String(v ?? '—')) : '—',
+          newValue: isDelete ? '— (Removido)' : typeof v === 'object' ? JSON.stringify(v) : String(v ?? '—'),
+        };
+      });
     }
   }
   return [
     {
       field: 'evento',
       label: 'Ação Executada',
+      previousLabel: '—',
+      newLabel: 'Ação Executada',
       previousValue: '—',
       newValue: log.action,
     },
@@ -128,7 +168,8 @@ function extractAuditChangesForDisplay(log: AuditLogRow): NormalizedAuditChange[
 }
 
 // -----------------------------------------------------------------------------
-// MODAL: HISTÓRICO DE AUDITORIA DA ENTIDADE (Usuário, Data/Hora, Label Anterior -> Novo)
+// MODAL: HISTÓRICO DE AUDITORIA ACUMULATIVA DA ENTIDADE OU ROTINA
+// (Usuário · Data e Horário · Campo Alterado (Label) · Conteúdo da Alteração · Campo Anterior (Label) · Valor Campo Anterior)
 // -----------------------------------------------------------------------------
 export const EntityAuditModal: React.FC<{
   open: boolean;
@@ -141,13 +182,16 @@ export const EntityAuditModal: React.FC<{
   const [logs, setLogs] = useState<AuditLogRow[]>([]);
   const [err, setErr] = useState('');
   const [search, setSearch] = useState('');
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
 
   useEffect(() => {
     if (!open) return;
     setLoading(true);
     setErr('');
     setSearch('');
-    apiFetch<{ logs: AuditLogRow[] }>(`/api/cadastros/audit/${entityType}/${entityId}`)
+    const safeType = encodeURIComponent(String(entityType || 'all'));
+    const safeId = encodeURIComponent(String(entityId ?? 'all'));
+    apiFetch<{ logs: AuditLogRow[] }>(`/api/cadastros/audit/${safeType}/${safeId}?limit=2000`)
       .then((res) => setLogs(res.logs || []))
       .catch((e) => setErr(e instanceof Error ? e.message : 'Falha ao carregar auditoria.'))
       .finally(() => setLoading(false));
@@ -155,29 +199,54 @@ export const EntityAuditModal: React.FC<{
 
   if (!open) return null;
 
+  const sortedLogs = [...logs].sort((a, b) => {
+    const da = new Date(a.createdAt).getTime() || 0;
+    const db = new Date(b.createdAt).getTime() || 0;
+    return sortOrder === 'asc' ? da - db || a.id - b.id : db - da || b.id - a.id;
+  });
+
   const q = search.trim().toLowerCase();
-  const filteredLogs = q
-    ? logs.filter((log) => {
-        const changes = extractAuditChangesForDisplay(log);
-        const hay = `${log.userName} ${log.action} ${changes
-          .map((c) => `${c.label} ${c.previousValue} ${c.newValue}`)
-          .join(' ')}`.toLowerCase();
-        return hay.includes(q);
-      })
-    : logs;
+  const flatRows = sortedLogs.flatMap((log) =>
+    extractAuditChangesForDisplay(log).map((chg, idx) => ({
+      rowKey: `${log.id}-${chg.field}-${idx}`,
+      userName: log.userName || 'Sistema',
+      createdAt: log.createdAt,
+      action: log.action,
+      entityLabel: log.entityLabel || log.entityType,
+      entityId: log.entityId,
+      newLabel: chg.newLabel || chg.label,
+      newValue: chg.newValue,
+      previousLabel: chg.previousLabel || chg.label,
+      previousValue: chg.previousValue,
+    }))
+  );
+
+  const filteredRows = q
+    ? flatRows.filter((row) =>
+        `${row.userName} ${row.action} ${row.entityLabel} ${row.entityId} ${row.newLabel} ${row.newValue} ${row.previousLabel} ${row.previousValue}`
+          .toLowerCase()
+          .includes(q)
+      )
+    : flatRows;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80">
-      <div className="w-full max-w-4xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs max-h-[88vh] flex flex-col dark:border-slate-700 dark:bg-slate-900">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-6xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4 text-xs max-h-[90vh] flex flex-col dark:border-slate-700 dark:bg-slate-900"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3 dark:border-slate-800">
           <div className="flex items-center gap-2 min-w-0">
             <History className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <div className="min-w-0">
               <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
-                Auditoria Completa · {title}
+                Auditoria Acumulativa · {title}
               </h3>
               <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                Rastreamento automático de usuário, data/horário, campo (label) anterior e atualizado.
+                Histórico acumulativo com Usuário, Data/Horário, Campo Alterado (Label), Conteúdo da Alteração, Campo Anterior (Label) e Valor Campo Anterior.
               </p>
             </div>
           </div>
@@ -190,82 +259,79 @@ export const EntityAuditModal: React.FC<{
           </button>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Filtrar por usuário, campo (label), valor anterior ou novo..."
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+            placeholder="Filtrar por usuário, campo (label), valor alterado ou valor anterior..."
+            className="flex-1 min-w-[220px] rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
           />
+          <button
+            type="button"
+            onClick={() => setSortOrder((s) => (s === 'desc' ? 'asc' : 'desc'))}
+            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 whitespace-nowrap"
+          >
+            Ordem: {sortOrder === 'desc' ? 'Mais Recentes' : 'Cronológica Acumulativa'}
+          </button>
           <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap">
-            {filteredLogs.length} evento(s)
+            {logs.length} evento(s) · {filteredRows.length} alteração(ões)
           </span>
         </div>
 
-        <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+        <div className="flex-1 overflow-auto rounded-xl border border-slate-200 dark:border-slate-700">
           {loading ? (
-            <div className="py-8 text-center text-slate-500 dark:text-slate-400">
-              Carregando trilha de auditoria...
+            <div className="py-10 text-center text-slate-500 dark:text-slate-400">
+              Carregando trilha acumulativa de auditoria...
             </div>
           ) : err ? (
-            <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-red-700 dark:bg-red-950/50 dark:border-red-800/70 dark:text-red-300">
+            <div className="m-4 rounded-lg bg-red-50 border border-red-200 p-3 text-red-700 dark:bg-red-950/50 dark:border-red-800/70 dark:text-red-300">
               {err}
             </div>
-          ) : filteredLogs.length === 0 ? (
-            <div className="py-8 text-center text-slate-500 dark:text-slate-400">
+          ) : filteredRows.length === 0 ? (
+            <div className="py-10 text-center text-slate-500 dark:text-slate-400">
               Nenhum evento registrado para este filtro.
             </div>
           ) : (
-            filteredLogs.map((log) => {
-              const changes = extractAuditChangesForDisplay(log);
-              return (
-                <div
-                  key={log.id}
-                  className="rounded-xl border border-slate-200 bg-slate-50/50 overflow-hidden dark:border-slate-800 dark:bg-slate-950/40"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2 bg-slate-100/80 border-b border-slate-200 dark:bg-slate-800/80 dark:border-slate-700">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-[11px] font-bold text-slate-900 dark:text-slate-100">
-                        {log.action}
-                      </span>
-                      <span className="text-[11px] text-slate-600 dark:text-slate-300">
-                        · Usuário: <strong className="text-slate-900 dark:text-white">{log.userName}</strong>
-                      </span>
-                    </div>
-                    <span className="font-mono text-[11px] font-semibold text-slate-600 tabular-nums dark:text-slate-300">
-                      {formatDateTimeBR(log.createdAt)}
-                    </span>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-[11px]">
-                      <thead className="border-b border-slate-200/80 text-slate-500 dark:border-slate-800 dark:text-slate-400">
-                        <tr>
-                          <th className="px-3.5 py-1.5 font-semibold w-1/4">Campo (Label)</th>
-                          <th className="px-3.5 py-1.5 font-semibold w-[37.5%]">Conteúdo Anterior</th>
-                          <th className="px-3.5 py-1.5 font-semibold w-[37.5%]">Conteúdo Atualizado</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
-                        {changes.map((chg, idx) => (
-                          <tr key={`${log.id}-${chg.field}-${idx}`}>
-                            <td className="px-3.5 py-2 font-semibold text-slate-800 dark:text-slate-200 align-top">
-                              {chg.label}
-                            </td>
-                            <td className="px-3.5 py-2 font-mono text-slate-600 dark:text-slate-400 break-words align-top">
-                              {chg.previousValue}
-                            </td>
-                            <td className="px-3.5 py-2 font-mono font-semibold text-emerald-800 dark:text-emerald-300 break-words align-top">
-                              {chg.newValue}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              );
-            })
+            <table className="w-full text-left text-[11px] border-collapse">
+              <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                <tr>
+                  <th className="px-3 py-2 font-semibold whitespace-nowrap">Usuário</th>
+                  <th className="px-3 py-2 font-semibold whitespace-nowrap">Data e Horário</th>
+                  <th className="px-3 py-2 font-semibold whitespace-nowrap">Campo Alterado (Label)</th>
+                  <th className="px-3 py-2 font-semibold">Conteúdo da Alteração</th>
+                  <th className="px-3 py-2 font-semibold whitespace-nowrap">Campo Anterior (Label)</th>
+                  <th className="px-3 py-2 font-semibold">Valor Campo Anterior</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {filteredRows.map((row) => (
+                  <tr key={row.rowKey} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/60">
+                    <td className="px-3 py-2 align-top whitespace-nowrap">
+                      <div className="font-semibold text-slate-900 dark:text-slate-100">{row.userName}</div>
+                      <div className="font-mono text-[10px] text-slate-500 dark:text-slate-400">
+                        {row.action} · {row.entityLabel} #{row.entityId}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 font-mono text-slate-600 tabular-nums whitespace-nowrap align-top dark:text-slate-300">
+                      {formatDateTimeBR(row.createdAt)}
+                    </td>
+                    <td className="px-3 py-2 font-semibold text-slate-900 align-top dark:text-slate-100">
+                      {row.newLabel}
+                    </td>
+                    <td className="px-3 py-2 font-mono font-semibold text-emerald-800 bg-emerald-50/40 dark:bg-emerald-950/20 dark:text-emerald-300 break-words max-w-[240px] align-top">
+                      {row.newValue}
+                    </td>
+                    <td className="px-3 py-2 font-medium text-slate-700 align-top dark:text-slate-300">
+                      {row.previousLabel}
+                    </td>
+                    <td className="px-3 py-2 font-mono text-red-700 bg-red-50/40 dark:bg-red-950/20 dark:text-red-300 break-words max-w-[240px] align-top">
+                      {row.previousValue}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
         </div>
       </div>

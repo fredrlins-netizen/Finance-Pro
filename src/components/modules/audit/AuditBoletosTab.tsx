@@ -399,56 +399,95 @@ export const AuditBoletosTab: React.FC<AuditBoletosTabProps> = ({
         )}
       </div>
 
-      {/* Technical Audit Logs */}
+      {/* Technical Audit Logs (Cumulative 6-column table) */}
       <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 dark:border-slate-700 dark:bg-slate-900">
         <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2 dark:text-slate-100">
           <History className="w-4 h-4 text-slate-600 dark:text-slate-300" />
-          Trilha Técnica de Auditoria ({auditLogs.length})
+          Trilha Técnica Acumulativa de Auditoria ({auditLogs.length} evento(s))
         </h3>
         {auditLogs.length === 0 ? (
           <p className="text-xs text-slate-500 dark:text-slate-400">Nenhum evento técnico registrado ainda para este protocolo.</p>
         ) : (
-          <div className="divide-y divide-slate-100 rounded-lg border border-slate-200 max-h-80 overflow-y-auto text-xs dark:divide-slate-800 dark:border-slate-700">
-            {auditLogs.map((log) => {
-              const details = (log.details || {}) as Record<string, unknown>;
-              const rawChanges = Array.isArray(log.changes)
-                ? log.changes
-                : Array.isArray(details.changes)
-                ? (details.changes as Array<Record<string, unknown>>)
-                : [];
-              return (
-                <div key={log.id} className="px-3 py-2.5 space-y-1.5">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                    <div className="min-w-0">
-                      <span className="font-mono font-bold text-slate-900 dark:text-slate-100">{log.action}</span>
-                      <span className="text-slate-400 mx-1.5 dark:text-slate-400">·</span>
-                      <span className="text-slate-700 dark:text-slate-200">{log.userName}</span>
-                    </div>
-                    <span className="font-mono text-[11px] text-slate-500 tabular-nums shrink-0 dark:text-slate-400">
-                      {formatDateTimeBR(log.createdAt)}
-                    </span>
-                  </div>
-                  {rawChanges.length > 0 && (
-                    <div className="rounded border border-slate-100 bg-slate-50/70 divide-y divide-slate-100 text-[11px] dark:border-slate-800 dark:bg-slate-800/50 dark:divide-slate-800">
-                      {rawChanges.slice(0, 10).map((c, idx) => {
-                        const ch = c as Record<string, unknown>;
-                        const lbl = String(ch.label || ch.field || 'Campo');
-                        const prevV = String(ch.previousValue ?? ch.from ?? '—');
-                        const nextV = String(ch.newValue ?? ch.to ?? '—');
-                        return (
-                          <div key={idx} className="px-2.5 py-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                            <span className="font-semibold text-slate-700 dark:text-slate-200">{lbl}:</span>
-                            <span className="font-mono text-slate-500 dark:text-slate-400">{prevV}</span>
-                            <span className="text-slate-400">→</span>
-                            <span className="font-mono font-semibold text-emerald-700 dark:text-emerald-300">{nextV}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+          <div className="overflow-x-auto rounded-lg border border-slate-200 max-h-96 overflow-y-auto text-[11px] dark:border-slate-700">
+            <table className="w-full text-left border-collapse">
+              <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                <tr>
+                  <th className="px-3 py-2 font-semibold whitespace-nowrap">Usuário</th>
+                  <th className="px-3 py-2 font-semibold whitespace-nowrap">Data e Horário</th>
+                  <th className="px-3 py-2 font-semibold whitespace-nowrap">Campo Alterado (Label)</th>
+                  <th className="px-3 py-2 font-semibold">Conteúdo da Alteração</th>
+                  <th className="px-3 py-2 font-semibold whitespace-nowrap">Campo Anterior (Label)</th>
+                  <th className="px-3 py-2 font-semibold">Valor Campo Anterior</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {auditLogs.flatMap((log) => {
+                  const details = (log.details || {}) as Record<string, unknown>;
+                  const rawChanges =
+                    Array.isArray(log.changes) && log.changes.length > 0
+                      ? log.changes
+                      : Array.isArray(details.changes)
+                      ? (details.changes as Array<Record<string, unknown>>)
+                      : [];
+                  const isInsert = String(log.action || '').toUpperCase().includes('INSERT') || String(log.action || '').toUpperCase().includes('CREATE');
+                  const isDelete = String(log.action || '').toUpperCase().includes('DELETE');
+
+                  if (rawChanges.length === 0) {
+                    return [
+                      <tr key={`${log.id}-summary`} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/60">
+                        <td className="px-3 py-2 align-top whitespace-nowrap">
+                          <div className="font-semibold text-slate-800 dark:text-slate-100">{log.userName || 'Sistema'}</div>
+                          <div className="font-mono text-[10px] text-slate-500 dark:text-slate-400">{log.action}</div>
+                        </td>
+                        <td className="px-3 py-2 font-mono text-slate-500 tabular-nums whitespace-nowrap align-top dark:text-slate-400">
+                          {formatDateTimeBR(log.createdAt)}
+                        </td>
+                        <td className="px-3 py-2 font-semibold text-slate-800 align-top dark:text-slate-200">Evento Operacional</td>
+                        <td className="px-3 py-2 font-mono text-emerald-800 bg-emerald-50/40 dark:bg-emerald-950/20 dark:text-emerald-300 align-top">
+                          {log.summaryText || String(details.description || log.action)}
+                        </td>
+                        <td className="px-3 py-2 text-slate-600 align-top dark:text-slate-400">
+                          {isInsert ? '— (Novo registro)' : 'Evento Operacional'}
+                        </td>
+                        <td className="px-3 py-2 font-mono text-slate-500 align-top dark:text-slate-400">—</td>
+                      </tr>,
+                    ];
+                  }
+
+                  return rawChanges.map((c, idx) => {
+                    const ch = c as Record<string, unknown>;
+                    const lbl = String(ch.label || ch.field || 'Campo');
+                    const prevV = String(ch.previousValue ?? ch.from ?? '—');
+                    const nextV = String(ch.newValue ?? ch.to ?? '—');
+                    const prevLbl =
+                      String(ch.previousLabel || '').trim() ||
+                      (isInsert && (prevV === '—' || prevV.includes('Novo registro')) ? '— (Novo registro)' : lbl);
+                    const newLbl =
+                      String(ch.newLabel || '').trim() ||
+                      (isDelete && (nextV === '—' || nextV.includes('Removido')) ? '— (Removido)' : lbl);
+                    return (
+                      <tr key={`${log.id}-${idx}`} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/60">
+                        <td className="px-3 py-2 align-top whitespace-nowrap">
+                          <div className="font-semibold text-slate-800 dark:text-slate-100">{log.userName || 'Sistema'}</div>
+                          <div className="font-mono text-[10px] text-slate-500 dark:text-slate-400">{log.action}</div>
+                        </td>
+                        <td className="px-3 py-2 font-mono text-slate-500 tabular-nums whitespace-nowrap align-top dark:text-slate-400">
+                          {formatDateTimeBR(log.createdAt)}
+                        </td>
+                        <td className="px-3 py-2 font-semibold text-slate-900 align-top dark:text-slate-100">{newLbl}</td>
+                        <td className="px-3 py-2 font-mono font-semibold text-emerald-800 bg-emerald-50/40 dark:bg-emerald-950/20 dark:text-emerald-300 max-w-[200px] break-words align-top">
+                          {nextV}
+                        </td>
+                        <td className="px-3 py-2 font-medium text-slate-700 align-top dark:text-slate-300">{prevLbl}</td>
+                        <td className="px-3 py-2 font-mono text-red-700 bg-red-50/40 dark:bg-red-950/20 dark:text-red-300 max-w-[200px] break-words align-top">
+                          {prevV}
+                        </td>
+                      </tr>
+                    );
+                  });
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>

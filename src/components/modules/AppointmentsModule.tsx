@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Edit3,
   Filter,
+  History,
   ListChecks,
   Maximize2,
   Minimize2,
@@ -800,6 +801,20 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 shrink-0 text-xs">
+            <button
+              type="button"
+              onClick={() =>
+                setAuditModal({
+                  open: true,
+                  entityType: 'appointments,schedule_blocks,schedule_waitlist',
+                  entityId: 'all',
+                  title: 'Agendamentos & Escala · Auditoria Cumulativa',
+                })
+              }
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              <History className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" /> Auditoria
+            </button>
             {onNavigate && (
               <button
                 type="button"

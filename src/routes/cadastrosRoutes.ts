@@ -165,7 +165,7 @@ export function registerCadastrosRoutes(
         maritalStatuses,
       });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao carregar Cadastros Comuns.' });
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao carregar Cadastros Comuns.') });
     }
   });
 
@@ -210,25 +210,55 @@ export function registerCadastrosRoutes(
   });
 
   // ---------------------------------------------------------------------------
-  // HISTÓRICO DE AUDITORIA POR ENTIDADE (Normalizado com Labels & Anterior -> Novo)
+  // HISTÓRICO DE AUDITORIA POR ENTIDADE OU ROTINA (Acumulativo · Normalizado com Labels)
   // ---------------------------------------------------------------------------
   app.get('/api/cadastros/audit/:entityType/:entityId', requireAuth, async (req: AuthRequest, res) => {
     try {
-      const entityType = String(req.params.entityType || '').trim();
-      const entityId = String(req.params.entityId || '').trim();
-      const aliases = getEntityTypeAliases(entityType);
+      const rawEntityType = String(req.params.entityType || '').trim();
+      const rawEntityId = String(req.params.entityId || '').trim();
+      const rawLimit = Number(req.query.limit || 2000);
+      const limit = Number.isFinite(rawLimit) ? Math.min(2000, Math.max(50, Math.floor(rawLimit))) : 2000;
+      const allowedUnits = getAllowedUnitIds(req);
+
+      const isAllTypes = !rawEntityType || rawEntityType.toLowerCase() === 'all';
+      const isAllIds = !rawEntityId || rawEntityId.toLowerCase() === 'all' || rawEntityId.toLowerCase() === 'module';
+
+      const aliases = isAllTypes
+        ? []
+        : Array.from(
+            new Set(
+              rawEntityType
+                .split(',')
+                .map((part) => part.trim())
+                .filter(Boolean)
+                .flatMap((part) => getEntityTypeAliases(part))
+            )
+          );
+
+      const conditions = [];
+      if (!isAllTypes && aliases.length > 0) {
+        conditions.push(inArray(auditLogs.entityType, aliases));
+      } else if (!isAllTypes) {
+        conditions.push(eq(auditLogs.entityType, rawEntityType));
+      }
+      if (!isAllIds) {
+        conditions.push(eq(auditLogs.entityId, rawEntityId));
+      }
+      if (allowedUnits !== null) {
+        if (allowedUnits.length === 0) {
+          return res.json({ logs: [], total: 0 });
+        }
+        conditions.push(or(inArray(auditLogs.unitId, allowedUnits), isNull(auditLogs.unitId)));
+      }
+
       const rows = await db
         .select()
         .from(auditLogs)
-        .where(
-          and(
-            aliases.length > 0 ? inArray(auditLogs.entityType, aliases) : eq(auditLogs.entityType, entityType),
-            eq(auditLogs.entityId, entityId)
-          )
-        )
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
         .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id))
-        .limit(500);
-      res.json({ logs: rows.map((r) => normalizeAuditLogRecord(r)) });
+        .limit(limit);
+
+      res.json({ logs: rows.map((r) => normalizeAuditLogRecord(r)), total: rows.length });
     } catch (error) {
       res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao consultar auditoria.' });
     }

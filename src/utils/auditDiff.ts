@@ -1,6 +1,8 @@
 export interface AuditFieldChange {
   field: string;
   label: string;
+  previousLabel: string;
+  newLabel: string;
   previousValue: string;
   newValue: string;
   from: string;
@@ -156,6 +158,29 @@ export const ENTITY_LABELS_PT: Record<string, string> = {
   recalc_scenarios: 'Simulações Recálculo',
   vault_migration_batch: 'Migração Cofre R2',
   vault_migration_batches: 'Migração Cofre R2',
+  vault_migration_item: 'Itens Migração Cofre R2',
+  vault_migration_items: 'Itens Migração Cofre R2',
+  backup_schedule: 'Agendamentos de Backup',
+  backup_schedules: 'Agendamentos de Backup',
+  backup_execution: 'Execuções de Backup & Restore',
+  backup_executions: 'Execuções de Backup & Restore',
+  uazapi_instance: 'WhatsApp UaZapi',
+  unit_whatsapp_credentials: 'WhatsApp UaZapi',
+  gotalk_channel: 'Canais GoTalk',
+  gotalk_channels: 'Canais GoTalk',
+  gotalk_operator: 'Operadores GoTalk',
+  gotalk_operators: 'Operadores GoTalk',
+  gotalk_hsm_template: 'Templates HSM GoTalk',
+  gotalk_hsm_templates: 'Templates HSM GoTalk',
+  audit_checklist: 'Checklist de Auditoria',
+  config: 'Configurações do Sistema',
+  whatsapp_call_log: 'Ligações WhatsApp',
+  whatsapp_call_logs: 'Ligações WhatsApp',
+  communication_archive: 'Arquivo de Comunicações',
+  communication_archives: 'Arquivo de Comunicações',
+  supplier: 'Fornecedores',
+  suppliers: 'Fornecedores',
+  all: 'Todas as Rotinas',
 };
 
 export const FIELD_LABELS_PT: Record<string, string> = {
@@ -425,6 +450,44 @@ export function getEntityTypeAliases(entityType: string): string[] {
     aliasSet.add('CONTA_RECEBER');
     aliasSet.add('CONTA_PAGAR');
   }
+  if (lower === 'uazapi_instance' || lower === 'unit_whatsapp_credentials' || lower === 'uazapi') {
+    aliasSet.add('uazapi_instance');
+    aliasSet.add('unit_whatsapp_credentials');
+  }
+  if (lower === 'gotalk_channel' || lower === 'gotalk_channels' || lower === 'gotalk') {
+    aliasSet.add('gotalk_channel');
+    aliasSet.add('gotalk_channels');
+    aliasSet.add('gotalk_operators');
+    aliasSet.add('gotalk_hsm_templates');
+  }
+  if (lower === 'audit_checklist' || lower === 'audit_checklist_item' || lower === 'audit_checklist_items') {
+    aliasSet.add('audit_checklist');
+    aliasSet.add('audit_checklist_item');
+    aliasSet.add('audit_checklist_items');
+  }
+  if (lower === 'config' || lower === 'system_setting' || lower === 'system_settings') {
+    aliasSet.add('config');
+    aliasSet.add('system_setting');
+    aliasSet.add('system_settings');
+    aliasSet.add('integration');
+  }
+  if (lower === 'backup_schedule' || lower === 'backup_schedules' || lower === 'backup_execution' || lower === 'backup_executions') {
+    aliasSet.add('backup_schedule');
+    aliasSet.add('backup_schedules');
+    aliasSet.add('backup_execution');
+    aliasSet.add('backup_executions');
+  }
+  if (lower === 'r2_migration' || lower === 'vault_migration_batch' || lower === 'vault_migration_batches') {
+    aliasSet.add('r2_migration');
+    aliasSet.add('vault_migration_batch');
+    aliasSet.add('vault_migration_batches');
+    aliasSet.add('vault_migration_items');
+  }
+  if (lower === 'supplier' || lower === 'suppliers') {
+    aliasSet.add('supplier');
+    aliasSet.add('suppliers');
+    aliasSet.add('clients');
+  }
 
   return Array.from(aliasSet);
 }
@@ -434,6 +497,10 @@ export function normalizeAuditLogChanges(
   action = ''
 ): AuditFieldChange[] {
   if (!rawDetails || typeof rawDetails !== 'object') return [];
+
+  const upperAct = String(action || '').toUpperCase();
+  const isInsert = upperAct.includes('INSERT') || upperAct.includes('CREATED');
+  const isDelete = upperAct.includes('DELETE') || upperAct.includes('REMOVE');
 
   const changesList = Array.isArray(rawDetails.changes) ? rawDetails.changes : null;
   if (changesList && changesList.length > 0) {
@@ -447,9 +514,21 @@ export function normalizeAuditLogChanges(
       const nextRaw = rec.newValue !== undefined ? rec.newValue : rec.to;
       const previousValue = formatAuditValue(prevRaw, field);
       const newValue = formatAuditValue(nextRaw, field);
+      const explicitPrevLabel = String(rec.previousLabel || '').trim();
+      const explicitNewLabel = String(rec.newLabel || '').trim();
+      const previousLabel =
+        explicitPrevLabel ||
+        (isInsert && (previousValue === '—' || previousValue.includes('Novo registro'))
+          ? '— (Novo registro)'
+          : label);
+      const newLabel =
+        explicitNewLabel ||
+        (isDelete && (newValue === '—' || newValue.includes('Removido')) ? '— (Removido)' : label);
       normalized.push({
         field,
-        label,
+        label: newLabel !== '— (Removido)' ? newLabel : label,
+        previousLabel,
+        newLabel,
         previousValue,
         newValue,
         from: previousValue,
@@ -468,13 +547,15 @@ export function normalizeAuditLogChanges(
     'method',
   ]);
   const fallbackChanges: AuditFieldChange[] = [];
-  const isDelete = action.toUpperCase().includes('DELETE') || action.toUpperCase().includes('REMOVE');
   for (const [k, v] of Object.entries(rawDetails)) {
     if (ignoredKeys.has(k)) continue;
     const formatted = formatAuditValue(v, k);
+    const lbl = humanizeFieldLabel(k);
     fallbackChanges.push({
       field: k,
-      label: humanizeFieldLabel(k),
+      label: lbl,
+      previousLabel: isDelete ? lbl : '—',
+      newLabel: isDelete ? '— (Removido)' : lbl,
       previousValue: isDelete ? formatted : '—',
       newValue: isDelete ? '— (Removido)' : formatted,
       from: isDelete ? formatted : '—',
@@ -548,9 +629,12 @@ export function computeRecordDiff(
     } else if (!afterObj && prevStr === '—') {
       continue;
     }
+    const lbl = humanizeFieldLabel(key);
     out.push({
       field: key,
-      label: humanizeFieldLabel(key),
+      label: lbl,
+      previousLabel: beforeObj ? lbl : '— (Novo registro)',
+      newLabel: afterObj ? lbl : '— (Removido)',
       previousValue: beforeObj ? prevStr : '— (Novo registro)',
       newValue: afterObj ? nextStr : '— (Removido)',
       from: beforeObj ? prevStr : '— (Novo registro)',
