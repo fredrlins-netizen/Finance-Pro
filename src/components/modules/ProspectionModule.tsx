@@ -10,6 +10,7 @@ import {
   FileAudio,
   History,
   Mic,
+  Pencil,
   Phone,
   PhoneCall,
   PhoneOff,
@@ -18,6 +19,7 @@ import {
   Send,
   Sparkles,
   Square,
+  Trash2,
   Upload,
   UserCheck,
   UserPen,
@@ -96,13 +98,74 @@ const SecureBucketAudio: React.FC<{
   );
 };
 
+const CachedIviAudioPlayer: React.FC<{
+  cacheHash: string;
+  cached?: boolean;
+  label?: string;
+}> = ({ cacheHash, cached, label }) => {
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    let currentUrl: string | null = null;
+    setLoading(true);
+    setError('');
+    fetch(`/api/ivi/audio/${cacheHash}`, {
+      headers: { Authorization: `Bearer ${getAuthToken()}` },
+    })
+      .then(async (resp) => {
+        if (!resp.ok) throw new Error('Áudio indisponível');
+        return resp.blob();
+      })
+      .then((blob) => {
+        if (!active) return;
+        currentUrl = URL.createObjectURL(blob);
+        setObjectUrl(currentUrl);
+      })
+      .catch(() => {
+        if (active) setError('Não foi possível reproduzir o áudio em cache.');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+      if (currentUrl) URL.revokeObjectURL(currentUrl);
+    };
+  }, [cacheHash]);
+
+  return (
+    <div className="mt-2 rounded-md border border-blue-200 bg-white/95 px-2.5 py-2 space-y-1 dark:border-blue-800/70 dark:bg-slate-900/90">
+      <div className="flex items-center justify-between gap-2 text-[10px] text-slate-600 dark:text-slate-300">
+        <span className="inline-flex items-center gap-1 font-semibold text-blue-800 truncate dark:text-blue-300">
+          <Volume2 className="w-3 h-3 shrink-0" />
+          {label || 'Resposta Verbal Ivi (Gemini Audio)'}
+        </span>
+        <span className="font-mono text-[10px] shrink-0 text-emerald-700 dark:text-emerald-300">
+          {cached ? 'Cache DB · 0 tokens' : `WAV · ${cacheHash.slice(0, 8)}`}
+        </span>
+      </div>
+      {loading && <div className="text-[10px] text-slate-400">Carregando áudio Gemini da base...</div>}
+      {error && <div className="text-[10px] text-red-600 dark:text-red-400">{error}</div>}
+      {objectUrl && <audio controls preload="metadata" className="w-full h-8" src={objectUrl} />}
+    </div>
+  );
+};
+
 interface KnowledgeArticle {
   id: number;
+  scope?: string;
+  moduleKey?: string;
   questionPattern: string;
   answerTemplate: string;
   category: string;
   sourceChannel: string;
   hitCount: number;
+  updatedByName?: string;
+  active?: boolean;
 }
 
 interface ConsultantInfo {
@@ -252,6 +315,20 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
   const [blockEnd, setBlockEnd] = useState('');
   const [blockReason, setBlockReason] = useState('');
 
+  // Gemini Audio TTS + Admin KB CRUD (Prospecção)
+  const isAdmin = currentUser?.role === 'admin';
+  const [replyWithAudio, setReplyWithAudio] = useState(false);
+  const [onDemandTtsByMsgKey, setOnDemandTtsByMsgKey] = useState<Record<string, { hash: string; cached: boolean }>>({});
+  const [kbFormOpen, setKbFormOpen] = useState(false);
+  const [kbEditingId, setKbEditingId] = useState<number | null>(null);
+  const [kbQuestionDraft, setKbQuestionDraft] = useState('');
+  const [kbAnswerDraft, setKbAnswerDraft] = useState('');
+  const [kbCategoryDraft, setKbCategoryDraft] = useState('prospeccao');
+  const [kbChannelDraft, setKbChannelDraft] = useState('whatsapp_uazapi');
+  const [kbActiveDraft, setKbActiveDraft] = useState(true);
+  const [kbSearchDraft, setKbSearchDraft] = useState('');
+  const [kbAudioPreview, setKbAudioPreview] = useState<{ id: number; hash: string; cached: boolean } | null>(null);
+
   const load = async () => {
     const data = await apiFetch<{
       leads: ProspectionLead[];
@@ -263,7 +340,18 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
       archives?: CommunicationArchiveItem[];
     }>('/api/prospection');
     setLeads(data.leads);
-    setKb(data.knowledgeBase);
+    if (isAdmin) {
+      try {
+        const kbRes = await apiFetch<{ articles: KnowledgeArticle[] }>(
+          '/api/ivi/knowledge?scope=prospection&includeInactive=1'
+        );
+        setKb(kbRes.articles || data.knowledgeBase);
+      } catch {
+        setKb(data.knowledgeBase);
+      }
+    } else {
+      setKb(data.knowledgeBase);
+    }
     setAppointments(data.appointments);
     setConsultants(data.consultants);
     setScheduleBlocks(data.scheduleBlocks || []);
@@ -277,7 +365,7 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
 
   useEffect(() => {
     load();
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
     if (!navIntent) return;
@@ -444,10 +532,10 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
     try {
       const res = await apiFetch<{
         lead: ProspectionLead;
-        ivi: { provider: string; needsHuman: boolean };
+        ivi: { provider: string; needsHuman: boolean; audioCacheHash?: string; audioCached?: boolean };
       }>(`/api/prospection/leads/${activeLead.id}/ivi-reply`, {
         method: 'POST',
-        body: JSON.stringify({ message: replyText, mode }),
+        body: JSON.stringify({ message: replyText, mode, replyWithAudio: mode === 'ivi' && replyWithAudio }),
       });
       setReplyText('');
       setSummaryDraft(res.lead.summaryText || '');
@@ -456,10 +544,101 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
       } else {
         setStatusBanner(
           res.ivi.needsHuman
-            ? `Ivi (${res.ivi.provider}) escalou para atendimento humano e atualizou o resumo lateral.`
-            : `Ivi (${res.ivi.provider}) respondeu e atualizou o resumo lateral.`
+            ? `Ivi (${res.ivi.provider}) escalou para atendimento humano e atualizou o resumo lateral.${
+                res.ivi.audioCacheHash ? ' Resposta em áudio Gemini salva no cache.' : ''
+              }`
+            : `Ivi (${res.ivi.provider}) respondeu e atualizou o resumo lateral.${
+                res.ivi.audioCacheHash ? ' Resposta em áudio Gemini salva no cache.' : ''
+              }`
         );
       }
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSynthesizeProspectionTts = async (key: string, text: string) => {
+    if (!text.trim()) return;
+    setBusy(true);
+    try {
+      const res = await apiFetch<{
+        cacheHash: string;
+        audioUrl: string;
+        cached: boolean;
+        unavailableReason?: string;
+      }>('/api/ivi/tts', {
+        method: 'POST',
+        body: JSON.stringify({ text, sourceType: 'prospection', moduleKey: 'prospection' }),
+      });
+      if (!res.audioUrl) {
+        setStatusBanner(res.unavailableReason || 'Não foi possível sintetizar áudio Gemini no momento.');
+        return;
+      }
+      setOnDemandTtsByMsgKey((prev) => ({
+        ...prev,
+        [key]: { hash: res.cacheHash, cached: res.cached },
+      }));
+      setStatusBanner(
+        res.cached
+          ? 'Áudio Gemini reproduzido do cache da base da Ivi (0 tokens gastos).'
+          : 'Áudio Gemini sintetizado e armazenado na base da Ivi para reutilização.'
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSaveProspectionKb = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAdmin || !kbQuestionDraft.trim() || !kbAnswerDraft.trim()) return;
+    setBusy(true);
+    try {
+      if (kbEditingId) {
+        await apiFetch(`/api/ivi/knowledge/${kbEditingId}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            scope: 'prospection',
+            moduleKey: 'prospection',
+            questionPattern: kbQuestionDraft.trim(),
+            answerTemplate: kbAnswerDraft.trim(),
+            category: kbCategoryDraft.trim() || 'prospeccao',
+            sourceChannel: kbChannelDraft.trim() || 'whatsapp_uazapi',
+            active: kbActiveDraft,
+          }),
+        });
+        setStatusBanner('Artigo da Base Ivi (Prospecção) atualizado e auditado.');
+      } else {
+        await apiFetch('/api/ivi/knowledge', {
+          method: 'POST',
+          body: JSON.stringify({
+            scope: 'prospection',
+            moduleKey: 'prospection',
+            questionPattern: kbQuestionDraft.trim(),
+            answerTemplate: kbAnswerDraft.trim(),
+            category: kbCategoryDraft.trim() || 'prospeccao',
+            sourceChannel: kbChannelDraft.trim() || 'whatsapp_uazapi',
+            active: kbActiveDraft,
+          }),
+        });
+        setStatusBanner('Novo conhecimento incluído na Base da Ivi (Prospecção).');
+      }
+      setKbFormOpen(false);
+      setKbEditingId(null);
+      setKbQuestionDraft('');
+      setKbAnswerDraft('');
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDeleteProspectionKb = async (id: number) => {
+    if (!isAdmin) return;
+    setBusy(true);
+    try {
+      await apiFetch(`/api/ivi/knowledge/${id}`, { method: 'DELETE' });
+      setStatusBanner('Item removido da Base de Conhecimento da Ivi (Prospecção).');
       await load();
     } finally {
       setBusy(false);
@@ -1218,6 +1397,33 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                         {item.mediaSha256 && (
                           <SecureBucketAudio sha256={item.mediaSha256} fileName={item.mediaFileName} />
                         )}
+                        {(item.audioCacheHash || onDemandTtsByMsgKey[`${activeLead.id}-${idx}`]) && (
+                          <CachedIviAudioPlayer
+                            cacheHash={
+                              item.audioCacheHash || onDemandTtsByMsgKey[`${activeLead.id}-${idx}`].hash
+                            }
+                            cached={
+                              item.audioCacheHash
+                                ? item.audioCached
+                                : onDemandTtsByMsgKey[`${activeLead.id}-${idx}`]?.cached
+                            }
+                          />
+                        )}
+                        {item.sender === 'ivi' &&
+                          !item.audioCacheHash &&
+                          !onDemandTtsByMsgKey[`${activeLead.id}-${idx}`] && (
+                            <div className="mt-1.5">
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => handleSynthesizeProspectionTts(`${activeLead.id}-${idx}`, item.text)}
+                                className="inline-flex items-center gap-1 rounded border border-blue-200 bg-white px-2 py-1 text-[10px] font-semibold text-blue-800 hover:bg-blue-100 disabled:opacity-50 dark:border-blue-800/70 dark:bg-slate-900 dark:text-blue-300 dark:hover:bg-blue-950"
+                              >
+                                <Volume2 className="w-3 h-3" />
+                                Ouvir / Gerar Resposta em Áudio Gemini
+                              </button>
+                            </div>
+                          )}
                         {item.audioTranscript && (
                           <div className="mt-2 rounded-md border border-blue-200 bg-white/90 p-2 text-[11px] text-slate-700 dark:border-blue-800/70 dark:bg-slate-900/95 dark:text-slate-200">
                             <span className="font-bold text-blue-800 dark:text-blue-300">Transcrição Ivi: </span>
@@ -1443,33 +1649,47 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
                     e.preventDefault();
                     handleSendMessage('ivi');
                   }}
-                  className="flex flex-col sm:flex-row gap-2"
+                  className="space-y-2"
                 >
-                  <input
-                    type="text"
-                    value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
-                    placeholder="Mensagem do cliente (para Ivi) ou resposta do operador..."
-                    className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-xs min-w-0 dark:border-slate-700"
-                  />
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      type="submit"
-                      disabled={busy || !replyText.trim()}
-                      className="inline-flex items-center gap-1 rounded-lg bg-blue-700 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-800 disabled:opacity-50 whitespace-nowrap"
-                    >
-                      <Send className="w-3.5 h-3.5" />
-                      Ivi
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy || !replyText.trim()}
-                      onClick={() => handleSendMessage('human')}
-                      className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 whitespace-nowrap dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
-                    >
-                      Operador
-                    </button>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="text"
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      placeholder="Mensagem do cliente (para Ivi) ou resposta do operador..."
+                      className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-xs min-w-0 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                    />
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="submit"
+                        disabled={busy || !replyText.trim()}
+                        className="inline-flex items-center gap-1 rounded-lg bg-blue-700 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-800 disabled:opacity-50 whitespace-nowrap"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        Ivi
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy || !replyText.trim()}
+                        onClick={() => handleSendMessage('human')}
+                        className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 whitespace-nowrap dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+                      >
+                        Operador
+                      </button>
+                    </div>
                   </div>
+                  <label className="inline-flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-300 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={replyWithAudio}
+                      onChange={(e) => setReplyWithAudio(e.target.checked)}
+                      className="rounded border-slate-300 text-blue-700 focus:ring-blue-600"
+                    />
+                    <Volume2 className="w-3.5 h-3.5 text-blue-700 dark:text-blue-300" />
+                    <span>
+                      Gerar também resposta verbal em áudio Gemini (gravado na base da Ivi para evitar gasto de tokens)
+                    </span>
+                  </label>
                 </form>
 
                 {onNavigate && (
@@ -1878,28 +2098,246 @@ export const ProspectionModule: React.FC<ProspectionModuleProps> = ({
       )}
 
       {tab === 'kb' && (
-        <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3 dark:border-slate-700 dark:bg-slate-900">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-            <h2 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
-              Base de Conhecimento Interna da Ivi
-            </h2>
-            <span className="text-xs text-slate-500 font-mono dark:text-slate-400">{kb.length} artigos aprendidos</span>
+        <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4 dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+            <div>
+              <h2 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
+                Base de Conhecimento da Ivi · Prospecção Comercial & Voz Gemini
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Aprendizado automático ativo + curadoria exclusiva de administradores (inclusão, edição, exclusão e cache de áudio).
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-slate-500 font-mono dark:text-slate-400">
+                {kb.length} artigos
+              </span>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setKbEditingId(null);
+                    setKbQuestionDraft('');
+                    setKbAnswerDraft('');
+                    setKbCategoryDraft('prospeccao');
+                    setKbChannelDraft('whatsapp_uazapi');
+                    setKbActiveDraft(true);
+                    setKbFormOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-800"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Incluir Orientação (Admin)
+                </button>
+              )}
+            </div>
           </div>
-          <div className="divide-y divide-slate-100 dark:divide-slate-800">
-            {kb.map((item) => (
-              <div key={item.id} className="py-3">
-                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                  <span className="font-semibold text-blue-700 dark:text-blue-300">
-                    {item.category} · {item.sourceChannel}
-                  </span>
-                  <span className="font-mono">{item.hitCount} usos</span>
-                </div>
-                <div className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
-                  {item.questionPattern}
-                </div>
-                <p className="mt-1 text-xs text-slate-600 leading-relaxed dark:text-slate-300">{item.answerTemplate}</p>
+
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <input
+              type="text"
+              value={kbSearchDraft}
+              onChange={(e) => setKbSearchDraft(e.target.value)}
+              placeholder="Filtrar perguntas, objeções ou respostas da prospecção..."
+              className="w-full sm:max-w-md rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+            />
+            {!isAdmin && (
+              <span className="text-[11px] font-medium text-amber-700 dark:text-amber-300">
+                Somente administradores podem alterar ou excluir informações desta base.
+              </span>
+            )}
+          </div>
+
+          {isAdmin && kbFormOpen && (
+            <form
+              onSubmit={handleSaveProspectionKb}
+              className="rounded-xl border border-blue-200 bg-blue-50/60 p-4 space-y-3 text-xs dark:border-blue-800/70 dark:bg-blue-950/30"
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
+                  {kbEditingId ? 'Editar Orientação de Prospecção' : 'Nova Orientação de Prospecção'}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setKbFormOpen(false);
+                    setKbEditingId(null);
+                  }}
+                  className="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
-            ))}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div className="sm:col-span-2">
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">
+                    Pergunta / Objeção do Cliente *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={kbQuestionDraft}
+                    onChange={(e) => setKbQuestionDraft(e.target.value)}
+                    placeholder="Ex: Como funciona a proteção contra busca e apreensão?"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Categoria</label>
+                  <input
+                    type="text"
+                    value={kbCategoryDraft}
+                    onChange={(e) => setKbCategoryDraft(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">
+                  Resposta Oficial da Ivi (Texto & Áudio Verbal) *
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  value={kbAnswerDraft}
+                  onChange={(e) => setKbAnswerDraft(e.target.value)}
+                  placeholder="Resposta clara, objetiva e acolhedora para esclarecer o cliente ao máximo..."
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                />
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label className="inline-flex items-center gap-2 font-medium text-slate-700 dark:text-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={kbActiveDraft}
+                    onChange={(e) => setKbActiveDraft(e.target.checked)}
+                    className="rounded border-slate-300 text-blue-700"
+                  />
+                  Artigo ativo nas respostas da Ivi
+                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setKbFormOpen(false);
+                      setKbEditingId(null);
+                    }}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={busy}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-1.5 font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    Salvar na Base
+                  </button>
+                </div>
+              </div>
+            </form>
+          )}
+
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
+            {kb
+              .filter((item) => {
+                if (!kbSearchDraft.trim()) return true;
+                const q = kbSearchDraft.toLowerCase();
+                return `${item.category} ${item.questionPattern} ${item.answerTemplate}`.toLowerCase().includes(q);
+              })
+              .map((item) => (
+                <div key={item.id} className="py-3 space-y-1.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-blue-700 dark:text-blue-300">
+                        {item.category} · {item.sourceChannel}
+                      </span>
+                      {item.active === false && (
+                        <span className="font-mono text-[10px] text-amber-700 dark:text-amber-300">[INATIVO]</span>
+                      )}
+                      {item.updatedByName && (
+                        <span className="text-[11px] text-slate-400">· {item.updatedByName}</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono">{item.hitCount} usos</span>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={async () => {
+                          setBusy(true);
+                          try {
+                            const res = await apiFetch<{
+                              cacheHash: string;
+                              audioUrl: string;
+                              cached: boolean;
+                              unavailableReason?: string;
+                            }>('/api/ivi/tts', {
+                              method: 'POST',
+                              body: JSON.stringify({
+                                text: item.answerTemplate,
+                                sourceType: 'prospection',
+                                moduleKey: 'prospection',
+                              }),
+                            });
+                            if (!res.audioUrl) {
+                              setStatusBanner(res.unavailableReason || 'Síntese Gemini indisponível.');
+                              return;
+                            }
+                            setKbAudioPreview({ id: item.id, hash: res.cacheHash, cached: res.cached });
+                          } finally {
+                            setBusy(false);
+                          }
+                        }}
+                        className="inline-flex items-center gap-1 rounded border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-800 hover:bg-blue-100 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300"
+                      >
+                        <Volume2 className="w-3 h-3" />
+                        Ouvir Áudio Gemini
+                      </button>
+                      {isAdmin && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setKbEditingId(item.id);
+                              setKbQuestionDraft(item.questionPattern);
+                              setKbAnswerDraft(item.answerTemplate);
+                              setKbCategoryDraft(item.category || 'prospeccao');
+                              setKbChannelDraft(item.sourceChannel || 'whatsapp_uazapi');
+                              setKbActiveDraft(item.active !== false);
+                              setKbFormOpen(true);
+                            }}
+                            className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                          >
+                            <Pencil className="w-3 h-3" />
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteProspectionKb(item.id)}
+                            className="inline-flex items-center gap-1 rounded border border-red-200 bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-700 hover:bg-red-100 dark:border-red-900/70 dark:bg-red-950/40 dark:text-red-300"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            Excluir
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                    {item.questionPattern}
+                  </div>
+                  <p className="text-xs text-slate-600 leading-relaxed dark:text-slate-300">{item.answerTemplate}</p>
+                  {kbAudioPreview?.id === item.id && (
+                    <CachedIviAudioPlayer
+                      cacheHash={kbAudioPreview.hash}
+                      cached={kbAudioPreview.cached}
+                      label="Prévia Verbal da Base Prospecção (Gemini Audio)"
+                    />
+                  )}
+                </div>
+              ))}
           </div>
         </div>
       )}

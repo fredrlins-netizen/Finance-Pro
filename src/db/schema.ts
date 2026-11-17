@@ -345,7 +345,13 @@ export const iviKnowledgeArticles = pgTable('ivi_knowledge_articles', {
   answerTemplate: text('answer_template').notNull(),
   category: text('category').notNull().default('geral'),
   sourceChannel: text('source_channel').notNull().default('whatsapp'),
+  scope: text('scope').notNull().default('prospection'), // 'prospection' | 'system_doc' | 'learned_insight'
+  moduleKey: text('module_key').notNull().default(''),
+  audioCacheHash: text('audio_cache_hash').notNull().default(''),
+  updatedByName: text('updated_by_name').notNull().default('Sistema'),
+  active: boolean('active').notNull().default(true),
   hitCount: integer('hit_count').notNull().default(1),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
@@ -1657,4 +1663,110 @@ export const backupExecutions = pgTable('backup_executions', {
   executedByName: text('executed_by_name').notNull().default('Sistema'),
   startedAt: timestamp('started_at', { withTimezone: true }).defaultNow().notNull(),
   completedAt: timestamp('completed_at', { withTimezone: true }),
+});
+
+// =============================================================================
+// DOCUMENTAÇÃO DO SISTEMA, BASE DE CONHECIMENTO IVI, TREINAMENTO & CACHE ÁUDIO GEMINI
+// =============================================================================
+
+export interface SystemDocFieldDef {
+  fieldName: string;
+  fieldLabel: string;
+  fieldType: string;
+  required?: boolean;
+  description: string;
+  originModule: string;
+  destinationModule: string;
+  targetX?: number;
+  targetY?: number;
+}
+
+export interface SystemDocIntegrationEdge {
+  moduleKey: string;
+  label: string;
+  description: string;
+}
+
+export interface SystemDocIntegrationDef {
+  inputsFrom: SystemDocIntegrationEdge[];
+  outputsTo: SystemDocIntegrationEdge[];
+}
+
+export interface SystemDocTrainingStep {
+  stepOrder: number;
+  title: string;
+  fieldLabel: string;
+  scriptText: string;
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+  boxW: number;
+  boxH: number;
+  relatedModule?: string;
+}
+
+export interface TrainingQaHistoryEntry {
+  id: string;
+  question: string;
+  answer: string;
+  learnedArticleId?: number | null;
+  audioCacheHash?: string;
+  createdAt: string;
+}
+
+export const systemModuleDocs = pgTable('system_module_docs', {
+  id: serial('id').primaryKey(),
+  moduleKey: text('module_key').notNull().unique(),
+  title: text('title').notNull(),
+  menuGroup: text('menu_group').notNull().default('Operação & Tratativa'),
+  menuPath: text('menu_path').notNull().default(''),
+  sortOrder: integer('sort_order').notNull().default(10),
+  summary: text('summary').notNull().default(''),
+  objective: text('objective').notNull().default(''),
+  screenshotUrl: text('screenshot_url').notNull().default(''),
+  fieldsJson: jsonb('fields_json').$type<SystemDocFieldDef[]>().notNull().default([]),
+  integrationsJson: jsonb('integrations_json')
+    .$type<SystemDocIntegrationDef>()
+    .notNull()
+    .default({ inputsFrom: [], outputsTo: [] }),
+  trainingStepsJson: jsonb('training_steps_json').$type<SystemDocTrainingStep[]>().notNull().default([]),
+  active: boolean('active').notNull().default(true),
+  updatedByName: text('updated_by_name').notNull().default('Instrutor Ivi'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const iviAudioCache = pgTable('ivi_audio_cache', {
+  id: serial('id').primaryKey(),
+  cacheHash: text('cache_hash').notNull().unique(),
+  sourceType: text('source_type').notNull().default('training'), // 'training' | 'static_doc' | 'prospection' | 'transcription'
+  moduleKey: text('module_key').notNull().default(''),
+  voiceName: text('voice_name').notNull().default('Aoede'),
+  model: text('model').notNull().default('gemini-3.8-flash-lite-tts'),
+  textContent: text('text_content').notNull(),
+  mimeType: text('mime_type').notNull().default('audio/wav'),
+  sizeBytes: integer('size_bytes').notNull().default(0),
+  audioBase64: text('audio_base64').notNull().default(''),
+  hitCount: integer('hit_count').notNull().default(1),
+  tokensSavedEstimate: integer('tokens_saved_estimate').notNull().default(0),
+  createdByName: text('created_by_name').notNull().default('Ivi IA'),
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const trainingSessions = pgTable('training_sessions', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  traineeName: text('trainee_name').notNull(),
+  moduleKey: text('module_key').notNull(),
+  classroomCourseId: text('classroom_course_id').notNull().default(''),
+  classroomCourseTitle: text('classroom_course_title').notNull().default(''),
+  currentStepIndex: integer('current_step_index').notNull().default(0),
+  completedStepsJson: jsonb('completed_steps_json').$type<number[]>().notNull().default([]),
+  qaHistoryJson: jsonb('qa_history_json').$type<TrainingQaHistoryEntry[]>().notNull().default([]),
+  status: text('status').notNull().default('em_andamento'), // 'em_andamento' | 'concluido'
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });

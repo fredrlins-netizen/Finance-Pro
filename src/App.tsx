@@ -24,6 +24,7 @@ import {
   FileText,
   FolderKanban,
   FolderTree,
+  GraduationCap,
   HardDrive,
   Hash,
   Home,
@@ -88,6 +89,7 @@ import { ReportsModule } from './components/modules/ReportsModule.tsx';
 import { ConfigModule } from './components/modules/ConfigModule.tsx';
 import { ManagerialDashboardModule } from './components/modules/ManagerialDashboardModule.tsx';
 import { CompanyLegalModule } from './components/modules/CompanyLegalModule.tsx';
+import { TrainingDocsModule } from './components/modules/TrainingDocsModule.tsx';
 import { sanitizeHelpHtml } from './components/modules/config/ConfigGovernanceViews.tsx';
 
 interface NavItem {
@@ -160,6 +162,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'acomp_juridico', label: 'Acompanhamento Jurídico', shortLabel: 'Acomp. Jur.', group: 'governanca', icon: Scale },
   { id: 'config', label: 'Configurações & SQL', shortLabel: 'Config', group: 'governanca', icon: Settings },
   { id: 'backup_restore', label: 'Backup & Restore (Nuvem)', shortLabel: 'Backup', group: 'governanca', icon: HardDrive },
+  { id: 'training_docs', label: 'Treinamento & Docs Ivi', shortLabel: 'Treino Ivi', group: 'governanca', icon: GraduationCap },
 ];
 
 const NAV_GROUPS: Array<{ key: NavItem['group']; title: string }> = [
@@ -2556,6 +2559,13 @@ export default function App() {
                 previousScreenLabel={previousModMeta}
               />
             )}
+            {activeModule === 'training_docs' && (
+              <TrainingDocsModule
+                currentUser={currentUser}
+                activeUnitId={activeUnitId}
+                onNavigate={navigateTo}
+              />
+            )}
           </div>
         </main>
 
@@ -2714,6 +2724,17 @@ export default function App() {
                 </h3>
               </div>
               <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHelpOpen(false);
+                    navigateTo('training_docs');
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
+                >
+                  <GraduationCap className="w-3.5 h-3.5" />
+                  <span>Treinamento Dinâmico & Docs Ivi</span>
+                </button>
                 {currentUser.role === 'admin' && (
                   <button
                     type="button"

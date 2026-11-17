@@ -187,6 +187,7 @@ const MODULE_KEY_ALIASES: Record<string, string[]> = {
   forms: ['forms', 'formularios', 'analises'],
   reports: ['reports', 'relatorios', 'relatorios_gerais'],
   config: ['config', 'administracao'],
+  training_docs: ['training_docs', 'treinamento', 'documentacao'],
 };
 
 export function normalizeModulePermissions(

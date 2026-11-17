@@ -70,11 +70,14 @@ import { registerDataHubRoutes } from './src/routes/dataHubRoutes.ts';
 import { registerMigrationRoutes } from './src/routes/migrationRoutes.ts';
 import { registerBackupRoutes } from './src/routes/backupRoutes.ts';
 import { registerInternalMessagingRoutes } from './src/routes/internalMessagingRoutes.ts';
+import { registerTrainingDocsRoutes } from './src/routes/trainingDocsRoutes.ts';
+import { ensureSystemModuleDocsSeed } from './src/services/systemDocsCatalog.ts';
 import { dispatchIviSectorNotification } from './src/services/internalMessaging.ts';
 import { autoAuditRequestMiddleware } from './src/services/autoAudit.ts';
 import { getEntityTypeAliases, normalizeAuditLogRecord } from './src/utils/auditDiff.ts';
 import { startBackupScheduler } from './src/services/backupScheduler.ts';
 import { syncClientLegalAndEscavadorStatus } from './src/services/legalSync.ts';
+import { createIviLiveWebSocketServer } from './src/services/iviLiveBridge.ts';
 import {
   AuthRequest,
   checkUserScheduleWindow,
@@ -398,6 +401,7 @@ async function startServer() {
 
   const server = http.createServer(app);
   const wss = new WebSocketServer({ noServer: true });
+  const iviLiveWss = createIviLiveWebSocketServer();
   const wsAuthMap = new Map<WebSocket, { authenticated: boolean; userId: number; role: string; allowedUnitIds: number[] }>();
 
   server.on('upgrade', (request, socket, head) => {
@@ -406,6 +410,8 @@ async function startServer() {
       wss.handleUpgrade(request, socket, head, (ws) => {
         wss.emit('connection', ws, request);
       });
+    } else if (pathname === '/ws/ivi-live') {
+      iviLiveWss.handleUpgrade(request, socket, head);
     }
   });
 
@@ -1153,7 +1159,11 @@ async function startServer() {
 
       const [leads, kb, appts, allUsers, blocks, callLogs, archives] = await Promise.all([
         db.select().from(prospectionLeads).orderBy(desc(prospectionLeads.lastMessageAt)),
-        db.select().from(iviKnowledgeArticles).orderBy(desc(iviKnowledgeArticles.hitCount)),
+        db
+          .select()
+          .from(iviKnowledgeArticles)
+          .where(and(eq(iviKnowledgeArticles.scope, 'prospection'), eq(iviKnowledgeArticles.active, true)))
+          .orderBy(desc(iviKnowledgeArticles.hitCount), desc(iviKnowledgeArticles.id)),
         db.select().from(appointments).orderBy(desc(appointments.scheduledFor)),
         db.select({ id: users.id, name: users.name, role: users.role, defaultUnitId: users.defaultUnitId }).from(users),
         db.select().from(scheduleBlocks).orderBy(desc(scheduleBlocks.startAt)),
@@ -1324,7 +1334,11 @@ async function startServer() {
     try {
       const leadId = parsePositiveIntId(req.params.id);
       if (!leadId) return res.status(400).json({ error: 'ID de lead inválido.' });
-      const { message, mode } = req.body as { message: string; mode?: 'ivi' | 'human' };
+      const { message, mode, replyWithAudio } = req.body as {
+        message: string;
+        mode?: 'ivi' | 'human';
+        replyWithAudio?: boolean;
+      };
       const rows = await db.select().from(prospectionLeads).where(eq(prospectionLeads.id, leadId)).limit(1);
       const lead = rows[0];
       if (!lead) return res.status(404).json({ error: 'Lead não encontrado.' });
@@ -1376,7 +1390,10 @@ async function startServer() {
         return res.json({ lead: snap?.lead || updated, ivi: { provider: sumRes.provider, needsHuman: true } });
       }
 
-      const iviRes = await iviRespondProspection(message, lead.channel, lead.name || 'Cliente WhatsApp');
+      const iviRes = await iviRespondProspection(message, lead.channel, lead.name || 'Cliente WhatsApp', {
+        replyWithAudio: Boolean(replyWithAudio),
+        createdByName: req.authUser!.name,
+      });
       const nextTranscript = [
         ...(Array.isArray(lead.aiTranscript) ? lead.aiTranscript : []),
         { sender: 'cliente', text: message, type: 'text' as const, timestamp: new Date().toISOString() },
@@ -1384,8 +1401,11 @@ async function startServer() {
           sender: 'ivi',
           text: iviRes.reply,
           provider: iviRes.provider,
-          type: 'text' as const,
+          type: (iviRes.audioCacheHash ? 'audio' : 'text') as 'text' | 'audio',
           authorName: 'Ivi IA',
+          audioCacheHash: iviRes.audioCacheHash || undefined,
+          audioMimeType: iviRes.audioMimeType || undefined,
+          audioCached: Boolean(iviRes.audioCached),
           timestamp: new Date().toISOString(),
         },
       ];
@@ -1503,10 +1523,27 @@ async function startServer() {
         });
       }
 
-      const nextTranscript = [
+      const effectiveSender = sender || 'cliente';
+      const nextTranscript: Array<{
+        sender: string;
+        text: string;
+        provider?: string;
+        timestamp: string;
+        type?: 'text' | 'audio' | 'call';
+        audioTranscript?: string;
+        authorName?: string;
+        mediaSha256?: string;
+        mediaStorageUri?: string;
+        mediaMimeType?: string;
+        mediaFileName?: string;
+        sourceProvider?: string;
+        audioCacheHash?: string;
+        audioMimeType?: string;
+        audioCached?: boolean;
+      }> = [
         ...(Array.isArray(lead.aiTranscript) ? lead.aiTranscript : []),
         {
-          sender: sender || 'cliente',
+          sender: effectiveSender,
           text: audioDescription?.trim() ? `[Áudio]: ${audioDescription.trim()}` : '[Mensagem de Áudio WhatsApp]',
           type: 'audio' as const,
           audioTranscript: trans.transcript,
@@ -1520,6 +1557,32 @@ async function startServer() {
           timestamp: new Date().toISOString(),
         },
       ];
+
+      let iviAudioReply: Awaited<ReturnType<typeof iviRespondProspection>> | null = null;
+      if (effectiveSender === 'cliente' && trans.transcript.trim()) {
+        iviAudioReply = await iviRespondProspection(
+          trans.transcript,
+          lead.channel,
+          lead.name || 'Cliente WhatsApp',
+          {
+            clientSentAudio: true,
+            replyWithAudio: true,
+            createdByName: req.authUser!.name,
+          }
+        );
+        nextTranscript.push({
+          sender: 'ivi',
+          text: iviAudioReply.reply,
+          provider: iviAudioReply.provider,
+          type: (iviAudioReply.audioCacheHash ? 'audio' : 'text') as 'text' | 'audio',
+          authorName: 'Ivi IA (Resposta Verbal)',
+          audioCacheHash: iviAudioReply.audioCacheHash || undefined,
+          audioMimeType: iviAudioReply.audioMimeType || undefined,
+          audioCached: Boolean(iviAudioReply.audioCached),
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       const sumRes = await iviSummarizeConversation({
         leadName: lead.name || 'Cliente sem nome',
         channel: lead.channel,
@@ -1530,6 +1593,7 @@ async function startServer() {
         .update(prospectionLeads)
         .set({
           aiTranscript: nextTranscript,
+          stage: iviAudioReply?.needsHuman ? 'escalado_humano' : lead.stage,
           summaryText: sumRes.summary,
           summaryAuthor: `Ivi IA (${req.authUser!.name})`,
           summaryUpdatedAt: new Date(),
@@ -1538,7 +1602,19 @@ async function startServer() {
         .where(eq(prospectionLeads.id, leadId));
 
       const snap = await archiveLeadConversationSnapshot(leadId, provider, req.authUser!.name);
-      res.json({ lead: snap?.lead, transcript: trans.transcript, provider: trans.provider, mediaSha256 });
+      res.json({
+        lead: snap?.lead,
+        transcript: trans.transcript,
+        provider: trans.provider,
+        mediaSha256,
+        iviAudioReply: iviAudioReply
+          ? {
+              reply: iviAudioReply.reply,
+              audioCacheHash: iviAudioReply.audioCacheHash,
+              audioCached: iviAudioReply.audioCached,
+            }
+          : null,
+      });
     } catch (error) {
       console.error('Transcribe audio error:', error);
       res.status(500).json({ error: 'Erro ao transcrever áudio pela Ivi.' });
@@ -8441,6 +8517,7 @@ async function startServer() {
   registerDataHubRoutes(app, { broadcast });
   registerMigrationRoutes(app, { broadcast });
   registerBackupRoutes(app, broadcast);
+  registerTrainingDocsRoutes(app);
   startBackupScheduler(broadcast, ensureSqlHostProxySocket);
 
   // Garante resposta JSON em qualquer rota /api inexistente ou erro de middleware (nunca HTML <!doctype>)
@@ -8464,7 +8541,7 @@ async function startServer() {
 
   // Non-blocking seed & FEBRABAN catalog sync on startup
   ensureCommonCadastrosSeed()
-    .then(() => syncFebrabanBanksFromBrasilApi())
+    .then(() => Promise.all([syncFebrabanBanksFromBrasilApi(), ensureSystemModuleDocsSeed()]))
     .catch(() => {});
 
   // Vite dev middleware or static dist serving

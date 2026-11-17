@@ -5,10 +5,13 @@ import {
   CustomFormField,
   CustomFormSettings,
   IviChecklistVerificationItem,
+  iviAudioCache,
   iviKnowledgeArticles,
+  systemModuleDocs,
   systemSettings,
 } from '../db/schema.ts';
-import { eq } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { putBucketObject } from './bucketStorage.ts';
 
 export type IviProviderId = 'claude_code' | 'openai' | 'gemini' | 'deepseek';
 
@@ -28,6 +31,23 @@ function getGeminiClient(): GoogleGenAI | null {
     });
   }
   return _geminiClient;
+}
+
+let _geminiAudioClient: GoogleGenAI | null = null;
+function getGeminiAudioClient(): GoogleGenAI | null {
+  if (!process.env.GEMINI_API_KEY) return null;
+  if (!_geminiAudioClient) {
+    _geminiAudioClient = new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY,
+      apiVersion: 'v1beta',
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        },
+      },
+    });
+  }
+  return _geminiAudioClient;
 }
 
 export async function getIviChainConfig(): Promise<{ order: IviProviderId[]; status: Record<IviProviderId, boolean> }> {
@@ -172,28 +192,242 @@ export async function runIviOrchestrator(
   };
 }
 
-export async function iviRespondProspection(message: string, channel: string, leadName: string) {
-  const articles = await db.select().from(iviKnowledgeArticles);
+export async function iviSynthesizeSpeechCached(params: {
+  text: string;
+  voiceName?: string;
+  sourceType?: 'training' | 'static_doc' | 'prospection';
+  moduleKey?: string;
+  createdByName?: string;
+}): Promise<{
+  cacheHash: string;
+  audioBase64: string;
+  mimeType: string;
+  sizeBytes: number;
+  cached: boolean;
+  hitCount: number;
+  tokensSavedEstimate: number;
+  model: string;
+  unavailableReason?: string;
+}> {
+  const cleanText = String(params.text || '').trim().slice(0, 3200);
+  const voiceName = String(params.voiceName || 'Aoede').trim() || 'Aoede';
+  const sourceType = params.sourceType || 'training';
+  const moduleKey = String(params.moduleKey || '').trim();
+  const model = 'gemini-3.8-flash-lite-tts';
+
+  if (!cleanText) {
+    throw new Error('Informe um texto para leitura em áudio pela Ivi.');
+  }
+
+  const cacheHash = crypto
+    .createHash('sha256')
+    .update(`${model}::${voiceName}::${cleanText}`)
+    .digest('hex');
+
+  const existing = await db
+    .select()
+    .from(iviAudioCache)
+    .where(eq(iviAudioCache.cacheHash, cacheHash))
+    .limit(1);
+
+  if (existing[0] && existing[0].audioBase64) {
+    const estTokensPerPlay = Math.max(80, Math.ceil(cleanText.length / 3) + 120);
+    const nextHits = (existing[0].hitCount || 1) + 1;
+    const nextTokensSaved = (existing[0].tokensSavedEstimate || 0) + estTokensPerPlay;
+    await db
+      .update(iviAudioCache)
+      .set({
+        hitCount: nextHits,
+        tokensSavedEstimate: nextTokensSaved,
+        lastUsedAt: new Date(),
+      })
+      .where(eq(iviAudioCache.id, existing[0].id));
+
+    return {
+      cacheHash: existing[0].cacheHash,
+      audioBase64: existing[0].audioBase64,
+      mimeType: existing[0].mimeType || 'audio/wav',
+      sizeBytes: existing[0].sizeBytes || 0,
+      cached: true,
+      hitCount: nextHits,
+      tokensSavedEstimate: nextTokensSaved,
+      model: existing[0].model || model,
+    };
+  }
+
+  const ai = getGeminiAudioClient();
+  if (!ai) {
+    return {
+      cacheHash,
+      audioBase64: '',
+      mimeType: 'audio/wav',
+      sizeBytes: 0,
+      cached: false,
+      hitCount: 0,
+      tokensSavedEstimate: 0,
+      model,
+      unavailableReason: 'GEMINI_API_KEY não configurada no servidor.',
+    };
+  }
+
+  try {
+    const allowedVoice = ['Puck', 'Charon', 'Kore', 'Fenrir', 'Zephyr', 'Aoede'].includes(voiceName)
+      ? voiceName
+      : 'Kore';
+    const res = await ai.models.generateContent({
+      model,
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            {
+              text: cleanText,
+              speechMetadata: {
+                style:
+                  sourceType === 'prospection'
+                    ? 'Cordial, consultiva, clara e natural em português do Brasil'
+                    : 'Descontraída, calorosa, intimista, próxima, bem-humorada e didática em português do Brasil',
+              },
+            },
+          ],
+        },
+      ],
+      config: {
+        responseModalities: ['AUDIO'],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: { voiceName: allowedVoice },
+          },
+        },
+      },
+    });
+    const part = res.candidates?.[0]?.content?.parts?.[0]?.inlineData;
+    const audioBase64 = part?.data || '';
+    const mimeType = part?.mimeType || 'audio/wav';
+    if (!audioBase64) {
+      throw new Error('Gemini TTS retornou áudio vazio.');
+    }
+    const audioBuffer = Buffer.from(audioBase64, 'base64');
+    const sizeBytes = audioBuffer.length;
+
+    await db
+      .insert(iviAudioCache)
+      .values({
+        cacheHash,
+        sourceType,
+        moduleKey,
+        voiceName,
+        model,
+        textContent: cleanText,
+        mimeType,
+        sizeBytes,
+        audioBase64,
+        hitCount: 1,
+        tokensSavedEstimate: 0,
+        createdByName: params.createdByName || 'Ivi Instrutora',
+        lastUsedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: iviAudioCache.cacheHash,
+        set: {
+          audioBase64,
+          mimeType,
+          sizeBytes,
+          lastUsedAt: new Date(),
+        },
+      });
+
+    // Replica WAV gerado também no bucketdainvicta (R2 / Storage Cifrado)
+    try {
+      await putBucketObject(audioBuffer, {
+        folderPath: `ivi-audio-cache/${moduleKey || sourceType}`,
+        mimeType,
+        originalName: `ivi-audio-${cacheHash.slice(0, 16)}.wav`,
+      });
+    } catch (bucketErr) {
+      console.warn('BucketdaInvicta audio archive warning:', bucketErr);
+    }
+
+    return {
+      cacheHash,
+      audioBase64,
+      mimeType,
+      sizeBytes,
+      cached: false,
+      hitCount: 1,
+      tokensSavedEstimate: 0,
+      model,
+    };
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : 'Falha na síntese de áudio Gemini';
+    console.warn('Gemini TTS generation failed:', reason);
+    return {
+      cacheHash,
+      audioBase64: '',
+      mimeType: 'audio/wav',
+      sizeBytes: 0,
+      cached: false,
+      hitCount: 0,
+      tokensSavedEstimate: 0,
+      model,
+      unavailableReason: reason,
+    };
+  }
+}
+
+export async function iviRespondProspection(
+  message: string,
+  channel: string,
+  leadName: string,
+  options?: { clientSentAudio?: boolean; replyWithAudio?: boolean; createdByName?: string }
+) {
+  const articles = await db
+    .select()
+    .from(iviKnowledgeArticles)
+    .where(and(eq(iviKnowledgeArticles.scope, 'prospection'), eq(iviKnowledgeArticles.active, true)))
+    .orderBy(desc(iviKnowledgeArticles.hitCount));
+
   const kbContext = articles
-    .slice(0, 12)
-    .map((a) => `- Pergunta: ${a.questionPattern} | Resposta: ${a.answerTemplate}`)
+    .slice(0, 20)
+    .map((a) => `- [ID:${a.id} | ${a.category}] Pergunta: ${a.questionPattern} | Resposta oficial: ${a.answerTemplate}`)
     .join('\n');
+
+  const attachOptionalAudio = async (replyText: string, aiWantsAudio: boolean) => {
+    if (!options?.clientSentAudio && !options?.replyWithAudio && !aiWantsAudio) {
+      return { audioCacheHash: '', audioMimeType: '', audioCached: false };
+    }
+    const tts = await iviSynthesizeSpeechCached({
+      text: replyText,
+      sourceType: 'prospection',
+      moduleKey: 'prospection',
+      createdByName: options?.createdByName || 'Ivi Prospecção',
+    });
+    return {
+      audioCacheHash: tts.audioBase64 ? tts.cacheHash : '',
+      audioMimeType: tts.audioBase64 ? tts.mimeType : '',
+      audioCached: tts.cached,
+    };
+  };
 
   const ai = getGeminiClient();
   if (ai) {
     try {
       const res = await ai.models.generateContent({
         model: 'gemini-4-hydrogen',
-        contents: `Cliente: ${leadName}\nCanal: ${channel}\nMensagem: "${message}"\n\nBase de conhecimento interna:\n${kbContext}`,
+        contents: `Cliente: ${leadName}\nCanal: ${channel}\nCliente enviou áudio?: ${
+          options?.clientSentAudio ? 'Sim' : 'Não'
+        }\nMensagem: "${message}"\n\nBase de conhecimento oficial de Prospecção (priorize este material):\n${kbContext}`,
         config: {
           systemInstruction:
-            'Você é Ivi, assistente comercial inteligente do FinancePro Assessoria (especialista em negociação de dívidas veiculares, cartão, empréstimos e cheque especial). Responda em Português do Brasil de forma objetiva, acolhedora e sugira agendamento (Presencial, Telefone ou Vídeo Chamada) em uma das 7 unidades. Se a dúvida exigir análise jurídica específica de contrato ou valor fora do padrão, marque needsHuman=true.',
+            'Você é Ivi, assistente comercial inteligente do FinancePro / Invicta Assessoria Financeira (especialista em negociação de dívidas veiculares, cartão, empréstimos e cheque especial). Busque a resposta prioritariamente na Base de Conhecimento fornecida. Responda em Português do Brasil de forma objetiva, esclarecedora, acolhedora e sugira agendamento (Presencial, Telefone ou Vídeo Chamada). Se a dúvida exigir análise jurídica específica ou intervenção comercial, marque needsHuman=true. Marque suggestAudioReply=true se o cliente enviou áudio ou se uma explicação verbal ajudar muito a esclarecer.',
           responseMimeType: 'application/json',
           responseSchema: {
             type: Type.OBJECT,
             properties: {
               reply: { type: Type.STRING },
               needsHuman: { type: Type.BOOLEAN },
+              suggestAudioReply: { type: Type.BOOLEAN },
+              matchedArticleId: { type: Type.INTEGER },
               suggestedModality: { type: Type.STRING },
               knowledgeTitle: { type: Type.STRING },
             },
@@ -204,23 +438,39 @@ export async function iviRespondProspection(message: string, channel: string, le
       const parsed = JSON.parse((res.text || '{}').trim()) as {
         reply?: string;
         needsHuman?: boolean;
+        suggestAudioReply?: boolean;
+        matchedArticleId?: number;
         suggestedModality?: string;
         knowledgeTitle?: string;
       };
       if (parsed.reply) {
-        await db.insert(iviKnowledgeArticles).values({
-          questionPattern: message.slice(0, 180),
-          answerTemplate: parsed.reply,
-          category: parsed.knowledgeTitle || 'prospeccao',
-          sourceChannel: channel,
-          hitCount: 1,
-        });
+        if (parsed.matchedArticleId && articles.some((a) => a.id === parsed.matchedArticleId)) {
+          await db
+            .update(iviKnowledgeArticles)
+            .set({ hitCount: sql`${iviKnowledgeArticles.hitCount} + 1`, updatedAt: new Date() })
+            .where(eq(iviKnowledgeArticles.id, parsed.matchedArticleId));
+        } else {
+          await db.insert(iviKnowledgeArticles).values({
+            scope: 'prospection',
+            moduleKey: 'prospection',
+            questionPattern: message.slice(0, 180),
+            answerTemplate: parsed.reply,
+            category: parsed.knowledgeTitle || 'prospeccao',
+            sourceChannel: channel,
+            hitCount: 1,
+            updatedByName: 'Aprendizado Automático Ivi',
+            active: true,
+          });
+        }
+        const audioMeta = await attachOptionalAudio(parsed.reply, Boolean(parsed.suggestAudioReply));
         return {
           reply: parsed.reply,
           needsHuman: Boolean(parsed.needsHuman),
+          suggestAudioReply: Boolean(parsed.suggestAudioReply || options?.clientSentAudio || options?.replyWithAudio),
           suggestedModality: parsed.suggestedModality || 'presencial',
           provider: 'gemini' as const,
           chainTrace: ['claude_code:fallback', 'openai:fallback', 'gemini:ok'],
+          ...audioMeta,
         };
       }
     } catch (e) {
@@ -228,24 +478,54 @@ export async function iviRespondProspection(message: string, channel: string, le
     }
   }
 
+  const lowerMsg = message.toLowerCase();
+  const matchedLocal = articles.find((a) => {
+    const words = a.questionPattern.toLowerCase().split(/\s+/).filter((w) => w.length >= 4);
+    return words.some((w) => lowerMsg.includes(w));
+  });
+
+  if (matchedLocal) {
+    await db
+      .update(iviKnowledgeArticles)
+      .set({ hitCount: sql`${iviKnowledgeArticles.hitCount} + 1`, updatedAt: new Date() })
+      .where(eq(iviKnowledgeArticles.id, matchedLocal.id));
+    const audioMeta = await attachOptionalAudio(matchedLocal.answerTemplate, false);
+    return {
+      reply: matchedLocal.answerTemplate,
+      needsHuman: /processo|apreens|mandado|processual|urgente|advogado|valor/i.test(message),
+      suggestAudioReply: Boolean(options?.clientSentAudio || options?.replyWithAudio),
+      suggestedModality: 'presencial',
+      provider: 'knowledge_fallback' as const,
+      chainTrace: ['kb_prospection:hit'],
+      ...audioMeta,
+    };
+  }
+
   const out = await runIviOrchestrator(
-    'Você é Ivi, assistente comercial do FinancePro Assessoria. Responda em PT-BR e sugira agendamento.',
-    `Lead ${leadName} via ${channel}: ${message}`
+    'Você é Ivi, assistente comercial do FinancePro Assessoria. Responda em PT-BR usando a base de prospecção e sugira agendamento.',
+    `Lead ${leadName} via ${channel}: ${message}\nBase:\n${kbContext}`
   );
   const needsHuman = /processo|apreens|mandado|processual|urgente|advogado|valor/i.test(message);
   await db.insert(iviKnowledgeArticles).values({
+    scope: 'prospection',
+    moduleKey: 'prospection',
     questionPattern: message.slice(0, 180),
     answerTemplate: out.text,
     category: 'atendimento',
     sourceChannel: channel,
     hitCount: 1,
+    updatedByName: 'Aprendizado Automático Ivi',
+    active: true,
   });
+  const audioMeta = await attachOptionalAudio(out.text, false);
   return {
     reply: out.text,
     needsHuman,
+    suggestAudioReply: Boolean(options?.clientSentAudio || options?.replyWithAudio),
     suggestedModality: 'presencial',
     provider: out.provider,
     chainTrace: out.trace,
+    ...audioMeta,
   };
 }
 
@@ -257,22 +537,69 @@ export async function iviTranslateLegalDispatch(originalDispatch: string) {
   return result;
 }
 
-export async function iviTranscribeAudioNote(audioDescriptionOrBase64: string, mimeType = 'audio/webm') {
+export async function iviTranscribeAudioNote(
+  audioDescriptionOrBase64: string,
+  mimeType = 'audio/webm',
+  moduleKey = 'prospection',
+  createdByName = 'Ivi IA'
+) {
+  const rawPayload = String(audioDescriptionOrBase64 || '');
+  const hash = crypto.createHash('sha256').update(`transcribe::${mimeType}::${rawPayload}`).digest('hex');
+
+  const cachedRows = await db
+    .select()
+    .from(iviAudioCache)
+    .where(eq(iviAudioCache.cacheHash, hash))
+    .limit(1);
+
+  if (cachedRows[0] && cachedRows[0].textContent) {
+    const nextHits = (cachedRows[0].hitCount || 1) + 1;
+    const saved = (cachedRows[0].tokensSavedEstimate || 0) + 180;
+    await db
+      .update(iviAudioCache)
+      .set({ hitCount: nextHits, tokensSavedEstimate: saved, lastUsedAt: new Date() })
+      .where(eq(iviAudioCache.id, cachedRows[0].id));
+    return {
+      transcript: cachedRows[0].textContent,
+      provider: 'gemini' as const,
+      cached: true,
+      cacheHash: cachedRows[0].cacheHash,
+    };
+  }
+
   const ai = getGeminiClient();
-  if (ai && audioDescriptionOrBase64.startsWith('data:')) {
+  if (ai && rawPayload.startsWith('data:')) {
     try {
-      const base64 = audioDescriptionOrBase64.split(',')[1] || '';
+      const base64 = rawPayload.split(',')[1] || '';
       const response = await ai.models.generateContent({
         model: 'gemini-3.5-transcribe',
         contents: {
           parts: [
             { inlineData: { mimeType, data: base64 } },
-            { text: 'Transcreva fielmente este áudio em Português do Brasil e forneça um resumo objetivo da negociação/cobrança.' },
+            { text: 'Transcreva fielmente este áudio em Português do Brasil e forneça um resumo objetivo da fala.' },
           ],
         },
       });
       if (response.text) {
-        return { transcript: response.text, provider: 'gemini' as const };
+        await db
+          .insert(iviAudioCache)
+          .values({
+            cacheHash: hash,
+            sourceType: 'transcription',
+            moduleKey,
+            voiceName: 'Transcricao',
+            model: 'gemini-3.5-transcribe',
+            textContent: response.text,
+            mimeType,
+            sizeBytes: Buffer.from(base64, 'base64').length,
+            audioBase64: '',
+            hitCount: 1,
+            tokensSavedEstimate: 0,
+            createdByName,
+            lastUsedAt: new Date(),
+          })
+          .onConflictDoNothing();
+        return { transcript: response.text, provider: 'gemini' as const, cached: false, cacheHash: hash };
       }
     } catch (err) {
       console.warn('Audio transcription fallback:', err);
@@ -280,10 +607,10 @@ export async function iviTranscribeAudioNote(audioDescriptionOrBase64: string, m
   }
 
   const fallback = await runIviOrchestrator(
-    'Você é Ivi no setor de Cobrança do FinancePro. Gere uma transcrição estruturada e resumo de acordo a partir do áudio recebido pelo WhatsApp.',
-    `Conteúdo do áudio recebido: ${audioDescriptionOrBase64}`
+    'Você é Ivi no FinancePro. Gere uma transcrição estruturada e resumo objetivo a partir do áudio recebido.',
+    `Conteúdo do áudio recebido: ${rawPayload.slice(0, 2000)}`
   );
-  return { transcript: fallback.text, provider: fallback.provider };
+  return { transcript: fallback.text, provider: fallback.provider, cached: false, cacheHash: hash };
 }
 
 export async function iviDraftCollectionMessage(params: {
@@ -2850,4 +3177,588 @@ export async function iviAnalyzeFormSubmission(params: {
     provider: 'knowledge_fallback',
   };
 }
+
+function detectNoDoubtPhrase(text: string): boolean {
+  const norm = String(text || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[!?.]+$/g, '')
+    .trim();
+  if (!norm || norm.length > 65) return false;
+  return /^(n[aã]o|sem d[uú]vidas?|nenhuma d[uú]vida|nenhuma|zero d[uú]vidas?|tudo certo|tudo ok|ok|beleza|show|entendi|entendido|perfeito|claro|pode seguir|pode passar|pr[oó]xima|bora|segue|nada a perguntar)(\b.*)?$/.test(
+    norm
+  );
+}
+
+const MODULE_KEY_TO_PT_TITLE: Record<string, string> = {
+  diagrama_integracao: 'Diagrama Geral de Integração do Sistema',
+  login: 'Acesso Corporativo & Dupla Verificação (LGPD)',
+  home: 'Home Corporativa',
+  overview: 'Visão Executiva',
+  managerial_dashboard: 'Dashboard Gerencial',
+  appointments: 'Agendamentos',
+  cadastros_comuns: 'Cadastros Comuns',
+  prospection: 'Prospecção & Atendimento',
+  admission: 'Admissão & Dossiê',
+  audit: 'Auditoria & Boletos',
+  legal: 'Jurídico & Escavador',
+  negotiations: 'Negociações Bancárias',
+  internal_messaging: 'Mensageria Interna (Ivi)',
+  finance: 'Administração Financeira',
+  collection: 'Cobrança & Ranking',
+  forms: 'Formulários Personalizados',
+  reports: 'Relatórios Gerais',
+  acomp_juridico: 'Acompanhamento Jurídico',
+  config: 'Governança & Configurações',
+  backup_restore: 'Backup & Restore (Google Drive)',
+  training_docs: 'Treinamento & Docs Ivi',
+};
+
+export function humanizeSystemDocText(text: string): string {
+  let out = String(text || '');
+  const replacements: Array<[RegExp, string]> = [
+    [/\bAPI\s+\/api\/auth\/captcha\b/gi, 'Tela de Acesso Corporativo (Desafios de Verificação)'],
+    [/\bAPI\s+\/api\/auth\/login\b/gi, 'Tela de Acesso Corporativo (Validação de Entrada)'],
+    [/\/api\/auth\/captcha\b/gi, 'Desafios de Verificação do Acesso Corporativo'],
+    [/\/api\/auth\/login\b/gi, 'Validação de Entrada do Acesso Corporativo'],
+    [/\/api\/[a-z0-9_/-]+/gi, 'rotina do sistema'],
+    [/\baudit_logs\b/gi, 'Auditoria Geral'],
+    [/\bsystem_module_docs\b/gi, 'Documentação dos Módulos'],
+    [/\btraining_sessions\b/gi, 'Progresso do Treinamento'],
+    [/\bcheckbox_group\b/gi, 'Múltipla Escolha'],
+    [/\bgoogle\s+classroom\b|\bsala\s+de\s+aula\s+do\s+google\b|\bclassroom\b/gi, 'Sala de Aula da Invicta'],
+  ];
+  for (const [rx, rep] of replacements) {
+    out = out.replace(rx, rep);
+  }
+  out = out.replace(
+    /\b(diagrama_integracao|login|home|overview|managerial_dashboard|appointments|cadastros_comuns|prospection|admission|audit|legal|negotiations|internal_messaging|finance|collection|forms|reports|acomp_juridico|config|backup_restore|training_docs)\b/g,
+    (m: string) => MODULE_KEY_TO_PT_TITLE[m] || m
+  );
+  return out;
+}
+
+const PT_STOPWORDS = new Set([
+  'como', 'funciona', 'funcionam', 'para', 'que', 'qual', 'quais', 'sobre', 'onde', 'esse', 'essa', 'este', 'esta',
+  'isso', 'aqui', 'uma', 'uns', 'umas', 'com', 'sem', 'dos', 'das', 'nos', 'nas', 'por', 'pela', 'pelo', 'mais',
+  'muito', 'pode', 'posso', 'quero', 'saber', 'explica', 'explique', 'me', 'te', 'se', 'de', 'da', 'do', 'em', 'na', 'no',
+]);
+
+function normalizeIviQuestion(q: string, traineeName?: string): string {
+  let out = String(q || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ');
+  if (traineeName && traineeName.trim().length >= 2) {
+    const escaped = traineeName.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    out = out.replace(new RegExp(`\\b${escaped}\\b`, 'gi'), ' ');
+  }
+  return out.replace(/\s+/g, ' ').trim();
+}
+
+function extractQuestionKeywords(q: string, traineeName?: string): string[] {
+  return normalizeIviQuestion(q, traineeName)
+    .split(' ')
+    .filter((w) => w.length >= 3 && !PT_STOPWORDS.has(w));
+}
+
+function templatizeExplanationForTrainee(answer: string, traineeName: string): string {
+  const clean = String(answer || '').trim();
+  const trimmedName = String(traineeName || '').trim();
+  if (!trimmedName || trimmedName.toLowerCase() === 'colega') return clean;
+  const escaped = trimmedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return clean.replace(new RegExp(`\\b${escaped}\\b`, 'gi'), '{TRAINEE}');
+}
+
+function personalizeCachedExplanation(template: string, callName: string): string {
+  return String(template || '').replace(/\{TRAINEE\}/g, callName);
+}
+
+async function archiveExplanationToBucket(payload: {
+  moduleKey: string;
+  fieldLabel?: string;
+  question: string;
+  normalizedQuestion: string;
+  answerTemplate: string;
+  provider: string;
+  citedModules: string[];
+}): Promise<string | null> {
+  try {
+    const hash = crypto
+      .createHash('sha256')
+      .update(`${payload.moduleKey}::${payload.normalizedQuestion}::${payload.answerTemplate.slice(0, 120)}`)
+      .digest('hex');
+    const jsonBuffer = Buffer.from(
+      JSON.stringify({
+        ...payload,
+        cacheHash: hash,
+        savedAt: new Date().toISOString(),
+      }),
+      'utf8'
+    );
+    const stored = await putBucketObject(jsonBuffer, {
+      folderPath: `ivi-explanations/${payload.moduleKey || 'geral'}`,
+      mimeType: 'application/json',
+      originalName: `ivi-explicacao-${hash.slice(0, 16)}.json`,
+    });
+    return stored.storageUri;
+  } catch (err) {
+    console.warn('BucketdaInvicta explanation archive warning:', err);
+    return null;
+  }
+}
+
+export async function iviAnswerFromDocumentation(params: {
+  question: string;
+  moduleKey?: string;
+  traineeName?: string;
+  allowLearn?: boolean;
+  learnedByName?: string;
+  withAudio?: boolean;
+  lessonMode?: boolean;
+  currentFieldLabel?: string;
+  currentFieldDescription?: string;
+  voiceName?: string;
+}): Promise<{
+  answer: string;
+  citedModules: string[];
+  citedFields: Array<{ moduleKey: string; fieldLabel: string; originModule: string; destinationModule: string }>;
+  learnedArticle: { id: number; questionPattern: string; answerTemplate: string; moduleKey: string } | null;
+  audioCacheHash?: string;
+  audioMimeType?: string;
+  audioCached?: boolean;
+  inContext: boolean;
+  noDoubtDetected: boolean;
+  shouldAdvanceToNextLesson: boolean;
+  provider: string;
+}> {
+  const cleanQuestion = String(params.question || '').trim();
+  const cleanTrainee = String(params.traineeName || '').trim();
+  const focusModuleKey = String(params.moduleKey || '').trim();
+  const callName = cleanTrainee || 'colega';
+  const normalizedQ = normalizeIviQuestion(cleanQuestion, cleanTrainee);
+  const qKeywords = extractQuestionKeywords(cleanQuestion, cleanTrainee);
+
+  if (params.lessonMode && detectNoDoubtPhrase(cleanQuestion)) {
+    const answer = `Show de bola, ${callName}! Zero dúvidas por aqui — bora logo para a próxima aula porque tem coisa boa esperando!`;
+    let audioCacheHash: string | undefined;
+    let audioMimeType: string | undefined;
+    let audioCached = false;
+    if (params.withAudio) {
+      const tts = await iviSynthesizeSpeechCached({
+        text: answer,
+        voiceName: params.voiceName || 'Aoede',
+        sourceType: 'training',
+        moduleKey: focusModuleKey,
+        createdByName: params.learnedByName || callName,
+      });
+      if (tts.audioBase64) {
+        audioCacheHash = tts.cacheHash;
+        audioMimeType = tts.mimeType;
+        audioCached = tts.cached;
+      }
+    }
+    return {
+      answer,
+      citedModules: focusModuleKey ? [focusModuleKey] : [],
+      citedFields: [],
+      learnedArticle: null,
+      audioCacheHash,
+      audioMimeType,
+      audioCached,
+      inContext: true,
+      noDoubtDetected: true,
+      shouldAdvanceToNextLesson: true,
+      provider: 'lesson_flow',
+    };
+  }
+
+  const [docs, kbRows] = await Promise.all([
+    db.select().from(systemModuleDocs).where(eq(systemModuleDocs.active, true)).orderBy(systemModuleDocs.sortOrder),
+    db
+      .select()
+      .from(iviKnowledgeArticles)
+      .where(
+        and(
+          inArray(iviKnowledgeArticles.scope, ['system_doc', 'learned_insight']),
+          eq(iviKnowledgeArticles.active, true)
+        )
+      )
+      .orderBy(desc(iviKnowledgeArticles.hitCount), desc(iviKnowledgeArticles.id)),
+  ]);
+
+  // Economia máxima de tokens: consulta primeiro explicações já gravadas na base para o mesmo módulo/contexto
+  if (normalizedQ.length >= 6 && qKeywords.length >= 2) {
+    const contextScopedRows = kbRows.filter((k) => {
+      if (focusModuleKey && k.moduleKey && k.moduleKey !== focusModuleKey) return false;
+      return k.category === 'explicacao_em_cache' || k.sourceChannel === 'ivi_doc_cache' || k.scope === 'learned_insight';
+    });
+    const exactMatch = contextScopedRows.find(
+      (k) => normalizeIviQuestion(k.questionPattern, cleanTrainee) === normalizedQ
+    );
+    const fuzzyMatch =
+      exactMatch ||
+      contextScopedRows.find((k) => {
+        const patWords = extractQuestionKeywords(k.questionPattern);
+        if (patWords.length < 2) return false;
+        const overlap = qKeywords.filter((w) => patWords.includes(w)).length;
+        const jaccard = overlap / new Set([...qKeywords, ...patWords]).size;
+        return jaccard >= 0.8 && (!params.currentFieldLabel || k.answerTemplate.includes(params.currentFieldLabel) || overlap >= 3);
+      });
+
+    if (fuzzyMatch && fuzzyMatch.answerTemplate) {
+      await db
+        .update(iviKnowledgeArticles)
+        .set({ hitCount: (fuzzyMatch.hitCount || 0) + 1 })
+        .where(eq(iviKnowledgeArticles.id, fuzzyMatch.id));
+
+      const cachedAnswer = humanizeSystemDocText(personalizeCachedExplanation(fuzzyMatch.answerTemplate, callName));
+      const matchedDoc = docs.find((d) => d.moduleKey === (fuzzyMatch.moduleKey || focusModuleKey));
+      const cachedFields = (matchedDoc?.fieldsJson || []).slice(0, 4).map((f) => ({
+        moduleKey: matchedDoc!.moduleKey,
+        fieldLabel: f.fieldLabel,
+        originModule: humanizeSystemDocText(f.originModule),
+        destinationModule: humanizeSystemDocText(f.destinationModule),
+      }));
+
+      let audioCacheHash: string | undefined;
+      let audioMimeType: string | undefined;
+      let audioCached = false;
+      if (params.withAudio && cachedAnswer) {
+        const tts = await iviSynthesizeSpeechCached({
+          text: cachedAnswer,
+          voiceName: params.voiceName || 'Aoede',
+          sourceType: params.lessonMode ? 'training' : 'static_doc',
+          moduleKey: fuzzyMatch.moduleKey || focusModuleKey || '',
+          createdByName: params.learnedByName || callName,
+        });
+        if (tts.audioBase64) {
+          audioCacheHash = tts.cacheHash;
+          audioMimeType = tts.mimeType;
+          audioCached = tts.cached;
+        }
+      }
+
+      return {
+        answer: cachedAnswer,
+        citedModules: fuzzyMatch.moduleKey ? [fuzzyMatch.moduleKey] : focusModuleKey ? [focusModuleKey] : [],
+        citedFields: cachedFields,
+        learnedArticle: null,
+        audioCacheHash,
+        audioMimeType,
+        audioCached,
+        inContext: true,
+        noDoubtDetected: false,
+        shouldAdvanceToNextLesson: false,
+        provider: 'base_cache',
+      };
+    }
+  }
+
+  const docsSnapshot = docs.map((d) => ({
+    moduleKey: d.moduleKey,
+    title: d.title,
+    menuPath: d.menuPath,
+    summary: humanizeSystemDocText(d.summary),
+    objective: humanizeSystemDocText(d.objective),
+    integrations: d.integrationsJson,
+    fields: (d.fieldsJson || []).map((f) => ({
+      fieldLabel: f.fieldLabel,
+      fieldType: f.fieldType,
+      description: humanizeSystemDocText(f.description),
+      originModule: humanizeSystemDocText(f.originModule),
+      destinationModule: humanizeSystemDocText(f.destinationModule),
+    })),
+  }));
+
+  const focusModuleTitle =
+    docs.find((d) => d.moduleKey === focusModuleKey)?.title || MODULE_KEY_TO_PT_TITLE[focusModuleKey] || focusModuleKey;
+
+  const kbContext = kbRows
+    .slice(0, 35)
+    .map(
+      (k) =>
+        `- [ID:${k.id} | Módulo:${MODULE_KEY_TO_PT_TITLE[k.moduleKey] || 'Geral'}] ${humanizeSystemDocText(
+          k.questionPattern
+        )} => ${humanizeSystemDocText(personalizeCachedExplanation(k.answerTemplate, callName))}`
+    )
+    .join('\n');
+
+  let answer = '';
+  let citedModules: string[] = [];
+  let citedFields: Array<{ moduleKey: string; fieldLabel: string; originModule: string; destinationModule: string }> = [];
+  let learnedArticle: { id: number; questionPattern: string; answerTemplate: string; moduleKey: string } | null = null;
+  let inContext = true;
+  let noDoubtDetected = false;
+  let shouldAdvanceToNextLesson = false;
+  let provider = 'knowledge_fallback';
+
+  const ai = getGeminiClient();
+  if (ai && docsSnapshot.length > 0) {
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-4-hydrogen',
+        contents: [
+          `Nome do treinando/usuário: ${callName}`,
+          focusModuleTitle ? `Tela/Módulo atualmente selecionado: ${focusModuleTitle}` : '',
+          params.lessonMode && params.currentFieldLabel
+            ? `Aula atual focada no campo: "${params.currentFieldLabel}" (${humanizeSystemDocText(
+                params.currentFieldDescription || ''
+              )})`
+            : '',
+          `Modo aula interativa descontraída?: ${params.lessonMode ? 'SIM' : 'NÃO'}`,
+          `Permitir aprendizado de novo ponto de vista se coerente?: ${params.allowLearn ? 'SIM' : 'NÃO'}`,
+          `Mensagem / Dúvida do usuário: "${cleanQuestion}"`,
+          `\nDOCUMENTAÇÃO OFICIAL DOS MÓDULOS (FONTE ÚNICA DE VERDADE):\n${JSON.stringify(docsSnapshot)}`,
+          kbContext ? `\nARTIGOS & APRENDIZADOS COERENTES NA BASE:\n${kbContext}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n'),
+        config: {
+          systemInstruction: [
+            'Você é Ivi, instrutora oficial da Invicta Assessoria Financeira (sistema FinancePro).',
+            `TOM E PERSONALIDADE: Fale de forma descontraída, calorosa, intimista e bem próxima de ${callName}, sempre citando o nome "${callName}" na resposta como uma conversa amigável entre colegas!`,
+            'PROIBIDO JARGÃO TÉCNICO OU TERMOS DE PROGRAMAÇÃO: Nunca cite caminhos de API (como /api/...), nomes de tabelas do banco, chaves em inglês (como cadastros_comuns, checkbox_group, middleware, hmac, scrypt) nem mencione Google Classroom. Sempre refira-se às telas e campos pelos seus nomes e rótulos reais em Português do Brasil (ex: "Tela de Acesso Corporativo", "Cadastros Comuns", "Auditoria Geral", "Campo E-mail cadastrado").',
+            'REGRA RÍGIDA DE FIDELIDADE OPERACIONAL: Toda explicação sobre o sistema deve vir EXCLUSIVAMENTE da DOCUMENTAÇÃO OFICIAL DOS MÓDULOS e dos ARTIGOS & APRENDIZADOS fornecidos. Nunca invente campos, telas ou regras que não existam.',
+            'Sempre que explicar campos, cite o nome da tela/módulo em português, a funcionalidade do campo, de qual tela os dados vêm (ORIGEM) e para qual tela seguem depois (DESTINO).',
+            'CLASSIFICAÇÃO DE CONTEXTO (OBRIGATÓRIA):',
+            '- Verifique se a pergunta tem relação com o FinancePro, a Invicta Assessoria, os módulos, campos, clientes, financeiro, jurídico, cobrança, prospecção, agendamentos, LGPD, permissões ou treinamento.',
+            `- Se NÃO tiver nada a ver com o contexto do sistema/aula (ex: futebol, culinária, clima, novela, fofoca, astrologia, assunto pessoal aleatório), defina inContext=false e escreva no campo "answer" uma brincadeira leve, simpática e divertida contando para ${callName} que essa pergunta está totalmente fora do contexto da nossa aula — e avisando com humor que vocês já vão passar para a próxima aula!`,
+            '- Se o usuário estiver apenas dizendo que não tem dúvidas ou pode seguir, defina noDoubtDetected=true e inContext=true.',
+            'APRENDIZADO COERENTE: Se inContext=true, allowLearn=SIM e o usuário trouxe uma regra prática ou ponto de vista novo coerente com os módulos, preencha shouldLearn=true, learnedTitle, learnedSummary e learnedModuleKey.',
+          ].join(' '),
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              answer: { type: Type.STRING },
+              inContext: { type: Type.BOOLEAN },
+              noDoubtDetected: { type: Type.BOOLEAN },
+              citedModules: { type: Type.ARRAY, items: { type: Type.STRING } },
+              citedFieldLabels: { type: Type.ARRAY, items: { type: Type.STRING } },
+              shouldLearn: { type: Type.BOOLEAN },
+              learnedTitle: { type: Type.STRING },
+              learnedSummary: { type: Type.STRING },
+              learnedModuleKey: { type: Type.STRING },
+            },
+            required: ['answer', 'inContext', 'citedModules'],
+          },
+        },
+      });
+
+      const parsed = JSON.parse((response.text || '{}').trim()) as {
+        answer?: string;
+        inContext?: boolean;
+        noDoubtDetected?: boolean;
+        citedModules?: string[];
+        citedFieldLabels?: string[];
+        shouldLearn?: boolean;
+        learnedTitle?: string;
+        learnedSummary?: string;
+        learnedModuleKey?: string;
+      };
+
+      if (parsed.answer) {
+        answer = humanizeSystemDocText(parsed.answer.trim());
+        provider = 'gemini';
+        inContext = parsed.inContext !== false;
+        noDoubtDetected = Boolean(parsed.noDoubtDetected);
+        shouldAdvanceToNextLesson = !inContext || noDoubtDetected;
+        citedModules = Array.isArray(parsed.citedModules) ? parsed.citedModules : [];
+        if (inContext) {
+          const labelSet = new Set((parsed.citedFieldLabels || []).map((l) => l.toLowerCase()));
+          for (const d of docsSnapshot) {
+            if (!citedModules.includes(d.moduleKey) && focusModuleKey !== d.moduleKey) continue;
+            for (const f of d.fields) {
+              if (
+                labelSet.size === 0 ||
+                labelSet.has(f.fieldLabel.toLowerCase())
+              ) {
+                citedFields.push({
+                  moduleKey: d.moduleKey,
+                  fieldLabel: f.fieldLabel,
+                  originModule: f.originModule,
+                  destinationModule: f.destinationModule,
+                });
+              }
+            }
+          }
+
+          if (params.allowLearn && parsed.shouldLearn && parsed.learnedTitle && parsed.learnedSummary) {
+            const modKey = parsed.learnedModuleKey || focusModuleKey || citedModules[0] || 'login';
+            const [inserted] = await db
+              .insert(iviKnowledgeArticles)
+              .values({
+                scope: 'learned_insight',
+                moduleKey: modKey,
+                questionPattern: humanizeSystemDocText(parsed.learnedTitle).slice(0, 180),
+                answerTemplate: humanizeSystemDocText(parsed.learnedSummary),
+                category: 'aprendizado_treinamento',
+                sourceChannel: 'training_qa',
+                hitCount: 1,
+                updatedByName: params.learnedByName || cleanTrainee || 'Aprendizado Ivi',
+                active: true,
+              })
+              .returning();
+            if (inserted) {
+              learnedArticle = {
+                id: inserted.id,
+                questionPattern: inserted.questionPattern,
+                answerTemplate: inserted.answerTemplate,
+                moduleKey: inserted.moduleKey,
+              };
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Gemini iviAnswerFromDocumentation fallback:', err);
+    }
+  }
+
+  if (!answer) {
+    const tokens = cleanQuestion
+      .toLowerCase()
+      .split(/[\s,.;:!?()]+/)
+      .filter((w) => w.length >= 3);
+
+    const scoredDocs = docs
+      .map((d) => {
+        const hay = `${d.title} ${d.menuPath} ${d.summary} ${d.objective} ${JSON.stringify(d.fieldsJson)} ${JSON.stringify(d.integrationsJson)}`.toLowerCase();
+        let score = 0;
+        for (const t of tokens) {
+          if (hay.includes(t)) score += 2;
+        }
+        return { doc: d, score };
+      })
+      .sort((a, b) => b.score - a.score);
+
+    const bestScore = scoredDocs[0]?.score || 0;
+    const bestDoc =
+      bestScore > 0
+        ? scoredDocs[0]?.doc
+        : docs.find((d) => d.moduleKey === focusModuleKey) || scoredDocs[0]?.doc;
+    const matchedKb = kbRows.find((k) =>
+      tokens.some((t) => `${k.questionPattern} ${k.answerTemplate}`.toLowerCase().includes(t))
+    );
+
+    const systemWords =
+      /campo|tela|m[oó]dulo|sistema|fluxo|origem|destino|ivi|cliente|admiss|prospec|agenda|auditor|boleto|jur[ií]dic|escavador|negocia|financ|cobran|relat[oó]ri|formul[aá]ri|config|backup|drive|login|senha|lgpd|dossi[eê]|invicta|financepro|captcha|acesso|usu[aá]rio/.test(
+        cleanQuestion.toLowerCase()
+      );
+
+    if (params.lessonMode && bestScore === 0 && !matchedKb && !systemWords) {
+      inContext = false;
+      shouldAdvanceToNextLesson = true;
+      answer = `Hahaha, peguei você nessa, ${callName}! Essa pergunta aí fugiu totalmente do roteiro da nossa aula sobre "${params.currentFieldLabel || 'esta tela'}"! Adorei o papo, mas bora manter o foco porque ainda temos coisa boa pela frente — partiu próxima aula!`;
+    } else if (matchedKb) {
+      const modTitle = MODULE_KEY_TO_PT_TITLE[matchedKb.moduleKey] || 'Sistema';
+      answer = `Boa pergunta, ${callName}! Olha só o que temos na documentação da tela "${modTitle}": ${humanizeSystemDocText(matchedKb.answerTemplate)}`;
+      citedModules = matchedKb.moduleKey ? [matchedKb.moduleKey] : [];
+    } else if (bestDoc) {
+      const inputs =
+        (bestDoc.integrationsJson?.inputsFrom || []).map((i) => i.label).join(', ') || 'Entrada direta do usuário';
+      const outputs =
+        (bestDoc.integrationsJson?.outputsTo || []).map((o) => o.label).join(', ') || 'Armazenamento e Auditoria Geral';
+      const topFields = (bestDoc.fieldsJson || []).slice(0, 3);
+      const fieldText = topFields
+        .map(
+          (f) =>
+            `• ${f.fieldLabel}: ${humanizeSystemDocText(f.description)} (Vem de: ${humanizeSystemDocText(
+              f.originModule
+            )} → Segue para: ${humanizeSystemDocText(f.destinationModule)})`
+        )
+        .join('\n');
+      answer = `Olha que legal, ${callName}! Falando da tela "${bestDoc.title}" (${bestDoc.menuPath}): ${humanizeSystemDocText(
+        bestDoc.summary
+      )}\n\nDe onde vêm os dados: ${inputs}\nPara onde vão depois: ${outputs}\n\nCampos que merecem atenção:\n${fieldText}`;
+      citedModules = [bestDoc.moduleKey];
+      citedFields = topFields.map((f) => ({
+        moduleKey: bestDoc.moduleKey,
+        fieldLabel: f.fieldLabel,
+        originModule: humanizeSystemDocText(f.originModule),
+        destinationModule: humanizeSystemDocText(f.destinationModule),
+      }));
+    } else {
+      answer = `Poxa, ${callName}, não achei esse detalhe específico na base oficial ainda. Pede para o Administrador cadastrar essa dica na Gestão da Base da Ivi que eu aprendo na hora!`;
+    }
+  }
+
+  const cleanFinalAnswer = humanizeSystemDocText(answer);
+
+  // Grava automaticamente TODA explicação válida na base de conhecimento E no bucketdainvicta
+  // para economizar tokens e acelerar respostas futuras
+  if (inContext && !noDoubtDetected && cleanFinalAnswer && normalizedQ.length >= 6) {
+    const targetModKey = focusModuleKey || citedModules[0] || 'login';
+    const answerTemplate = templatizeExplanationForTrainee(cleanFinalAnswer, callName);
+    const cleanPattern = humanizeSystemDocText(cleanQuestion).slice(0, 220);
+
+    try {
+      const alreadySaved = kbRows.find(
+        (k) =>
+          k.moduleKey === targetModKey &&
+          normalizeIviQuestion(k.questionPattern, cleanTrainee) === normalizedQ
+      );
+      if (!alreadySaved && !learnedArticle) {
+        await db.insert(iviKnowledgeArticles).values({
+          scope: 'learned_insight',
+          moduleKey: targetModKey,
+          questionPattern: cleanPattern,
+          answerTemplate,
+          category: 'explicacao_em_cache',
+          sourceChannel: 'ivi_doc_cache',
+          hitCount: 1,
+          updatedByName: params.learnedByName || callName || 'Ivi Instrutora',
+          active: true,
+        });
+      }
+    } catch (kbErr) {
+      console.warn('Knowledge base explanation auto-archive warning:', kbErr);
+    }
+
+    await archiveExplanationToBucket({
+      moduleKey: targetModKey,
+      fieldLabel: params.currentFieldLabel,
+      question: cleanPattern,
+      normalizedQuestion: normalizedQ,
+      answerTemplate,
+      provider,
+      citedModules: citedModules.length > 0 ? citedModules : [targetModKey],
+    });
+  }
+
+  let audioCacheHash: string | undefined;
+  let audioMimeType: string | undefined;
+  let audioCached = false;
+  if (params.withAudio && cleanFinalAnswer) {
+    const tts = await iviSynthesizeSpeechCached({
+      text: cleanFinalAnswer,
+      voiceName: params.voiceName || 'Aoede',
+      sourceType: params.lessonMode ? 'training' : 'static_doc',
+      moduleKey: focusModuleKey || citedModules[0] || '',
+      createdByName: params.learnedByName || callName,
+    });
+    if (tts.audioBase64) {
+      audioCacheHash = tts.cacheHash;
+      audioMimeType = tts.mimeType;
+      audioCached = tts.cached;
+    }
+  }
+
+  return {
+    answer: cleanFinalAnswer,
+    citedModules,
+    citedFields: citedFields.slice(0, 8),
+    learnedArticle,
+    audioCacheHash,
+    audioMimeType,
+    audioCached,
+    inContext,
+    noDoubtDetected,
+    shouldAdvanceToNextLesson,
+    provider,
+  };
+}
+
 

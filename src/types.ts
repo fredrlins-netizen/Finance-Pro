@@ -40,6 +40,7 @@ export type ModuleId =
   | 'jur_processos'
   | 'jur_prazos'
   | 'backup_restore'
+  | 'training_docs'
   | 'config';
 
 export interface NavigationIntent {
@@ -406,6 +407,9 @@ export interface ProspectionTranscriptItem {
   mediaFileName?: string;
   sourceProvider?: string;
   externalMessageId?: string;
+  audioCacheHash?: string;
+  audioMimeType?: string;
+  audioCached?: boolean;
 }
 
 export interface ProspectionLead {
@@ -2094,6 +2098,121 @@ export interface CompanyLegalProcess {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface SystemDocFieldDef {
+  fieldName: string;
+  fieldLabel: string;
+  fieldType: string;
+  required?: boolean;
+  description: string;
+  originModule: string;
+  destinationModule: string;
+  targetX?: number;
+  targetY?: number;
+}
+
+export interface SystemDocIntegrationEdge {
+  moduleKey: string;
+  label: string;
+  description: string;
+}
+
+export interface SystemDocIntegrationDef {
+  inputsFrom: SystemDocIntegrationEdge[];
+  outputsTo: SystemDocIntegrationEdge[];
+}
+
+export interface SystemDocTrainingStep {
+  stepOrder: number;
+  title: string;
+  fieldLabel: string;
+  scriptText: string;
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+  boxW: number;
+  boxH: number;
+  relatedModule?: string;
+}
+
+export interface SystemModuleDoc {
+  id: number;
+  moduleKey: string;
+  title: string;
+  menuGroup: string;
+  menuPath: string;
+  sortOrder: number;
+  summary: string;
+  objective: string;
+  screenshotUrl: string;
+  fieldsJson: SystemDocFieldDef[];
+  integrationsJson: SystemDocIntegrationDef;
+  trainingStepsJson: SystemDocTrainingStep[];
+  active: boolean;
+  updatedByName: string;
+  updatedAt: string;
+  createdAt: string;
+}
+
+export interface IviKnowledgeArticle {
+  id: number;
+  scope: 'prospection' | 'system_doc' | 'learned_insight' | string;
+  moduleKey: string;
+  questionPattern: string;
+  answerTemplate: string;
+  category: string;
+  sourceChannel: string;
+  hitCount: number;
+  audioCacheHash?: string;
+  updatedByName?: string;
+  active: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface IviAudioCacheItem {
+  id: number;
+  cacheHash: string;
+  sourceType: 'training' | 'static_doc' | 'prospection' | 'transcription' | string;
+  moduleKey: string;
+  voiceName: string;
+  model: string;
+  textContent: string;
+  mimeType: string;
+  sizeBytes: number;
+  hitCount: number;
+  tokensSavedEstimate: number;
+  createdByName: string;
+  lastUsedAt: string;
+  createdAt: string;
+}
+
+export interface TrainingQaHistoryEntry {
+  id: string;
+  question: string;
+  answer: string;
+  learnedArticleId?: number | null;
+  audioCacheHash?: string;
+  createdAt: string;
+}
+
+export interface TrainingSessionRecord {
+  id: number;
+  userId: number | null;
+  traineeName: string;
+  moduleKey: string;
+  classroomCourseId: string;
+  classroomCourseTitle: string;
+  currentStepIndex: number;
+  completedStepsJson: number[];
+  qaHistoryJson: TrainingQaHistoryEntry[];
+  status: string;
+  completedAt: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+
 
 
 
