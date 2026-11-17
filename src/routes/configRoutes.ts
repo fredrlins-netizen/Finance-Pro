@@ -254,10 +254,28 @@ export function registerConfigRoutes(app: Express) {
     try {
       const incoming = (req.body || {}) as Partial<PortalBrandingConfig>;
       const current = await getPortalBranding();
+      const normalizeColorField = (v: unknown, fallback: string) => {
+        const s = String(v ?? '').trim().toUpperCase();
+        if (/^#[0-9A-F]{6}$/.test(s)) return s;
+        if (/^#[0-9A-F]{3}$/.test(s)) return `#${s[1]}${s[1]}${s[2]}${s[2]}${s[3]}${s[3]}`;
+        if (/^[0-9A-F]{6}$/.test(s)) return `#${s}`;
+        return fallback;
+      };
       const nextBranding: PortalBrandingConfig = {
         ...current,
         ...incoming,
         companyName: String(incoming.companyName ?? current.companyName).trim() || DEFAULT_PORTAL_BRANDING.companyName,
+        primaryColor: normalizeColorField(incoming.primaryColor ?? current.primaryColor, DEFAULT_PORTAL_BRANDING.primaryColor),
+        textColor: normalizeColorField(incoming.textColor ?? current.textColor, DEFAULT_PORTAL_BRANDING.textColor),
+        loginLeftBg: normalizeColorField(incoming.loginLeftBg ?? current.loginLeftBg, DEFAULT_PORTAL_BRANDING.loginLeftBg),
+        loginLeftText: normalizeColorField(incoming.loginLeftText ?? current.loginLeftText, DEFAULT_PORTAL_BRANDING.loginLeftText),
+        loginRightBg: normalizeColorField(incoming.loginRightBg ?? current.loginRightBg, DEFAULT_PORTAL_BRANDING.loginRightBg),
+        loginRightText: normalizeColorField(incoming.loginRightText ?? current.loginRightText, DEFAULT_PORTAL_BRANDING.loginRightText),
+        sidebarBg: normalizeColorField(incoming.sidebarBg ?? current.sidebarBg, DEFAULT_PORTAL_BRANDING.sidebarBg),
+        sidebarText: normalizeColorField(incoming.sidebarText ?? current.sidebarText, DEFAULT_PORTAL_BRANDING.sidebarText),
+        headerBg: normalizeColorField(incoming.headerBg ?? current.headerBg, DEFAULT_PORTAL_BRANDING.headerBg),
+        headerText: normalizeColorField(incoming.headerText ?? current.headerText, DEFAULT_PORTAL_BRANDING.headerText),
+        canvasBg: normalizeColorField(incoming.canvasBg ?? current.canvasBg, DEFAULT_PORTAL_BRANDING.canvasBg),
       };
       await db
         .insert(systemSettings)

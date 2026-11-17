@@ -6,16 +6,59 @@
     --font-display: 'Plus Jakarta Sans', system-ui, sans-serif;
     --font-sans: 'DM Sans', system-ui, sans-serif;
     --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+    --fp-primary: #0F172A;
+    --fp-primary-hover: #1E293B;
+    --fp-primary-text: #FFFFFF;
+    --fp-login-left-bg: #0F172A;
+    --fp-login-left-text: #F8FAFC;
+    --fp-login-left-muted: rgba(248, 250, 252, 0.78);
+    --fp-login-left-border: rgba(248, 250, 252, 0.16);
+    --fp-login-right-bg: #FFFFFF;
+    --fp-login-right-text: #0F172A;
+    --fp-login-right-muted: rgba(15, 23, 42, 0.72);
+    --fp-sidebar-bg: #FFFFFF;
+    --fp-sidebar-text: #334155;
+    --fp-sidebar-muted: rgba(51, 65, 85, 0.65);
+    --fp-sidebar-hover: rgba(51, 65, 85, 0.09);
+    --fp-sidebar-border: #E2E8F0;
+    --fp-header-bg: #FFFFFF;
+    --fp-header-text: #0F172A;
+    --fp-header-muted: rgba(15, 23, 42, 0.68);
+    --fp-header-border: #E2E8F0;
+    --fp-canvas-bg: #F8FAFC;
+  }
+
+  .dark {
+    --fp-primary: #059669;
+    --fp-primary-hover: #10B981;
+    --fp-primary-text: #FFFFFF;
+    --fp-login-left-bg: #020617;
+    --fp-login-left-text: #F8FAFC;
+    --fp-login-left-muted: rgba(248, 250, 252, 0.78);
+    --fp-login-left-border: rgba(248, 250, 252, 0.16);
+    --fp-login-right-bg: #0F172A;
+    --fp-login-right-text: #F1F5F9;
+    --fp-login-right-muted: rgba(241, 245, 249, 0.72);
+    --fp-sidebar-bg: #0F172A;
+    --fp-sidebar-text: #E2E8F0;
+    --fp-sidebar-muted: rgba(226, 232, 240, 0.65);
+    --fp-sidebar-hover: rgba(226, 232, 240, 0.1);
+    --fp-sidebar-border: #334155;
+    --fp-header-bg: #0F172A;
+    --fp-header-text: #F1F5F9;
+    --fp-header-muted: rgba(241, 245, 249, 0.68);
+    --fp-header-border: #1E293B;
+    --fp-canvas-bg: #020617;
   }
 
   body {
     font-family: var(--font-sans);
-    background-color: #F8FAFC;
+    background-color: var(--fp-canvas-bg);
     color: #0F172A;
   }
 
   .dark body {
-    background-color: #020617;
+    background-color: var(--fp-canvas-bg);
     color: #F1F5F9;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -34,6 +77,93 @@
   .font-mono, .tabular-nums {
     font-variant-numeric: tabular-nums;
   }
+}
+
+/* Superfícies dinâmicas de Portal & Identidade Visual */
+.fp-canvas {
+  background-color: var(--fp-canvas-bg);
+}
+
+.fp-header {
+  background-color: var(--fp-header-bg);
+  color: var(--fp-header-text);
+  border-color: var(--fp-header-border);
+}
+
+.fp-header-text {
+  color: var(--fp-header-text);
+}
+
+.fp-header-muted {
+  color: var(--fp-header-muted);
+}
+
+.fp-sidebar {
+  background-color: var(--fp-sidebar-bg);
+  color: var(--fp-sidebar-text);
+  border-color: var(--fp-sidebar-border);
+}
+
+.fp-sidebar-muted {
+  color: var(--fp-sidebar-muted);
+}
+
+.fp-sidebar-item {
+  color: var(--fp-sidebar-text);
+}
+
+.fp-sidebar-item:hover {
+  background-color: var(--fp-sidebar-hover);
+}
+
+.fp-sidebar-parent-active {
+  background-color: var(--fp-sidebar-hover);
+  color: var(--fp-sidebar-text);
+}
+
+.fp-nav-active {
+  background-color: var(--fp-primary);
+  color: var(--fp-primary-text);
+}
+
+.fp-nav-active:hover {
+  background-color: var(--fp-primary-hover);
+}
+
+.fp-primary-btn {
+  background-color: var(--fp-primary);
+  color: var(--fp-primary-text);
+}
+
+.fp-primary-btn:hover:not(:disabled) {
+  background-color: var(--fp-primary-hover);
+}
+
+.fp-login-left {
+  background-color: var(--fp-login-left-bg);
+  color: var(--fp-login-left-text);
+  border-color: var(--fp-login-left-border);
+}
+
+.fp-login-left-text {
+  color: var(--fp-login-left-text);
+}
+
+.fp-login-left-muted {
+  color: var(--fp-login-left-muted);
+}
+
+.fp-login-right {
+  background-color: var(--fp-login-right-bg);
+  color: var(--fp-login-right-text);
+}
+
+.fp-login-right-text {
+  color: var(--fp-login-right-text);
+}
+
+.fp-login-right-muted {
+  color: var(--fp-login-right-muted);
 }
 
 .pb-safe {

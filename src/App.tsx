@@ -894,15 +894,15 @@ export default function App() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col">
+    <div className="min-h-screen fp-canvas text-slate-900 dark:text-slate-100 flex flex-col">
       {/* Top Bar (56px) */}
-      <header className={`sticky top-0 ${hasOpenDossierDoc ? 'z-[75]' : 'z-30'} h-14 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-3 sm:px-5 flex items-center justify-between gap-2`}>
+      <header className={`sticky top-0 ${hasOpenDossierDoc ? 'z-[75]' : 'z-30'} h-14 fp-header border-b px-3 sm:px-5 flex items-center justify-between gap-2`}>
         <div className="flex items-center gap-2.5 min-w-0">
           <button
             type="button"
             onClick={() => setMobileNavOpen(!mobileNavOpen)}
             aria-label="Menu de setores"
-            className="lg:hidden p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 min-h-[44px] min-w-[44px] flex items-center justify-center"
+            className="lg:hidden p-2 rounded-lg fp-header-text hover:bg-black/5 dark:hover:bg-white/10 min-h-[44px] min-w-[44px] flex items-center justify-center"
           >
             <Menu className="w-5 h-5" />
           </button>
@@ -920,25 +920,25 @@ export default function App() {
                 className="h-8 w-8 rounded-lg object-contain bg-slate-900 dark:bg-slate-800 p-1 shrink-0"
               />
             ) : (
-              <div className="h-8 w-8 rounded-lg bg-slate-900 dark:bg-emerald-600 text-emerald-400 dark:text-white flex items-center justify-center shrink-0">
+              <div className="h-8 w-8 rounded-lg fp-nav-active flex items-center justify-center shrink-0">
                 <ShieldCheck className="w-4 h-4" />
               </div>
             )}
             <div className="min-w-0">
-              <div className="flex items-center gap-1.5 text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100 font-display truncate">
+              <div className="flex items-center gap-1.5 text-sm font-bold tracking-tight fp-header-text font-display truncate">
                 <span className="truncate max-w-[160px]">
                   {portalBranding?.companyName?.trim() || 'FinancePro'}
                 </span>
                 {activeNavMeta && activeModule !== 'home' && (
                   <>
-                    <ChevronRight className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 hidden sm:inline shrink-0" />
-                    <span className="hidden sm:inline text-slate-600 dark:text-slate-300 font-semibold truncate">
+                    <ChevronRight className="w-3.5 h-3.5 fp-header-muted hidden sm:inline shrink-0" />
+                    <span className="hidden sm:inline fp-header-muted font-semibold truncate">
                       {activeNavMeta.label}
                     </span>
                   </>
                 )}
               </div>
-              <div className="hidden md:block text-[10px] text-slate-500 dark:text-slate-400 truncate">
+              <div className="hidden md:block text-[10px] fp-header-muted truncate">
                 {currentUser.name} · {currentUser.role.toUpperCase()} · {currentUser.points} pts
               </div>
             </div>
@@ -1060,7 +1060,7 @@ export default function App() {
       <div className="flex-1 flex min-h-0">
         {/* Desktop Sidebar (10" and 21") — colapsa automaticamente para w-14 ao abrir documento do dossiê */}
         <aside
-          className={`hidden lg:flex lg:flex-col shrink-0 bg-white border-r border-slate-200 justify-between sticky top-14 h-[calc(100vh-56px)] dark:bg-slate-900 dark:border-slate-700 transition-all duration-200 ${
+          className={`hidden lg:flex lg:flex-col shrink-0 fp-sidebar border-r justify-between sticky top-14 h-[calc(100vh-56px)] transition-all duration-200 ${
             sidebarCollapsed ? 'w-14 px-1.5 py-2.5 items-center' : 'w-64 p-3'
           } ${hasOpenDossierDoc ? 'z-[75]' : 'z-20'}`}
         >
@@ -1073,11 +1073,11 @@ export default function App() {
                   disabled={hasOpenDossierDoc}
                   title={hasOpenDossierDoc ? 'Menu lateral colapsado durante leitura de documento' : 'Expandir menu lateral'}
                   aria-label="Expandir menu lateral"
-                  className="w-10 h-9 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+                  className="w-10 h-9 rounded-lg flex items-center justify-center fp-sidebar-item disabled:opacity-50"
                 >
                   <PanelLeftOpen className="w-4 h-4" />
                 </button>
-                <div className="w-7 border-t border-slate-200 dark:border-slate-800 my-0.5" />
+                <div className="w-7 border-t border-current/15 my-0.5" />
                 {canViewFinance && (
                   <button
                     type="button"
@@ -1088,9 +1088,7 @@ export default function App() {
                         : 'Administração Financeira'
                     }
                     className={`relative w-10 h-9 rounded-lg flex items-center justify-center transition-colors ${
-                      isFinanceActive
-                        ? 'bg-slate-900 text-white dark:bg-emerald-600'
-                        : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+                      isFinanceActive ? 'fp-nav-active' : 'fp-sidebar-item'
                     }`}
                   >
                     <Banknote className="w-4 h-4" />
@@ -1124,9 +1122,7 @@ export default function App() {
                             : item.label
                         }
                         className={`relative w-10 h-9 rounded-lg flex items-center justify-center transition-colors ${
-                          active
-                            ? 'bg-slate-900 text-white dark:bg-emerald-600'
-                            : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+                          active ? 'fp-nav-active' : 'fp-sidebar-item'
                         }`}
                       >
                         <Icon className="w-4 h-4" />
@@ -1144,9 +1140,7 @@ export default function App() {
                           onClick={() => navigateTo(visibleCadastrosSubmenus[0].id)}
                           title="Cadastros Comuns"
                           className={`w-10 h-9 rounded-lg flex items-center justify-center transition-colors ${
-                            activeModule.startsWith('cad_')
-                              ? 'bg-slate-900 text-white dark:bg-emerald-600'
-                              : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+                            activeModule.startsWith('cad_') ? 'fp-nav-active' : 'fp-sidebar-item'
                           }`}
                         >
                           <FolderKanban className="w-4 h-4" />
@@ -1163,8 +1157,8 @@ export default function App() {
                           }
                           className={`relative w-10 h-9 rounded-lg flex items-center justify-center transition-colors ${
                             activeModule === 'prospection' || activeModule === 'admission'
-                              ? 'bg-slate-900 text-white dark:bg-emerald-600'
-                              : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+                              ? 'fp-nav-active'
+                              : 'fp-sidebar-item'
                           }`}
                         >
                           <Store className="w-4 h-4" />
@@ -1179,7 +1173,7 @@ export default function App() {
                   );
                 })}
               </div>
-              <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+              <div className="pt-2 border-t border-current/15">
                 <button
                   type="button"
                   onClick={() => void handleLogout()}
@@ -1193,8 +1187,8 @@ export default function App() {
             </>
           ) : (
             <>
-              <div className="flex items-center justify-between px-2 pb-2 mb-1 border-b border-slate-100 dark:border-slate-800">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              <div className="flex items-center justify-between px-2 pb-2 mb-1 border-b border-current/10">
+                <span className="text-[10px] font-bold uppercase tracking-wider fp-sidebar-muted">
                   Navegação
                 </span>
                 <button
@@ -1202,7 +1196,7 @@ export default function App() {
                   onClick={toggleSidebar}
                   title="Colapsar menu lateral"
                   aria-label="Colapsar menu lateral"
-                  className="p-1 rounded-md text-slate-400 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800"
+                  className="p-1 rounded-md fp-sidebar-item"
                 >
                   <PanelLeftClose className="w-3.5 h-3.5" />
                 </button>
@@ -1215,7 +1209,7 @@ export default function App() {
                   const financePendingCount = navCounts.finance || 0;
                   return (
                     <div key={grp.key} className="space-y-1">
-                      <div className="px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400">
+                      <div className="px-3 text-[10px] font-bold uppercase tracking-wider fp-sidebar-muted">
                         {grp.title}
                       </div>
 
@@ -1228,22 +1222,14 @@ export default function App() {
                         onClick={() => setAdminFinanceExpanded((prev) => !prev)}
                         className={`w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors text-left ${
                           isFinanceActive && !adminFinanceExpanded
-                            ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                            ? 'fp-nav-active'
                             : isFinanceActive
-                            ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100'
-                            : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
+                            ? 'fp-sidebar-parent-active'
+                            : 'fp-sidebar-item'
                         }`}
                       >
                         <span className="flex items-center gap-2.5 min-w-0">
-                          <Banknote
-                            className={`w-4 h-4 shrink-0 ${
-                              isFinanceActive && !adminFinanceExpanded
-                                ? 'text-emerald-400 dark:text-white'
-                                : isFinanceActive
-                                ? 'text-emerald-600 dark:text-emerald-400'
-                                : 'text-slate-500 dark:text-slate-400'
-                            }`}
-                          />
+                          <Banknote className="w-4 h-4 shrink-0 text-current opacity-85" />
                           <span className="truncate">Administração Financeira</span>
                           {financeUnread > 0 && renderBlinkingDot()}
                         </span>
@@ -1255,7 +1241,7 @@ export default function App() {
                                 financeUnread > 0
                                   ? 'bg-rose-500 text-white'
                                   : isFinanceActive && !adminFinanceExpanded
-                                  ? 'bg-emerald-500/20 text-emerald-200'
+                                  ? 'bg-white/20 text-current'
                                   : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200'
                               }`}
                             >
@@ -1263,15 +1249,15 @@ export default function App() {
                             </span>
                           )}
                           {adminFinanceExpanded ? (
-                            <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
+                            <ChevronDown className="w-3.5 h-3.5 fp-sidebar-muted" />
                           ) : (
-                            <ChevronRight className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
+                            <ChevronRight className="w-3.5 h-3.5 fp-sidebar-muted" />
                           )}
                         </span>
                       </button>
 
                       {adminFinanceExpanded && (
-                        <div className="ml-4 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5 dark:border-slate-700">
+                        <div className="ml-4 pl-2.5 border-l border-current/15 space-y-0.5 py-0.5">
                           {/* Subopção 1: Cadastros e suas opções */}
                           <div className="space-y-0.5">
                             <button
@@ -1280,29 +1266,25 @@ export default function App() {
                               onClick={() => setFinanceCadastrosExpanded((prev) => !prev)}
                               className={`w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors text-left ${
                                 isFinanceCadActive && !financeCadastrosExpanded
-                                  ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                                  ? 'fp-nav-active'
                                   : isFinanceCadActive
-                                  ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100'
-                                  : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white'
+                                  ? 'fp-sidebar-parent-active'
+                                  : 'fp-sidebar-item'
                               }`}
                             >
                               <span className="flex items-center gap-2 min-w-0">
-                                <FolderKanban
-                                  className={`w-3.5 h-3.5 shrink-0 ${
-                                    isFinanceCadActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'
-                                  }`}
-                                />
+                                <FolderKanban className="w-3.5 h-3.5 shrink-0 text-current opacity-80" />
                                 <span className="truncate">Cadastros</span>
                               </span>
                               {financeCadastrosExpanded ? (
-                                <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
+                                <ChevronDown className="w-3.5 h-3.5 shrink-0 fp-sidebar-muted" />
                               ) : (
-                                <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
+                                <ChevronRight className="w-3.5 h-3.5 shrink-0 fp-sidebar-muted" />
                               )}
                             </button>
 
                             {financeCadastrosExpanded && (
-                              <div className="ml-3 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5 dark:border-slate-700">
+                              <div className="ml-3 pl-2.5 border-l border-current/15 space-y-0.5 py-0.5">
                                 {FINANCE_CADASTROS_SUBMENUS.map((sub) => {
                                   const SubIcon = sub.icon;
                                   const subActive = activeModule === sub.id;
@@ -1312,16 +1294,10 @@ export default function App() {
                                       type="button"
                                       onClick={() => navigateTo(sub.id)}
                                       className={`w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-[11px] font-semibold transition-colors text-left ${
-                                        subActive
-                                          ? 'bg-slate-900 text-white dark:bg-emerald-600'
-                                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
+                                        subActive ? 'fp-nav-active' : 'fp-sidebar-item'
                                       }`}
                                     >
-                                      <SubIcon
-                                        className={`w-3 h-3 shrink-0 ${
-                                          subActive ? 'text-emerald-400 dark:text-white' : 'text-slate-400 dark:text-slate-400'
-                                        }`}
-                                      />
+                                      <SubIcon className="w-3 h-3 shrink-0 text-current opacity-80" />
                                       <span className="truncate">{sub.label}</span>
                                     </button>
                                   );
@@ -1338,108 +1314,78 @@ export default function App() {
                               onClick={() => setContaCorrenteExpanded((prev) => !prev)}
                               className={`w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors text-left ${
                                 isContaCorrenteActive && !contaCorrenteExpanded
-                                  ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                                  ? 'fp-nav-active'
                                   : isContaCorrenteActive
-                                  ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100'
-                                  : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white'
+                                  ? 'fp-sidebar-parent-active'
+                                  : 'fp-sidebar-item'
                               }`}
                             >
                               <span className="flex items-center gap-2 min-w-0">
-                                <Landmark
-                                  className={`w-3.5 h-3.5 shrink-0 ${
-                                    isContaCorrenteActive && !contaCorrenteExpanded
-                                      ? 'text-emerald-400 dark:text-white'
-                                      : isContaCorrenteActive
-                                      ? 'text-emerald-600 dark:text-emerald-400'
-                                      : 'text-slate-500 dark:text-slate-400'
-                                  }`}
-                                />
+                                <Landmark className="w-3.5 h-3.5 shrink-0 text-current opacity-80" />
                                 <span className="truncate">Conta Corrente</span>
                               </span>
                               {contaCorrenteExpanded ? (
-                                <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
+                                <ChevronDown className="w-3.5 h-3.5 shrink-0 fp-sidebar-muted" />
                               ) : (
-                                <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
+                                <ChevronRight className="w-3.5 h-3.5 shrink-0 fp-sidebar-muted" />
                               )}
                             </button>
 
                             {contaCorrenteExpanded && (
-                              <div className="ml-3 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5 dark:border-slate-700">
+                              <div className="ml-3 pl-2.5 border-l border-current/15 space-y-0.5 py-0.5">
                                 <button
                                   type="button"
                                   aria-expanded={contaCorrenteCadastroExpanded}
                                   onClick={() => setContaCorrenteCadastroExpanded((prev) => !prev)}
                                   className={`w-full flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-[11px] font-semibold transition-colors text-left ${
                                     isContaCorrenteActive && !contaCorrenteCadastroExpanded
-                                      ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                                      ? 'fp-nav-active'
                                       : isContaCorrenteActive
-                                      ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100'
-                                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
+                                      ? 'fp-sidebar-parent-active'
+                                      : 'fp-sidebar-item'
                                   }`}
                                 >
                                   <span className="flex items-center gap-2 min-w-0">
-                                    <FolderKanban
-                                      className={`w-3 h-3 shrink-0 ${
-                                        isContaCorrenteActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-400'
-                                      }`}
-                                    />
+                                    <FolderKanban className="w-3 h-3 shrink-0 text-current opacity-80" />
                                     <span className="truncate">Cadastro</span>
                                   </span>
                                   {contaCorrenteCadastroExpanded ? (
-                                    <ChevronDown className="w-3 h-3 shrink-0 text-slate-400 dark:text-slate-400" />
+                                    <ChevronDown className="w-3 h-3 shrink-0 fp-sidebar-muted" />
                                   ) : (
-                                    <ChevronRight className="w-3 h-3 shrink-0 text-slate-400 dark:text-slate-400" />
+                                    <ChevronRight className="w-3 h-3 shrink-0 fp-sidebar-muted" />
                                   )}
                                 </button>
 
                                 {contaCorrenteCadastroExpanded && (
-                                  <div className="ml-3 pl-2 border-l border-slate-200 space-y-0.5 py-0.5 dark:border-slate-700">
+                                  <div className="ml-3 pl-2.5 border-l border-current/15 space-y-0.5 py-0.5">
                                     <button
                                       type="button"
                                       onClick={() => navigateTo('finance_conta_corrente')}
                                       className={`w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-[11px] font-semibold transition-colors text-left ${
-                                        activeModule === 'finance_conta_corrente'
-                                          ? 'bg-slate-900 text-white dark:bg-emerald-600'
-                                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
+                                        activeModule === 'finance_conta_corrente' ? 'fp-nav-active' : 'fp-sidebar-item'
                                       }`}
                                     >
-                                      <Landmark
-                                        className={`w-3 h-3 shrink-0 ${
-                                          activeModule === 'finance_conta_corrente' ? 'text-emerald-400 dark:text-white' : 'text-slate-400 dark:text-slate-400'
-                                        }`}
-                                      />
+                                      <Landmark className="w-3 h-3 shrink-0 text-current opacity-80" />
                                       <span className="truncate">Contas Correntes</span>
                                     </button>
                                     <button
                                       type="button"
                                       onClick={() => navigateTo('finance_movimento')}
                                       className={`w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-[11px] font-semibold transition-colors text-left ${
-                                        activeModule === 'finance_movimento'
-                                          ? 'bg-slate-900 text-white dark:bg-emerald-600'
-                                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
+                                        activeModule === 'finance_movimento' ? 'fp-nav-active' : 'fp-sidebar-item'
                                       }`}
                                     >
-                                      <ArrowLeftRight
-                                        className={`w-3 h-3 shrink-0 ${
-                                          activeModule === 'finance_movimento' ? 'text-emerald-400 dark:text-white' : 'text-slate-400 dark:text-slate-400'
-                                        }`}
-                                      />
+                                      <ArrowLeftRight className="w-3 h-3 shrink-0 text-current opacity-80" />
                                       <span className="truncate">Movimento</span>
                                     </button>
                                     <button
                                       type="button"
                                       onClick={() => navigateTo('finance_conciliacao')}
                                       className={`w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-[11px] font-semibold transition-colors text-left ${
-                                        activeModule === 'finance_conciliacao'
-                                          ? 'bg-slate-900 text-white dark:bg-emerald-600'
-                                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
+                                        activeModule === 'finance_conciliacao' ? 'fp-nav-active' : 'fp-sidebar-item'
                                       }`}
                                     >
-                                      <Scale
-                                        className={`w-3 h-3 shrink-0 ${
-                                          activeModule === 'finance_conciliacao' ? 'text-emerald-400 dark:text-white' : 'text-slate-400 dark:text-slate-400'
-                                        }`}
-                                      />
+                                      <Scale className="w-3 h-3 shrink-0 text-current opacity-80" />
                                       <span className="truncate">Conciliação Bancária</span>
                                     </button>
                                   </div>
@@ -1454,18 +1400,12 @@ export default function App() {
                             onClick={() => navigateTo('finance_receber')}
                             className={`w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors text-left ${
                               activeModule === 'finance_receber' || activeModule === 'finance' || activeModule === 'finance_operacao'
-                                ? 'bg-slate-900 text-white dark:bg-emerald-600'
-                                : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white'
+                                ? 'fp-nav-active'
+                                : 'fp-sidebar-item'
                             }`}
                           >
                             <span className="flex items-center gap-2 min-w-0">
-                              <ArrowDownCircle
-                                className={`w-3.5 h-3.5 shrink-0 ${
-                                  activeModule === 'finance_receber' || activeModule === 'finance' || activeModule === 'finance_operacao'
-                                    ? 'text-emerald-400 dark:text-white'
-                                    : 'text-emerald-600 dark:text-emerald-400'
-                                }`}
-                              />
+                              <ArrowDownCircle className="w-3.5 h-3.5 shrink-0 text-current opacity-85" />
                               <span className="truncate">Contas a Receber</span>
                               {financeUnread > 0 && renderBlinkingDot()}
                             </span>
@@ -1475,7 +1415,7 @@ export default function App() {
                                   financeUnread > 0
                                     ? 'bg-rose-500 text-white'
                                     : activeModule === 'finance_receber' || activeModule === 'finance' || activeModule === 'finance_operacao'
-                                    ? 'bg-emerald-500/20 text-emerald-200 dark:text-white'
+                                    ? 'bg-white/20 text-current'
                                     : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200'
                                 }`}
                               >
@@ -1489,16 +1429,10 @@ export default function App() {
                             type="button"
                             onClick={() => navigateTo('finance_regua')}
                             className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors text-left ${
-                              activeModule === 'finance_regua'
-                                ? 'bg-slate-900 text-white dark:bg-emerald-600'
-                                : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white'
+                              activeModule === 'finance_regua' ? 'fp-nav-active' : 'fp-sidebar-item'
                             }`}
                           >
-                            <BellRing
-                              className={`w-3.5 h-3.5 shrink-0 ${
-                                activeModule === 'finance_regua' ? 'text-emerald-400 dark:text-white' : 'text-blue-600 dark:text-blue-400'
-                              }`}
-                            />
+                            <BellRing className="w-3.5 h-3.5 shrink-0 text-current opacity-85" />
                             <span className="truncate">Régua de Cobrança (Ivi)</span>
                           </button>
 
@@ -1507,16 +1441,10 @@ export default function App() {
                             type="button"
                             onClick={() => navigateTo('finance_pagar')}
                             className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors text-left ${
-                              activeModule === 'finance_pagar'
-                                ? 'bg-slate-900 text-white dark:bg-emerald-600'
-                                : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white'
+                              activeModule === 'finance_pagar' ? 'fp-nav-active' : 'fp-sidebar-item'
                             }`}
                           >
-                            <ArrowUpCircle
-                              className={`w-3.5 h-3.5 shrink-0 ${
-                                activeModule === 'finance_pagar' ? 'text-emerald-400 dark:text-white' : 'text-rose-600 dark:text-rose-400'
-                              }`}
-                            />
+                            <ArrowUpCircle className="w-3.5 h-3.5 shrink-0 text-current opacity-85" />
                             <span className="truncate">Contas a Pagar</span>
                           </button>
                         </div>
@@ -1539,22 +1467,14 @@ export default function App() {
                             onClick={() => setCollectionExpanded((prev) => !prev)}
                             className={`w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors text-left ${
                               isCollectionActive && !collectionExpanded
-                                ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                                ? 'fp-nav-active'
                                 : isCollectionActive
-                                ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100'
-                                : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
+                                ? 'fp-sidebar-parent-active'
+                                : 'fp-sidebar-item'
                             }`}
                           >
                             <span className="flex items-center gap-2.5 min-w-0">
-                              <Icon
-                                className={`w-4 h-4 shrink-0 ${
-                                  isCollectionActive && !collectionExpanded
-                                    ? 'text-emerald-400 dark:text-white'
-                                    : isCollectionActive
-                                    ? 'text-emerald-600 dark:text-emerald-400'
-                                    : 'text-slate-500 dark:text-slate-400'
-                                }`}
-                              />
+                              <Icon className="w-4 h-4 shrink-0 text-current opacity-85" />
                               <span className="truncate">{item.label}</span>
                               {collectionUnread > 0 && renderBlinkingDot()}
                             </span>
@@ -1566,7 +1486,7 @@ export default function App() {
                                     collectionUnread > 0
                                       ? 'bg-rose-500 text-white'
                                       : isCollectionActive && !collectionExpanded
-                                      ? 'bg-emerald-500/20 text-emerald-200 dark:text-white'
+                                      ? 'bg-white/20 text-current'
                                       : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200'
                                   }`}
                                 >
@@ -1574,15 +1494,15 @@ export default function App() {
                                 </span>
                               )}
                               {collectionExpanded ? (
-                                <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
+                                <ChevronDown className="w-3.5 h-3.5 fp-sidebar-muted" />
                               ) : (
-                                <ChevronRight className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400" />
+                                <ChevronRight className="w-3.5 h-3.5 fp-sidebar-muted" />
                               )}
                             </span>
                           </button>
 
                           {collectionExpanded && (
-                            <div className="ml-4 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5 dark:border-slate-700">
+                            <div className="ml-4 pl-2.5 border-l border-current/15 space-y-0.5 py-0.5">
                               {COLLECTION_SUBMENUS.map((sub) => {
                                 const SubIcon = sub.icon;
                                 const subActive =
@@ -1594,16 +1514,10 @@ export default function App() {
                                     type="button"
                                     onClick={() => navigateTo(sub.id)}
                                     className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors text-left ${
-                                      subActive
-                                        ? 'bg-slate-900 text-white dark:bg-emerald-600'
-                                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
+                                      subActive ? 'fp-nav-active' : 'fp-sidebar-item'
                                     }`}
                                   >
-                                    <SubIcon
-                                      className={`w-3.5 h-3.5 shrink-0 ${
-                                        subActive ? 'text-emerald-400 dark:text-white' : 'text-slate-400 dark:text-slate-400'
-                                      }`}
-                                    />
+                                    <SubIcon className="w-3.5 h-3.5 shrink-0 text-current opacity-85" />
                                     <span className="truncate">{sub.label}</span>
                                   </button>
                                 );
@@ -1624,33 +1538,25 @@ export default function App() {
                             onClick={() => setAcompJuridicoExpanded((prev) => !prev)}
                             className={`w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors text-left ${
                               isAcompJuridicoActive && !acompJuridicoExpanded
-                                ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                                ? 'fp-nav-active'
                                 : isAcompJuridicoActive
-                                ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100'
-                                : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
+                                ? 'fp-sidebar-parent-active'
+                                : 'fp-sidebar-item'
                             }`}
                           >
                             <span className="flex items-center gap-2.5 min-w-0">
-                              <Icon
-                                className={`w-4 h-4 shrink-0 ${
-                                  isAcompJuridicoActive && !acompJuridicoExpanded
-                                    ? 'text-emerald-400 dark:text-white'
-                                    : isAcompJuridicoActive
-                                    ? 'text-emerald-600 dark:text-emerald-400'
-                                    : 'text-slate-500 dark:text-slate-400'
-                                }`}
-                              />
+                              <Icon className="w-4 h-4 shrink-0 text-current opacity-85" />
                               <span className="truncate">{item.label}</span>
                             </span>
                             {acompJuridicoExpanded ? (
-                              <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
+                              <ChevronDown className="w-3.5 h-3.5 shrink-0 fp-sidebar-muted" />
                             ) : (
-                              <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
+                              <ChevronRight className="w-3.5 h-3.5 shrink-0 fp-sidebar-muted" />
                             )}
                           </button>
 
                           {acompJuridicoExpanded && (
-                            <div className="ml-4 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5 dark:border-slate-700">
+                            <div className="ml-4 pl-2.5 border-l border-current/15 space-y-0.5 py-0.5">
                               {visibleAcompJuridicoSubmenus.map((sub) => {
                                 const SubIcon = sub.icon;
                                 const subActive =
@@ -1662,16 +1568,10 @@ export default function App() {
                                     type="button"
                                     onClick={() => navigateTo(sub.id)}
                                     className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors text-left ${
-                                      subActive
-                                        ? 'bg-slate-900 text-white dark:bg-emerald-600'
-                                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
+                                      subActive ? 'fp-nav-active' : 'fp-sidebar-item'
                                     }`}
                                   >
-                                    <SubIcon
-                                      className={`w-3.5 h-3.5 shrink-0 ${
-                                        subActive ? 'text-emerald-400 dark:text-white' : 'text-slate-400 dark:text-slate-400'
-                                      }`}
-                                    />
+                                    <SubIcon className="w-3.5 h-3.5 shrink-0 text-current opacity-85" />
                                     <span className="truncate">{sub.label}</span>
                                   </button>
                                 );
@@ -1690,13 +1590,11 @@ export default function App() {
                           type="button"
                           onClick={() => navigateTo(item.id)}
                           className={`w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors text-left ${
-                            active
-                              ? 'bg-slate-900 text-white dark:bg-emerald-600'
-                              : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
+                            active ? 'fp-nav-active' : 'fp-sidebar-item'
                           }`}
                         >
                           <span className="flex items-center gap-2.5 min-w-0">
-                            <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-emerald-400 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`} />
+                            <Icon className="w-4 h-4 shrink-0 text-current opacity-85" />
                             <span className="truncate">{item.label}</span>
                             {itemUnread > 0 && renderBlinkingDot()}
                           </span>
@@ -1711,7 +1609,7 @@ export default function App() {
                                 itemUnread > 0
                                   ? 'bg-rose-500 text-white'
                                   : active
-                                  ? 'bg-emerald-500/20 text-emerald-200 dark:text-white'
+                                  ? 'bg-white/20 text-current'
                                   : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200'
                               }`}
                             >
@@ -1729,29 +1627,25 @@ export default function App() {
                               onClick={() => setCadastrosExpanded((prev) => !prev)}
                               className={`w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors text-left ${
                                 isCadActive && !cadastrosExpanded
-                                  ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                                  ? 'fp-nav-active'
                                   : isCadActive
-                                  ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100'
-                                  : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
+                                  ? 'fp-sidebar-parent-active'
+                                  : 'fp-sidebar-item'
                               }`}
                             >
                               <span className="flex items-center gap-2.5 min-w-0">
-                                <FolderKanban
-                                  className={`w-4 h-4 shrink-0 ${
-                                    isCadActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'
-                                  }`}
-                                />
+                                <FolderKanban className="w-4 h-4 shrink-0 text-current opacity-85" />
                                 <span className="truncate">Cadastros Comuns</span>
                               </span>
                               {cadastrosExpanded ? (
-                                <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
+                                <ChevronDown className="w-3.5 h-3.5 shrink-0 fp-sidebar-muted" />
                               ) : (
-                                <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
+                                <ChevronRight className="w-3.5 h-3.5 shrink-0 fp-sidebar-muted" />
                               )}
                             </button>
 
                             {cadastrosExpanded && (
-                              <div className="ml-4 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5 dark:border-slate-700">
+                              <div className="ml-4 pl-2.5 border-l border-current/15 space-y-0.5 py-0.5">
                                 {visibleCadastrosSubmenus.map((sub) => {
                                   const SubIcon = sub.icon;
                                   const subActive = activeModule === sub.id;
@@ -1761,16 +1655,10 @@ export default function App() {
                                       type="button"
                                       onClick={() => navigateTo(sub.id)}
                                       className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors text-left ${
-                                        subActive
-                                          ? 'bg-slate-900 text-white dark:bg-emerald-600'
-                                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
+                                        subActive ? 'fp-nav-active' : 'fp-sidebar-item'
                                       }`}
                                     >
-                                      <SubIcon
-                                        className={`w-3.5 h-3.5 shrink-0 ${
-                                          subActive ? 'text-emerald-400 dark:text-white' : 'text-slate-400 dark:text-slate-400'
-                                        }`}
-                                      />
+                                      <SubIcon className="w-3.5 h-3.5 shrink-0 text-current opacity-85" />
                                       <span className="truncate">{sub.label}</span>
                                     </button>
                                   );
@@ -1788,18 +1676,14 @@ export default function App() {
                               onClick={() => setComercialExpanded((prev) => !prev)}
                               className={`w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors text-left ${
                                 (activeModule === 'prospection' || activeModule === 'admission') && !comercialExpanded
-                                  ? 'bg-slate-900 text-white dark:bg-emerald-600'
+                                  ? 'fp-nav-active'
                                   : (activeModule === 'prospection' || activeModule === 'admission')
-                                  ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100'
-                                  : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
+                                  ? 'fp-sidebar-parent-active'
+                                  : 'fp-sidebar-item'
                               }`}
                             >
                               <span className="flex items-center gap-2.5 min-w-0">
-                                <Store
-                                  className={`w-4 h-4 shrink-0 ${
-                                    (activeModule === 'prospection' || activeModule === 'admission') ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'
-                                  }`}
-                                />
+                                <Store className="w-4 h-4 shrink-0 text-current opacity-85" />
                                 <span className="truncate">Comercial</span>
                                 {comercialUnread > 0 && renderBlinkingDot()}
                               </span>
@@ -1817,15 +1701,15 @@ export default function App() {
                                   </span>
                                 )}
                                 {comercialExpanded ? (
-                                  <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
+                                  <ChevronDown className="w-3.5 h-3.5 shrink-0 fp-sidebar-muted" />
                                 ) : (
-                                  <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
+                                  <ChevronRight className="w-3.5 h-3.5 shrink-0 fp-sidebar-muted" />
                                 )}
                               </span>
                             </button>
 
                             {comercialExpanded && (
-                              <div className="ml-4 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5 dark:border-slate-700">
+                              <div className="ml-4 pl-2.5 border-l border-current/15 space-y-0.5 py-0.5">
                                 {COMERCIAL_SUBMENUS.map((sub) => {
                                   const SubIcon = sub.icon;
                                   const subActive = activeModule === sub.id;
@@ -1838,17 +1722,11 @@ export default function App() {
                                       type="button"
                                       onClick={() => navigateTo(sub.id)}
                                       className={`w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors text-left ${
-                                        subActive
-                                          ? 'bg-slate-900 text-white dark:bg-emerald-600'
-                                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
+                                        subActive ? 'fp-nav-active' : 'fp-sidebar-item'
                                       }`}
                                     >
                                       <span className="flex items-center gap-2 min-w-0">
-                                        <SubIcon
-                                          className={`w-3.5 h-3.5 shrink-0 ${
-                                            subActive ? 'text-emerald-400 dark:text-white' : 'text-slate-400 dark:text-slate-400'
-                                          }`}
-                                        />
+                                        <SubIcon className="w-3.5 h-3.5 shrink-0 text-current opacity-85" />
                                         <span className="truncate">{sub.label}</span>
                                         {subUnread > 0 && renderBlinkingDot()}
                                       </span>
@@ -1858,7 +1736,7 @@ export default function App() {
                                             subUnread > 0
                                               ? 'bg-rose-500 text-white'
                                               : subActive
-                                              ? 'bg-emerald-500/20 text-emerald-200'
+                                              ? 'bg-white/20 text-current'
                                               : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200'
                                           }`}
                                         >
@@ -1880,7 +1758,7 @@ export default function App() {
             })}
           </nav>
 
-          <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+          <div className="space-y-2 pt-2 border-t border-current/15">
             <button
               type="button"
               onClick={() => void handleLogout()}
@@ -1889,9 +1767,9 @@ export default function App() {
               <LogOut className="w-4 h-4 shrink-0 text-red-600 dark:text-red-400" />
               <span className="truncate">Sair</span>
             </button>
-            <div className="pt-1 px-1 text-[11px] text-slate-500 space-y-1 dark:text-slate-400">
-              <div className="font-semibold text-slate-700 dark:text-slate-200">Fluxo do Cliente</div>
-              <div className="text-[10px] text-slate-500 leading-relaxed dark:text-slate-400">
+            <div className="pt-1 px-1 text-[11px] fp-sidebar-muted space-y-1">
+              <div className="font-semibold">Fluxo do Cliente</div>
+              <div className="text-[10px] leading-relaxed">
                 Prospecção → Admissão → Auditoria → Jurídico/Negociação → Financeiro
               </div>
             </div>
@@ -1903,15 +1781,15 @@ export default function App() {
         {/* Mobile / Tablet Navigation Drawer (<1024px) */}
         {mobileNavOpen && (
           <div className="lg:hidden fixed inset-0 z-40 flex bg-slate-900/40 backdrop-blur-xs dark:bg-slate-950/80">
-            <div className="w-76 max-w-[85vw] bg-white h-full p-4 flex flex-col justify-between shadow-2xl overflow-y-auto overflow-x-auto scroll-rulers dark:bg-slate-900">
+            <div className="w-76 max-w-[85vw] fp-sidebar h-full p-4 flex flex-col justify-between shadow-2xl overflow-y-auto overflow-x-auto scroll-rulers">
               <div>
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-                  <span className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">Setores FinancePro</span>
+                <div className="flex items-center justify-between pb-3 border-b border-current/15">
+                  <span className="font-display text-sm font-bold">Setores {portalBranding?.companyName?.trim() || 'FinancePro'}</span>
                   <button
                     type="button"
                     onClick={() => setMobileNavOpen(false)}
                     aria-label="Fechar menu"
-                    className="p-2 text-slate-500 min-h-[44px] min-w-[44px] flex items-center justify-center dark:text-slate-400"
+                    className="p-2 fp-sidebar-muted min-h-[44px] min-w-[44px] flex items-center justify-center"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -1919,11 +1797,11 @@ export default function App() {
 
                 {/* Mobile Unit Selector */}
                 <div className="mt-3 sm:hidden">
-                  <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">Unidade Ativa</label>
+                  <label className="block text-[11px] font-semibold fp-sidebar-muted mb-1">Unidade Ativa</label>
                   <select
                     value={activeUnitId}
                     onChange={(e) => handleUnitSwitch(Number(e.target.value))}
-                    className="w-full rounded-lg border border-slate-200 px-2.5 py-2.5 text-xs font-semibold min-h-[44px] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                    className="w-full rounded-lg border border-slate-200 bg-white text-slate-900 px-2.5 py-2.5 text-xs font-semibold min-h-[44px] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   >
                     {selectableUnits.map((u) => (
                       <option key={u.id} value={u.id}>
@@ -1941,7 +1819,7 @@ export default function App() {
                     const financePendingCount = navCounts.finance || 0;
                     return (
                       <div key={grp.key} className="space-y-1">
-                        <div className="px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400">
+                        <div className="px-3 text-[10px] font-bold uppercase tracking-wider fp-sidebar-muted">
                           {grp.title}
                         </div>
 
@@ -1952,11 +1830,11 @@ export default function App() {
                               aria-expanded={adminFinanceExpanded}
                               onClick={() => setAdminFinanceExpanded((prev) => !prev)}
                               className={`w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold min-h-[44px] ${
-                                isFinanceActive ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100' : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
+                                isFinanceActive ? 'fp-sidebar-parent-active' : 'fp-sidebar-item'
                               }`}
                             >
                               <span className="flex items-center gap-2.5">
-                                <Banknote className="w-4 h-4 shrink-0 text-slate-500 dark:text-slate-400" />
+                                <Banknote className="w-4 h-4 shrink-0 text-current opacity-85" />
                                 <span>Administração Financeira</span>
                                 {financeUnread > 0 && renderBlinkingDot()}
                               </span>
@@ -1973,37 +1851,37 @@ export default function App() {
                                   </span>
                                 )}
                                 {adminFinanceExpanded ? (
-                                  <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
+                                  <ChevronDown className="w-3.5 h-3.5 shrink-0 fp-sidebar-muted" />
                                 ) : (
-                                  <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
+                                  <ChevronRight className="w-3.5 h-3.5 shrink-0 fp-sidebar-muted" />
                                 )}
                               </span>
                             </button>
 
                             {adminFinanceExpanded && (
-                              <div className="ml-4 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5 dark:border-slate-700">
+                              <div className="ml-4 pl-2.5 border-l border-current/15 space-y-0.5 py-0.5">
                                 <div className="space-y-0.5">
                                   <button
                                     type="button"
                                     aria-expanded={financeCadastrosExpanded}
                                     onClick={() => setFinanceCadastrosExpanded((prev) => !prev)}
                                     className={`w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold min-h-[40px] ${
-                                      isFinanceCadActive ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100' : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
+                                      isFinanceCadActive ? 'fp-sidebar-parent-active' : 'fp-sidebar-item'
                                     }`}
                                   >
                                     <span className="flex items-center gap-2">
-                                      <FolderKanban className="w-3.5 h-3.5 shrink-0" />
+                                      <FolderKanban className="w-3.5 h-3.5 shrink-0 text-current opacity-85" />
                                       <span>Cadastros</span>
                                     </span>
                                     {financeCadastrosExpanded ? (
-                                      <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
+                                      <ChevronDown className="w-3.5 h-3.5 shrink-0 fp-sidebar-muted" />
                                     ) : (
-                                      <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
+                                      <ChevronRight className="w-3.5 h-3.5 shrink-0 fp-sidebar-muted" />
                                     )}
                                   </button>
 
                                   {financeCadastrosExpanded && (
-                                    <div className="ml-3 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5 dark:border-slate-700">
+                                    <div className="ml-3 pl-2.5 border-l border-current/15 space-y-0.5 py-0.5">
                                       {FINANCE_CADASTROS_SUBMENUS.map((sub) => {
                                         const SubIcon = sub.icon;
                                         const subActive = activeModule === sub.id;
@@ -2013,10 +1891,10 @@ export default function App() {
                                             type="button"
                                             onClick={() => navigateTo(sub.id)}
                                             className={`w-full flex items-center gap-2 rounded-lg px-2 py-2 text-xs font-semibold min-h-[38px] ${
-                                              subActive ? 'bg-slate-900 text-white dark:bg-emerald-600' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+                                              subActive ? 'fp-nav-active' : 'fp-sidebar-item'
                                             }`}
                                           >
-                                            <SubIcon className="w-3.5 h-3.5 shrink-0" />
+                                            <SubIcon className="w-3.5 h-3.5 shrink-0 text-current opacity-85" />
                                             <span>{sub.label}</span>
                                           </button>
                                         );
@@ -2031,81 +1909,71 @@ export default function App() {
                                     aria-expanded={contaCorrenteExpanded}
                                     onClick={() => setContaCorrenteExpanded((prev) => !prev)}
                                     className={`w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold min-h-[40px] ${
-                                      isContaCorrenteActive
-                                        ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100'
-                                        : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
+                                      isContaCorrenteActive ? 'fp-sidebar-parent-active' : 'fp-sidebar-item'
                                     }`}
                                   >
                                     <span className="flex items-center gap-2">
-                                      <Landmark className="w-3.5 h-3.5 shrink-0" />
+                                      <Landmark className="w-3.5 h-3.5 shrink-0 text-current opacity-85" />
                                       <span>Conta Corrente</span>
                                     </span>
                                     {contaCorrenteExpanded ? (
-                                      <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
+                                      <ChevronDown className="w-3.5 h-3.5 shrink-0 fp-sidebar-muted" />
                                     ) : (
-                                      <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
+                                      <ChevronRight className="w-3.5 h-3.5 shrink-0 fp-sidebar-muted" />
                                     )}
                                   </button>
 
                                   {contaCorrenteExpanded && (
-                                    <div className="ml-3 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5 dark:border-slate-700">
+                                    <div className="ml-3 pl-2.5 border-l border-current/15 space-y-0.5 py-0.5">
                                       <button
                                         type="button"
                                         aria-expanded={contaCorrenteCadastroExpanded}
                                         onClick={() => setContaCorrenteCadastroExpanded((prev) => !prev)}
                                         className={`w-full flex items-center justify-between gap-2 rounded-lg px-2 py-2 text-xs font-semibold min-h-[38px] ${
-                                          isContaCorrenteActive
-                                            ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100'
-                                            : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+                                          isContaCorrenteActive ? 'fp-sidebar-parent-active' : 'fp-sidebar-item'
                                         }`}
                                       >
                                         <span className="flex items-center gap-2">
-                                          <FolderKanban className="w-3.5 h-3.5 shrink-0" />
+                                          <FolderKanban className="w-3.5 h-3.5 shrink-0 text-current opacity-85" />
                                           <span>Cadastro</span>
                                         </span>
                                         {contaCorrenteCadastroExpanded ? (
-                                          <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
+                                          <ChevronDown className="w-3.5 h-3.5 shrink-0 fp-sidebar-muted" />
                                         ) : (
-                                          <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
+                                          <ChevronRight className="w-3.5 h-3.5 shrink-0 fp-sidebar-muted" />
                                         )}
                                       </button>
 
                                       {contaCorrenteCadastroExpanded && (
-                                        <div className="ml-3 pl-2 border-l border-slate-200 space-y-0.5 py-0.5 dark:border-slate-700">
+                                        <div className="ml-3 pl-2.5 border-l border-current/15 space-y-0.5 py-0.5">
                                           <button
                                             type="button"
                                             onClick={() => navigateTo('finance_conta_corrente')}
                                             className={`w-full flex items-center gap-2 rounded-lg px-2 py-2 text-xs font-semibold min-h-[38px] ${
-                                              activeModule === 'finance_conta_corrente'
-                                                ? 'bg-slate-900 text-white dark:bg-emerald-600'
-                                                : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+                                              activeModule === 'finance_conta_corrente' ? 'fp-nav-active' : 'fp-sidebar-item'
                                             }`}
                                           >
-                                            <Landmark className="w-3.5 h-3.5 shrink-0" />
+                                            <Landmark className="w-3.5 h-3.5 shrink-0 text-current opacity-85" />
                                             <span>Contas Correntes</span>
                                           </button>
                                           <button
                                             type="button"
                                             onClick={() => navigateTo('finance_movimento')}
                                             className={`w-full flex items-center gap-2 rounded-lg px-2 py-2 text-xs font-semibold min-h-[38px] ${
-                                              activeModule === 'finance_movimento'
-                                                ? 'bg-slate-900 text-white dark:bg-emerald-600'
-                                                : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+                                              activeModule === 'finance_movimento' ? 'fp-nav-active' : 'fp-sidebar-item'
                                             }`}
                                           >
-                                            <ArrowLeftRight className="w-3.5 h-3.5 shrink-0" />
+                                            <ArrowLeftRight className="w-3.5 h-3.5 shrink-0 text-current opacity-85" />
                                             <span>Movimento</span>
                                           </button>
                                           <button
                                             type="button"
                                             onClick={() => navigateTo('finance_conciliacao')}
                                             className={`w-full flex items-center gap-2 rounded-lg px-2 py-2 text-xs font-semibold min-h-[38px] ${
-                                              activeModule === 'finance_conciliacao'
-                                                ? 'bg-slate-900 text-white dark:bg-emerald-600'
-                                                : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+                                              activeModule === 'finance_conciliacao' ? 'fp-nav-active' : 'fp-sidebar-item'
                                             }`}
                                           >
-                                            <Scale className="w-3.5 h-3.5 shrink-0" />
+                                            <Scale className="w-3.5 h-3.5 shrink-0 text-current opacity-85" />
                                             <span>Conciliação Bancária</span>
                                           </button>
                                         </div>
@@ -2119,18 +1987,18 @@ export default function App() {
                                   onClick={() => navigateTo('finance_receber')}
                                   className={`w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold min-h-[40px] ${
                                     activeModule === 'finance_receber' || activeModule === 'finance' || activeModule === 'finance_operacao'
-                                      ? 'bg-slate-900 text-white dark:bg-emerald-600'
-                                      : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
+                                      ? 'fp-nav-active'
+                                      : 'fp-sidebar-item'
                                   }`}
                                 >
                                   <span className="flex items-center gap-2">
-                                    <ArrowDownCircle className="w-3.5 h-3.5 shrink-0" />
+                                    <ArrowDownCircle className="w-3.5 h-3.5 shrink-0 text-current opacity-85" />
                                     <span>Contas a Receber</span>
                                   </span>
                                   {financePendingCount > 0 && (
                                     <span className={`font-mono text-[11px] font-bold ${
                                       activeModule === 'finance_receber' || activeModule === 'finance' || activeModule === 'finance_operacao'
-                                        ? 'text-emerald-300 dark:text-white'
+                                        ? 'text-current'
                                         : 'text-amber-700 dark:text-amber-300'
                                     }`}>
                                       {financePendingCount}
@@ -2142,12 +2010,10 @@ export default function App() {
                                   type="button"
                                   onClick={() => navigateTo('finance_regua')}
                                   className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold min-h-[40px] ${
-                                    activeModule === 'finance_regua'
-                                      ? 'bg-slate-900 text-white dark:bg-emerald-600'
-                                      : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
+                                    activeModule === 'finance_regua' ? 'fp-nav-active' : 'fp-sidebar-item'
                                   }`}
                                 >
-                                  <BellRing className="w-3.5 h-3.5 shrink-0" />
+                                  <BellRing className="w-3.5 h-3.5 shrink-0 text-current opacity-85" />
                                   <span>Régua de Cobrança (Ivi)</span>
                                 </button>
 
@@ -2155,12 +2021,10 @@ export default function App() {
                                   type="button"
                                   onClick={() => navigateTo('finance_pagar')}
                                   className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold min-h-[40px] ${
-                                    activeModule === 'finance_pagar'
-                                      ? 'bg-slate-900 text-white dark:bg-emerald-600'
-                                      : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
+                                    activeModule === 'finance_pagar' ? 'fp-nav-active' : 'fp-sidebar-item'
                                   }`}
                                 >
-                                  <ArrowUpCircle className="w-3.5 h-3.5 shrink-0" />
+                                  <ArrowUpCircle className="w-3.5 h-3.5 shrink-0 text-current opacity-85" />
                                   <span>Contas a Pagar</span>
                                 </button>
                               </div>
@@ -2182,11 +2046,11 @@ export default function App() {
                                   aria-expanded={collectionExpanded}
                                   onClick={() => setCollectionExpanded((prev) => !prev)}
                                   className={`w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold min-h-[44px] ${
-                                    isCollectionActive ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100' : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
+                                    isCollectionActive ? 'fp-sidebar-parent-active' : 'fp-sidebar-item'
                                   }`}
                                 >
                                   <span className="flex items-center gap-2.5">
-                                    <Icon className="w-4 h-4 shrink-0 text-slate-500 dark:text-slate-400" />
+                                    <Icon className="w-4 h-4 shrink-0 text-current opacity-85" />
                                     <span>{item.label}</span>
                                     {collectionUnread > 0 && renderBlinkingDot()}
                                   </span>
@@ -2203,14 +2067,14 @@ export default function App() {
                                       </span>
                                     )}
                                     {collectionExpanded ? (
-                                      <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
+                                      <ChevronDown className="w-3.5 h-3.5 shrink-0 fp-sidebar-muted" />
                                     ) : (
-                                      <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
+                                      <ChevronRight className="w-3.5 h-3.5 shrink-0 fp-sidebar-muted" />
                                     )}
                                   </span>
                                 </button>
                                 {collectionExpanded && (
-                                  <div className="ml-4 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5 dark:border-slate-700">
+                                  <div className="ml-4 pl-2.5 border-l border-current/15 space-y-0.5 py-0.5">
                                     {COLLECTION_SUBMENUS.map((sub) => {
                                       const SubIcon = sub.icon;
                                       const subActive =
@@ -2222,10 +2086,10 @@ export default function App() {
                                           type="button"
                                           onClick={() => navigateTo(sub.id)}
                                           className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold min-h-[40px] ${
-                                            subActive ? 'bg-slate-900 text-white dark:bg-emerald-600' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+                                            subActive ? 'fp-nav-active' : 'fp-sidebar-item'
                                           }`}
                                         >
-                                          <SubIcon className="w-3.5 h-3.5 shrink-0" />
+                                          <SubIcon className="w-3.5 h-3.5 shrink-0 text-current opacity-85" />
                                           <span>{sub.label}</span>
                                         </button>
                                       );
@@ -2245,21 +2109,21 @@ export default function App() {
                                   aria-expanded={acompJuridicoExpanded}
                                   onClick={() => setAcompJuridicoExpanded((prev) => !prev)}
                                   className={`w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold min-h-[44px] ${
-                                    isAcompJuridicoActive ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100' : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
+                                    isAcompJuridicoActive ? 'fp-sidebar-parent-active' : 'fp-sidebar-item'
                                   }`}
                                 >
                                   <span className="flex items-center gap-2.5">
-                                    <Icon className="w-4 h-4 shrink-0 text-slate-500 dark:text-slate-400" />
+                                    <Icon className="w-4 h-4 shrink-0 text-current opacity-85" />
                                     <span>{item.label}</span>
                                   </span>
                                   {acompJuridicoExpanded ? (
-                                    <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
+                                    <ChevronDown className="w-3.5 h-3.5 shrink-0 fp-sidebar-muted" />
                                   ) : (
-                                    <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
+                                    <ChevronRight className="w-3.5 h-3.5 shrink-0 fp-sidebar-muted" />
                                   )}
                                 </button>
                                 {acompJuridicoExpanded && (
-                                  <div className="ml-4 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5 dark:border-slate-700">
+                                  <div className="ml-4 pl-2.5 border-l border-current/15 space-y-0.5 py-0.5">
                                     {visibleAcompJuridicoSubmenus.map((sub) => {
                                       const SubIcon = sub.icon;
                                       const subActive =
@@ -2271,10 +2135,10 @@ export default function App() {
                                           type="button"
                                           onClick={() => navigateTo(sub.id)}
                                           className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold min-h-[40px] ${
-                                            subActive ? 'bg-slate-900 text-white dark:bg-emerald-600' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+                                            subActive ? 'fp-nav-active' : 'fp-sidebar-item'
                                           }`}
                                         >
-                                          <SubIcon className="w-3.5 h-3.5 shrink-0" />
+                                          <SubIcon className="w-3.5 h-3.5 shrink-0 text-current opacity-85" />
                                           <span>{sub.label}</span>
                                         </button>
                                       );
@@ -2293,11 +2157,11 @@ export default function App() {
                                 type="button"
                                 onClick={() => navigateTo(item.id)}
                                 className={`w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold min-h-[44px] ${
-                                  active ? 'bg-slate-900 text-white dark:bg-emerald-600' : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
+                                  active ? 'fp-nav-active' : 'fp-sidebar-item'
                                 }`}
                               >
                                 <span className="flex items-center gap-2.5">
-                                  <Icon className="w-4 h-4 shrink-0" />
+                                  <Icon className="w-4 h-4 shrink-0 text-current opacity-85" />
                                   <span>{item.label}</span>
                                   {mobUnread > 0 && renderBlinkingDot()}
                                 </span>
@@ -2307,7 +2171,7 @@ export default function App() {
                                       mobUnread > 0
                                         ? 'bg-rose-500 text-white'
                                         : active
-                                        ? 'bg-emerald-500/20 text-emerald-200 dark:text-white'
+                                        ? 'bg-white/20 text-current'
                                         : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200'
                                     }`}
                                   >
@@ -2323,21 +2187,21 @@ export default function App() {
                                     aria-expanded={cadastrosExpanded}
                                     onClick={() => setCadastrosExpanded((prev) => !prev)}
                                     className={`w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold min-h-[44px] ${
-                                      isCadActive ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100' : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
+                                      isCadActive ? 'fp-sidebar-parent-active' : 'fp-sidebar-item'
                                     }`}
                                   >
                                     <span className="flex items-center gap-2.5">
-                                      <FolderKanban className="w-4 h-4 shrink-0 text-slate-500 dark:text-slate-400" />
+                                      <FolderKanban className="w-4 h-4 shrink-0 text-current opacity-85" />
                                       <span>Cadastros Comuns</span>
                                     </span>
                                     {cadastrosExpanded ? (
-                                      <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
+                                      <ChevronDown className="w-3.5 h-3.5 shrink-0 fp-sidebar-muted" />
                                     ) : (
-                                      <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
+                                      <ChevronRight className="w-3.5 h-3.5 shrink-0 fp-sidebar-muted" />
                                     )}
                                   </button>
                                   {cadastrosExpanded && (
-                                    <div className="ml-4 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5 dark:border-slate-700">
+                                    <div className="ml-4 pl-2.5 border-l border-current/15 space-y-0.5 py-0.5">
                                       {visibleCadastrosSubmenus.map((sub) => {
                                         const SubIcon = sub.icon;
                                         const subActive = activeModule === sub.id;
@@ -2347,10 +2211,10 @@ export default function App() {
                                             type="button"
                                             onClick={() => navigateTo(sub.id)}
                                             className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold min-h-[40px] ${
-                                              subActive ? 'bg-slate-900 text-white dark:bg-emerald-600' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+                                              subActive ? 'fp-nav-active' : 'fp-sidebar-item'
                                             }`}
                                           >
-                                            <SubIcon className="w-3.5 h-3.5 shrink-0" />
+                                            <SubIcon className="w-3.5 h-3.5 shrink-0 text-current opacity-85" />
                                             <span>{sub.label}</span>
                                           </button>
                                         );
@@ -2368,12 +2232,12 @@ export default function App() {
                                     onClick={() => setComercialExpanded((prev) => !prev)}
                                     className={`w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold min-h-[44px] ${
                                       (activeModule === 'prospection' || activeModule === 'admission')
-                                        ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100'
-                                        : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
+                                        ? 'fp-sidebar-parent-active'
+                                        : 'fp-sidebar-item'
                                     }`}
                                   >
                                     <span className="flex items-center gap-2.5">
-                                      <Store className="w-4 h-4 shrink-0 text-slate-500 dark:text-slate-400" />
+                                      <Store className="w-4 h-4 shrink-0 text-current opacity-85" />
                                       <span>Comercial</span>
                                       {comercialUnread > 0 && renderBlinkingDot()}
                                     </span>
@@ -2390,14 +2254,14 @@ export default function App() {
                                         </span>
                                       )}
                                       {comercialExpanded ? (
-                                        <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
+                                        <ChevronDown className="w-3.5 h-3.5 shrink-0 fp-sidebar-muted" />
                                       ) : (
-                                        <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-400" />
+                                        <ChevronRight className="w-3.5 h-3.5 shrink-0 fp-sidebar-muted" />
                                       )}
                                     </span>
                                   </button>
                                   {comercialExpanded && (
-                                    <div className="ml-4 pl-2.5 border-l border-slate-200 space-y-0.5 py-0.5 dark:border-slate-700">
+                                    <div className="ml-4 pl-2.5 border-l border-current/15 space-y-0.5 py-0.5">
                                       {COMERCIAL_SUBMENUS.map((sub) => {
                                         const SubIcon = sub.icon;
                                         const subActive = activeModule === sub.id;
@@ -2410,11 +2274,11 @@ export default function App() {
                                             type="button"
                                             onClick={() => navigateTo(sub.id)}
                                             className={`w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold min-h-[40px] ${
-                                              subActive ? 'bg-slate-900 text-white dark:bg-emerald-600' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+                                              subActive ? 'fp-nav-active' : 'fp-sidebar-item'
                                             }`}
                                           >
                                             <span className="flex items-center gap-2">
-                                              <SubIcon className="w-3.5 h-3.5 shrink-0" />
+                                              <SubIcon className="w-3.5 h-3.5 shrink-0 text-current opacity-85" />
                                               <span>{sub.label}</span>
                                               {subUnread > 0 && renderBlinkingDot()}
                                             </span>
@@ -2423,6 +2287,8 @@ export default function App() {
                                                 className={`inline-flex items-center justify-center rounded-full px-1.5 py-0.5 font-mono text-[10px] font-bold ${
                                                   subUnread > 0
                                                     ? 'bg-rose-500 text-white'
+                                                    : subActive
+                                                    ? 'bg-white/20 text-current'
                                                     : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200'
                                                 }`}
                                               >
@@ -2444,7 +2310,7 @@ export default function App() {
                   })}
                 </nav>
               </div>
-              <div className="text-[11px] text-slate-500 border-t border-slate-100 pt-3 mt-4 dark:text-slate-400 dark:border-slate-800">
+              <div className="text-[11px] fp-sidebar-muted border-t border-current/15 pt-3 mt-4">
                 {currentUser.email}
               </div>
             </div>
@@ -2512,7 +2378,7 @@ export default function App() {
                     className="max-h-[70vh] max-w-[82vw] w-auto h-auto object-contain select-none"
                   />
                 ) : (
-                  <div className="h-[36vh] w-[36vh] max-h-[320px] max-w-[320px] min-h-[140px] min-w-[140px] rounded-3xl bg-slate-900 dark:bg-emerald-600 text-emerald-400 dark:text-white flex items-center justify-center shadow-lg">
+                  <div className="h-[36vh] w-[36vh] max-h-[320px] max-w-[320px] min-h-[140px] min-w-[140px] rounded-3xl fp-nav-active flex items-center justify-center shadow-lg">
                     <ShieldCheck className="w-1/2 h-1/2" />
                   </div>
                 )}

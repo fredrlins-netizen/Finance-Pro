@@ -301,12 +301,34 @@ export function registerMigrationRoutes(
 
       if (!Array.isArray(files)) return res.status(400).json({ error: 'Manifesto inválido.' });
 
-      const [allUnits, allAdmissions, allDocs, r2Cfg] = await Promise.all([
+      const [allUnits, allAdmissions, allDocs, pendingResolvedItems, r2Cfg] = await Promise.all([
         db.select().from(units),
         db.select().from(admissions),
         db.select().from(documentObjects).where(isNull(documentObjects.deletedAt)),
+        db
+          .select()
+          .from(vaultMigrationItems)
+          .where(and(eq(vaultMigrationItems.batchId, batchId), eq(vaultMigrationItems.status, 'pending'))),
         getActiveR2ConfigForMigration(),
       ]);
+
+      const unitById = new Map(allUnits.map((u) => [u.id, u]));
+      const admById = new Map(allAdmissions.map((a) => [a.id, a]));
+      const manualBySourcePath = new Map<string, (typeof pendingResolvedItems)[number]>();
+      const manualByFolderPair = new Map<string, (typeof pendingResolvedItems)[number]>();
+      const manualUnitOnlyByFolder = new Map<string, number>();
+      const supersededPendingItemIds: number[] = [];
+      for (const pItem of pendingResolvedItems) {
+        if (pItem.legacySourcePath && pItem.admissionId) {
+          manualBySourcePath.set(pItem.legacySourcePath.toLowerCase(), pItem);
+        }
+        if (pItem.unitFolderName && pItem.contractFolderName && pItem.admissionId) {
+          manualByFolderPair.set(`${pItem.unitFolderName}::${pItem.contractFolderName}`, pItem);
+        }
+        if (pItem.unitFolderName && pItem.unitId) {
+          manualUnitOnlyByFolder.set(pItem.unitFolderName, pItem.unitId);
+        }
+      }
 
       // Unit lookup by normalized unit code
       const unitByCodeNorm = new Map<string, (typeof allUnits)[number]>();
@@ -385,16 +407,30 @@ export function registerMigrationRoutes(
           continue;
         }
 
-        // 2. Resolve Unit by leading Unit Code in unitFolderName
+        // 2. Resolve Unit by leading Unit Code in unitFolderName (or manual resolution override)
+        const segments = Array.isArray(f.pathSegmentsFromUnit) ? f.pathSegmentsFromUnit : [safeName];
+        const folderSegments = segments.slice(0, Math.max(0, segments.length - 1));
+        const rawSourceLower = String(f.legacySourcePath || '').toLowerCase();
+        const manualExactHit = rawSourceLower ? manualBySourcePath.get(rawSourceLower) : undefined;
+        const manualPairHit =
+          manualExactHit ||
+          (folderSegments[0] ? manualByFolderPair.get(`${f.unitFolderName}::${folderSegments[0]}`) : undefined);
+
         const unitCandidates = extractUnitCodeCandidates(f.unitFolderName);
-        let matchedUnit: (typeof allUnits)[number] | undefined;
-        let extractedUnitCode = unitCandidates[0] || '';
-        for (const uc of unitCandidates) {
-          const hit = unitByCodeNorm.get(normalizeCodeToken(uc));
-          if (hit) {
-            matchedUnit = hit;
-            extractedUnitCode = hit.code;
-            break;
+        let matchedUnit: (typeof allUnits)[number] | undefined =
+          manualPairHit?.unitId ? unitById.get(manualPairHit.unitId) : undefined;
+        if (!matchedUnit && manualUnitOnlyByFolder.has(f.unitFolderName)) {
+          matchedUnit = unitById.get(manualUnitOnlyByFolder.get(f.unitFolderName)!);
+        }
+        let extractedUnitCode = matchedUnit?.code || unitCandidates[0] || '';
+        if (!matchedUnit) {
+          for (const uc of unitCandidates) {
+            const hit = unitByCodeNorm.get(normalizeCodeToken(uc));
+            if (hit) {
+              matchedUnit = hit;
+              extractedUnitCode = hit.code;
+              break;
+            }
           }
         }
 
@@ -420,39 +456,44 @@ export function registerMigrationRoutes(
           continue;
         }
 
-        // 3. Resolve Admission & Client by leading Contract Number in client folder segment(s)
-        const segments = Array.isArray(f.pathSegmentsFromUnit) ? f.pathSegmentsFromUnit : [safeName];
-        const folderSegments = segments.slice(0, Math.max(0, segments.length - 1));
-        let matchedAdm: (typeof allAdmissions)[number] | undefined;
+        // 3. Resolve Admission & Client by leading Contract Number in client folder segment(s) or manual mapping
+        let matchedAdm: (typeof allAdmissions)[number] | undefined =
+          manualPairHit?.admissionId ? admById.get(manualPairHit.admissionId) : undefined;
         let contractFolderName = folderSegments[0] || '';
-        let extractedContractNumber = '';
+        let extractedContractNumber = matchedAdm?.contractNumber || '';
         let matchedSegmentIndex = 0;
 
-        for (let idx = 0; idx < folderSegments.length; idx++) {
-          const seg = folderSegments[idx];
-          const cands = extractContractCandidates(seg);
-          for (const cand of cands) {
-            const ck = normalizeContractKey(cand);
-            const hitUnit = admByUnitAndContract.get(`${matchedUnit.id}::${ck}`);
-            if (hitUnit) {
-              matchedAdm = hitUnit;
-              contractFolderName = seg;
-              extractedContractNumber = hitUnit.contractNumber;
-              matchedSegmentIndex = idx;
-              break;
+        if (matchedAdm && manualExactHit) {
+          supersededPendingItemIds.push(manualExactHit.id);
+        }
+
+        if (!matchedAdm) {
+          for (let idx = 0; idx < folderSegments.length; idx++) {
+            const seg = folderSegments[idx];
+            const cands = extractContractCandidates(seg);
+            for (const cand of cands) {
+              const ck = normalizeContractKey(cand);
+              const hitUnit = admByUnitAndContract.get(`${matchedUnit.id}::${ck}`);
+              if (hitUnit) {
+                matchedAdm = hitUnit;
+                contractFolderName = seg;
+                extractedContractNumber = hitUnit.contractNumber;
+                matchedSegmentIndex = idx;
+                break;
+              }
+              const globalList = admByContractGlobal.get(ck);
+              if (globalList && globalList.length === 1) {
+                matchedAdm = globalList[0];
+                contractFolderName = seg;
+                extractedContractNumber = globalList[0].contractNumber;
+                matchedSegmentIndex = idx;
+                break;
+              }
             }
-            const globalList = admByContractGlobal.get(ck);
-            if (globalList && globalList.length === 1) {
-              matchedAdm = globalList[0];
-              contractFolderName = seg;
-              extractedContractNumber = globalList[0].contractNumber;
-              matchedSegmentIndex = idx;
-              break;
+            if (matchedAdm) break;
+            if (idx === 0 && !extractedContractNumber) {
+              extractedContractNumber = cands[0] || seg;
             }
-          }
-          if (matchedAdm) break;
-          if (idx === 0 && !extractedContractNumber) {
-            extractedContractNumber = cands[0] || seg;
           }
         }
 
@@ -740,6 +781,12 @@ export function registerMigrationRoutes(
       }
 
       if (!dryRun) {
+        if (supersededPendingItemIds.length > 0) {
+          await db
+            .delete(vaultMigrationItems)
+            .where(inArray(vaultMigrationItems.id, supersededPendingItemIds));
+        }
+
         await db
           .update(vaultMigrationBatches)
           .set({
@@ -1049,11 +1096,24 @@ export function registerMigrationRoutes(
         .limit(1);
       if (!batch) return res.status(404).json({ error: 'Lote não encontrado.' });
 
+      const batchItems = await db
+        .select({ status: vaultMigrationItems.status })
+        .from(vaultMigrationItems)
+        .where(eq(vaultMigrationItems.batchId, batchId));
+      const actualUnmatched = batchItems.filter((i) => i.status === 'unmatched').length;
+      const actualFailed = batchItems.filter((i) => i.status === 'failed').length;
+
       const nextStatus =
-        batch.unmatchedCount > 0 || batch.failedCount > 0 ? 'concluido_com_pendencias' : 'concluido';
+        actualUnmatched > 0 || actualFailed > 0 ? 'concluido_com_pendencias' : 'concluido';
       const [updated] = await db
         .update(vaultMigrationBatches)
-        .set({ status: nextStatus, completedAt: new Date(), updatedAt: new Date() })
+        .set({
+          unmatchedCount: actualUnmatched,
+          failedCount: actualFailed,
+          status: nextStatus,
+          completedAt: new Date(),
+          updatedAt: new Date(),
+        })
         .where(eq(vaultMigrationBatches.id, batchId))
         .returning();
 

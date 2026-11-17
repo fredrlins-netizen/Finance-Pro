@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { db } from '../db/index.ts';
 import { auditLogs, backupExecutions, backupSchedules } from '../db/schema.ts';
 import { createFullDatabaseBackup } from './databaseBackup.ts';
@@ -158,6 +158,17 @@ export async function executeBackupSchedule(
         updatedAt: new Date(),
       })
       .where(eq(backupSchedules.id, schedule.id));
+
+    const keepCount = Math.max(1, Number(schedule.retentionCount || 10));
+    const existingForSched = await db
+      .select({ id: backupExecutions.id })
+      .from(backupExecutions)
+      .where(and(eq(backupExecutions.scheduleId, schedule.id), eq(backupExecutions.operationType, 'backup')))
+      .orderBy(desc(backupExecutions.id));
+    if (existingForSched.length > keepCount) {
+      const obsoleteIds = existingForSched.slice(keepCount).map((r) => r.id);
+      await db.delete(backupExecutions).where(inArray(backupExecutions.id, obsoleteIds));
+    }
 
     await db.insert(auditLogs).values({
       userId: opts?.executedByUserId ?? null,

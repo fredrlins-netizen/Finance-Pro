@@ -88,14 +88,15 @@ async function resolveTopologicalTableOrder(tableNames: string[]): Promise<strin
   const tableSet = new Set(tableNames);
   const fkRes = await pool.query<{ child_table: string; parent_table: string }>(
     `SELECT DISTINCT
-       tc.table_name AS child_table,
-       ccu.table_name AS parent_table
-     FROM information_schema.table_constraints tc
-     JOIN information_schema.constraint_column_usage ccu
-       ON tc.constraint_name = ccu.constraint_name
-       AND tc.table_schema = ccu.table_schema
-     WHERE tc.constraint_type = 'FOREIGN KEY'
-       AND tc.table_schema = 'public';`
+       c_child.relname AS child_table,
+       c_parent.relname AS parent_table
+     FROM pg_constraint con
+     JOIN pg_class c_child ON c_child.oid = con.conrelid
+     JOIN pg_class c_parent ON c_parent.oid = con.confrelid
+     WHERE con.contype = 'f'
+       AND con.connamespace = 'public'::regnamespace
+       AND c_child.relkind = 'r'
+       AND c_parent.relkind = 'r';`
   );
 
   // parent -> children adjacency list
@@ -183,6 +184,30 @@ async function getColumnsMetadataByTable(): Promise<Record<string, Record<string
   return map;
 }
 
+async function getAllPublicSerialSequences(
+  runner: { query: typeof pool.query } = pool
+): Promise<Array<{ tableName: string; columnName: string; sequenceName: string }>> {
+  const res = await runner.query<{
+    table_name: string;
+    column_name: string;
+    seq_name: string;
+  }>(
+    `SELECT
+       table_name,
+       column_name,
+       pg_get_serial_sequence(quote_ident(table_schema) || '.' || quote_ident(table_name), column_name) AS seq_name
+     FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND pg_get_serial_sequence(quote_ident(table_schema) || '.' || quote_ident(table_name), column_name) IS NOT NULL
+     ORDER BY table_name ASC, column_name ASC;`
+  );
+  return res.rows.map((r) => ({
+    tableName: r.table_name,
+    columnName: r.column_name,
+    sequenceName: r.seq_name,
+  }));
+}
+
 export async function getDatabaseInventory(): Promise<{
   databaseName: string;
   totalTables: number;
@@ -195,16 +220,24 @@ export async function getDatabaseInventory(): Promise<{
   const dbRes = await pool.query<{ db: string }>('SELECT current_database() AS db;');
   const databaseName = dbRes.rows[0]?.db || 'financepro';
 
+  const countMap = new Map<string, number>();
+  if (tableNames.length > 0) {
+    const unionSql = tableNames
+      .map((t) => `SELECT '${t}'::text AS table_name, COUNT(*)::bigint AS cnt FROM ${quoteIdent(t)}`)
+      .join(' UNION ALL ');
+    const cntRes = await pool.query<{ table_name: string; cnt: string }>(unionSql);
+    for (const row of cntRes.rows) {
+      countMap.set(row.table_name, Number(row.cnt || 0));
+    }
+  }
+
   const tables: Array<{ tableName: string; rowCount: number }> = [];
   let totalRows = 0;
   let usersCount = 0;
   let userGroupsCount = 0;
 
   for (const tableName of tableNames) {
-    const cntRes = await pool.query<{ cnt: string }>(
-      `SELECT COUNT(*)::text AS cnt FROM ${quoteIdent(tableName)};`
-    );
-    const rowCount = Number(cntRes.rows[0]?.cnt || 0);
+    const rowCount = countMap.get(tableName) ?? 0;
     tables.push({ tableName, rowCount });
     totalRows += rowCount;
     if (tableName === 'users') usersCount = rowCount;
@@ -247,11 +280,21 @@ export async function createFullDatabaseBackup(options?: {
   const compressGzip = options?.compressGzip !== false;
   const saveToLocalVault = options?.saveToLocalVault !== false;
 
-  const allTables = await getPublicBaseTables();
+  const [allTables, columnTypes, dbRes, serialSequences] = await Promise.all([
+    getPublicBaseTables(),
+    getColumnsMetadataByTable(),
+    pool.query<{ db: string }>('SELECT current_database() AS db;'),
+    getAllPublicSerialSequences(pool),
+  ]);
   const tableOrder = await resolveTopologicalTableOrder(allTables);
-  const columnTypes = await getColumnsMetadataByTable();
-  const dbRes = await pool.query<{ db: string }>('SELECT current_database() AS db;');
   const databaseName = dbRes.rows[0]?.db || 'financepro';
+
+  const seqByTable = new Map<string, Array<{ columnName: string; sequenceName: string }>>();
+  for (const seq of serialSequences) {
+    const arr = seqByTable.get(seq.tableName) || [];
+    arr.push({ columnName: seq.columnName, sequenceName: seq.sequenceName });
+    seqByTable.set(seq.tableName, arr);
+  }
 
   const tables: Record<string, Array<Record<string, unknown>>> = {};
   const tableRowCounts: Record<string, number> = {};
@@ -261,50 +304,64 @@ export async function createFullDatabaseBackup(options?: {
   let usersCount = 0;
   let userGroupsCount = 0;
 
-  for (const tableName of tableOrder) {
-    const skipRows =
-      (!includeUsersAndGroups && (tableName === 'users' || tableName === 'user_groups')) ||
-      (!includeAuditLogs && tableName === 'audit_logs');
+  // Read tables in bounded concurrent chunks to keep Cloud SQL round-trips fast without exhausting pool
+  const CHUNK_SIZE = 5;
+  for (let i = 0; i < tableOrder.length; i += CHUNK_SIZE) {
+    const batchTables = tableOrder.slice(i, i + CHUNK_SIZE);
+    await Promise.all(
+      batchTables.map(async (tableName) => {
+        const skipRows =
+          (!includeUsersAndGroups && (tableName === 'users' || tableName === 'user_groups')) ||
+          (!includeAuditLogs && tableName === 'audit_logs');
 
-    if (skipRows) {
-      tables[tableName] = [];
-      tableRowCounts[tableName] = 0;
-      continue;
-    }
+        const cols = Object.keys(columnTypes[tableName] || {});
+        const tableSeqs = seqByTable.get(tableName) || [];
 
-    const cols = Object.keys(columnTypes[tableName] || {});
-    const orderCol = cols.includes('id') ? ' ORDER BY "id" ASC' : '';
-    const dataRes = await pool.query<Record<string, unknown>>(
-      `SELECT * FROM ${quoteIdent(tableName)}${orderCol};`
-    );
+        if (skipRows) {
+          tables[tableName] = [];
+          tableRowCounts[tableName] = 0;
+          for (const seq of tableSeqs) {
+            const maxRes = await pool.query<{ max_val: string | null }>(
+              `SELECT COALESCE(MAX(${quoteIdent(seq.columnName)}), 0)::text AS max_val FROM ${quoteIdent(tableName)};`
+            );
+            sequences.push({
+              tableName,
+              columnName: seq.columnName,
+              sequenceName: seq.sequenceName,
+              lastValue: Number(maxRes.rows[0]?.max_val || 0),
+            });
+          }
+          return;
+        }
 
-    const rows = dataRes.rows.map(serializeRowForBackup);
-    tables[tableName] = rows;
-    tableRowCounts[tableName] = rows.length;
-    totalRows += rows.length;
-
-    if (tableName === 'users') usersCount = rows.length;
-    if (tableName === 'user_groups') userGroupsCount = rows.length;
-
-    // Inspect serial/identity sequences
-    for (const col of cols) {
-      const seqRes = await pool.query<{ seq: string | null }>(
-        `SELECT pg_get_serial_sequence($1, $2) AS seq;`,
-        [`public.${tableName}`, col]
-      );
-      const seqName = seqRes.rows[0]?.seq;
-      if (seqName) {
-        const maxRes = await pool.query<{ max_val: string | null }>(
-          `SELECT COALESCE(MAX(${quoteIdent(col)}), 0)::text AS max_val FROM ${quoteIdent(tableName)};`
+        const orderCol = cols.includes('id') ? ' ORDER BY "id" ASC' : '';
+        const dataRes = await pool.query<Record<string, unknown>>(
+          `SELECT * FROM ${quoteIdent(tableName)}${orderCol};`
         );
-        sequences.push({
-          tableName,
-          columnName: col,
-          sequenceName: seqName,
-          lastValue: Number(maxRes.rows[0]?.max_val || 0),
-        });
-      }
-    }
+
+        const rows = dataRes.rows.map(serializeRowForBackup);
+        tables[tableName] = rows;
+        tableRowCounts[tableName] = rows.length;
+        totalRows += rows.length;
+
+        if (tableName === 'users') usersCount = rows.length;
+        if (tableName === 'user_groups') userGroupsCount = rows.length;
+
+        for (const seq of tableSeqs) {
+          let maxVal = 0;
+          for (const row of rows) {
+            const num = Number(row[seq.columnName] || 0);
+            if (Number.isFinite(num) && num > maxVal) maxVal = num;
+          }
+          sequences.push({
+            tableName,
+            columnName: seq.columnName,
+            sequenceName: seq.sequenceName,
+            lastValue: maxVal,
+          });
+        }
+      })
+    );
   }
 
   const canonicalData = JSON.stringify({ tableOrder, tables });
@@ -547,16 +604,14 @@ export async function restoreFullDatabaseBackup(
     }
 
     await client.query('BEGIN');
+    await client.query(`SELECT set_config('app.audit_skip', '1', true);`);
 
-    // Determine tables present in DB to truncate cleanly via CASCADE
-    const tablesToTruncate = currentTables.filter((t) => {
-      if (!preserveBackupConfig && (t === 'backup_schedules' || t === 'backup_executions')) return true;
-      return true; // Truncate all public base tables atomically so CASCADE never errors
-    });
-
-    if (tablesToTruncate.length > 0) {
-      const truncateList = tablesToTruncate.map(quoteIdent).join(', ');
-      await client.query(`TRUNCATE TABLE ${truncateList} RESTART IDENTITY CASCADE;`);
+    // Delete in reverse topological order (children before parents) using DELETE FROM
+    // so non-owner Cloud SQL runtime roles (which lack TRUNCATE privilege) can restore cleanly.
+    const deleteOrder = [...currentTopoOrder].reverse();
+    if (deleteOrder.length > 0) {
+      const deleteStatements = deleteOrder.map((t) => `DELETE FROM ${quoteIdent(t)};`).join('\n        ');
+      await client.query(`DO $$\n      BEGIN\n        ${deleteStatements}\n      END $$;`);
     }
 
     // Build insertion order: prefer current DB topological order intersected with backup tables
@@ -675,23 +730,31 @@ export async function restoreFullDatabaseBackup(
       }
     }
 
-    // Reset all serial/identity sequences across public schema
-    for (const tableName of currentTables) {
-      const colMeta = currentColumnsByTable[tableName] || {};
-      for (const colName of Object.keys(colMeta)) {
-        const seqRes = await client.query<{ seq: string | null }>(
-          `SELECT pg_get_serial_sequence($1, $2) AS seq;`,
-          [`public.${tableName}`, colName]
-        );
-        const seqName = seqRes.rows[0]?.seq;
-        if (seqName) {
-          await client.query(
-            `SELECT setval($1, GREATEST(COALESCE((SELECT MAX(${quoteIdent(colName)}) FROM ${quoteIdent(tableName)}), 1), 1), (SELECT COUNT(*) > 0 FROM ${quoteIdent(tableName)}));`,
-            [seqName]
-          );
-        }
-      }
-    }
+    // Reset all serial/identity sequences across public schema in a single server-side block
+    await client.query(`
+      DO $$
+      DECLARE
+        rec RECORD;
+        max_val BIGINT;
+      BEGIN
+        FOR rec IN
+          SELECT
+            table_name,
+            column_name,
+            pg_get_serial_sequence(quote_ident(table_schema) || '.' || quote_ident(table_name), column_name) AS seq_name
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND pg_get_serial_sequence(quote_ident(table_schema) || '.' || quote_ident(table_name), column_name) IS NOT NULL
+        LOOP
+          EXECUTE format('SELECT COALESCE(MAX(%I), 0) FROM %I', rec.column_name, rec.table_name) INTO max_val;
+          IF max_val > 0 THEN
+            PERFORM setval(rec.seq_name, max_val, true);
+          ELSE
+            PERFORM setval(rec.seq_name, 1, false);
+          END IF;
+        END LOOP;
+      END $$;
+    `);
 
     await client.query('COMMIT');
 

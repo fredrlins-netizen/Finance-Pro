@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { auth, googleAuthProvider } from '../lib/firebase.ts';
 import { apiFetch, parseJsonResponse, setAuthToken } from '../lib/api.ts';
+import { setCachedPortalBranding } from '../lib/portalBrandingCache.ts';
 import { useTheme } from '../lib/theme.tsx';
 import { AuthUser, PortalBrandingConfig } from '../types.ts';
 import { PWAInstallButton } from './PWAControls.tsx';
@@ -83,11 +84,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
 
   useEffect(() => {
     loadCaptcha();
-    if (!branding) {
+    if (branding) {
+      setCachedPortalBranding(branding);
+    } else {
       fetch('/api/public/portal-branding')
         .then((r) => (r.ok ? r.json() : null))
         .then((d: { branding?: PortalBrandingConfig } | null) => {
-          if (d?.branding) setFetchedBranding(d.branding);
+          if (d?.branding) {
+            setFetchedBranding(d.branding);
+            setCachedPortalBranding(d.branding);
+          }
         })
         .catch(() => {});
     }
@@ -171,10 +177,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col justify-center py-6 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen fp-canvas flex flex-col justify-center py-6 px-4 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-5xl grid grid-cols-1 lg:grid-cols-12 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
         {/* Left Brand & Architecture Panel */}
-        <div className="lg:col-span-5 bg-slate-900 dark:bg-slate-950 text-slate-100 lg:border-r lg:border-slate-800 p-6 sm:p-8 flex flex-col justify-between">
+        <div className="lg:col-span-5 fp-login-left lg:border-r p-6 sm:p-8 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5 min-w-0">
@@ -190,22 +196,22 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                     <ShieldCheck className="w-5 h-5" />
                   </div>
                 )}
-                <span className="font-display text-lg font-bold tracking-tight text-white truncate">
+                <span className="font-display text-lg font-bold tracking-tight fp-login-left-text truncate">
                   {brandName}
                 </span>
               </div>
               <PWAInstallButton />
             </div>
 
-            <h1 className="mt-8 font-display text-2xl font-bold tracking-tight text-white leading-snug">
+            <h1 className="mt-8 font-display text-2xl font-bold tracking-tight fp-login-left-text leading-snug">
               {brandHeadline}
             </h1>
-            <p className="mt-3 text-sm text-slate-300 leading-relaxed">
+            <p className="mt-3 text-sm fp-login-left-muted leading-relaxed">
               {brandDescription}
             </p>
           </div>
 
-          <div className="mt-8 space-y-3 border-t border-slate-800 pt-6 text-xs text-slate-300">
+          <div className="mt-8 space-y-3 border-t border-white/15 pt-6 text-xs fp-login-left-muted">
             <div className="flex items-center gap-2.5">
               <Building2 className="w-4 h-4 text-emerald-400 shrink-0" />
               <span>7 Unidades · Validação de Custo Mínimo e Turnos</span>
@@ -222,13 +228,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         </div>
 
         {/* Right Form Panel */}
-        <div className="lg:col-span-7 p-6 sm:p-8">
-          <div className="flex items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+        <div className="lg:col-span-7 fp-login-right p-6 sm:p-8">
+          <div className="flex items-center justify-between gap-3 border-b border-slate-200/70 dark:border-slate-800 pb-4">
             <div>
-              <h2 className="font-display text-xl font-bold text-slate-900 dark:text-slate-100">
+              <h2 className="font-display text-xl font-bold fp-login-right-text">
                 {forgotMode ? 'Recuperação de Acesso' : 'Acesso Corporativo'}
               </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              <p className="text-xs fp-login-right-muted mt-0.5">
                 {forgotMode
                   ? 'Enviaremos uma senha temporária para seu e-mail e notificaremos o administrador.'
                   : 'Informe suas credenciais e resolva os dois desafios de verificação.'}
@@ -291,7 +297,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           {forgotMode ? (
             <form onSubmit={handleForgotPassword} className="mt-5 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1.5">
+                <label className="block text-xs font-semibold fp-login-right-text mb-1.5">
                   E-mail cadastrado do colaborador
                 </label>
                 <div className="relative">
@@ -309,7 +315,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full rounded-lg bg-slate-900 dark:bg-emerald-600 py-2.5 px-4 text-sm font-semibold text-white hover:bg-slate-800 dark:hover:bg-emerald-500 disabled:opacity-50 min-h-[44px] transition-colors"
+                className="w-full rounded-lg fp-primary-btn py-2.5 px-4 text-sm font-semibold disabled:opacity-50 min-h-[44px] transition-colors"
               >
                 {loading ? 'Enviando...' : 'Gerar Senha Temporária e Notificar Admin'}
               </button>
@@ -318,7 +324,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             <form onSubmit={handleCorporateLogin} className="mt-5 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1">
+                  <label className="block text-xs font-semibold fp-login-right-text mb-1">
                     E-mail cadastrado
                   </label>
                   <input
@@ -330,7 +336,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1">
+                  <label className="block text-xs font-semibold fp-login-right-text mb-1">
                     Senha
                   </label>
                   <input
@@ -408,7 +414,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 rounded-lg bg-emerald-600 py-2.5 px-4 text-sm font-semibold text-white hover:bg-emerald-700 dark:hover:bg-emerald-500 disabled:opacity-50 min-h-[44px] transition-colors"
+                  className="flex-1 rounded-lg fp-primary-btn py-2.5 px-4 text-sm font-semibold disabled:opacity-50 min-h-[44px] transition-colors"
                 >
                   {loading ? 'Validando...' : 'Entrar no Sistema'}
                 </button>

@@ -2437,6 +2437,8 @@ export const ConfigPortalBrandingView: React.FC<{
       setDraft(res.branding);
       onBrandingSaved(res.branding);
       onToast(message);
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : 'Erro ao salvar identidade visual.');
     } finally {
       setSaving(false);
     }
@@ -2694,8 +2696,8 @@ export const ConfigPortalBrandingView: React.FC<{
               <button
                 type="button"
                 disabled={saving}
-                onClick={() => persistBranding(draft, 'Identidade visual salva e registrada em auditoria.')}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+                onClick={() => persistBranding(draft, 'Identidade visual salva e aplicada ao portal.')}
+                className="inline-flex items-center gap-1.5 rounded-lg fp-primary-btn px-4 py-2 font-semibold disabled:opacity-50 transition-colors"
               >
                 <Check className="w-3.5 h-3.5" />
                 {saving ? 'Salvando...' : 'Salvar Identidade Visual'}
