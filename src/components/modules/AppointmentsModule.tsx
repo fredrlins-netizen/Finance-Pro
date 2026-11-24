@@ -1418,7 +1418,7 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
                                 className={`py-2.5 px-3 text-left border-r border-slate-200 last:border-r-0 select-none cursor-pointer transition-all dark:border-slate-700 ${
                                   isExpanded
                                     ? 'w-[380px] min-w-[380px] sm:w-[430px] sm:min-w-[430px] bg-emerald-50/70 dark:bg-emerald-950/50'
-                                    : 'w-48 min-w-[192px] bg-slate-50 hover:bg-slate-100/80 dark:bg-slate-800/70'
+                                    : 'w-48 min-w-[192px] bg-slate-50 hover:bg-slate-100/80 dark:bg-slate-800/70 dark:hover:bg-slate-800'
                                 }`}
                               >
                                 <div className="flex items-center justify-between gap-1.5">
@@ -1607,12 +1607,12 @@ export const AppointmentsModule: React.FC<AppointmentsModuleProps> = ({
                                       }
                                       className={`relative min-h-[54px] h-14 p-1.5 border-r border-slate-200 last:border-r-0 transition-all dark:border-slate-700 ${
                                         isExpanded
-                                          ? 'w-[380px] min-w-[380px] sm:w-[430px] sm:min-w-[430px] bg-emerald-50/15'
+                                          ? 'w-[380px] min-w-[380px] sm:w-[430px] sm:min-w-[430px] bg-emerald-50/15 dark:bg-emerald-950/20'
                                           : 'w-48 min-w-[192px]'
                                       } ${
                                         blk
                                           ? 'bg-slate-100 cursor-not-allowed dark:bg-slate-800'
-                                          : 'hover:bg-slate-50/80 cursor-pointer'
+                                          : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/75 cursor-pointer'
                                       }`}
                                     >
                                       {blk ? (

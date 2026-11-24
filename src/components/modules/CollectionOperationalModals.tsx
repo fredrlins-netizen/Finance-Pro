@@ -2070,7 +2070,7 @@ export const CollectionSidePanel: React.FC<{
           <button
             type="button"
             onClick={() => setRiskOpen((p) => !p)}
-            className="w-full px-3 py-2.5 flex items-center justify-between text-xs font-semibold text-slate-800 hover:bg-slate-100/70 dark:text-slate-100"
+            className="w-full px-3 py-2.5 flex items-center justify-between text-xs font-semibold text-slate-800 hover:bg-slate-100/70 dark:text-slate-100 dark:hover:bg-slate-800/80"
           >
             <span>
               {client.status === 'suspenso' || client.status === 'cancelado'

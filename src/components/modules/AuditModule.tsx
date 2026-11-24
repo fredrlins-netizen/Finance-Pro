@@ -939,7 +939,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
             <span className="font-bold text-slate-900 dark:text-slate-100">
               Data Grid · Clientes em Auditoria ({filtered.length})
             </span>
-            <span className="text-slate-300">·</span>
+            <span className="text-slate-300 dark:text-slate-600">·</span>
             <span className="inline-flex items-center gap-1 text-slate-600 font-mono text-[11px] dark:text-slate-300">
               <Database className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-300" />
               Decisões salvas em base local ({cacheStats.cachedDecisions}) · Zero custo IA na varredura
@@ -1056,7 +1056,9 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                 <div
                   key={adm.id}
                   className={`p-4 transition-colors ${
-                    isOpenInModal || isSelected ? 'bg-blue-50/50 dark:bg-blue-950/50' : 'hover:bg-slate-50/80'
+                    isOpenInModal || isSelected
+                      ? 'bg-blue-50/50 hover:bg-blue-50/80 dark:bg-blue-950/60 dark:hover:bg-blue-950/80'
+                      : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/75'
                   }`}
                 >
                   <div className="flex flex-col md:flex-row md:items-stretch gap-4">
@@ -1088,7 +1090,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                     </button>
 
                     {/* Container 2 (Estreito ao Lado): Situação, Valor, Devoluções & Aviso "Em análise por {nome}" */}
-                    <div className="md:w-48 lg:w-52 shrink-0 md:border-l md:border-slate-200/80 md:pl-4 flex flex-col justify-between gap-1.5">
+                    <div className="md:w-48 lg:w-52 shrink-0 md:border-l md:border-slate-200/80 md:pl-4 flex flex-col justify-between gap-1.5 dark:md:border-slate-700/80">
                       <div>
                         <div className={`text-xs font-semibold ${stDisp.tone}`}>
                           {stDisp.label}
@@ -1126,7 +1128,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                     </div>
 
                     {/* Container 3 (Maior Direita): Verificação Ivi do Checklist + Considerações do Usuário */}
-                    <div className="flex-1 min-w-0 md:border-l md:border-slate-200/80 md:pl-4 flex flex-col justify-between gap-2.5 text-xs">
+                    <div className="flex-1 min-w-0 md:border-l md:border-slate-200/80 md:pl-4 flex flex-col justify-between gap-2.5 text-xs dark:md:border-slate-700/80">
                       {/* Sub-bloco Verificação Ivi do Checklist */}
                       <div className="space-y-1">
                         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1135,7 +1137,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                             <span>Checklist Ivi</span>
                             {iviSnap && (
                               <>
-                                <span className="text-slate-300">·</span>
+                                <span className="text-slate-300 dark:text-slate-600">·</span>
                                 <span
                                   className={
                                     incCount > 0
@@ -1145,7 +1147,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                                 >
                                   {incCount} inconsistência(s)
                                 </span>
-                                <span className="text-slate-300">·</span>
+                                <span className="text-slate-300 dark:text-slate-600">·</span>
                                 <span
                                   className={
                                     attCount > 0
@@ -1219,9 +1221,9 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                             <span>Considerações do Usuário</span>
                             {latestCons && (
                               <>
-                                <span className="text-slate-300">·</span>
+                                <span className="text-slate-300 dark:text-slate-600">·</span>
                                 <span className="text-slate-900 dark:text-slate-100">{latestCons.authorName}</span>
-                                <span className="text-slate-300">·</span>
+                                <span className="text-slate-300 dark:text-slate-600">·</span>
                                 <span className="font-mono font-normal text-slate-500 tabular-nums dark:text-slate-400">
                                   {formatDateTimeBR(latestCons.createdAt)}
                                 </span>
@@ -1296,7 +1298,7 @@ export const AuditModule: React.FC<AuditModuleProps> = ({
                     </div>
 
                     {/* Action Column: Abrir Modal Específico de Auditoria */}
-                    <div className="md:w-36 shrink-0 md:border-l md:border-slate-200/80 md:pl-4 flex md:flex-col items-center md:items-end justify-between md:justify-center gap-2">
+                    <div className="md:w-36 shrink-0 md:border-l md:border-slate-200/80 md:pl-4 flex md:flex-col items-center md:items-end justify-between md:justify-center gap-2 dark:md:border-slate-700/80">
                       <button
                         type="button"
                         onClick={() => openClientAuditModal(adm.id)}

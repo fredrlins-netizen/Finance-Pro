@@ -932,7 +932,7 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
               <button
                 type="button"
                 onClick={() => setCancelSectionOpen((p) => !p)}
-                className="w-full px-4 py-3 flex items-center justify-between text-xs font-semibold text-slate-900 hover:bg-amber-50/40 dark:text-slate-100"
+                className="w-full px-4 py-3 flex items-center justify-between text-xs font-semibold text-slate-900 hover:bg-amber-50/40 dark:text-slate-100 dark:hover:bg-amber-950/40"
               >
                 <span className="tabular-nums">
                   Solicitações de Cancelamento Encaminhadas ({scopedCancelRequests.length})

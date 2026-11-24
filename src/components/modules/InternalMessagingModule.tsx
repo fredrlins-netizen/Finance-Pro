@@ -360,7 +360,7 @@ export const InternalMessagingModule: React.FC<InternalMessagingModuleProps> = (
                   isSelected
                     ? 'border-slate-900 bg-slate-900 text-white dark:border-emerald-500 dark:bg-emerald-600'
                     : hasUnread
-                    ? 'border-amber-300 bg-amber-50/70 hover:bg-amber-100/70 text-slate-900 dark:border-amber-700/70 dark:bg-amber-950/30 dark:text-slate-100'
+                    ? 'border-amber-300 bg-amber-50/70 hover:bg-amber-100/70 text-slate-900 dark:border-amber-700/70 dark:bg-amber-950/30 dark:text-slate-100 dark:hover:bg-amber-950/50'
                     : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
                 }`}
               >

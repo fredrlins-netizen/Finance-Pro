@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { signInWithPopup } from 'firebase/auth';
 import {
   Building2,
   Car,
@@ -14,7 +13,6 @@ import {
   ShieldCheck,
   Sun,
 } from 'lucide-react';
-import { auth, googleAuthProvider } from '../lib/firebase.ts';
 import { apiFetch, parseJsonResponse, setAuthToken } from '../lib/api.ts';
 import { setCachedPortalBranding } from '../lib/portalBrandingCache.ts';
 import { useTheme } from '../lib/theme.tsx';
@@ -135,21 +133,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao autenticar.');
       loadCaptcha();
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    setError('');
-    setLoading(true);
-    try {
-      const cred = await signInWithPopup(auth, googleAuthProvider);
-      const idToken = await cred.user.getIdToken();
-      setAuthToken(idToken);
-      onAuthenticated(idToken);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Falha no login Google.');
     } finally {
       setLoading(false);
     }
@@ -410,21 +393,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 </div>
               )}
 
-              <div className="flex flex-col sm:flex-row gap-3 pt-1">
+              <div className="pt-1">
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 rounded-lg fp-primary-btn py-2.5 px-4 text-sm font-semibold disabled:opacity-50 min-h-[44px] transition-colors"
+                  className="w-full rounded-lg fp-primary-btn py-2.5 px-4 text-sm font-semibold disabled:opacity-50 min-h-[44px] transition-colors"
                 >
                   {loading ? 'Validando...' : 'Entrar no Sistema'}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleGoogleLogin}
-                  disabled={loading}
-                  className="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 py-2.5 px-4 text-sm font-semibold text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 min-h-[44px] whitespace-nowrap transition-colors"
-                >
-                  Entrar com Google
                 </button>
               </div>
             </form>

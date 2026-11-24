@@ -1721,7 +1721,7 @@ export const CollectionCoordinatorView: React.FC<CollectionCoordinatorViewProps>
                                       ? 'Visualizar ou atualizar comprovante no Bucket da Invicta'
                                       : 'Anexar comprovante no Bucket da Invicta'
                                   }
-                                  className={`p-1 rounded hover:bg-slate-200/70 ${
+                                  className={`p-1 rounded hover:bg-slate-200/70 dark:hover:bg-slate-700/70 ${
                                     t.receiptDocId ? 'text-emerald-800 dark:text-emerald-300' : 'text-slate-400 hover:text-blue-700 dark:text-slate-400'
                                   }`}
                                 >
@@ -1751,7 +1751,7 @@ export const CollectionCoordinatorView: React.FC<CollectionCoordinatorViewProps>
                                   type="button"
                                   title="Espelhar tela deste operador silenciosamente"
                                   onClick={() => setShadowCollaboratorId(t.assignedCollaboratorId || null)}
-                                  className="p-0.5 rounded text-slate-400 hover:text-slate-900 hover:bg-slate-200/70 shrink-0 dark:text-slate-400 dark:hover:text-white"
+                                  className="p-0.5 rounded text-slate-400 hover:text-slate-900 hover:bg-slate-200/70 shrink-0 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-700/70"
                                 >
                                   <Monitor className="w-3 h-3" />
                                 </button>
@@ -1783,7 +1783,7 @@ export const CollectionCoordinatorView: React.FC<CollectionCoordinatorViewProps>
                                 type="button"
                                 title="Histórico de Movimentações"
                                 onClick={() => setHistoryTitle(t)}
-                                className="p-1.5 rounded hover:bg-slate-200/70 text-slate-600 dark:text-slate-300"
+                                className="p-1.5 rounded hover:bg-slate-200/70 text-slate-600 dark:text-slate-300 dark:hover:bg-slate-700/70"
                               >
                                 <Clock className="w-3.5 h-3.5" />
                               </button>
@@ -1806,7 +1806,7 @@ export const CollectionCoordinatorView: React.FC<CollectionCoordinatorViewProps>
                                     collaboratorId: t.assignedCollaboratorId || null,
                                   })
                                 }
-                                className="p-1.5 rounded hover:bg-slate-200/70 text-slate-700 dark:text-slate-200"
+                                className="p-1.5 rounded hover:bg-slate-200/70 text-slate-700 dark:text-slate-200 dark:hover:bg-slate-700/70"
                               >
                                 <Eye className="w-3.5 h-3.5" />
                               </button>

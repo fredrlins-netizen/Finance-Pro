@@ -515,7 +515,7 @@ export const EmitReissueBoletoModal: React.FC<EmitReissueBoletoModalProps> = ({
                                     type="button"
                                     onClick={() => onViewBoleto(title.id)}
                                     title="Visualizar boleto atual"
-                                    className="p-1 rounded border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                                    className="p-1 rounded border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                                   >
                                     <Eye className="w-3 h-3" />
                                   </button>
@@ -524,7 +524,7 @@ export const EmitReissueBoletoModal: React.FC<EmitReissueBoletoModalProps> = ({
                                   type="button"
                                   onClick={() => setSendTargetTitleId(title.id)}
                                   title="Enviar boleto atual via GoTalk ou UaZapi"
-                                  className="p-1 rounded border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300"
+                                  className="p-1 rounded border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
                                 >
                                   <MessageSquare className="w-3 h-3" />
                                 </button>

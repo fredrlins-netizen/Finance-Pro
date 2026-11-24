@@ -283,7 +283,7 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({ onNavigate, acti
               key={stage.step}
               type="button"
               onClick={() => onNavigate(stage.mod)}
-              className="text-left rounded-xl border border-slate-200 bg-white p-4 hover:border-slate-300 hover:bg-slate-50/50 transition-colors dark:border-slate-700 dark:bg-slate-900"
+              className="text-left rounded-xl border border-slate-200 bg-white p-4 hover:border-slate-300 hover:bg-slate-50/50 transition-colors dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600 dark:hover:bg-slate-800/75"
             >
               <div className="flex items-center justify-between gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
                 <span>{stage.step}</span>

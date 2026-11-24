@@ -968,7 +968,7 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                             ? 'bg-blue-50/80 dark:bg-blue-950/50'
                             : isHighlighted
                             ? 'bg-slate-50 dark:bg-slate-800/70'
-                            : 'hover:bg-slate-50/80'
+                            : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/75'
                         }`}
                       >
                         <td className="py-3 px-4 align-middle">

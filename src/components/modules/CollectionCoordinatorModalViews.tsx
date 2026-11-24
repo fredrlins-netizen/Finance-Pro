@@ -1937,7 +1937,7 @@ export const AdmissionDetailModal: React.FC<{
                 <h4 className="font-display text-xs font-bold uppercase tracking-wider text-slate-500 mb-2 dark:text-slate-400">
                   Identificação do Processo
                 </h4>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 rounded-lg border border-slate-200 p-3.5 bg-slate-50/40 dark:border-slate-700">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 rounded-lg border border-slate-200 p-3.5 bg-slate-50/40 dark:border-slate-700 dark:bg-slate-800/60">
                   <div>
                     <div className="text-[11px] text-slate-500 dark:text-slate-400">Cliente (Responsável)</div>
                     <div className="font-semibold text-slate-900 dark:text-slate-100">
@@ -3182,7 +3182,7 @@ export const ClientDetailModal: React.FC<{
               )}
 
               {/* Dados Cadastrais */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-lg border border-slate-200 p-4 bg-slate-50/40 dark:border-slate-700">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-lg border border-slate-200 p-4 bg-slate-50/40 dark:border-slate-700 dark:bg-slate-800/60">
                 <div>
                   <div className="text-[11px] text-slate-500 dark:text-slate-400">Nome / Razão Social</div>
                   <div className="font-semibold text-slate-900 dark:text-slate-100">{client.fullName || '—'}</div>
