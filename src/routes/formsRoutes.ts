@@ -36,6 +36,7 @@ import {
   iviAnalyzeFormSubmission,
   iviGenerateFormFromPromptOrModel,
 } from '../services/ivi.ts';
+import { isProductionModeLocked } from '../services/productionModeService.ts';
 
 const modelUpload = multer({
   storage: multer.memoryStorage(),
@@ -465,9 +466,11 @@ const DEFAULT_FORM_TEMPLATES: Array<{
 let formsSeedPromise: Promise<void> | null = null;
 
 async function ensureFormsSeed(): Promise<void> {
+  if (await isProductionModeLocked()) return;
   if (formsSeedPromise) return formsSeedPromise;
   formsSeedPromise = (async () => {
     try {
+      if (await isProductionModeLocked()) return;
       const existing = await db.select({ id: customForms.id }).from(customForms).limit(1);
       if (existing.length > 0) return;
 

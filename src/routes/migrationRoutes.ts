@@ -1,13 +1,14 @@
 import crypto from 'node:crypto';
 import type { Express, NextFunction, Response } from 'express';
 import express from 'express';
-import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { db } from '../db/index.ts';
 import {
   admissions,
   auditLogs,
   clients,
   documentObjects,
+  financialTitles,
   units,
   vaultMigrationBatches,
   vaultMigrationItems,
@@ -22,20 +23,28 @@ import {
   getBucketObjectBuffer,
   getBucketRuntimeStats,
   initiateR2MultipartUpload,
+  purgeAllBucketObjects,
   putBucketObject,
   sanitizeFileName,
   validateUploadFile,
 } from '../services/bucketStorage.ts';
 import {
   assignIntegrativeCodesBatch,
+  extractClientNameFromFolder,
   extractContractCandidates,
   extractUnitCodeCandidates,
   generateIntegrativeCode,
   inferDocCategoryFromPath,
   normalizeCodeToken,
   parseIntegrativeCode,
+  scoreClientNameMatch,
   verifyIntegrativeCodeAgainstRecord,
 } from '../services/integrativeVaultService.ts';
+import {
+  evaluateDocumentAccess,
+  loadFolderRulesForUser,
+  normalizeFolderPath,
+} from '../services/documentAccessService.ts';
 import { buildWindowsBatchLauncher, buildWindowsR2AgentScript } from '../services/windowsR2AgentBuilder.ts';
 
 function sha256Hex(raw: string): string {
@@ -91,34 +100,88 @@ export function registerMigrationRoutes(
   // List batches + R2 runtime status + Integrative codes stats
   app.get('/api/migration/batches', requireAuth, requireAdmin, async (_req: AuthRequest, res) => {
     try {
-      const [batches, bucketStats, admRows, docRows] = await Promise.all([
+      const [batches, bucketStats, [admAgg], [docAgg]] = await Promise.all([
         db.select().from(vaultMigrationBatches).orderBy(desc(vaultMigrationBatches.createdAt)).limit(30),
         getBucketRuntimeStats(),
-        db.select({ id: admissions.id, integrativeCode: admissions.integrativeCode }).from(admissions),
         db
-          .select({ id: documentObjects.id, integrativeCode: documentObjects.integrativeCode, deletedAt: documentObjects.deletedAt })
-          .from(documentObjects),
+          .select({
+            total: sql<number>`count(*)::int`,
+            withCode: sql<number>`count(*) filter (where ${admissions.integrativeCode} is not null and ${admissions.integrativeCode} <> '')::int`,
+          })
+          .from(admissions),
+        db
+          .select({
+            total: sql<number>`count(*)::int`,
+            withCode: sql<number>`count(*) filter (where ${documentObjects.integrativeCode} is not null and ${documentObjects.integrativeCode} <> '')::int`,
+            totalBytes: sql<string>`coalesce(sum(${documentObjects.sizeBytes}), 0)::text`,
+          })
+          .from(documentObjects)
+          .where(isNull(documentObjects.deletedAt)),
       ]);
 
-      const activeDocs = docRows.filter((d) => !d.deletedAt);
+      const totalObjects = Number(docAgg?.total || 0);
+      const totalLogicalBytes = Number(docAgg?.totalBytes || 0);
       const integrativeStats = {
-        admissionsTotal: admRows.length,
-        admissionsWithCode: admRows.filter((a) => Boolean(a.integrativeCode)).length,
-        documentsTotal: activeDocs.length,
-        documentsWithCode: activeDocs.filter((d) => Boolean(d.integrativeCode)).length,
+        admissionsTotal: Number(admAgg?.total || 0),
+        admissionsWithCode: Number(admAgg?.withCode || 0),
+        documentsTotal: totalObjects,
+        documentsWithCode: Number(docAgg?.withCode || 0),
       };
 
       res.json({
         batches: batches.map((b) => ({
           ...b,
           agentSessionTokenHash: undefined,
-          hasActiveToken: Boolean(b.agentSessionTokenHash && (!b.tokenExpiresAt || new Date(b.tokenExpiresAt).getTime() > Date.now())),
+          hasActiveToken: Boolean(
+            b.agentSessionTokenHash && (!b.tokenExpiresAt || new Date(b.tokenExpiresAt).getTime() > Date.now())
+          ),
         })),
-        bucketStats,
+        bucketStats: {
+          ...bucketStats,
+          activeBackend: bucketStats.backend === 'cloudflare_r2' ? 'CLOUDFLARE_R2' : 'LOCAL_AES256',
+          totalObjects,
+          totalLogicalBytes,
+        },
         integrativeStats,
       });
     } catch (error) {
       res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao consultar lotes de migração.' });
+    }
+  });
+
+  // Agent preflight handshake (verifies direct API JSON reachability before scanning 100k+ files)
+  app.get('/api/migration/batches/:id/agent-handshake', requireAdminOrBatchAgent, async (req: AuthRequest, res) => {
+    try {
+      const batchId = parsePositiveIntId(req.params.id);
+      if (!batchId) return res.status(400).json({ error: 'ID do lote inválido.' });
+      const [batch] = await db
+        .select({
+          id: vaultMigrationBatches.id,
+          batchCode: vaultMigrationBatches.batchCode,
+          status: vaultMigrationBatches.status,
+          targetUnitIds: vaultMigrationBatches.targetUnitIds,
+        })
+        .from(vaultMigrationBatches)
+        .where(eq(vaultMigrationBatches.id, batchId))
+        .limit(1);
+      if (!batch) return res.status(404).json({ error: 'Lote não encontrado.' });
+      const [r2Cfg, unitRows] = await Promise.all([
+        getActiveR2ConfigForMigration(),
+        db
+          .select({ id: units.id, code: units.code, name: units.name, city: units.city, state: units.state })
+          .from(units),
+      ]);
+      res.json({
+        ok: true,
+        batchId: batch.id,
+        batchCode: batch.batchCode,
+        status: batch.status,
+        targetUnitIds: batch.targetUnitIds || [],
+        units: unitRows,
+        r2Configured: Boolean(r2Cfg),
+      });
+    } catch (error) {
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro no handshake do agente.') });
     }
   });
 
@@ -206,7 +269,11 @@ export function registerMigrationRoutes(
 
       const scriptFileName = `invicta-r2-sync-${batch.batchCode}.mjs`;
       if (kind === 'bat') {
-        const bat = buildWindowsBatchLauncher({ scriptFileName, batchCode: batch.batchCode });
+        const bat = buildWindowsBatchLauncher({
+          scriptFileName,
+          batchCode: batch.batchCode,
+          defaultRootDir: batch.sourceRootPath || '',
+        });
         res.setHeader('Content-Type', 'application/octet-stream');
         res.setHeader('Content-Disposition', `attachment; filename="executar-${batch.batchCode}.bat"`);
         return res.send(bat);
@@ -239,7 +306,7 @@ export function registerMigrationRoutes(
     }
   });
 
-  // List items inside a migration batch with filter
+  // List items inside a migration batch with SQL filter
   app.get('/api/migration/batches/:id/items', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
     try {
       const batchId = parsePositiveIntId(req.params.id);
@@ -247,26 +314,28 @@ export function registerMigrationRoutes(
       const filter = String(req.query.filter || 'all');
       const limit = Math.min(200, Math.max(10, Number(req.query.limit || 100) || 100));
 
-      const allItems = await db
+      const conditions = [eq(vaultMigrationItems.batchId, batchId)];
+      if (filter === 'unit') conditions.push(eq(vaultMigrationItems.itemScope, 'unit'));
+      else if (filter === 'interlinked') conditions.push(eq(vaultMigrationItems.itemScope, 'interlinked'));
+      else if (filter === 'unmatched') conditions.push(eq(vaultMigrationItems.status, 'unmatched'));
+      else if (filter === 'updated') {
+        conditions.push(
+          sql`${vaultMigrationItems.action} in ('update_content', 'update_path')`
+        );
+      } else if (filter === 'created') conditions.push(eq(vaultMigrationItems.action, 'create'));
+      else if (filter === 'blocked') conditions.push(eq(vaultMigrationItems.status, 'blocked'));
+      else if (filter === 'failed') conditions.push(eq(vaultMigrationItems.status, 'failed'));
+
+      const items = await db
         .select()
         .from(vaultMigrationItems)
-        .where(eq(vaultMigrationItems.batchId, batchId))
+        .where(and(...conditions))
         .orderBy(desc(vaultMigrationItems.id))
-        .limit(1000);
-
-      const filtered = allItems.filter((it) => {
-        if (filter === 'all') return true;
-        if (filter === 'unmatched') return it.status === 'unmatched';
-        if (filter === 'updated') return it.action === 'update_content' || it.action === 'update_path';
-        if (filter === 'created') return it.action === 'create';
-        if (filter === 'blocked') return it.status === 'blocked';
-        if (filter === 'failed') return it.status === 'failed';
-        return true;
-      });
+        .limit(limit);
 
       res.json({
-        items: filtered.slice(0, limit),
-        totalMatching: filtered.length,
+        items,
+        totalMatching: items.length,
       });
     } catch (error) {
       res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao listar itens do lote.' });
@@ -285,12 +354,18 @@ export function registerMigrationRoutes(
         .limit(1);
       if (!batch) return res.status(404).json({ error: 'Lote de migração não encontrado.' });
 
-      const { sourceRootPath, dryRun, files } = (req.body || {}) as {
+      const { sourceRootPath, dryRun, fallbackUnitId, preferServerFallback, files } = (req.body || {}) as {
         sourceRootPath?: string;
         dryRun?: boolean;
+        fallbackUnitId?: number;
+        preferServerFallback?: boolean;
         files: Array<{
           unitFolderName: string;
-          pathSegmentsFromUnit: string[];
+          pathSegmentsFromUnit?: string[];
+          relativeSubpath?: string;
+          contractFolderName?: string;
+          extractedContractNumber?: string;
+          extractedUnitCode?: string;
           fileName: string;
           legacySourcePath: string;
           mimeType: string;
@@ -301,10 +376,39 @@ export function registerMigrationRoutes(
 
       if (!Array.isArray(files)) return res.status(400).json({ error: 'Manifesto inválido.' });
 
-      const [allUnits, allAdmissions, allDocs, pendingResolvedItems, r2Cfg] = await Promise.all([
+      const [allUnits, allAdmissions, allClients, allDocs, pendingResolvedItems, r2Cfg] = await Promise.all([
         db.select().from(units),
-        db.select().from(admissions),
-        db.select().from(documentObjects).where(isNull(documentObjects.deletedAt)),
+        db
+          .select({
+            id: admissions.id,
+            unitId: admissions.unitId,
+            clientId: admissions.clientId,
+            contractNumber: admissions.contractNumber,
+            protocolCode: admissions.protocolCode,
+            legacyProtocolCode: admissions.legacyProtocolCode,
+          })
+          .from(admissions),
+        db.select({ id: clients.id, fullName: clients.fullName }).from(clients),
+        db
+          .select({
+            id: documentObjects.id,
+            unitId: documentObjects.unitId,
+            clientId: documentObjects.clientId,
+            admissionId: documentObjects.admissionId,
+            scope: documentObjects.scope,
+            unitFolderPath: documentObjects.unitFolderPath,
+            relativeSubpath: documentObjects.relativeSubpath,
+            fileName: documentObjects.fileName,
+            sha256Hash: documentObjects.sha256Hash,
+            storageUri: documentObjects.storageUri,
+            integrativeCode: documentObjects.integrativeCode,
+            isInterlinked: documentObjects.isInterlinked,
+            versionNumber: documentObjects.versionNumber,
+            legacySourcePath: documentObjects.legacySourcePath,
+            mimeType: documentObjects.mimeType,
+          })
+          .from(documentObjects)
+          .where(isNull(documentObjects.deletedAt)),
         db
           .select()
           .from(vaultMigrationItems)
@@ -314,6 +418,7 @@ export function registerMigrationRoutes(
 
       const unitById = new Map(allUnits.map((u) => [u.id, u]));
       const admById = new Map(allAdmissions.map((a) => [a.id, a]));
+      const clientById = new Map(allClients.map((c) => [c.id, c]));
       const manualBySourcePath = new Map<string, (typeof pendingResolvedItems)[number]>();
       const manualByFolderPair = new Map<string, (typeof pendingResolvedItems)[number]>();
       const manualUnitOnlyByFolder = new Map<string, number>();
@@ -330,36 +435,65 @@ export function registerMigrationRoutes(
         }
       }
 
-      // Unit lookup by normalized unit code
+      // Unit lookup by normalized unit code (primary) and unit name/city (secondary)
       const unitByCodeNorm = new Map<string, (typeof allUnits)[number]>();
       for (const u of allUnits) {
         unitByCodeNorm.set(normalizeCodeToken(u.code), u);
       }
-
-      // Admission lookup by unit + contractNumber, and global contractNumber fallback
-      const admByUnitAndContract = new Map<string, (typeof allAdmissions)[number]>();
-      const admByContractGlobal = new Map<string, Array<(typeof allAdmissions)[number]>>();
-      for (const a of allAdmissions) {
-        const ck = normalizeContractKey(a.contractNumber);
-        if (!ck) continue;
-        admByUnitAndContract.set(`${a.unitId}::${ck}`, a);
-        const list = admByContractGlobal.get(ck) || [];
-        list.push(a);
-        admByContractGlobal.set(ck, list);
+      for (const u of allUnits) {
+        const nCity = normalizeCodeToken(u.city);
+        const nName = normalizeCodeToken(u.name);
+        if (nCity && !unitByCodeNorm.has(nCity)) unitByCodeNorm.set(nCity, u);
+        if (nName && !unitByCodeNorm.has(nName)) unitByCodeNorm.set(nName, u);
       }
 
-      // Existing document indexes:
-      // 1. Canonical logical key (unitId + admissionId + relativeSubpath + fileName) for detecting content updates
+      // Admission lookup by unit + contractNumber/protocol, plus list per unit for deep client-name fallback
+      const admByUnitAndContract = new Map<string, (typeof allAdmissions)[number]>();
+      const admByContractGlobal = new Map<string, Array<(typeof allAdmissions)[number]>>();
+      const admListByUnit = new Map<number, Array<(typeof allAdmissions)[number]>>();
+      for (const a of allAdmissions) {
+        const unitArr = admListByUnit.get(a.unitId) || [];
+        unitArr.push(a);
+        admListByUnit.set(a.unitId, unitArr);
+
+        for (const rawKey of [a.contractNumber, a.protocolCode, a.legacyProtocolCode]) {
+          const ck = normalizeContractKey(rawKey || '');
+          if (!ck) continue;
+          const variants = [ck];
+          if (/^0+\d{2,}$/.test(ck)) {
+            variants.push(ck.replace(/^0+/, ''));
+          }
+          for (const vk of variants) {
+            if (!admByUnitAndContract.has(`${a.unitId}::${vk}`)) {
+              admByUnitAndContract.set(`${a.unitId}::${vk}`, a);
+            }
+            const list = admByContractGlobal.get(vk) || [];
+            if (!list.some((x) => x.id === a.id)) {
+              list.push(a);
+            }
+            admByContractGlobal.set(vk, list);
+          }
+        }
+      }
+
+      // Existing document indexes (Clients + Unit Files):
       const docByLogicalKey = new Map<string, (typeof allDocs)[number]>();
-      // 2. Admission + SHA-256 index for detecting moved/renamed folders without re-uploading
       const docByAdmAndHash = new Map<string, (typeof allDocs)[number]>();
-      // 3. Global CAS hash index for instant 0-byte deduplication in R2/CAS
+      const docByUnitLogicalKey = new Map<string, (typeof allDocs)[number]>();
+      const docByUnitAndHash = new Map<string, (typeof allDocs)[number]>();
       const storageUriBySha = new Map<string, string>();
       for (const d of allDocs) {
         if (d.sha256Hash && d.storageUri && !d.storageUri.endsWith('pending-sync')) {
           storageUriBySha.set(d.sha256Hash, d.storageUri);
         }
-        if (d.admissionId) {
+        if (d.scope === 'unit' || !d.clientId) {
+          const uPath = normalizeFolderPath(d.unitFolderPath || d.relativeSubpath || '');
+          const uKey = `UNIT::${d.unitId}::${uPath.toLowerCase()}::${d.fileName.toLowerCase()}`;
+          docByUnitLogicalKey.set(uKey, d);
+          if (d.sha256Hash) {
+            docByUnitAndHash.set(`UNIT::${d.unitId}::${d.sha256Hash}`, d);
+          }
+        } else if (d.admissionId) {
           const rel = (d.relativeSubpath || d.fileName).toLowerCase();
           docByLogicalKey.set(`${d.unitId}::${d.admissionId}::${rel}`, d);
           if (d.sha256Hash) {
@@ -376,12 +510,36 @@ export function registerMigrationRoutes(
       let incDedup = 0;
       let incSavedBytes = 0;
       let incUnmatched = 0;
+      let incUnitFiles = 0;
+      let incInterlinked = 0;
       let incBlocked = 0;
 
       for (const f of files) {
         incScanned++;
         incBytes += Number(f.sizeBytes || 0);
         const safeName = sanitizeFileName(f.fileName);
+
+        let segments: string[];
+        if (Array.isArray(f.pathSegmentsFromUnit) && f.pathSegmentsFromUnit.length > 0) {
+          segments = f.pathSegmentsFromUnit.map((s) => String(s || '').trim()).filter(Boolean);
+        } else if (typeof f.relativeSubpath === 'string' && f.relativeSubpath.trim()) {
+          const parts = f.relativeSubpath
+            .replace(/\\/g, '/')
+            .split('/')
+            .map((s) => s.trim())
+            .filter(Boolean);
+          const lastLower = (parts[parts.length - 1] || '').toLowerCase();
+          if (parts.length > 0 && (lastLower === safeName.toLowerCase() || lastLower === String(f.fileName || '').trim().toLowerCase())) {
+            segments = parts;
+          } else {
+            segments = [...parts, safeName];
+          }
+        } else if (typeof f.contractFolderName === 'string' && f.contractFolderName.trim()) {
+          segments = [f.contractFolderName.trim(), safeName];
+        } else {
+          segments = [safeName];
+        }
+        if (segments.length === 0) segments = [safeName];
 
         // 1. Security check: block executables & active scripts only
         const secErr = validateUploadFile(safeName, f.mimeType || 'application/octet-stream', Math.max(1, Number(f.sizeBytes || 1)));
@@ -392,7 +550,7 @@ export function registerMigrationRoutes(
             await db.insert(vaultMigrationItems).values({
               batchId,
               unitFolderName: f.unitFolderName,
-              relativeSubpath: (f.pathSegmentsFromUnit || [safeName]).join('/'),
+              relativeSubpath: segments.join('/'),
               fileName: safeName,
               legacySourcePath: f.legacySourcePath || '',
               mimeType: f.mimeType || 'application/octet-stream',
@@ -408,7 +566,6 @@ export function registerMigrationRoutes(
         }
 
         // 2. Resolve Unit by leading Unit Code in unitFolderName (or manual resolution override)
-        const segments = Array.isArray(f.pathSegmentsFromUnit) ? f.pathSegmentsFromUnit : [safeName];
         const folderSegments = segments.slice(0, Math.max(0, segments.length - 1));
         const rawSourceLower = String(f.legacySourcePath || '').toLowerCase();
         const manualExactHit = rawSourceLower ? manualBySourcePath.get(rawSourceLower) : undefined;
@@ -416,7 +573,13 @@ export function registerMigrationRoutes(
           manualExactHit ||
           (folderSegments[0] ? manualByFolderPair.get(`${f.unitFolderName}::${folderSegments[0]}`) : undefined);
 
-        const unitCandidates = extractUnitCodeCandidates(f.unitFolderName);
+        const parsedFallbackUnitId = fallbackUnitId ? parsePositiveIntId(fallbackUnitId) : null;
+        const validFallbackUnit = parsedFallbackUnitId ? unitById.get(parsedFallbackUnitId) : undefined;
+
+        const unitCandidates = [
+          ...extractUnitCodeCandidates(f.unitFolderName),
+          ...(f.extractedUnitCode ? [String(f.extractedUnitCode).trim()] : []),
+        ].filter(Boolean);
         let matchedUnit: (typeof allUnits)[number] | undefined =
           manualPairHit?.unitId ? unitById.get(manualPairHit.unitId) : undefined;
         if (!matchedUnit && manualUnitOnlyByFolder.has(f.unitFolderName)) {
@@ -433,6 +596,27 @@ export function registerMigrationRoutes(
             }
           }
         }
+        if (!matchedUnit) {
+          const folderTokenNorm = normalizeCodeToken(f.unitFolderName);
+          if (folderTokenNorm) {
+            const subHit = allUnits.find((u) => {
+              const cCity = normalizeCodeToken(u.city);
+              const cName = normalizeCodeToken(u.name);
+              return (
+                (cCity.length >= 4 && folderTokenNorm.includes(cCity)) ||
+                (cName.length >= 4 && folderTokenNorm.includes(cName))
+              );
+            });
+            if (subHit) {
+              matchedUnit = subHit;
+              extractedUnitCode = subHit.code;
+            }
+          }
+        }
+        if (!matchedUnit && validFallbackUnit) {
+          matchedUnit = validFallbackUnit;
+          extractedUnitCode = validFallbackUnit.code;
+        }
 
         if (!matchedUnit) {
           incUnmatched++;
@@ -441,7 +625,7 @@ export function registerMigrationRoutes(
               batchId,
               unitFolderName: f.unitFolderName,
               extractedUnitCode,
-              relativeSubpath: (f.pathSegmentsFromUnit || [safeName]).join('/'),
+              relativeSubpath: segments.join('/'),
               fileName: safeName,
               legacySourcePath: f.legacySourcePath || '',
               mimeType: f.mimeType || 'application/octet-stream',
@@ -456,12 +640,14 @@ export function registerMigrationRoutes(
           continue;
         }
 
-        // 3. Resolve Admission & Client by leading Contract Number in client folder segment(s) or manual mapping
+        // 3. Verificação profunda de cada subpasta (ex: ADMINISTRAÇÃO, MODELOS DE CONTRATOS, COMERCIAL, PC GERAL)
+        // procurando pastas iniciadas com Número do Contrato e/ou Nome do Cliente.
         let matchedAdm: (typeof allAdmissions)[number] | undefined =
           manualPairHit?.admissionId ? admById.get(manualPairHit.admissionId) : undefined;
-        let contractFolderName = folderSegments[0] || '';
+        let contractFolderName = matchedAdm ? (folderSegments[0] || '') : '';
         let extractedContractNumber = matchedAdm?.contractNumber || '';
         let matchedSegmentIndex = 0;
+        const unitFolderPath = normalizeFolderPath(folderSegments.join('/'));
 
         if (matchedAdm && manualExactHit) {
           supersededPendingItemIds.push(manualExactHit.id);
@@ -470,69 +656,132 @@ export function registerMigrationRoutes(
         if (!matchedAdm) {
           for (let idx = 0; idx < folderSegments.length; idx++) {
             const seg = folderSegments[idx];
-            const cands = extractContractCandidates(seg);
+            const cands = [
+              ...extractContractCandidates(seg),
+              ...(idx === folderSegments.length - 1 && f.extractedContractNumber ? [String(f.extractedContractNumber).trim()] : []),
+            ];
+            const segClientName = extractClientNameFromFolder(seg);
+
+            // 3a. Correspondência direta por Número do Contrato / Protocolo (prioridade na Unidade)
             for (const cand of cands) {
-              const ck = normalizeContractKey(cand);
-              const hitUnit = admByUnitAndContract.get(`${matchedUnit.id}::${ck}`);
-              if (hitUnit) {
-                matchedAdm = hitUnit;
-                contractFolderName = seg;
-                extractedContractNumber = hitUnit.contractNumber;
-                matchedSegmentIndex = idx;
-                break;
+              const ckRaw = normalizeContractKey(cand);
+              if (!ckRaw) continue;
+              const ckVariants = /^0+\d{2,}$/.test(ckRaw) ? [ckRaw, ckRaw.replace(/^0+/, '')] : [ckRaw];
+              for (const ck of ckVariants) {
+                const hitUnit = admByUnitAndContract.get(`${matchedUnit.id}::${ck}`);
+                if (hitUnit) {
+                  matchedAdm = hitUnit;
+                  contractFolderName = seg;
+                  extractedContractNumber = hitUnit.contractNumber;
+                  matchedSegmentIndex = idx;
+                  break;
+                }
+                const globalList = admByContractGlobal.get(ck);
+                if (globalList && globalList.length === 1) {
+                  matchedAdm = globalList[0];
+                  contractFolderName = seg;
+                  extractedContractNumber = globalList[0].contractNumber;
+                  matchedSegmentIndex = idx;
+                  break;
+                }
+                if (globalList && globalList.length > 1) {
+                  if (segClientName) {
+                    const scored = globalList.find((a) => {
+                      const cl = clientById.get(a.clientId);
+                      return cl ? scoreClientNameMatch(segClientName, cl.fullName) >= 0.75 : false;
+                    });
+                    if (scored) {
+                      matchedAdm = scored;
+                      contractFolderName = seg;
+                      extractedContractNumber = scored.contractNumber;
+                      matchedSegmentIndex = idx;
+                      break;
+                    }
+                  }
+                  const unitCodePrefix = normalizeCodeToken(matchedUnit.code);
+                  const protoUnitHit = globalList.filter((a) =>
+                    normalizeCodeToken(a.protocolCode || a.legacyProtocolCode || '').startsWith(unitCodePrefix)
+                  );
+                  if (protoUnitHit.length === 1) {
+                    matchedAdm = protoUnitHit[0];
+                    contractFolderName = seg;
+                    extractedContractNumber = protoUnitHit[0].contractNumber;
+                    matchedSegmentIndex = idx;
+                    break;
+                  }
+                }
               }
-              const globalList = admByContractGlobal.get(ck);
-              if (globalList && globalList.length === 1) {
-                matchedAdm = globalList[0];
-                contractFolderName = seg;
-                extractedContractNumber = globalList[0].contractNumber;
-                matchedSegmentIndex = idx;
-                break;
-              }
+              if (matchedAdm) break;
             }
             if (matchedAdm) break;
-            if (idx === 0 && !extractedContractNumber) {
-              extractedContractNumber = cands[0] || seg;
+
+            // 3b. Verificação combinada Contrato + Nome do Cliente dentro de subpastas (ADMINISTRAÇÃO, COMERCIAL, PC GERAL, MODELOS)
+            if (segClientName && cands.length > 0) {
+              const unitAdms = admListByUnit.get(matchedUnit.id) || [];
+              let bestAdm: (typeof allAdmissions)[number] | undefined;
+              let bestScore = 0;
+              for (const adm of unitAdms) {
+                const cl = clientById.get(adm.clientId);
+                if (!cl) continue;
+                const nameScore = scoreClientNameMatch(segClientName, cl.fullName);
+                if (nameScore < 0.8) continue;
+                const admContractDigits = normalizeContractKey(adm.contractNumber).replace(/\D/g, '');
+                const candMatchesDigits = cands.some((c) => {
+                  const cd = normalizeContractKey(c).replace(/\D/g, '');
+                  return cd.length >= 2 && admContractDigits.includes(cd);
+                });
+                const combinedScore = nameScore + (candMatchesDigits ? 0.5 : 0);
+                if (combinedScore > bestScore && (candMatchesDigits || nameScore >= 0.92)) {
+                  bestScore = combinedScore;
+                  bestAdm = adm;
+                }
+              }
+              if (bestAdm) {
+                matchedAdm = bestAdm;
+                contractFolderName = seg;
+                extractedContractNumber = bestAdm.contractNumber;
+                matchedSegmentIndex = idx;
+                break;
+              }
             }
           }
         }
+
+        // Classificação:
+        //  - matchedAdm dentro de subpasta departamental (idx > 0) => 'interlinked' (Cliente + Admissão + Caminho da Unidade)
+        //  - matchedAdm direto na raiz (idx === 0) => 'client'
+        //  - sem matchedAdm => 'unit' (Pasta Geral da Unidade em Arquivos da Unidade)
+        const isInterlinked = Boolean(matchedAdm && matchedSegmentIndex > 0);
+        const itemScope: 'client' | 'unit' | 'interlinked' = matchedAdm
+          ? isInterlinked
+            ? 'interlinked'
+            : 'client'
+          : 'unit';
+        const docScope: 'client' | 'unit' = matchedAdm ? 'client' : 'unit';
+
+        if (itemScope === 'unit') incUnitFiles++;
+        if (itemScope === 'interlinked') incInterlinked++;
 
         const relInsideContract =
           matchedAdm && folderSegments.length > matchedSegmentIndex + 1
             ? [...folderSegments.slice(matchedSegmentIndex + 1), safeName].join('/')
             : matchedAdm
             ? safeName
-            : segments.join('/');
-
-        if (!matchedAdm) {
-          incUnmatched++;
-          if (!dryRun) {
-            await db.insert(vaultMigrationItems).values({
-              batchId,
-              unitFolderName: f.unitFolderName,
-              extractedUnitCode,
-              unitId: matchedUnit.id,
-              contractFolderName,
-              extractedContractNumber,
-              relativeSubpath: relInsideContract,
-              fileName: safeName,
-              legacySourcePath: f.legacySourcePath || '',
-              mimeType: f.mimeType || 'application/octet-stream',
-              sizeBytes: Number(f.sizeBytes || 0),
-              sha256Hash: f.sha256Hash || '',
-              action: 'unmatched_contract',
-              status: 'unmatched',
-              errorMessage: `Contrato "${extractedContractNumber || contractFolderName}" não encontrado na Admissão (Unidade ${matchedUnit.code})`,
-            });
-          }
-          decisions.push({ legacySourcePath: f.legacySourcePath, action: 'unmatched_contract' });
-          continue;
-        }
+            : unitFolderPath
+            ? `${unitFolderPath}/${safeName}`
+            : safeName;
 
         const subDirPart = relInsideContract.includes('/') ? `/${relInsideContract.slice(0, relInsideContract.lastIndexOf('/'))}` : '';
-        const targetFolderPath = `bucketdainvicta/U${matchedUnit.id}/C${matchedAdm.clientId}/ADM-${matchedAdm.id}${subDirPart}`;
-        const logicalKey = `${matchedUnit.id}::${matchedAdm.id}::${relInsideContract.toLowerCase()}`;
-        const existingAtPath = docByLogicalKey.get(logicalKey);
+        const targetFolderPath = matchedAdm
+          ? `bucketdainvicta/U${matchedUnit.id}/C${matchedAdm.clientId}/ADM-${matchedAdm.id}${subDirPart}`
+          : `bucketdainvicta/U${matchedUnit.id}/UNIT${unitFolderPath ? `/${unitFolderPath}` : ''}`;
+
+        const logicalKey = matchedAdm
+          ? `${matchedUnit.id}::${matchedAdm.id}::${relInsideContract.toLowerCase()}`
+          : `UNIT::${matchedUnit.id}::${unitFolderPath.toLowerCase()}::${safeName.toLowerCase()}`;
+        const existingAtPath = matchedAdm
+          ? docByLogicalKey.get(logicalKey)
+          : docByUnitLogicalKey.get(logicalKey);
 
         // Case A: Same logical path & same SHA-256 -> Unchanged (0 bytes)
         if (existingAtPath && existingAtPath.sha256Hash === f.sha256Hash && existingAtPath.storageUri && !existingAtPath.storageUri.endsWith('pending-sync')) {
@@ -541,17 +790,26 @@ export function registerMigrationRoutes(
           if (!dryRun) {
             await db
               .update(documentObjects)
-              .set({ lastSyncedAt: new Date(), legacySourcePath: f.legacySourcePath || existingAtPath.legacySourcePath, migrationBatchId: batchId })
+              .set({
+                lastSyncedAt: new Date(),
+                legacySourcePath: f.legacySourcePath || existingAtPath.legacySourcePath,
+                unitFolderPath,
+                isInterlinked: isInterlinked || existingAtPath.isInterlinked,
+                scope: docScope,
+                migrationBatchId: batchId,
+              })
               .where(eq(documentObjects.id, existingAtPath.id));
             await db.insert(vaultMigrationItems).values({
               batchId,
               unitFolderName: f.unitFolderName,
               extractedUnitCode,
               unitId: matchedUnit.id,
+              itemScope,
+              unitFolderPath,
               contractFolderName,
               extractedContractNumber,
-              clientId: matchedAdm.clientId,
-              admissionId: matchedAdm.id,
+              clientId: matchedAdm?.clientId ?? null,
+              admissionId: matchedAdm?.id ?? null,
               documentObjectId: existingAtPath.id,
               relativeSubpath: relInsideContract,
               fileName: safeName,
@@ -565,12 +823,16 @@ export function registerMigrationRoutes(
               integrativeCode: existingAtPath.integrativeCode || '',
             });
           }
-          decisions.push({ legacySourcePath: f.legacySourcePath, action: 'unchanged' });
+          decisions.push({ legacySourcePath: f.legacySourcePath, action: 'unchanged', itemScope, unitId: matchedUnit.id });
           continue;
         }
 
-        // Case B: Moved/renamed folder within same admission with identical SHA-256 -> Update folderPath without re-upload
-        const existingMoved = !existingAtPath ? docByAdmAndHash.get(`${matchedAdm.id}::${f.sha256Hash}`) : undefined;
+        // Case B: Moved/renamed folder within same scope with identical SHA-256 -> Update folderPath without re-upload
+        const existingMoved = !existingAtPath
+          ? matchedAdm
+            ? docByAdmAndHash.get(`${matchedAdm.id}::${f.sha256Hash}`)
+            : docByUnitAndHash.get(`UNIT::${matchedUnit.id}::${f.sha256Hash}`)
+          : undefined;
         if (existingMoved) {
           incUpdatedPath++;
           incSavedBytes += Number(f.sizeBytes || 0);
@@ -580,6 +842,9 @@ export function registerMigrationRoutes(
               .set({
                 folderPath: targetFolderPath,
                 relativeSubpath: relInsideContract,
+                unitFolderPath,
+                isInterlinked,
+                scope: docScope,
                 fileName: safeName,
                 legacySourcePath: f.legacySourcePath || '',
                 lastSyncedAt: new Date(),
@@ -591,10 +856,12 @@ export function registerMigrationRoutes(
               unitFolderName: f.unitFolderName,
               extractedUnitCode,
               unitId: matchedUnit.id,
+              itemScope,
+              unitFolderPath,
               contractFolderName,
               extractedContractNumber,
-              clientId: matchedAdm.clientId,
-              admissionId: matchedAdm.id,
+              clientId: matchedAdm?.clientId ?? null,
+              admissionId: matchedAdm?.id ?? null,
               documentObjectId: existingMoved.id,
               relativeSubpath: relInsideContract,
               fileName: safeName,
@@ -608,16 +875,16 @@ export function registerMigrationRoutes(
               integrativeCode: existingMoved.integrativeCode || '',
             });
           }
-          decisions.push({ legacySourcePath: f.legacySourcePath, action: 'update_path' });
+          decisions.push({ legacySourcePath: f.legacySourcePath, action: 'update_path', itemScope, unitId: matchedUnit.id });
           continue;
         }
 
-        // Case C: Global CAS deduplication hit (content already stored in R2/CAS for another contract/client)
+        // Case C: Global CAS deduplication hit (content already stored in R2/CAS)
         const existingStorageUri = f.sha256Hash ? storageUriBySha.get(f.sha256Hash) : undefined;
         const actionType: 'create' | 'update_content' = existingAtPath ? 'update_content' : 'create';
         if (existingStorageUri) {
           if (dryRun) {
-            decisions.push({ legacySourcePath: f.legacySourcePath, action: actionType, deduplicatedInstant: true });
+            decisions.push({ legacySourcePath: f.legacySourcePath, action: actionType, itemScope, unitId: matchedUnit.id, deduplicatedInstant: true });
             continue;
           }
           incDedup++;
@@ -635,6 +902,9 @@ export function registerMigrationRoutes(
                 mimeType: f.mimeType || existingAtPath.mimeType,
                 folderPath: targetFolderPath,
                 relativeSubpath: relInsideContract,
+                unitFolderPath,
+                isInterlinked,
+                scope: docScope,
                 legacySourcePath: f.legacySourcePath || '',
                 versionNumber: (existingAtPath.versionNumber || 1) + 1,
                 lastSyncedAt: new Date(),
@@ -647,14 +917,17 @@ export function registerMigrationRoutes(
             const [insDoc] = await db
               .insert(documentObjects)
               .values({
-                clientId: matchedAdm.clientId,
-                admissionId: matchedAdm.id,
+                clientId: matchedAdm?.clientId ?? null,
+                admissionId: matchedAdm?.id ?? null,
+                scope: docScope,
+                unitFolderPath,
+                isInterlinked,
                 unitId: matchedUnit.id,
                 folderPath: targetFolderPath,
                 relativeSubpath: relInsideContract,
                 legacySourcePath: f.legacySourcePath || '',
                 fileName: safeName,
-                docCategory: inferDocCategoryFromPath(relInsideContract, safeName),
+                docCategory: matchedAdm ? inferDocCategoryFromPath(relInsideContract, safeName) : 'arquivo_unidade',
                 mimeType: f.mimeType || 'application/octet-stream',
                 sizeBytes: Number(f.sizeBytes || 0),
                 sha256Hash: f.sha256Hash,
@@ -668,22 +941,28 @@ export function registerMigrationRoutes(
             docId = insDoc.id;
             intCode = generateIntegrativeCode({
               unitCode: matchedUnit.code,
-              entityType: 'DOC',
+              entityType: docScope === 'unit' ? 'UNID' : 'DOC',
               entityId: docId,
               referenceSeed: f.sha256Hash || safeName,
             });
             await db.update(documentObjects).set({ integrativeCode: intCode }).where(eq(documentObjects.id, docId));
-            docByLogicalKey.set(logicalKey, insDoc);
+            if (matchedAdm) {
+              docByLogicalKey.set(logicalKey, insDoc);
+            } else {
+              docByUnitLogicalKey.set(logicalKey, insDoc);
+            }
           }
           await db.insert(vaultMigrationItems).values({
             batchId,
             unitFolderName: f.unitFolderName,
             extractedUnitCode,
             unitId: matchedUnit.id,
+            itemScope,
+            unitFolderPath,
             contractFolderName,
             extractedContractNumber,
-            clientId: matchedAdm.clientId,
-            admissionId: matchedAdm.id,
+            clientId: matchedAdm?.clientId ?? null,
+            admissionId: matchedAdm?.id ?? null,
             documentObjectId: docId,
             relativeSubpath: relInsideContract,
             fileName: safeName,
@@ -696,13 +975,13 @@ export function registerMigrationRoutes(
             status: 'completed',
             integrativeCode: intCode,
           });
-          decisions.push({ legacySourcePath: f.legacySourcePath, action: actionType, deduplicatedInstant: true });
+          decisions.push({ legacySourcePath: f.legacySourcePath, action: actionType, itemScope, unitId: matchedUnit.id, deduplicatedInstant: true });
           continue;
         }
 
         // Case D: Needs binary upload (create or update_content)
         if (dryRun) {
-          decisions.push({ legacySourcePath: f.legacySourcePath, action: actionType });
+          decisions.push({ legacySourcePath: f.legacySourcePath, action: actionType, itemScope, unitId: matchedUnit.id });
           continue;
         }
 
@@ -713,10 +992,12 @@ export function registerMigrationRoutes(
             unitFolderName: f.unitFolderName,
             extractedUnitCode,
             unitId: matchedUnit.id,
+            itemScope,
+            unitFolderPath,
             contractFolderName,
             extractedContractNumber,
-            clientId: matchedAdm.clientId,
-            admissionId: matchedAdm.id,
+            clientId: matchedAdm?.clientId ?? null,
+            admissionId: matchedAdm?.id ?? null,
             documentObjectId: existingAtPath?.id ?? null,
             relativeSubpath: relInsideContract,
             fileName: safeName,
@@ -734,7 +1015,7 @@ export function registerMigrationRoutes(
 
         if (r2Cfg) {
           const storageUri = `r2-s3://${r2Cfg.bucketName}/${objectKey}`;
-          if (Number(f.sizeBytes || 0) >= 32 * 1024 * 1024) {
+          if (Number(f.sizeBytes || 0) >= 28 * 1024 * 1024) {
             const uploadId = await initiateR2MultipartUpload(r2Cfg, objectKey, {
               sha256: cleanHash,
               originalName: safeName,
@@ -744,11 +1025,20 @@ export function registerMigrationRoutes(
             decisions.push({
               legacySourcePath: f.legacySourcePath,
               action: actionType,
+              itemScope,
               itemId: migItem.id,
               uploadMode: 'r2_multipart',
               objectKey,
               uploadId,
               storageUri,
+            });
+          } else if (preferServerFallback) {
+            decisions.push({
+              legacySourcePath: f.legacySourcePath,
+              action: actionType,
+              itemScope,
+              itemId: migItem.id,
+              uploadMode: 'server_fallback',
             });
           } else {
             const presignedPutUrl = createR2PresignedUrl({
@@ -763,6 +1053,7 @@ export function registerMigrationRoutes(
             decisions.push({
               legacySourcePath: f.legacySourcePath,
               action: actionType,
+              itemScope,
               itemId: migItem.id,
               uploadMode: 'r2_presigned',
               objectKey,
@@ -774,6 +1065,7 @@ export function registerMigrationRoutes(
           decisions.push({
             legacySourcePath: f.legacySourcePath,
             action: actionType,
+            itemScope,
             itemId: migItem.id,
             uploadMode: 'server_fallback',
           });
@@ -799,6 +1091,8 @@ export function registerMigrationRoutes(
             deduplicatedCount: sql`${vaultMigrationBatches.deduplicatedCount} + ${incDedup}`,
             savedBytesByDedup: sql`${vaultMigrationBatches.savedBytesByDedup} + ${incSavedBytes}`,
             unmatchedCount: sql`${vaultMigrationBatches.unmatchedCount} + ${incUnmatched}`,
+            unitFilesCount: sql`${vaultMigrationBatches.unitFilesCount} + ${incUnitFiles}`,
+            interlinkedCount: sql`${vaultMigrationBatches.interlinkedCount} + ${incInterlinked}`,
             blockedCount: sql`${vaultMigrationBatches.blockedCount} + ${incBlocked}`,
             lastHeartbeatAt: new Date(),
             updatedAt: new Date(),
@@ -851,6 +1145,61 @@ export function registerMigrationRoutes(
     }
   });
 
+  // Server-proxied R2 Multipart UploadPart fallback (bypasses browser CORS while keeping chunks <= 16 MB)
+  app.put(
+    '/api/migration/batches/:id/multipart/proxy-part',
+    requireAdminOrBatchAgent,
+    express.raw({ type: '*/*', limit: '16mb' }),
+    async (req: AuthRequest, res) => {
+      try {
+        const batchId = parsePositiveIntId(req.params.id);
+        if (!batchId) return res.status(400).json({ error: 'ID do lote inválido.' });
+        const [batch] = await db
+          .select({ id: vaultMigrationBatches.id })
+          .from(vaultMigrationBatches)
+          .where(eq(vaultMigrationBatches.id, batchId))
+          .limit(1);
+        if (!batch) return res.status(404).json({ error: 'Lote não encontrado.' });
+
+        const r2Cfg = await getActiveR2ConfigForMigration();
+        if (!r2Cfg) return res.status(400).json({ error: 'Cloudflare R2 não configurado.' });
+
+        const objectKey = String(req.query.objectKey || '').trim();
+        const uploadId = String(req.query.uploadId || '').trim();
+        const partNumber = parsePositiveIntId(req.query.partNumber);
+        if (!objectKey || !uploadId || !partNumber || !objectKey.startsWith('bucketdainvicta/objects/')) {
+          return res.status(400).json({ error: 'Parâmetros multipart proxy inválidos.' });
+        }
+
+        const buf = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || '');
+        const signedUrl = createR2PresignedUrl({
+          method: 'PUT',
+          endpoint: r2Cfg.endpoint,
+          bucketName: r2Cfg.bucketName,
+          objectKey,
+          query: { partNumber: String(partNumber), uploadId },
+          expiresSeconds: 600,
+          accessKeyId: r2Cfg.accessKeyId,
+          secretAccessKey: r2Cfg.secretAccessKey,
+        });
+
+        const r2Resp = await fetch(signedUrl, {
+          method: 'PUT',
+          body: new Uint8Array(buf),
+          signal: AbortSignal.timeout(120_000),
+        });
+        if (!r2Resp.ok) {
+          const txt = await r2Resp.text().catch(() => '');
+          return res.status(502).json({ error: `R2 UploadPart #${partNumber} HTTP ${r2Resp.status}: ${txt.slice(0, 160)}` });
+        }
+        const etag = r2Resp.headers.get('etag') || r2Resp.headers.get('ETag') || '';
+        return res.json({ ok: true, partNumber, etag });
+      } catch (error) {
+        return res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao enviar parte multipart ao R2.') });
+      }
+    }
+  );
+
   // Complete R2 Multipart Upload
   app.post('/api/migration/batches/:id/multipart/complete', requireAdminOrBatchAgent, async (req: AuthRequest, res) => {
     try {
@@ -894,10 +1243,14 @@ export function registerMigrationRoutes(
         if (!item) return res.status(404).json({ error: 'Item de migração não encontrado.' });
 
         const buf = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || '');
+        const isUnitOnly = item.itemScope === 'unit' || !item.clientId;
+        const unitFolderClean = normalizeFolderPath(item.unitFolderPath || '');
         const subDir = item.relativeSubpath.includes('/')
           ? `/${item.relativeSubpath.slice(0, item.relativeSubpath.lastIndexOf('/'))}`
           : '';
-        const folderPath = `bucketdainvicta/U${item.unitId || 1}/C${item.clientId || 1}/ADM-${item.admissionId || 0}${subDir}`;
+        const folderPath = isUnitOnly
+          ? `bucketdainvicta/U${item.unitId || 1}/UNIT${unitFolderClean ? `/${unitFolderClean}` : ''}`
+          : `bucketdainvicta/U${item.unitId || 1}/C${item.clientId}/ADM-${item.admissionId || 0}${subDir}`;
         const stored = await putBucketObject(buf, {
           folderPath,
           mimeType: item.mimeType,
@@ -937,12 +1290,19 @@ export function registerMigrationRoutes(
       ? await db.select().from(units).where(eq(units.id, item.unitId)).limit(1)
       : [undefined];
     const unitCode = unitRow?.code || `U${item.unitId || 1}`;
+    const isUnitOnly = item.itemScope === 'unit' || !item.clientId;
+    const isInterlinked = item.itemScope === 'interlinked';
+    const docScope: 'unit' | 'client' = isUnitOnly ? 'unit' : 'client';
+    const unitFolderClean = normalizeFolderPath(item.unitFolderPath || '');
+
     const subDir = item.relativeSubpath.includes('/')
       ? `/${item.relativeSubpath.slice(0, item.relativeSubpath.lastIndexOf('/'))}`
       : '';
-    const folderPath = `bucketdainvicta/U${item.unitId || 1}/C${item.clientId || 1}${
-      item.admissionId ? `/ADM-${item.admissionId}` : '/GERAL'
-    }${subDir}`;
+    const folderPath = isUnitOnly
+      ? `bucketdainvicta/U${item.unitId || 1}/UNIT${unitFolderClean ? `/${unitFolderClean}` : ''}`
+      : `bucketdainvicta/U${item.unitId || 1}/C${item.clientId}${
+          item.admissionId ? `/ADM-${item.admissionId}` : '/GERAL'
+        }${subDir}`;
     const sha = params.actualSha256 || item.sha256Hash;
     const size = params.actualBytes ?? item.sizeBytes;
 
@@ -954,7 +1314,12 @@ export function registerMigrationRoutes(
       if (existingDoc) {
         integrativeCode =
           existingDoc.integrativeCode ||
-          generateIntegrativeCode({ unitCode, entityType: 'DOC', entityId: docId, referenceSeed: sha || item.fileName });
+          generateIntegrativeCode({
+            unitCode,
+            entityType: docScope === 'unit' ? 'UNID' : 'DOC',
+            entityId: docId,
+            referenceSeed: sha || item.fileName,
+          });
         await db
           .update(documentObjects)
           .set({
@@ -965,6 +1330,9 @@ export function registerMigrationRoutes(
             mimeType: item.mimeType,
             folderPath,
             relativeSubpath: item.relativeSubpath,
+            unitFolderPath: unitFolderClean,
+            isInterlinked,
+            scope: docScope,
             legacySourcePath: item.legacySourcePath,
             versionNumber: (existingDoc.versionNumber || 1) + 1,
             integrativeCode,
@@ -982,18 +1350,21 @@ export function registerMigrationRoutes(
           updatedAt: new Date(),
         })
         .where(eq(vaultMigrationBatches.id, batchId));
-    } else if (item.clientId) {
+    } else {
       const [insDoc] = await db
         .insert(documentObjects)
         .values({
-          clientId: item.clientId,
-          admissionId: item.admissionId ?? null,
+          clientId: isUnitOnly ? null : item.clientId,
+          admissionId: isUnitOnly ? null : item.admissionId ?? null,
+          scope: docScope,
+          unitFolderPath: unitFolderClean,
+          isInterlinked,
           unitId: item.unitId || 1,
           folderPath,
           relativeSubpath: item.relativeSubpath,
           legacySourcePath: item.legacySourcePath,
           fileName: item.fileName,
-          docCategory: inferDocCategoryFromPath(item.relativeSubpath, item.fileName),
+          docCategory: isUnitOnly ? 'arquivo_unidade' : inferDocCategoryFromPath(item.relativeSubpath, item.fileName),
           mimeType: item.mimeType,
           sizeBytes: size,
           sha256Hash: sha,
@@ -1007,7 +1378,7 @@ export function registerMigrationRoutes(
       docId = insDoc.id;
       integrativeCode = generateIntegrativeCode({
         unitCode,
-        entityType: 'DOC',
+        entityType: docScope === 'unit' ? 'UNID' : 'DOC',
         entityId: docId,
         referenceSeed: sha || item.fileName,
       });
@@ -1124,6 +1495,48 @@ export function registerMigrationRoutes(
     }
   });
 
+  // Cancel active/pending batch
+  app.post('/api/migration/batches/:id/cancel', requireAdminOrBatchAgent, async (req: AuthRequest, res) => {
+    try {
+      const batchId = parsePositiveIntId(req.params.id);
+      if (!batchId) return res.status(400).json({ error: 'ID do lote inválido.' });
+      const [batch] = await db
+        .select()
+        .from(vaultMigrationBatches)
+        .where(eq(vaultMigrationBatches.id, batchId))
+        .limit(1);
+      if (!batch) return res.status(404).json({ error: 'Lote não encontrado.' });
+
+      await db
+        .update(vaultMigrationItems)
+        .set({
+          status: 'cancelled',
+          errorMessage: 'Processo cancelado pelo usuário.',
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(vaultMigrationItems.batchId, batchId),
+            eq(vaultMigrationItems.status, 'awaiting_upload')
+          )
+        );
+
+      const [updated] = await db
+        .update(vaultMigrationBatches)
+        .set({
+          status: 'cancelado',
+          updatedAt: new Date(),
+        })
+        .where(eq(vaultMigrationBatches.id, batchId))
+        .returning();
+
+      deps.broadcast('migration:progress', { batchId, status: 'cancelado' });
+      res.json({ ok: true, batch: { ...updated, agentSessionTokenHash: undefined } });
+    } catch (error) {
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao cancelar lote.') });
+    }
+  });
+
   // Lookup targets for resolving unmatched folders in the UI
   app.get('/api/migration/lookup-targets', requireAuth, requireAdmin, async (_req: AuthRequest, res) => {
     try {
@@ -1135,7 +1548,14 @@ export function registerMigrationRoutes(
       const clientById = new Map(clientRows.map((c) => [c.id, c]));
       const unitById = new Map(unitRows.map((u) => [u.id, u]));
       res.json({
-        units: unitRows.map((u) => ({ id: u.id, code: u.code, name: u.name, active: u.active })),
+        units: unitRows.map((u) => ({
+          id: u.id,
+          code: u.code,
+          name: u.name,
+          city: u.city,
+          state: u.state,
+          active: u.active,
+        })),
         admissions: admRows.map((a) => ({
           id: a.id,
           unitId: a.unitId,
@@ -1346,7 +1766,7 @@ export function registerMigrationRoutes(
         });
       }
 
-      // DOC resolver
+      // DOC or UNID resolver with granular RBAC enforcement
       const [doc] = await db.select().from(documentObjects).where(eq(documentObjects.id, parsed.entityId)).limit(1);
       if (!doc || doc.deletedAt) return res.status(404).json({ error: 'Documento não encontrado.' });
       if (!isAdmin && !allowedUnits.includes(doc.unitId)) {
@@ -1354,21 +1774,43 @@ export function registerMigrationRoutes(
       }
       const [unitRow] = await db.select().from(units).where(eq(units.id, doc.unitId)).limit(1);
       const unitCode = unitRow?.code || `U${doc.unitId}`;
+      const expectedEntityType = doc.scope === 'unit' || !doc.clientId ? 'UNID' : 'DOC';
+      if (parsed.entityType !== expectedEntityType) {
+        return res.status(403).json({ error: 'Tipo do Código Integrativo incompatível com o escopo do documento.' });
+      }
       const valid = verifyIntegrativeCodeAgainstRecord({
         code,
         unitCode,
-        entityType: 'DOC',
+        entityType: parsed.entityType,
         entityId: doc.id,
         referenceSeed: doc.sha256Hash || doc.fileName,
       });
       if (!valid) return res.status(403).json({ error: 'Assinatura HMAC do Código Integrativo inválida.' });
 
+      const folderRules = await loadFolderRulesForUser(doc.unitId);
+      const effPerms = evaluateDocumentAccess({
+        authUser: req.authUser!,
+        doc,
+        folderRules,
+        context: 'direct',
+      });
+      if (!effPerms.view) {
+        return res.status(403).json({ error: 'Permissão de visualização negada para este arquivo.' });
+      }
+
       if (req.query.meta === '1') {
         return res.json({
-          type: 'DOC',
+          type: parsed.entityType,
           integrativeCode: code,
+          permissions: effPerms,
           document: {
             id: doc.id,
+            scope: doc.scope,
+            unitId: doc.unitId,
+            unitFolderPath: doc.unitFolderPath,
+            isInterlinked: doc.isInterlinked,
+            clientId: doc.clientId,
+            admissionId: doc.admissionId,
             fileName: doc.fileName,
             relativeSubpath: doc.relativeSubpath,
             folderPath: doc.folderPath,
@@ -1380,19 +1822,91 @@ export function registerMigrationRoutes(
         });
       }
 
+      const isPreview = req.query.preview === '1';
+      if (!isPreview && !effPerms.download) {
+        return res.status(403).json({ error: 'Permissão de download negada para este usuário ou grupo.' });
+      }
+
       const buf = await getBucketObjectBuffer(doc.sha256Hash, doc.storageUri);
       if (!buf) return res.status(404).json({ error: 'Conteúdo binário não localizado no bucket.' });
 
       const safeName = sanitizeFileName(doc.fileName);
-      const disposition = req.query.preview === '1' && canPreviewInline(doc.mimeType) ? 'inline' : 'attachment';
+      const disposition = isPreview && canPreviewInline(doc.mimeType) ? 'inline' : 'attachment';
       res.setHeader('Content-Type', doc.mimeType || 'application/octet-stream');
       res.setHeader('Content-Length', String(buf.length));
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
       res.setHeader('X-Content-Type-Options', 'nosniff');
       res.setHeader('X-Integrative-Code', code);
       res.setHeader('Content-Disposition', `${disposition}; filename="${safeName}"`);
       return res.send(buf);
     } catch (error) {
       res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao resolver código integrativo.' });
+    }
+  });
+
+  // Full purge of ALL bucket folders/objects (Cloudflare R2 + local bucket + document index + migration history)
+  app.post('/api/migration/purge-bucket', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      const { confirmPhrase } = (req.body || {}) as { confirmPhrase?: string };
+      if (String(confirmPhrase || '').trim().toUpperCase() !== 'APAGAR BUCKET R2') {
+        return res.status(400).json({
+          error: 'Frase de confirmação inválida. Digite exatamente "APAGAR BUCKET R2" para confirmar.',
+        });
+      }
+
+      const storageResult = await purgeAllBucketObjects();
+      if (storageResult.r2Configured && !storageResult.r2Purged) {
+        return res.status(502).json({
+          error:
+            storageResult.r2Error ||
+            `Não foi possível concluir a limpeza no Cloudflare R2 (${storageResult.bucketName}). Nenhuma referência do banco foi apagada.`,
+        });
+      }
+
+      const dbCounts = await db.transaction(async (tx) => {
+        await tx
+          .update(financialTitles)
+          .set({ receiptDocId: null })
+          .where(isNotNull(financialTitles.receiptDocId));
+
+        const delItems = await tx.delete(vaultMigrationItems);
+        const delBatches = await tx.delete(vaultMigrationBatches);
+        const delDocs = await tx.delete(documentObjects);
+
+        const counts = {
+          dbItemsDeleted: Number(delItems?.rowCount ?? 0),
+          dbBatchesDeleted: Number(delBatches?.rowCount ?? 0),
+          dbDocumentsDeleted: Number(delDocs?.rowCount ?? 0),
+        };
+
+        await tx.insert(auditLogs).values({
+          userId: req.authUser!.id,
+          userName: req.authUser!.name,
+          action: 'R2_BUCKET_FULL_PURGE',
+          entityType: 'vault_migration_batch',
+          entityId: storageResult.bucketName,
+          details: {
+            ...storageResult,
+            ...counts,
+          },
+          unitId: req.activeUnitId ?? null,
+        });
+
+        return counts;
+      });
+
+      deps.broadcast('migration:progress', { purged: true, bucketName: storageResult.bucketName });
+      deps.broadcast('vault:purged', { bucketName: storageResult.bucketName });
+
+      return res.json({
+        ok: true,
+        ...storageResult,
+        ...dbCounts,
+      });
+    } catch (error) {
+      return res
+        .status(500)
+        .json({ error: sanitizeErrorMessage(error, 'Erro ao apagar pastas e arquivos do bucket R2.') });
     }
   });
 }

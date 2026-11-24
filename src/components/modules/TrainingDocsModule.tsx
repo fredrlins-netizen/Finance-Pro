@@ -1522,6 +1522,7 @@ export const TrainingDocsModule: React.FC<TrainingDocsModuleProps> = ({
                       stepNumber={currentStepIndex + 1}
                       totalSteps={trainingSteps.length}
                       isSpeaking={isPlayingNarration || isLiveSpeaking}
+                      isDoubtOpen={lessonDoubtOpen}
                       selectedVoice={selectedVoice}
                       onChangeVoice={setSelectedVoice}
                     />

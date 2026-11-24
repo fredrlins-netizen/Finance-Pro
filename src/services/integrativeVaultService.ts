@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '../db/index.ts';
 import { admissions, auditLogs, documentObjects, units } from '../db/schema.ts';
 
-export type IntegrativeEntityType = 'DOSS' | 'DOC';
+export type IntegrativeEntityType = 'DOSS' | 'DOC' | 'UNID';
 
 function getIntegrativeHmacSecret(): string {
   return (
@@ -66,7 +66,7 @@ export function parseIntegrativeCode(code: string): {
   const m = String(code || '')
     .trim()
     .toUpperCase()
-    .match(/^INV-([A-Z0-9]{1,8})-(DOSS|DOC)-(\d{1,10})-([A-F0-9]{8})$/);
+    .match(/^INV-([A-Z0-9]{1,8})-(DOSS|DOC|UNID)-(\d{1,10})-([A-F0-9]{8})$/);
   if (!m) return null;
   const entityId = Number(m[3]);
   if (!Number.isFinite(entityId) || entityId <= 0) return null;
@@ -114,12 +114,22 @@ export function extractUnitCodeCandidates(folderName: string): string[] {
   const raw = String(folderName || '').trim();
   if (!raw) return [];
   const candidates: string[] = [];
+  const push = (tok?: string) => {
+    const t = String(tok || '').trim();
+    if (t && !candidates.includes(t)) candidates.push(t);
+  };
   // First token before whitespace, " - ", "_", ":", "("
-  const leading = raw.split(/\s+[-–—]\s+|[_:()\[\]]|\s+/)[0]?.trim();
-  if (leading) candidates.push(leading);
-  const leadingHyphen = raw.split(/[-–—_\s]+/)[0]?.trim();
-  if (leadingHyphen && !candidates.includes(leadingHyphen)) candidates.push(leadingHyphen);
-  if (!candidates.includes(raw)) candidates.push(raw);
+  push(raw.split(/\s+[-–—]\s+|[_:()\[\]]|\s+/)[0]);
+  push(raw.split(/[-–—_\s]+/)[0]);
+  // Additional tokens inside names like "FOR - FORTALEZA - CE" or "SERVIDOR - INVICTA - FORTALEZA - CE"
+  for (const part of raw.split(/[-–—_:/\\\[\]()]+/)) {
+    const clean = part.trim();
+    if (clean.length >= 2) push(clean);
+    for (const word of clean.split(/\s+/)) {
+      if (word.length >= 2) push(word);
+    }
+  }
+  push(raw);
   return candidates;
 }
 
@@ -154,6 +164,55 @@ export function extractContractCandidates(folderName: string): string[] {
   return Array.from(candidates).filter(Boolean);
 }
 
+const STOPWORDS_PT = new Set(['DE', 'DA', 'DO', 'DAS', 'DOS', 'E', 'LTDA', 'ME', 'EPP', 'SA', 'S/A', 'CE', 'PE', 'BA', 'PB', 'SP', 'RN', 'AL']);
+
+export function normalizePersonName(raw: string): string {
+  return String(raw || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Extrai o nome do cliente após o prefixo do contrato numa subpasta.
+ * Ex: "004521 - MARIA JOSE DA SILVA" -> "MARIA JOSE DA SILVA"
+ * Ex: "CT-2024-00981_JOAO SOUZA" -> "JOAO SOUZA"
+ */
+export function extractClientNameFromFolder(folderName: string): string {
+  const raw = String(folderName || '').trim();
+  if (!raw) return '';
+  const stripped = raw
+    .replace(/^[A-Za-z]{0,5}[-_/]?\d[\dA-Za-z.\-_/]{1,24}\s*[-–—_:|\s]+\s*/u, '')
+    .trim();
+  if (stripped && stripped !== raw && /[A-Za-zÀ-ÿ]{3,}/.test(stripped)) {
+    return stripped;
+  }
+  return '';
+}
+
+export function scoreClientNameMatch(folderNameCandidate: string, dbFullName: string): number {
+  const aNorm = normalizePersonName(folderNameCandidate);
+  const bNorm = normalizePersonName(dbFullName);
+  if (!aNorm || !bNorm) return 0;
+  if (aNorm === bNorm) return 1;
+  if (aNorm.length >= 6 && (bNorm.includes(aNorm) || aNorm.includes(bNorm))) return 0.92;
+
+  const tokensA = aNorm.split(' ').filter((t) => t.length >= 2 && !STOPWORDS_PT.has(t));
+  const tokensB = bNorm.split(' ').filter((t) => t.length >= 2 && !STOPWORDS_PT.has(t));
+  if (tokensA.length === 0 || tokensB.length === 0) return 0;
+
+  const setB = new Set(tokensB);
+  let matched = 0;
+  for (const t of tokensA) {
+    if (setB.has(t)) matched++;
+  }
+  const minLen = Math.min(tokensA.length, tokensB.length);
+  return minLen > 0 ? matched / minLen : 0;
+}
+
 export function inferDocCategoryFromPath(relativeSubpath: string, fileName: string): string {
   const text = `${relativeSubpath} ${fileName}`
     .normalize('NFD')
@@ -169,7 +228,7 @@ export function inferDocCategoryFromPath(relativeSubpath: string, fileName: stri
   if (text.includes('cnh') || text.includes('rg') || text.includes('cpf') || text.includes('pessoal') || text.includes('identid')) return 'pessoal';
   if (text.includes('ficha')) return 'ficha_admissao';
   if (text.includes('contrat')) return 'contrato';
-  return 'contrato';
+  return 'arquivo_unidade';
 }
 
 export async function assignIntegrativeCodesBatch(params: {
@@ -230,9 +289,10 @@ export async function assignIntegrativeCodesBatch(params: {
       continue;
     }
     const unitCode = unitCodeMap.get(doc.unitId) || `U${doc.unitId}`;
+    const entityType: IntegrativeEntityType = doc.scope === 'unit' || !doc.clientId ? 'UNID' : 'DOC';
     const code = generateIntegrativeCode({
       unitCode,
-      entityType: 'DOC',
+      entityType,
       entityId: doc.id,
       referenceSeed: doc.sha256Hash || doc.fileName,
     });

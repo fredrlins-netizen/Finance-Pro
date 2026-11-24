@@ -23,6 +23,38 @@ let _lastWebhookAt: string | null = null;
 let _lastError: string | null = null;
 let _lastCheckAt: string | null = null;
 
+interface UazapiGlobalOverride {
+  serverUrl: string | null;
+  adminToken: string | null;
+  webhookSecret: string | null;
+}
+
+let _uazapiGlobalOverride: UazapiGlobalOverride = {
+  serverUrl: null,
+  adminToken: null,
+  webhookSecret: null,
+};
+
+export function setUazapiGlobalOverride(cfg: Partial<UazapiGlobalOverride> | null): void {
+  _uazapiGlobalOverride = {
+    serverUrl: cfg?.serverUrl?.trim() ? cfg.serverUrl.trim().replace(/\/$/, '') : null,
+    adminToken: cfg?.adminToken?.trim() || null,
+    webhookSecret: cfg?.webhookSecret?.trim() || null,
+  };
+}
+
+export function getDefaultUazapiServerUrl(): string {
+  return (_uazapiGlobalOverride.serverUrl || process.env.UAZAPI_SERVER_URL || 'https://centralhub.uazapi.com').replace(/\/$/, '');
+}
+
+export function getUazapiAdminToken(): string | null {
+  return _uazapiGlobalOverride.adminToken || process.env.UAZAPI_ADMIN_TOKEN?.trim() || null;
+}
+
+export function getUazapiWebhookSecret(): string | null {
+  return _uazapiGlobalOverride.webhookSecret || process.env.UAZAPI_WEBHOOK_SECRET?.trim() || null;
+}
+
 export function markUazapiWebhookReceived(): void {
   _lastWebhookAt = new Date().toISOString();
 }
@@ -36,12 +68,15 @@ export function markUazapiChecked(): void {
 }
 
 export function getUazapiGlobalRuntimeState() {
+  const hasDbGlobal = Boolean(_uazapiGlobalOverride.serverUrl || _uazapiGlobalOverride.adminToken || _uazapiGlobalOverride.webhookSecret);
+  const hasEnvGlobal = Boolean(process.env.UAZAPI_TOKEN?.trim() || process.env.UAZAPI_ADMIN_TOKEN?.trim());
   return {
-    envConfigured: Boolean(process.env.UAZAPI_TOKEN?.trim() || process.env.UAZAPI_ADMIN_TOKEN?.trim()),
-    adminTokenConfigured: Boolean(process.env.UAZAPI_ADMIN_TOKEN?.trim()),
-    defaultServerUrl: DEFAULT_UAZAPI_SERVER_URL,
+    envConfigured: hasEnvGlobal || Boolean(_uazapiGlobalOverride.adminToken),
+    adminTokenConfigured: Boolean(getUazapiAdminToken()),
+    source: (hasDbGlobal ? 'database' : hasEnvGlobal ? 'env' : 'none') as 'database' | 'env' | 'none',
+    defaultServerUrl: getDefaultUazapiServerUrl(),
     encryptionKeyDedicated: Boolean(process.env.ENCRYPTION_KEY?.trim()),
-    webhookSecretConfigured: Boolean(process.env.UAZAPI_WEBHOOK_SECRET?.trim()),
+    webhookSecretConfigured: Boolean(getUazapiWebhookSecret()),
     lastWebhookAt: _lastWebhookAt,
     lastCheckAt: _lastCheckAt,
     lastError: _lastError,
@@ -106,7 +141,7 @@ export function getEnvUazapiCredentials(): UazapiCredentials | null {
   return {
     instanceId: process.env.UAZAPI_INSTANCE_ID?.trim() || 'default-env',
     label: 'Instância Padrão (Secrets)',
-    serverUrl: DEFAULT_UAZAPI_SERVER_URL,
+    serverUrl: getDefaultUazapiServerUrl(),
     token,
   };
 }
@@ -116,7 +151,7 @@ export async function uazapiFetch(
   path: string,
   options: RequestInit = {}
 ): Promise<Response> {
-  const baseUrl = (creds.serverUrl || DEFAULT_UAZAPI_SERVER_URL).replace(/\/$/, '');
+  const baseUrl = (creds.serverUrl || getDefaultUazapiServerUrl()).replace(/\/$/, '');
   const url = `${baseUrl}${path}`;
   return fetch(url, {
     ...options,
@@ -508,7 +543,7 @@ export async function fetchUazapiInstancesWithAdminToken(
   serverUrl: string,
   adminToken: string
 ): Promise<{ ok: boolean; httpStatus: number; instances: UazapiAdminDiscoveredInstance[]; error?: string }> {
-  const baseUrl = (serverUrl || DEFAULT_UAZAPI_SERVER_URL).replace(/\/$/, '');
+  const baseUrl = (serverUrl || getDefaultUazapiServerUrl()).replace(/\/$/, '');
   try {
     const resp = await fetch(`${baseUrl}/instance/all`, {
       method: 'GET',

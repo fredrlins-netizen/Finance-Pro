@@ -29,8 +29,13 @@ import {
   AuditLogEntry,
   AuthUser,
   ConfigUserItem,
+  DocumentActionOverrideSet,
+  DocumentActionPermissionSet,
+  DocumentPermissionGroupMatrix,
+  DocumentPermissionUserOverrides,
   HelpCenterTopic,
   ModalityItem,
+  PermissionTriState,
   PortalBrandingConfig,
   UazapiInstancePublic,
   Unit,
@@ -64,6 +69,7 @@ const RBAC_MODULE_LIST: Array<{ key: string; label: string }> = [
   { key: 'legal', label: 'Jurídico & Escavador' },
   { key: 'negotiations', label: 'Negociações Bancárias' },
   { key: 'internal_messaging', label: 'Operação · Mensageria Interna' },
+  { key: 'whatsapp_messaging', label: 'Operação · WhatsApp (GoTalk & UaZapi)' },
   { key: 'finance', label: 'Financeiro & Régua' },
   { key: 'collection', label: 'Cobrança & Ranking' },
   { key: 'forms', label: 'Formulários & Relatórios · Formulários' },
@@ -71,7 +77,26 @@ const RBAC_MODULE_LIST: Array<{ key: string; label: string }> = [
   { key: 'jur_dashboard', label: 'Governança · Acomp. Jurídico (Dashboard)' },
   { key: 'jur_processos', label: 'Governança · Acomp. Jurídico (Processos)' },
   { key: 'jur_prazos', label: 'Governança · Acomp. Jurídico (Prazos e Audiências)' },
+  { key: 'unit_files', label: 'Governança · Arquivos da Unidade' },
   { key: 'config', label: 'Governança · Configurações & SQL' },
+];
+
+const DEFAULT_GROUP_DOC_MATRIX: DocumentPermissionGroupMatrix = {
+  unitFiles: { view: false, print: false, download: false, edit: false, delete: false },
+  clientDocs: { view: true, print: true, download: true, edit: true, delete: false },
+};
+
+const DEFAULT_USER_DOC_OVERRIDES: DocumentPermissionUserOverrides = {
+  unitFiles: { view: 'inherit', print: 'inherit', download: 'inherit', edit: 'inherit', delete: 'inherit' },
+  clientDocs: { view: 'inherit', print: 'inherit', download: 'inherit', edit: 'inherit', delete: 'inherit' },
+};
+
+const DOC_PERM_ACTIONS: Array<{ key: keyof DocumentActionPermissionSet; label: string }> = [
+  { key: 'view', label: 'Visualizar' },
+  { key: 'print', label: 'Imprimir' },
+  { key: 'download', label: 'Baixar' },
+  { key: 'edit', label: 'Alterar' },
+  { key: 'delete', label: 'Excluir' },
 ];
 
 // =============================================================================
@@ -105,6 +130,7 @@ export const ConfigGroupsAndUsersView: React.FC<{
   const [grpName, setGrpName] = useState('');
   const [grpDesc, setGrpDesc] = useState('');
   const [grpPerms, setGrpPerms] = useState<Record<string, boolean>>({});
+  const [grpDocPerms, setGrpDocPerms] = useState<DocumentPermissionGroupMatrix>(DEFAULT_GROUP_DOC_MATRIX);
   const [grpUazapiIds, setGrpUazapiIds] = useState<number[]>([]);
   const [grpFeeFieldPerm, setGrpFeeFieldPerm] = useState<'edit' | 'read' | 'hidden'>('edit');
   const [grpSaving, setGrpSaving] = useState(false);
@@ -122,6 +148,7 @@ export const ConfigGroupsAndUsersView: React.FC<{
   const [usrGroupId, setUsrGroupId] = useState<string>('');
   const [usrDefaultUnitId, setUsrDefaultUnitId] = useState<number>(units[0]?.id || 1);
   const [usrAllowedUnits, setUsrAllowedUnits] = useState<number[]>([]);
+  const [usrDocOverrides, setUsrDocOverrides] = useState<DocumentPermissionUserOverrides>(DEFAULT_USER_DOC_OVERRIDES);
   const [usrPhone, setUsrPhone] = useState('');
   const [usrPassword, setUsrPassword] = useState('');
   const [usrMustChangePwd, setUsrMustChangePwd] = useState(true);
@@ -154,8 +181,10 @@ export const ConfigGroupsAndUsersView: React.FC<{
       collection: false,
       forms: true,
       reports: true,
+      unit_files: false,
       config: false,
     });
+    setGrpDocPerms(DEFAULT_GROUP_DOC_MATRIX);
     setGrpUazapiIds([]);
     setGrpFeeFieldPerm('edit');
     setGrpErr('');
@@ -167,6 +196,10 @@ export const ConfigGroupsAndUsersView: React.FC<{
     setGrpName(grp.name);
     setGrpDesc(grp.description || '');
     setGrpPerms({ ...(grp.modulePermissions || {}) });
+    setGrpDocPerms({
+      unitFiles: { ...DEFAULT_GROUP_DOC_MATRIX.unitFiles, ...(grp.documentPermissions?.unitFiles || {}) },
+      clientDocs: { ...DEFAULT_GROUP_DOC_MATRIX.clientDocs, ...(grp.documentPermissions?.clientDocs || {}) },
+    });
     const boundInstIds = uazapiInstances
       .filter((inst) => (inst.allowedGroupIds || []).includes(grp.id))
       .map((inst) => inst.id);
@@ -195,6 +228,7 @@ export const ConfigGroupsAndUsersView: React.FC<{
           fieldPermissions: {
             admission: { serviceFeeCents: grpFeeFieldPerm },
           },
+          documentPermissions: grpDocPerms,
           uazapiInstanceIds: grpUazapiIds,
         }),
       });
@@ -217,6 +251,7 @@ export const ConfigGroupsAndUsersView: React.FC<{
     const firstUnit = units[0]?.id || 1;
     setUsrDefaultUnitId(firstUnit);
     setUsrAllowedUnits([firstUnit]);
+    setUsrDocOverrides(DEFAULT_USER_DOC_OVERRIDES);
     setUsrPhone('');
     setUsrPassword('');
     setUsrMustChangePwd(true);
@@ -239,6 +274,10 @@ export const ConfigGroupsAndUsersView: React.FC<{
     const defU = u.defaultUnitId || units[0]?.id || 1;
     setUsrDefaultUnitId(defU);
     setUsrAllowedUnits(u.allowedUnitIds && u.allowedUnitIds.length > 0 ? u.allowedUnitIds : [defU]);
+    setUsrDocOverrides({
+      unitFiles: { ...DEFAULT_USER_DOC_OVERRIDES.unitFiles, ...(u.documentPermissionOverrides?.unitFiles || {}) },
+      clientDocs: { ...DEFAULT_USER_DOC_OVERRIDES.clientDocs, ...(u.documentPermissionOverrides?.clientDocs || {}) },
+    });
     setUsrPhone(u.whatsappPhone || '');
     setUsrPassword('');
     setUsrMustChangePwd(false);
@@ -297,6 +336,7 @@ export const ConfigGroupsAndUsersView: React.FC<{
           groupId: usrGroupId ? Number(usrGroupId) : null,
           defaultUnitId: usrDefaultUnitId,
           allowedUnitIds: usrAllowedUnits.length > 0 ? usrAllowedUnits : [usrDefaultUnitId],
+          documentPermissionOverrides: usrDocOverrides,
           whatsappPhone: usrPhone.trim(),
           password: usrPassword.trim() || undefined,
           mustChangePassword: usrMustChangePwd,
@@ -726,6 +766,71 @@ export const ConfigGroupsAndUsersView: React.FC<{
               )}
             </div>
 
+            <div className="space-y-1.5">
+              <label className="block font-semibold text-slate-800 dark:text-slate-100">
+                Controle Granular de Documentos &amp; Pastas da Unidade
+              </label>
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/70 p-3 space-y-2.5">
+                {(
+                  [
+                    { key: 'unitFiles', label: 'Arquivos da Unidade (Administração, Modelos, Comercial)' },
+                    { key: 'clientDocs', label: 'Documentos de Clientes & Admissão (Dossiês)' },
+                  ] as const
+                ).map((scopeRow) => {
+                  const setObj = grpDocPerms[scopeRow.key];
+                  return (
+                    <div
+                      key={scopeRow.key}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b last:border-b-0 border-slate-200 dark:border-slate-700 pb-2 last:pb-0"
+                    >
+                      <span className="font-semibold text-slate-800 dark:text-slate-100">{scopeRow.label}</span>
+                      <div className="flex flex-wrap items-center gap-3">
+                        {DOC_PERM_ACTIONS.map((act) => {
+                          const disabled = act.key !== 'view' && !setObj.view;
+                          return (
+                            <label
+                              key={act.key}
+                              className={`inline-flex items-center gap-1.5 cursor-pointer ${
+                                disabled ? 'opacity-45 cursor-not-allowed' : ''
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                disabled={disabled}
+                                checked={Boolean(setObj[act.key])}
+                                onChange={(e) => {
+                                  const checked = e.target.checked;
+                                  setGrpDocPerms((prev) => {
+                                    const cur = { ...prev[scopeRow.key], [act.key]: checked };
+                                    if (act.key === 'view' && !checked) {
+                                      return {
+                                        ...prev,
+                                        [scopeRow.key]: {
+                                          view: false,
+                                          print: false,
+                                          download: false,
+                                          edit: false,
+                                          delete: false,
+                                        },
+                                      };
+                                    }
+                                    return { ...prev, [scopeRow.key]: cur };
+                                  });
+                                }}
+                              />
+                              <span className="text-[11px] font-medium text-slate-700 dark:text-slate-200">
+                                {act.label}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             <div className="flex justify-end gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
               <button
                 type="button"
@@ -929,6 +1034,54 @@ export const ConfigGroupsAndUsersView: React.FC<{
                     </span>
                   </label>
                 ))}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block font-semibold text-slate-800 dark:text-slate-100">
+                Exceções Individuais de Documentos (Sobrescreve Grupo RBAC)
+              </label>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2.5 dark:border-slate-700 dark:bg-slate-800/70">
+                {(
+                  [
+                    { key: 'unitFiles', label: 'Arquivos da Unidade' },
+                    { key: 'clientDocs', label: 'Docs de Clientes & Dossiês' },
+                  ] as const
+                ).map((scopeRow) => {
+                  const ov = (usrDocOverrides[scopeRow.key] || {}) as DocumentActionOverrideSet;
+                  return (
+                    <div key={scopeRow.key} className="space-y-1.5">
+                      <div className="font-semibold text-[11px] text-slate-700 dark:text-slate-200">{scopeRow.label}</div>
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                        {DOC_PERM_ACTIONS.map((act) => (
+                          <div key={act.key}>
+                            <label className="block text-[10px] font-medium text-slate-500 dark:text-slate-400 mb-0.5">
+                              {act.label}
+                            </label>
+                            <select
+                              value={ov[act.key] || 'inherit'}
+                              onChange={(e) => {
+                                const val = e.target.value as PermissionTriState;
+                                setUsrDocOverrides((prev) => ({
+                                  ...prev,
+                                  [scopeRow.key]: {
+                                    ...(prev[scopeRow.key] || {}),
+                                    [act.key]: val,
+                                  },
+                                }));
+                              }}
+                              className="w-full rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-2 py-1 text-[11px] text-slate-900 dark:text-slate-100"
+                            >
+                              <option value="inherit">Herdar</option>
+                              <option value="allow">Permitir</option>
+                              <option value="deny">Negar</option>
+                            </select>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 

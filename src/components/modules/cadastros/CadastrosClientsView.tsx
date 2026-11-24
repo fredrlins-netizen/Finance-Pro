@@ -37,7 +37,7 @@ import {
   getAuthToken,
   parseJsonResponse,
 } from '../../../lib/api.ts';
-import { DossierDocumentPreviewModal } from '../../DossierDocumentViewer.tsx';
+import { ProtectedDocumentViewerModal } from '../../common/ProtectedDocumentViewerModal.tsx';
 import { Admission, AuthUser, Client, DocumentObject, ModuleId, NavigationIntent, Unit } from '../../../types.ts';
 import {
   AdmissionQuickViewerModal,
@@ -52,7 +52,7 @@ import {
   MaritalStatusModal,
 } from './CadastrosShared.tsx';
 
-type ClientRow = Client & { docsCount?: number; admissionsCount?: number };
+type ClientRow = Client & { docsCount?: number; docsSampleNames?: string[]; admissionsCount?: number };
 
 interface WaThread {
   id: number;
@@ -84,6 +84,8 @@ interface CadastrosClientsViewProps {
   maritalStatuses: string[];
   onMaritalStatusesChange: (next: string[]) => void;
   onCatalogUpdated?: () => void;
+  navIntent?: NavigationIntent | null;
+  onClearIntent?: () => void;
   onNavigate: (mod: ModuleId, intent?: NavigationIntent) => void;
 }
 
@@ -94,6 +96,8 @@ export const CadastrosClientsView: React.FC<CadastrosClientsViewProps> = ({
   maritalStatuses,
   onMaritalStatusesChange,
   onCatalogUpdated,
+  navIntent,
+  onClearIntent,
   onNavigate,
 }) => {
   const [mode, setMode] = useState<'list' | 'form'>('list');
@@ -117,6 +121,9 @@ export const CadastrosClientsView: React.FC<CadastrosClientsViewProps> = ({
   const [filterCpf, setFilterCpf] = useState('');
   const [filterCity, setFilterCity] = useState('');
   const [filterState, setFilterState] = useState('');
+  const [filterDocStatus, setFilterDocStatus] = useState<'' | 'with_docs' | 'without_docs'>('');
+  const [filterDocQuery, setFilterDocQuery] = useState('');
+  const [filterDocQueryDebounced, setFilterDocQueryDebounced] = useState('');
   const [sortKey, setSortKey] = useState<'fullName' | 'cpfCnpj' | 'phone' | 'city'>('fullName');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
@@ -149,6 +156,7 @@ export const CadastrosClientsView: React.FC<CadastrosClientsViewProps> = ({
   const [allClients, setAllClients] = useState<Client[]>([]);
   const [allAdmissions, setAllAdmissions] = useState<Admission[]>([]);
   const [allDocs, setAllDocs] = useState<DocumentObject[]>([]);
+  const [refsLoaded, setRefsLoaded] = useState(false);
 
   // WhatsApp & Docs inside form
   const [waLoading, setWaLoading] = useState(false);
@@ -160,7 +168,10 @@ export const CadastrosClientsView: React.FC<CadastrosClientsViewProps> = ({
   const [waSending, setWaSending] = useState(false);
   const [docCategory, setDocCategory] = useState('pessoal');
   const [docUploading, setDocUploading] = useState(false);
-  const [previewDoc, setPreviewDoc] = useState<{ doc: DocumentObject; blobUrl: string; loading: boolean } | null>(null);
+  const [viewerDoc, setViewerDoc] = useState<DocumentObject | null>(null);
+  const [renameDocTarget, setRenameDocTarget] = useState<DocumentObject | null>(null);
+  const [renameDocValue, setRenameDocValue] = useState('');
+  const [renamingDoc, setRenamingDoc] = useState(false);
 
   // Modals & notifications
   const [feedback, setFeedback] = useState('');
@@ -179,6 +190,14 @@ export const CadastrosClientsView: React.FC<CadastrosClientsViewProps> = ({
     return () => clearTimeout(t);
   }, [qInput]);
 
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setFilterDocQueryDebounced(filterDocQuery.trim());
+      setPage(1);
+    }, 280);
+    return () => clearTimeout(t);
+  }, [filterDocQuery]);
+
   const loadList = useCallback(async () => {
     setLoading(true);
     try {
@@ -194,6 +213,8 @@ export const CadastrosClientsView: React.FC<CadastrosClientsViewProps> = ({
       if (filterCpf) qs.set('cpfCnpj', filterCpf);
       if (filterCity) qs.set('city', filterCity);
       if (filterState) qs.set('state', filterState);
+      if (filterDocStatus) qs.set('docFilter', filterDocStatus);
+      if (filterDocQueryDebounced) qs.set('docQuery', filterDocQueryDebounced);
 
       const [res, refs] = await Promise.all([
         apiFetch<{ data: ClientRow[]; total: number; page: number; totalPages: number }>(
@@ -207,12 +228,13 @@ export const CadastrosClientsView: React.FC<CadastrosClientsViewProps> = ({
       setAllClients(refs.clients || []);
       setAllAdmissions(refs.admissions || []);
       setAllDocs(refs.documents || []);
+      setRefsLoaded(true);
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : 'Erro ao carregar clientes.');
     } finally {
       setLoading(false);
     }
-  }, [page, sortKey, sortDir, qDebounced, filterNature, filterStatus, filterCpf, filterCity, filterState]);
+  }, [page, sortKey, sortDir, qDebounced, filterNature, filterStatus, filterCpf, filterCity, filterState, filterDocStatus, filterDocQueryDebounced]);
 
   useEffect(() => {
     loadList();
@@ -228,13 +250,14 @@ export const CadastrosClientsView: React.FC<CadastrosClientsViewProps> = ({
     return allDocs.filter((d) => d.clientId === editingId);
   }, [allDocs, editingId]);
 
-  const resetForm = (source?: ClientRow, isDuplicate = false) => {
-    setErrorMsg('');
-    setFeedback('');
-    setFormTab('dados');
-    if (source) {
-      setEditingId(isDuplicate ? null : source.id);
-      setEditingClientObj(isDuplicate ? null : source);
+  const resetForm = useCallback(
+    (source?: ClientRow, isDuplicate = false, initialTab: 'dados' | 'whatsapp' | 'documentos' = 'dados') => {
+      setErrorMsg('');
+      setFeedback('');
+      setFormTab(initialTab);
+      if (source) {
+        setEditingId(isDuplicate ? null : source.id);
+        setEditingClientObj(isDuplicate ? null : source);
       const nat = source.personNature === 'PJ' ? 'PJ' : 'PF';
       setPersonNature(nat);
       setFullName(isDuplicate ? `${source.fullName} (Cópia)` : source.fullName);
@@ -283,7 +306,24 @@ export const CadastrosClientsView: React.FC<CadastrosClientsViewProps> = ({
       setNotes('');
     }
     setMode('form');
-  };
+  },
+  [activeUnitId]
+  );
+
+  useEffect(() => {
+    if (!navIntent?.clientId) return;
+    const target =
+      allClients.find((c) => c.id === navIntent.clientId) ||
+      rows.find((c) => c.id === navIntent.clientId);
+    if (target) {
+      const requestedTab =
+        navIntent.tab === 'whatsapp' || navIntent.tab === 'documentos' ? navIntent.tab : 'dados';
+      resetForm(target, false, requestedTab);
+      onClearIntent?.();
+    } else if (refsLoaded) {
+      onClearIntent?.();
+    }
+  }, [navIntent, allClients, rows, refsLoaded, resetForm, onClearIntent]);
 
   const handleLookupCep = async () => {
     const clean = zipCode.replace(/\D/g, '');
@@ -483,19 +523,27 @@ export const CadastrosClientsView: React.FC<CadastrosClientsViewProps> = ({
     }
   };
 
-  const handlePreviewDoc = async (doc: DocumentObject) => {
-    setPreviewDoc({ doc, blobUrl: '', loading: true });
+  const handlePreviewDoc = (doc: DocumentObject) => {
+    setViewerDoc(doc);
+  };
+
+  const handleRenameDocSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!renameDocTarget || !renameDocValue.trim()) return;
+    setRenamingDoc(true);
+    setErrorMsg('');
     try {
-      const resp = await fetch(`/api/documents/${doc.id}/download`, {
-        headers: { Authorization: `Bearer ${getAuthToken()}` },
+      await apiFetch(`/api/documents/${renameDocTarget.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ fileName: renameDocValue.trim() }),
       });
-      if (!resp.ok) throw new Error('Falha ao descriptografar arquivo do bucket.');
-      const blob = await resp.blob();
-      const url = URL.createObjectURL(blob);
-      setPreviewDoc({ doc, blobUrl: url, loading: false });
-    } catch (e) {
-      setPreviewDoc(null);
-      setErrorMsg(e instanceof Error ? e.message : 'Erro ao abrir documento.');
+      setFeedback(`Documento renomeado para "${renameDocValue.trim()}".`);
+      setRenameDocTarget(null);
+      await loadList();
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Erro ao renomear documento.');
+    } finally {
+      setRenamingDoc(false);
     }
   };
 
@@ -575,10 +623,23 @@ export const CadastrosClientsView: React.FC<CadastrosClientsViewProps> = ({
                   type="text"
                   value={qInput}
                   onChange={(e) => setQInput(e.target.value)}
-                  placeholder="Buscar por nome, código, CPF/CNPJ ou telefone..."
+                  placeholder="Buscar por nome, código, CPF/CNPJ, telefone ou arquivo no R2..."
                   className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-2 text-xs text-slate-800 dark:border-slate-700 dark:text-slate-100"
                 />
               </div>
+              <select
+                value={filterDocStatus}
+                onChange={(e) => {
+                  setFilterDocStatus(e.target.value as '' | 'with_docs' | 'without_docs');
+                  setPage(1);
+                }}
+                aria-label="Filtrar clientes por documentos no bucket"
+                className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              >
+                <option value="">Docs Bucket: Todos</option>
+                <option value="with_docs">Com documentos no R2</option>
+                <option value="without_docs">Sem documentos no R2</option>
+              </select>
               <button
                 type="button"
                 onClick={() => setShowFilters((s) => !s)}
@@ -600,7 +661,7 @@ export const CadastrosClientsView: React.FC<CadastrosClientsViewProps> = ({
             </div>
 
             {showFilters && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 pt-2 border-t border-slate-100 text-xs dark:border-slate-800">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2.5 pt-2 border-t border-slate-100 text-xs dark:border-slate-800">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">Natureza</label>
                   <select
@@ -676,6 +737,18 @@ export const CadastrosClientsView: React.FC<CadastrosClientsViewProps> = ({
                     ))}
                   </select>
                 </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">
+                    Pesquisar Documentos no Bucket
+                  </label>
+                  <input
+                    type="text"
+                    value={filterDocQuery}
+                    onChange={(e) => setFilterDocQuery(e.target.value)}
+                    placeholder="Arquivo, pasta ou selo INV-..."
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                  />
+                </div>
               </div>
             )}
           </div>
@@ -702,30 +775,41 @@ export const CadastrosClientsView: React.FC<CadastrosClientsViewProps> = ({
                         Telefone (GoTalk) <ArrowDownUp className="w-3 h-3" />
                       </button>
                     </th>
-                    <th className="py-3 px-4">
-                      <button type="button" onClick={() => toggleSort('city')} className="inline-flex items-center gap-1 hover:text-slate-900 dark:hover:text-white">
-                        Cidade/UF <ArrowDownUp className="w-3 h-3" />
-                      </button>
-                    </th>
+                    <th className="py-3 px-4">Cidade/UF</th>
+                    <th className="py-3 px-4">Bucket R2</th>
                     <th className="py-3 px-4 text-right">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {rows.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-8 text-center text-slate-500 dark:text-slate-400">
+                      <td colSpan={7} className="py-8 text-center text-slate-500 dark:text-slate-400">
                         {loading ? 'Consultando clientes...' : 'Nenhum cliente localizado para os filtros selecionados.'}
                       </td>
                     </tr>
                   ) : (
                     rows.map((c) => {
                       const isBlocked = c.status === 'suspenso' || c.status === 'cancelado';
+                      const docsTotal = Number(c.docsCount || 0);
+                      const hasDocs = docsTotal > 0;
                       return (
                         <tr key={c.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800">
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-2">
                               <span className="font-mono text-[10px] text-slate-400 dark:text-slate-400">#{c.id}</span>
                               <span className="font-semibold text-slate-900 dark:text-slate-100">{c.fullName}</span>
+                              {hasDocs && (
+                                <span
+                                  title={
+                                    c.docsSampleNames && c.docsSampleNames.length > 0
+                                      ? `Documentos no bucket: ${c.docsSampleNames.join(', ')}`
+                                      : `${docsTotal} documento(s) no bucket R2`
+                                  }
+                                  className="text-emerald-600 dark:text-emerald-400 shrink-0"
+                                >
+                                  <FolderOpen className="w-3.5 h-3.5" />
+                                </span>
+                              )}
                               {isBlocked && (
                                 <span
                                   title={c.suspensionReason || c.cancelledReason || 'Cliente com restrição'}
@@ -736,8 +820,7 @@ export const CadastrosClientsView: React.FC<CadastrosClientsViewProps> = ({
                               )}
                             </div>
                             <div className="text-[11px] text-slate-500 mt-0.5 dark:text-slate-400">
-                              {c.admissionsCount ? `${c.admissionsCount} admissão(ões)` : 'Sem admissão'} ·{' '}
-                              {c.docsCount ? `${c.docsCount} doc(s) no R2` : 'Sem anexos'}
+                              {c.admissionsCount ? `${c.admissionsCount} admissão(ões)` : 'Sem admissão'}
                             </div>
                           </td>
                           <td className="py-3 px-4 font-mono font-semibold text-slate-700 dark:text-slate-200">
@@ -748,10 +831,7 @@ export const CadastrosClientsView: React.FC<CadastrosClientsViewProps> = ({
                             {c.phone ? (
                               <button
                                 type="button"
-                                onClick={() => {
-                                  resetForm(c, false);
-                                  setFormTab('whatsapp');
-                                }}
+                                onClick={() => resetForm(c, false, 'whatsapp')}
                                 title="Abrir conversas GoTalk / UaZapi do cliente"
                                 className="inline-flex items-center gap-1.5 font-mono font-semibold text-emerald-700 hover:underline dark:text-emerald-300"
                               >
@@ -764,6 +844,26 @@ export const CadastrosClientsView: React.FC<CadastrosClientsViewProps> = ({
                           </td>
                           <td className="py-3 px-4 text-slate-700 whitespace-nowrap dark:text-slate-200">
                             {c.city ? `${c.city}/${c.state || '—'}` : '—'}
+                          </td>
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            {hasDocs ? (
+                              <button
+                                type="button"
+                                onClick={() => resetForm(c, false, 'documentos')}
+                                title={
+                                  c.docsSampleNames && c.docsSampleNames.length > 0
+                                    ? `Abrir Documentos R2 (${c.docsSampleNames.join(', ')})`
+                                    : 'Abrir aba Documentos R2 do cliente'
+                                }
+                                className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 dark:border-emerald-800/70 bg-emerald-50/70 dark:bg-emerald-950/40 px-2 py-1 text-[11px] font-semibold text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/50"
+                              >
+                                <FolderOpen className="w-3.5 h-3.5 shrink-0" />
+                                <span className="font-mono font-bold tabular-nums">{docsTotal}</span>
+                                <span>{docsTotal === 1 ? 'doc R2' : 'docs R2'}</span>
+                              </button>
+                            ) : (
+                              <span className="text-[11px] text-slate-400 dark:text-slate-500">Sem docs</span>
+                            )}
                           </td>
                           <td className="py-3 px-4 text-right whitespace-nowrap">
                             <div className="inline-flex items-center gap-1">
@@ -1261,7 +1361,14 @@ export const CadastrosClientsView: React.FC<CadastrosClientsViewProps> = ({
                     </h2>
                     <button
                       type="button"
-                      onClick={() => onNavigate('admission', { triggerNew: true })}
+                      onClick={() =>
+                        onNavigate('admission', {
+                          triggerNew: true,
+                          clientId: editingId || undefined,
+                          returnToModule: 'cad_clientes',
+                          returnClientId: editingId || undefined,
+                        })
+                      }
                       className="text-xs font-semibold text-blue-700 hover:underline dark:text-blue-300"
                     >
                       + Nova Admissão
@@ -1279,7 +1386,7 @@ export const CadastrosClientsView: React.FC<CadastrosClientsViewProps> = ({
                             <th className="py-2.5 px-3">Papel</th>
                             <th className="py-2.5 px-3">Outro Cliente Vinculado</th>
                             <th className="py-2.5 px-3">Status</th>
-                            <th className="py-2.5 px-3 text-right">Ação</th>
+                            <th className="py-2.5 px-3 text-right">Ações</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -1287,10 +1394,21 @@ export const CadastrosClientsView: React.FC<CadastrosClientsViewProps> = ({
                             const isResp = adm.clientId === editingId;
                             const otherId = isResp ? adm.assetOwnerId : adm.clientId;
                             const otherClient = otherId ? allClients.find((x) => x.id === otherId) : undefined;
+                            const admDocsCount = allDocs.filter((d) => d.admissionId === adm.id).length;
                             return (
                               <tr key={adm.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
                                 <td className="py-2.5 px-3 font-mono font-bold text-slate-900 dark:text-slate-100">
-                                  {adm.series || 'ADM'} · {adm.contractNumber}
+                                  <div className="flex items-center gap-1.5">
+                                    <span>{adm.series || 'ADM'} · {adm.contractNumber}</span>
+                                    {admDocsCount > 0 && (
+                                      <span
+                                        title={`${admDocsCount} documento(s) na admissão`}
+                                        className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300"
+                                      >
+                                        <FolderOpen className="w-3 h-3" /> {admDocsCount}
+                                      </span>
+                                    )}
+                                  </div>
                                 </td>
                                 <td className="py-2.5 px-3 font-mono text-slate-500 dark:text-slate-400">{formatDateBR(adm.createdAt)}</td>
                                 <td className="py-2.5 px-3 font-semibold text-slate-700 dark:text-slate-200">
@@ -1298,14 +1416,29 @@ export const CadastrosClientsView: React.FC<CadastrosClientsViewProps> = ({
                                 </td>
                                 <td className="py-2.5 px-3 text-slate-600 dark:text-slate-300">{otherClient?.fullName || '—'}</td>
                                 <td className="py-2.5 px-3 uppercase font-semibold text-slate-700 dark:text-slate-200">{adm.status}</td>
-                                <td className="py-2.5 px-3 text-right">
-                                  <button
-                                    type="button"
-                                    onClick={() => setViewerAdmission(adm)}
-                                    className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2.5 py-1 font-semibold text-blue-700 hover:bg-blue-50 dark:border-slate-700 dark:text-blue-300 dark:hover:bg-blue-950/60"
-                                  >
-                                    <Eye className="w-3 h-3" /> Visualizar
-                                  </button>
+                                <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                                  <div className="inline-flex items-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => setViewerAdmission(adm)}
+                                      className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2.5 py-1 font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                                    >
+                                      <Eye className="w-3 h-3" /> Resumo
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        onNavigate('admission', {
+                                          admissionId: adm.id,
+                                          returnToModule: 'cad_clientes',
+                                          returnClientId: editingId || adm.clientId,
+                                        })
+                                      }
+                                      className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50/70 px-2.5 py-1 font-semibold text-blue-700 hover:bg-blue-100 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300 dark:hover:bg-blue-900/60"
+                                    >
+                                      <Pencil className="w-3 h-3" /> Abrir Admissão
+                                    </button>
+                                  </div>
                                 </td>
                               </tr>
                             );
@@ -1495,49 +1628,81 @@ export const CadastrosClientsView: React.FC<CadastrosClientsViewProps> = ({
                         </td>
                       </tr>
                     ) : (
-                      clientDocs.map((doc) => (
-                        <tr key={doc.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
-                          <td className="py-2.5 px-3">
-                            <div className="font-semibold text-slate-900 dark:text-slate-100">{doc.fileName}</div>
-                            <div className="font-mono text-[10px] text-slate-400 dark:text-slate-400">{doc.folderPath}</div>
-                          </td>
-                          <td className="py-2.5 px-3 font-medium text-slate-700 dark:text-slate-200">{doc.docCategory}</td>
-                          <td className="py-2.5 px-3 font-mono tabular-nums">{formatBytes(doc.sizeBytes)}</td>
-                          <td className="py-2.5 px-3 font-mono text-slate-500 dark:text-slate-400">{formatDateBR(doc.createdAt)}</td>
-                          <td className="py-2.5 px-3 text-right whitespace-nowrap">
-                            <div className="inline-flex items-center gap-1">
-                              <button
-                                type="button"
-                                onClick={() => handlePreviewDoc(doc)}
-                                className="rounded border border-slate-200 p-1.5 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                                title="Pré-visualizar"
-                              >
-                                <Eye className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDownloadDoc(doc)}
-                                className="rounded border border-slate-200 p-1.5 text-blue-700 hover:bg-blue-50 dark:border-slate-700 dark:text-blue-300 dark:hover:bg-blue-950/60"
-                                title="Baixar"
-                              >
-                                <Download className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  await apiFetch(`/api/documents/${doc.id}`, { method: 'DELETE' });
-                                  setFeedback(`Arquivo "${doc.fileName}" movido para a Lixeira do bucket.`);
-                                  await loadList();
-                                }}
-                                className="rounded border border-red-200 p-1.5 text-red-600 hover:bg-red-50 dark:border-red-800/70 dark:text-red-400 dark:hover:bg-red-950/60"
-                                title="Mover para lixeira"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
+                      clientDocs.map((doc) => {
+                        const eff = doc.effectivePermissions || {
+                          view: true,
+                          print: true,
+                          download: true,
+                          edit: true,
+                          delete: true,
+                        };
+                        return (
+                          <tr key={doc.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
+                            <td className="py-2.5 px-3">
+                              <div className="font-semibold text-slate-900 dark:text-slate-100">{doc.fileName}</div>
+                              <div className="font-mono text-[10px] text-slate-400 dark:text-slate-400">
+                                {doc.isInterlinked || doc.unitFolderPath
+                                  ? `Subpasta: ${doc.unitFolderPath || doc.folderPath}`
+                                  : doc.folderPath}
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-3 font-medium text-slate-700 dark:text-slate-200">{doc.docCategory}</td>
+                            <td className="py-2.5 px-3 font-mono tabular-nums">{formatBytes(doc.sizeBytes)}</td>
+                            <td className="py-2.5 px-3 font-mono text-slate-500 dark:text-slate-400">{formatDateBR(doc.createdAt)}</td>
+                            <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                              <div className="inline-flex items-center gap-1">
+                                {eff.view && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handlePreviewDoc(doc)}
+                                    className="rounded border border-slate-200 p-1.5 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                                    title="Pré-visualizar"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                {eff.download && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDownloadDoc(doc)}
+                                    className="rounded border border-slate-200 p-1.5 text-blue-700 hover:bg-blue-50 dark:border-slate-700 dark:text-blue-300 dark:hover:bg-blue-950/60"
+                                    title="Baixar"
+                                  >
+                                    <Download className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                {eff.edit && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setRenameDocTarget(doc);
+                                      setRenameDocValue(doc.fileName);
+                                    }}
+                                    className="rounded border border-slate-200 p-1.5 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                                    title="Renomear documento"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                {eff.delete && (
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      await apiFetch(`/api/documents/${doc.id}`, { method: 'DELETE' });
+                                      setFeedback(`Arquivo "${doc.fileName}" movido para a Lixeira do bucket.`);
+                                      await loadList();
+                                    }}
+                                    className="rounded border border-red-200 p-1.5 text-red-600 hover:bg-red-50 dark:border-red-800/70 dark:text-red-400 dark:hover:bg-red-950/60"
+                                    title="Mover para lixeira"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
@@ -1605,23 +1770,80 @@ export const CadastrosClientsView: React.FC<CadastrosClientsViewProps> = ({
         units={units}
         clients={allClients}
         onClose={() => setViewerAdmission(null)}
-        onOpenInAdmissionModule={(admissionId) => onNavigate('admission', { admissionId })}
+        onOpenInAdmissionModule={(admissionId) =>
+          onNavigate('admission', {
+            admissionId,
+            returnToModule: 'cad_clientes',
+            returnClientId: editingId || viewerAdmission?.clientId,
+          })
+        }
       />
 
-      <DossierDocumentPreviewModal
-        open={Boolean(previewDoc)}
-        title={previewDoc?.doc.fileName || ''}
+      <ProtectedDocumentViewerModal
+        open={Boolean(viewerDoc)}
+        documentId={viewerDoc?.id || null}
+        fileName={viewerDoc?.fileName || ''}
+        mimeType={viewerDoc?.mimeType || ''}
         subtitle={
-          previewDoc ? `${previewDoc.doc.folderPath || 'bucketdainvicta'} · ${formatBytes(previewDoc.doc.sizeBytes)}` : ''
+          viewerDoc
+            ? `${viewerDoc.unitFolderPath || viewerDoc.folderPath || 'bucketdainvicta'} · ${formatBytes(viewerDoc.sizeBytes)}`
+            : ''
         }
-        mimeType={previewDoc?.doc.mimeType || ''}
-        blobUrl={previewDoc?.blobUrl || ''}
-        loading={Boolean(previewDoc?.loading)}
-        onClose={() => {
-          if (previewDoc?.blobUrl) URL.revokeObjectURL(previewDoc.blobUrl);
-          setPreviewDoc(null);
-        }}
+        context="client_dossier"
+        canPrint={viewerDoc ? viewerDoc.effectivePermissions?.print !== false : false}
+        canDownload={viewerDoc ? viewerDoc.effectivePermissions?.download !== false : false}
+        onClose={() => setViewerDoc(null)}
       />
+
+      {renameDocTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80">
+          <form
+            onSubmit={handleRenameDocSubmit}
+            className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-2xl space-y-4 text-xs"
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
+                Renomear Documento do Cliente
+              </div>
+              <button
+                type="button"
+                onClick={() => setRenameDocTarget(null)}
+                className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
+                Nome do Arquivo *
+              </label>
+              <input
+                type="text"
+                required
+                value={renameDocValue}
+                onChange={(e) => setRenameDocValue(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-slate-900 dark:text-slate-100"
+              />
+            </div>
+            <div className="flex justify-end gap-2 border-t border-slate-100 dark:border-slate-800 pt-3">
+              <button
+                type="button"
+                onClick={() => setRenameDocTarget(null)}
+                className="rounded-lg border border-slate-200 dark:border-slate-700 px-3.5 py-2 font-semibold text-slate-700 dark:text-slate-200"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={renamingDoc || !renameDocValue.trim()}
+                className="rounded-lg bg-slate-900 dark:bg-emerald-600 px-4 py-2 font-semibold text-white hover:bg-slate-800 dark:hover:bg-emerald-500 disabled:opacity-50"
+              >
+                {renamingDoc ? 'Salvando...' : 'Salvar Nome'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 };

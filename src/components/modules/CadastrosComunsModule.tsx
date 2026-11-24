@@ -46,6 +46,8 @@ interface CadastrosComunsModuleProps {
   units: Unit[];
   activeUnitId: number;
   currentUser: AuthUser;
+  navIntent?: NavigationIntent | null;
+  onClearIntent?: () => void;
   onNavigate: (mod: ModuleId, intent?: NavigationIntent) => void;
   onGoBack?: () => void;
   previousScreenLabel?: string;
@@ -57,6 +59,8 @@ export const CadastrosComunsModule: React.FC<CadastrosComunsModuleProps> = ({
   units,
   activeUnitId,
   currentUser,
+  navIntent,
+  onClearIntent,
   onNavigate,
   onGoBack,
   previousScreenLabel,
@@ -173,6 +177,8 @@ export const CadastrosComunsModule: React.FC<CadastrosComunsModuleProps> = ({
               maritalStatuses={bootstrap.maritalStatuses}
               onMaritalStatusesChange={(next) => setBootstrap((p) => ({ ...p, maritalStatuses: next }))}
               onCatalogUpdated={onCatalogUpdated}
+              navIntent={navIntent}
+              onClearIntent={onClearIntent}
               onNavigate={onNavigate}
             />
           )}

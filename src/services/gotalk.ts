@@ -8,7 +8,7 @@ import crypto from 'node:crypto';
  * - Security: channelId is strictly server-side (stripChannelId before frontend responses)
  */
 
-export const GOTALK_BASE_URL = process.env.GOTALK_BASE_URL || 'https://app.gotalk.digital';
+export const GOTALK_BASE_URL = (process.env.GOTALK_BASE_URL || 'https://app.gotalk.digital').replace(/\/$/, '');
 const TOKEN_LIFETIME_MS = 23 * 60 * 60 * 1000; // 23h (refresh 1h before 24h expiry)
 const ALLOWED_AUDIO_HOSTS = ['app.gotalk.digital', 'api.gotalk.digital', 'gotalk.digital'];
 
@@ -20,12 +20,73 @@ let _lastAuthAt: string | null = null;
 let _lastError: string | null = null;
 let _lastWebhookAt: string | null = null;
 
+interface GotalkRuntimeConfig {
+  login: string | null;
+  password: string | null;
+  baseUrl: string | null;
+  webhookSecret: string | null;
+}
+
+let _dbOverride: GotalkRuntimeConfig = {
+  login: null,
+  password: null,
+  baseUrl: null,
+  webhookSecret: null,
+};
+
+export function setGotalkConfigOverride(cfg: Partial<GotalkRuntimeConfig> | null): void {
+  const prevLogin = _dbOverride.login;
+  const prevPass = _dbOverride.password;
+  const prevBase = _dbOverride.baseUrl;
+  _dbOverride = {
+    login: cfg?.login?.trim() || null,
+    password: cfg?.password?.trim() || null,
+    baseUrl: cfg?.baseUrl?.trim() ? cfg.baseUrl.trim().replace(/\/$/, '') : null,
+    webhookSecret: cfg?.webhookSecret?.trim() || null,
+  };
+  if (
+    prevLogin !== _dbOverride.login ||
+    prevPass !== _dbOverride.password ||
+    prevBase !== _dbOverride.baseUrl
+  ) {
+    _token = null;
+    _channelId = null;
+    _tokenExpiresAt = 0;
+    if (_refreshTimer) {
+      clearTimeout(_refreshTimer);
+      _refreshTimer = null;
+    }
+  }
+}
+
+export function getGotalkBaseUrl(): string {
+  return (_dbOverride.baseUrl || process.env.GOTALK_BASE_URL || 'https://app.gotalk.digital').replace(/\/$/, '');
+}
+
+export function getGotalkLoginValue(): string | null {
+  return _dbOverride.login || process.env.GOTALK_LOGIN?.trim() || null;
+}
+
+export function getGotalkPasswordValue(): string | null {
+  return _dbOverride.password || process.env.GOTALK_PASSWORD?.trim() || null;
+}
+
+export function getGotalkWebhookSecret(): string | null {
+  return _dbOverride.webhookSecret || process.env.GOTALK_WEBHOOK_SECRET?.trim() || null;
+}
+
+export function getGotalkConfigSource(): 'database' | 'env' | 'none' {
+  if (_dbOverride.login && _dbOverride.password) return 'database';
+  if (process.env.GOTALK_LOGIN?.trim() && process.env.GOTALK_PASSWORD?.trim()) return 'env';
+  return 'none';
+}
+
 export function isGotalkConfigured(): boolean {
-  return Boolean(process.env.GOTALK_LOGIN?.trim() && process.env.GOTALK_PASSWORD?.trim());
+  return Boolean(getGotalkLoginValue() && getGotalkPasswordValue());
 }
 
 export function isGotalkWebhookSecretConfigured(): boolean {
-  return Boolean(process.env.GOTALK_WEBHOOK_SECRET?.trim());
+  return Boolean(getGotalkWebhookSecret());
 }
 
 export function markGotalkWebhookReceived(): void {
@@ -35,8 +96,11 @@ export function markGotalkWebhookReceived(): void {
 export function getGotalkStatus() {
   return {
     configured: isGotalkConfigured(),
+    source: getGotalkConfigSource(),
+    login: getGotalkLoginValue(),
+    hasPassword: Boolean(getGotalkPasswordValue()),
     webhookSecretConfigured: isGotalkWebhookSecretConfigured(),
-    baseUrl: GOTALK_BASE_URL,
+    baseUrl: getGotalkBaseUrl(),
     authenticated: Boolean(_token && Date.now() < _tokenExpiresAt),
     hasPrimaryChannel: Boolean(_channelId),
     tokenExpiresAt: _tokenExpiresAt ? new Date(_tokenExpiresAt).toISOString() : null,
@@ -149,11 +213,12 @@ export function parseAckValue(raw: unknown): number | null {
 // Authentication & Resilient HTTP Client
 // ---------------------------------------------------------------------------
 export async function authenticate(): Promise<{ token: string; channelId: string | number | undefined }> {
-  const login = process.env.GOTALK_LOGIN;
-  const password = process.env.GOTALK_PASSWORD;
+  const login = getGotalkLoginValue();
+  const password = getGotalkPasswordValue();
+  const baseUrl = getGotalkBaseUrl();
 
   if (!login || !password) {
-    const errMsg = '[Gotalk] GOTALK_LOGIN e GOTALK_PASSWORD não configurados como secrets.';
+    const errMsg = '[Gotalk] Credenciais GoTalk (login e senha) não configuradas.';
     _lastError = errMsg;
     throw new Error(errMsg);
   }
@@ -162,7 +227,7 @@ export async function authenticate(): Promise<{ token: string; channelId: string
 
   let response: Response;
   try {
-    response = await fetch(`${GOTALK_BASE_URL}/user/login`, {
+    response = await fetch(`${baseUrl}/user/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ login, password }),
@@ -173,11 +238,11 @@ export async function authenticate(): Promise<{ token: string; channelId: string
     const code = err.cause?.code || '';
     let msg = `Erro de rede: ${err.message || 'desconhecido'}`;
     if (code === 'ENOTFOUND' || code === 'EAI_AGAIN') {
-      msg = `DNS: não foi possível resolver ${GOTALK_BASE_URL} (${code}). Verifique conectividade de rede.`;
+      msg = `DNS: não foi possível resolver ${baseUrl} (${code}). Verifique conectividade de rede.`;
     } else if (code === 'ECONNREFUSED') {
-      msg = `Conexão recusada por ${GOTALK_BASE_URL} (ECONNREFUSED).`;
+      msg = `Conexão recusada por ${baseUrl} (ECONNREFUSED).`;
     } else if (err.name === 'TimeoutError' || err.name === 'AbortError') {
-      msg = `Timeout (>20s) ao autenticar com ${GOTALK_BASE_URL}.`;
+      msg = `Timeout (>20s) ao autenticar com ${baseUrl}.`;
     }
     _lastError = msg;
     throw new Error(msg);
@@ -187,7 +252,7 @@ export async function authenticate(): Promise<{ token: string; channelId: string
     const text = await response.text();
     const msg =
       response.status === 401 || response.status === 403
-        ? `Credenciais inválidas (HTTP ${response.status}). Verifique GOTALK_LOGIN e GOTALK_PASSWORD.`
+        ? `Credenciais inválidas (HTTP ${response.status}). Verifique login e senha GoTalk.`
         : `[Gotalk] Falha na autenticação: ${response.status} ${text}`;
     _lastError = msg;
     throw new Error(msg);
@@ -252,7 +317,7 @@ export async function getAuthHeaders(opts?: { isFormData?: boolean; useBearer?: 
 export async function gotalkFetch(path: string, options: RequestInit = {}): Promise<Response> {
   const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
   const headers = await getAuthHeaders({ isFormData, useBearer: false });
-  const url = `${GOTALK_BASE_URL}${path}`;
+  const url = `${getGotalkBaseUrl()}${path}`;
 
   let response = await fetch(url, {
     ...options,

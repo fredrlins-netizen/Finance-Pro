@@ -1,5 +1,5 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { Pool, type PoolClient, type QueryConfig, type QueryResult } from 'pg';
+import { Client, Pool, type PoolClient, type QueryConfig, type QueryResult } from 'pg';
 import * as schema from './schema.ts';
 import { auditContextStorage } from '../utils/auditContext.ts';
 
@@ -164,7 +164,9 @@ export const createPool = () => {
       password: process.env.SQL_PASSWORD,
       database: process.env.SQL_DB_NAME,
       max: 10,
-      connectionTimeoutMillis: 15000,
+      idleTimeoutMillis: 10000,
+      connectionTimeoutMillis: 12000,
+      keepAlive: true,
     });
 
     instance.on('error', (err) => {
@@ -176,6 +178,53 @@ export const createPool = () => {
   }
   return global._postgresPool;
 };
+
+export async function probeDatabaseHealth(timeoutMs = 3500): Promise<boolean> {
+  const client = new Client({
+    host: process.env.SQL_HOST,
+    user: process.env.SQL_USER,
+    password: process.env.SQL_PASSWORD,
+    database: process.env.SQL_DB_NAME,
+    connectionTimeoutMillis: timeoutMs,
+  });
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    await Promise.race([
+      (async () => {
+        await client.connect();
+        await client.query('SELECT 1');
+      })(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('SQL health probe timeout')), timeoutMs + 500);
+      }),
+    ]);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    if (timer) clearTimeout(timer);
+    await client.end().catch(() => {});
+  }
+}
+
+export function isTransientSqlError(err: unknown): boolean {
+  const seen = new Set<unknown>();
+  let cur: unknown = err;
+  while (cur && typeof cur === 'object' && !seen.has(cur)) {
+    seen.add(cur);
+    const rec = cur as { message?: unknown; code?: unknown; cause?: unknown };
+    const text = `${String(rec.message || '')} ${String(rec.code || '')}`;
+    if (
+      /connection terminated|timeout expired|econnrefused|enoent|etimedout|epipe|57p01|terminating connection|socket hang up/i.test(
+        text
+      )
+    ) {
+      return true;
+    }
+    cur = rec.cause;
+  }
+  return false;
+}
 
 const pool = createPool();
 

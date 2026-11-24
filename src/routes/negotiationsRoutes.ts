@@ -39,6 +39,7 @@ import {
   type NegotiationAdvisorContextInput,
 } from '../services/ivi.js';
 import { dispatchIviSectorNotification } from '../services/internalMessaging.js';
+import { isProductionModeLocked } from '../services/productionModeService.js';
 import {
   isGotalkConfigured,
   phonesMatchBR,
@@ -157,10 +158,18 @@ function isUnitPermitted(req: AuthRequest, unitId: number | null | undefined): b
 }
 
 async function ensureNegotiationsEnrichedSeed() {
+  if (await isProductionModeLocked()) {
+    seedCompleted = true;
+    return;
+  }
   if (seedCompleted) return;
   if (seedEnrichmentPromise) return seedEnrichmentPromise;
   seedEnrichmentPromise = (async () => {
     try {
+      if (await isProductionModeLocked()) {
+        seedCompleted = true;
+        return;
+      }
       const [allBanks, initialBankContacts, allUnits] = await Promise.all([
         db.select().from(banks).orderBy(asc(banks.id)),
         db.select().from(bankContacts).orderBy(asc(bankContacts.id)),

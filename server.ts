@@ -9,7 +9,7 @@ import crypto from 'node:crypto';
 import multer from 'multer';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer as createViteServer } from 'vite';
-import { db, pool } from './src/db/index.ts';
+import { db, isTransientSqlError, pool, probeDatabaseHealth } from './src/db/index.ts';
 import {
   units,
   userGroups,
@@ -68,9 +68,17 @@ import { registerReportsRoutes } from './src/routes/reportsRoutes.ts';
 import { registerCompanyLegalRoutes } from './src/routes/companyLegalRoutes.ts';
 import { registerDataHubRoutes } from './src/routes/dataHubRoutes.ts';
 import { registerMigrationRoutes } from './src/routes/migrationRoutes.ts';
+import { registerUnitFilesRoutes } from './src/routes/unitFilesRoutes.ts';
 import { registerBackupRoutes } from './src/routes/backupRoutes.ts';
 import { registerInternalMessagingRoutes } from './src/routes/internalMessagingRoutes.ts';
 import { registerTrainingDocsRoutes } from './src/routes/trainingDocsRoutes.ts';
+import {
+  buildUserPermissionSummary,
+  evaluateDocumentAccess,
+  evaluateScopePermissions,
+  loadFolderRulesForUser,
+  normalizeFolderPath,
+} from './src/services/documentAccessService.ts';
 import { ensureSystemModuleDocsSeed } from './src/services/systemDocsCatalog.ts';
 import { dispatchIviSectorNotification } from './src/services/internalMessaging.ts';
 import { autoAuditRequestMiddleware } from './src/services/autoAudit.ts';
@@ -117,6 +125,8 @@ import {
   fetchGotalkHsmTemplates,
   fetchGotalkOperators,
   getGotalkStatus,
+  getGotalkWebhookSecret,
+  isGotalkConfigured,
   markGotalkWebhookReceived,
   normalizePhone,
   parseAckValue,
@@ -138,10 +148,13 @@ import {
   fetchUazapiInstancesWithAdminToken,
   findUazapiChats,
   findUazapiMessages,
+  getDefaultUazapiServerUrl,
   getEnvUazapiCredentials,
+  getUazapiAdminToken,
   getUazapiGlobalRuntimeState,
   getUazapiInstanceStatus,
   getUazapiWebhookConfig,
+  getUazapiWebhookSecret,
   makeUazapiCall,
   markUazapiWebhookReceived,
   registerUazapiWebhook,
@@ -150,6 +163,7 @@ import {
   terminateUazapiCall,
   UazapiCredentials,
 } from './src/services/uazapi.ts';
+import { hydrateMessagingConfigsFromDb } from './src/services/messagingConfigPersistence.ts';
 import {
   canPreviewInline,
   deletePhysicalBucketObjectIfUnreferenced,
@@ -265,7 +279,9 @@ function verifyCaptchaChallenge(token: string, mathInput: string, selectedTileId
 let sqlProxyChild: ChildProcess | null = null;
 let ensureProxyPromise: Promise<void> | null = null;
 let lastProxyFailureAt = 0;
+let lastSqlVerifiedAt = 0;
 let proxySignalHandlersRegistered = false;
+const SQL_HEALTH_RECHECK_MS = 30_000;
 
 function testUnixSocket(socketPath: string): Promise<'ok' | 'econnrefused' | 'enoent'> {
   return new Promise((resolve) => {
@@ -285,6 +301,55 @@ function testUnixSocket(socketPath: string): Promise<'ok' | 'econnrefused' | 'en
       else done('econnrefused');
     });
   });
+}
+
+async function terminateStaleSqlProxies(instanceConnection: string): Promise<void> {
+  if (sqlProxyChild && sqlProxyChild.exitCode === null && !sqlProxyChild.killed) {
+    try {
+      sqlProxyChild.kill('SIGTERM');
+    } catch {
+      // ignore kill failure
+    }
+    sqlProxyChild = null;
+  }
+
+  const pidsToStop: number[] = [];
+  try {
+    for (const entry of fs.readdirSync('/proc')) {
+      if (!/^\d+$/.test(entry)) continue;
+      const pid = Number(entry);
+      if (!pid || pid === process.pid) continue;
+      try {
+        const cmdRaw = fs.readFileSync(`/proc/${pid}/cmdline`, 'utf8');
+        if (cmdRaw.includes('/app/cloud_sql_proxy') && cmdRaw.includes(instanceConnection)) {
+          pidsToStop.push(pid);
+        }
+      } catch {
+        // process may have exited
+      }
+    }
+  } catch {
+    // /proc unavailable
+  }
+
+  for (const pid of pidsToStop) {
+    try {
+      process.kill(pid, 'SIGTERM');
+    } catch {
+      // ignore
+    }
+  }
+  if (pidsToStop.length > 0) {
+    await new Promise((r) => setTimeout(r, 300));
+    for (const pid of pidsToStop) {
+      try {
+        process.kill(pid, 0);
+        process.kill(pid, 'SIGKILL');
+      } catch {
+        // already exited
+      }
+    }
+  }
 }
 
 async function ensureSqlHostProxySocket(force = false): Promise<void> {
@@ -308,23 +373,32 @@ async function ensureSqlHostProxySocket(force = false): Promise<void> {
   ensureProxyPromise = (async () => {
     try {
       const status = await testUnixSocket(socketPath);
-      if (status === 'ok') return;
-
-      if (status === 'econnrefused') {
+      if (status === 'ok') {
+        if (!force && Date.now() - lastSqlVerifiedAt < SQL_HEALTH_RECHECK_MS) {
+          return;
+        }
+        const sqlHealthy = await probeDatabaseHealth(3500);
+        if (sqlHealthy) {
+          lastSqlVerifiedAt = Date.now();
+          lastProxyFailureAt = 0;
+          return;
+        }
+        console.warn('[cloud_sql_proxy] Socket responded locally but SQL probe failed; restarting stale proxy...');
+        await terminateStaleSqlProxies(instanceConnection);
         try {
           if (fs.existsSync(socketPath)) fs.unlinkSync(socketPath);
         } catch {
-          // ignore unlink errors if race cleared it
+          // ignore unlink error
         }
-      }
-
-      if (sqlProxyChild && sqlProxyChild.exitCode === null && !sqlProxyChild.killed) {
-        try {
-          sqlProxyChild.kill('SIGTERM');
-        } catch {
-          // ignore kill failure
+      } else {
+        if (status === 'econnrefused') {
+          try {
+            if (fs.existsSync(socketPath)) fs.unlinkSync(socketPath);
+          } catch {
+            // ignore unlink errors if race cleared it
+          }
         }
-        sqlProxyChild = null;
+        await terminateStaleSqlProxies(instanceConnection);
       }
 
       if (!proxySignalHandlersRegistered) {
@@ -365,6 +439,7 @@ async function ensureSqlHostProxySocket(force = false): Promise<void> {
       child.on('exit', () => {
         if (sqlProxyChild === child) {
           sqlProxyChild = null;
+          lastSqlVerifiedAt = 0;
         }
       });
 
@@ -378,12 +453,15 @@ async function ensureSqlHostProxySocket(force = false): Promise<void> {
         await new Promise((r) => setTimeout(r, 100));
       }
 
-      if (!connected) {
-        lastProxyFailureAt = Date.now();
-      } else {
+      if (connected && (await probeDatabaseHealth(5000))) {
+        lastSqlVerifiedAt = Date.now();
         lastProxyFailureAt = 0;
+      } else {
+        lastSqlVerifiedAt = 0;
+        lastProxyFailureAt = Date.now();
       }
     } catch (err) {
+      lastSqlVerifiedAt = 0;
       lastProxyFailureAt = Date.now();
       console.error('ensureSqlHostProxySocket warning:', err);
     } finally {
@@ -396,6 +474,7 @@ async function ensureSqlHostProxySocket(force = false): Promise<void> {
 
 async function startServer() {
   await ensureSqlHostProxySocket(true);
+  await hydrateMessagingConfigsFromDb();
   const app = express();
   app.disable('x-powered-by');
 
@@ -498,10 +577,26 @@ async function startServer() {
   app.use(express.json({ limit: '15mb' }));
   app.use(autoAuditRequestMiddleware);
 
+  async function runWithSqlReconnect<T>(fn: () => Promise<T>): Promise<T> {
+    try {
+      return await fn();
+    } catch (err) {
+      if (!isTransientSqlError(err)) throw err;
+      lastSqlVerifiedAt = 0;
+      await ensureSqlHostProxySocket(true);
+      return await fn();
+    }
+  }
+
   app.use('/api', async (req, _res, next) => {
     if (req.path === '/health' || req.path === '/auth/captcha') return next();
-    if (!sqlProxyChild || sqlProxyChild.exitCode !== null || sqlProxyChild.killed) {
-      await ensureSqlHostProxySocket();
+    if (
+      !sqlProxyChild ||
+      sqlProxyChild.exitCode !== null ||
+      sqlProxyChild.killed ||
+      Date.now() - lastSqlVerifiedAt >= SQL_HEALTH_RECHECK_MS
+    ) {
+      await ensureSqlHostProxySocket(false);
     }
     next();
   });
@@ -519,7 +614,6 @@ async function startServer() {
   // Public Corporate Login (Email + Password + Math CAPTCHA + Image CAPTCHA + Schedule Enforcement)
   app.post('/api/auth/login', async (req, res) => {
     try {
-      await ensureInitialSeed();
       const { email, password, captchaToken, mathAnswer, selectedTiles } = req.body as {
         email: string;
         password: string;
@@ -533,83 +627,106 @@ async function startServer() {
         return res.status(400).json({ error: cap.error });
       }
 
-      const rows = await db.select().from(users).where(eq(users.email, (email || '').trim().toLowerCase())).limit(1);
-      const user = rows[0];
-      if (!user || !user.active) {
-        return res.status(401).json({ error: 'E-mail não cadastrado ou usuário inativo.' });
-      }
+      const authPayload = await runWithSqlReconnect(async () => {
+        await ensureInitialSeed();
+        const rows = await db
+          .select()
+          .from(users)
+          .where(eq(users.email, (email || '').trim().toLowerCase()))
+          .limit(1);
+        const user = rows[0];
+        if (!user || !user.active) {
+          return { status: 401 as const, body: { error: 'E-mail não cadastrado ou usuário inativo.' } };
+        }
 
-      if (user.lockedUntil && new Date(user.lockedUntil).getTime() > Date.now()) {
-        const minsLeft = Math.max(1, Math.ceil((new Date(user.lockedUntil).getTime() - Date.now()) / 60000));
-        return res.status(423).json({
-          error: `Conta temporariamente bloqueada por tentativas inválidas. Aguarde ${minsLeft} min ou use "Esqueci a senha".`,
-        });
-      }
+        if (user.lockedUntil && new Date(user.lockedUntil).getTime() > Date.now()) {
+          const minsLeft = Math.max(1, Math.ceil((new Date(user.lockedUntil).getTime() - Date.now()) / 60000));
+          return {
+            status: 423 as const,
+            body: {
+              error: `Conta temporariamente bloqueada por tentativas inválidas. Aguarde ${minsLeft} min ou use "Esqueci a senha".`,
+            },
+          };
+        }
 
-      const matchesPassword = verifyPassword(password || '', user.passwordHash);
-      const matchesTemp = Boolean(user.tempPassword && password === user.tempPassword);
-      if (!matchesPassword && !matchesTemp) {
-        const nextAttempts = (user.failedLoginAttempts || 0) + 1;
-        const lockUntil = nextAttempts >= 5 ? new Date(Date.now() + 15 * 60 * 1000) : null;
-        await db
-          .update(users)
-          .set({ failedLoginAttempts: nextAttempts, ...(lockUntil ? { lockedUntil: lockUntil } : {}) })
-          .where(eq(users.id, user.id));
-        return res.status(401).json({
-          error: lockUntil
-            ? 'Limite de 5 tentativas atingido. Conta bloqueada por 15 minutos.'
-            : `Senha incorreta. Tentativa ${nextAttempts}/5.`,
-        });
-      }
+        const matchesPassword = verifyPassword(password || '', user.passwordHash);
+        const matchesTemp = Boolean(user.tempPassword && password === user.tempPassword);
+        if (!matchesPassword && !matchesTemp) {
+          const nextAttempts = (user.failedLoginAttempts || 0) + 1;
+          const lockUntil = nextAttempts >= 5 ? new Date(Date.now() + 15 * 60 * 1000) : null;
+          await db
+            .update(users)
+            .set({ failedLoginAttempts: nextAttempts, ...(lockUntil ? { lockedUntil: lockUntil } : {}) })
+            .where(eq(users.id, user.id));
+          return {
+            status: 401 as const,
+            body: {
+              error: lockUntil
+                ? 'Limite de 5 tentativas atingido. Conta bloqueada por 15 minutos.'
+                : `Senha incorreta. Tentativa ${nextAttempts}/5.`,
+            },
+          };
+        }
 
-      const scheduleCheck = await checkUserScheduleWindow(user, user.defaultUnitId || 1);
-      if (!scheduleCheck.allowed) {
-        return res.status(403).json({ error: scheduleCheck.message });
-      }
+        const scheduleCheck = await checkUserScheduleWindow(user, user.defaultUnitId || 1);
+        if (!scheduleCheck.allowed) {
+          return { status: 403 as const, body: { error: scheduleCheck.message } };
+        }
 
-      if (user.failedLoginAttempts > 0 || user.lockedUntil) {
-        await db
-          .update(users)
-          .set({ failedLoginAttempts: 0, lockedUntil: null })
-          .where(eq(users.id, user.id));
-      }
+        if (user.failedLoginAttempts > 0 || user.lockedUntil) {
+          await db
+            .update(users)
+            .set({ failedLoginAttempts: 0, lockedUntil: null })
+            .where(eq(users.id, user.id));
+        }
 
-      const token = signCorporateToken({
-        userId: user.id,
-        uid: user.uid,
-        email: user.email,
-        role: user.role,
-        sessionVersion: user.sessionVersion || 1,
-      });
-      recordSessionActivity(token);
-
-      await db.insert(auditLogs).values({
-        userId: user.id,
-        userName: user.name,
-        action: 'LOGIN_CORPORATIVO',
-        entityType: 'user',
-        entityId: String(user.id),
-        details: { method: matchesTemp ? 'temp_password' : 'password_dual_captcha' },
-        unitId: user.defaultUnitId,
-      });
-
-      res.json({
-        token,
-        user: {
-          id: user.id,
+        const token = signCorporateToken({
+          userId: user.id,
           uid: user.uid,
           email: user.email,
-          name: user.name,
           role: user.role,
-          groupId: user.groupId,
-          defaultUnitId: user.defaultUnitId,
-          allowedUnitIds: user.allowedUnitIds,
-          mustChangePassword: user.mustChangePassword || matchesTemp,
-          points: user.points,
-        },
+          sessionVersion: user.sessionVersion || 1,
+        });
+        recordSessionActivity(token);
+
+        await db.insert(auditLogs).values({
+          userId: user.id,
+          userName: user.name,
+          action: 'LOGIN_CORPORATIVO',
+          entityType: 'user',
+          entityId: String(user.id),
+          details: { method: matchesTemp ? 'temp_password' : 'password_dual_captcha' },
+          unitId: user.defaultUnitId,
+        });
+
+        return {
+          status: 200 as const,
+          body: {
+            token,
+            user: {
+              id: user.id,
+              uid: user.uid,
+              email: user.email,
+              name: user.name,
+              role: user.role,
+              groupId: user.groupId,
+              defaultUnitId: user.defaultUnitId,
+              allowedUnitIds: user.allowedUnitIds,
+              mustChangePassword: user.mustChangePassword || matchesTemp,
+              points: user.points,
+            },
+          },
+        };
       });
+
+      return res.status(authPayload.status).json(authPayload.body);
     } catch (error) {
       console.error('Login failed:', error);
+      if (isTransientSqlError(error)) {
+        return res.status(503).json({
+          error: 'Conexão com o banco de dados em reconexão automática. Tente entrar novamente em alguns segundos.',
+        });
+      }
       res.status(500).json({ error: 'Falha interna ao autenticar.' });
     }
   });
@@ -728,7 +845,10 @@ async function startServer() {
   app.get('/api/auth/me', requireAuth, async (req: AuthRequest, res) => {
     try {
       await ensureInitialSeed();
-      const allUnits = await db.select().from(units).orderBy(units.id);
+      const [allUnits, folderRules] = await Promise.all([
+        db.select().from(units).orderBy(units.id),
+        loadFolderRulesForUser(),
+      ]);
       const allowedUnits =
         req.authUser!.role === 'admin'
           ? allUnits
@@ -739,12 +859,18 @@ async function startServer() {
       const group = groups[0]
         ? { ...groups[0], modulePermissions: normalizeModulePermissions(groups[0].modulePermissions) }
         : null;
+      const docPermissionSummary = buildUserPermissionSummary(
+        req.authUser!,
+        req.activeUnitId || 1,
+        folderRules
+      );
       res.json({
         user: req.authUser,
         activeUnitId: req.activeUnitId,
         units: allowedUnits,
         allUnits,
         group,
+        docPermissionSummary,
       });
     } catch (error) {
       console.error('Auth me error:', error);
@@ -2089,7 +2215,7 @@ async function startServer() {
   app.get('/api/clients', requireAuth, async (req: AuthRequest, res) => {
     try {
       await ensureInitialSeed();
-      const [allClients, links, allAdmissions, allDocs, scenarios, allUsers, allThreads, bucketStats] = await Promise.all([
+      const [allClients, links, allAdmissions, allDocs, scenarios, allUsers, allThreads, bucketStats, folderRules] = await Promise.all([
         db.select().from(clients).orderBy(desc(clients.id)),
         db.select().from(clientAssetLinks),
         db.select().from(admissions).orderBy(desc(admissions.id)),
@@ -2098,13 +2224,25 @@ async function startServer() {
         db.select({ id: users.id, name: users.name, role: users.role, allowedUnitIds: users.allowedUnitIds }).from(users),
         db.select({ id: whatsappThreads.id, contactPhone: whatsappThreads.contactPhone, provider: whatsappThreads.provider }).from(whatsappThreads),
         getBucketRuntimeStats(),
+        loadFolderRulesForUser(),
       ]);
       const allowedUnits = getAllowedUnitIds(req);
       const unitAllowed = (uId: number | null | undefined) =>
         allowedUnits === null || (typeof uId === 'number' && allowedUnits.includes(uId));
       const permittedClients = allClients.filter((c) => unitAllowed(c.unitId));
       const permittedAdmissions = allAdmissions.filter((a) => unitAllowed(a.unitId));
-      const permittedDocs = allDocs.filter((d) => unitAllowed(d.unitId));
+      const permittedDocs = allDocs
+        .filter((d) => unitAllowed(d.unitId) && d.scope !== 'unit' && d.clientId !== null)
+        .map((d) => ({
+          ...d,
+          effectivePermissions: evaluateDocumentAccess({
+            authUser: req.authUser!,
+            doc: d,
+            folderRules,
+            context: 'client_dossier',
+          }),
+        }))
+        .filter((d) => d.effectivePermissions.view);
       const permittedScenarios = scenarios.filter((s) => unitAllowed(s.unitId));
       const threadPhones = Array.from(
         new Set(allThreads.map((t) => String(t.contactPhone || '').replace(/\D/g, '').slice(-8)).filter(Boolean))
@@ -3430,10 +3568,11 @@ async function startServer() {
   // Upload document to bucketdainvicta (AES-256-GCM encrypted CAS object bucket + SHA-256 deduplication; zero binary bloat in DB)
   app.post('/api/documents/upload', requireAuth, upload.single('file'), async (req: AuthRequest, res) => {
     try {
-      const { clientId, admissionId, docCategory } = req.body as {
+      const { clientId, admissionId, docCategory, unitFolderPath } = req.body as {
         clientId: string;
         admissionId?: string;
         docCategory: string;
+        unitFolderPath?: string;
       };
       const file = req.file;
       if (!file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
@@ -3442,8 +3581,32 @@ async function startServer() {
       const validationErr = validateUploadFile(file.originalname, file.mimetype, file.size);
       if (validationErr) return res.status(400).json({ error: validationErr });
 
-      const safeFileName = sanitizeFileName(file.originalname);
       const targetUnitId = req.activeUnitId || 1;
+      const cleanUnitFolder = normalizeFolderPath(unitFolderPath || '');
+      const folderRules = await loadFolderRulesForUser(targetUnitId);
+      const clientDocPerms = evaluateScopePermissions({
+        authUser: req.authUser!,
+        unitId: targetUnitId,
+        scopeKey: 'clientDocs',
+        folderPath: cleanUnitFolder,
+        folderRules,
+      });
+      if (!clientDocPerms.view || !clientDocPerms.edit) {
+        await db.insert(auditLogs).values({
+          userId: req.authUser!.id,
+          userName: req.authUser!.name,
+          action: 'DOCUMENT_ACCESS_DENIED',
+          entityType: 'document_object',
+          entityId: `client:${clientId}`,
+          details: { actionRequested: 'edit/upload', clientId: Number(clientId) },
+          unitId: targetUnitId,
+        });
+        return res.status(403).json({
+          error: 'Permissão negada: você não possui autorização para Alterar / Enviar documentos neste dossiê.',
+        });
+      }
+
+      const safeFileName = sanitizeFileName(file.originalname);
       const folderPath = `bucketdainvicta/U${targetUnitId}/C${clientId}${admissionId ? `/ADM-${admissionId}` : '/GERAL'}`;
 
       const stored = await putBucketObject(file.buffer, {
@@ -3457,6 +3620,9 @@ async function startServer() {
         .values({
           clientId: Number(clientId),
           admissionId: admissionId ? Number(admissionId) : null,
+          scope: 'client',
+          unitFolderPath: cleanUnitFolder,
+          isInterlinked: Boolean(cleanUnitFolder),
           folderPath,
           fileName: safeFileName,
           docCategory: docCategory || 'pessoal',
@@ -3466,6 +3632,7 @@ async function startServer() {
           storageUri: stored.storageUri,
           uploadedBy: req.authUser!.name,
           unitId: targetUnitId,
+          versionNumber: 1,
         })
         .returning();
 
@@ -3670,6 +3837,158 @@ async function startServer() {
     }
   });
 
+  app.patch('/api/documents/:id', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de documento inválido.' });
+      const rows = await db.select().from(documentObjects).where(eq(documentObjects.id, id)).limit(1);
+      const doc = rows[0];
+      if (!doc || doc.deletedAt) return res.status(404).json({ error: 'Documento não encontrado.' });
+      if (!isUnitPermitted(req, doc.unitId)) {
+        return res.status(403).json({ error: 'ACL negada: unidade do anexo não autorizada.' });
+      }
+      const rules = await loadFolderRulesForUser(doc.unitId);
+      const eff = evaluateDocumentAccess({
+        authUser: req.authUser!,
+        doc,
+        folderRules: rules,
+        context: doc.scope === 'unit' ? 'unit_browser' : 'direct',
+      });
+      if (!eff.view || !eff.edit) {
+        await db.insert(auditLogs).values({
+          userId: req.authUser!.id,
+          userName: req.authUser!.name,
+          action: 'DOCUMENT_ACCESS_DENIED',
+          entityType: 'document_object',
+          entityId: String(id),
+          details: { actionRequested: 'edit/rename', fileName: doc.fileName },
+          unitId: doc.unitId,
+        });
+        return res.status(403).json({ error: 'Permissão negada: seu perfil não pode alterar este arquivo.' });
+      }
+
+      const body = (req.body || {}) as {
+        fileName?: string;
+        docCategory?: string;
+        unitFolderPath?: string;
+      };
+      const nextFileName = body.fileName ? sanitizeFileName(body.fileName) : doc.fileName;
+      const nextCategory = body.docCategory !== undefined ? String(body.docCategory).trim() || doc.docCategory : doc.docCategory;
+      const nextUnitFolder =
+        body.unitFolderPath !== undefined ? normalizeFolderPath(body.unitFolderPath) : doc.unitFolderPath;
+
+      const [updated] = await db
+        .update(documentObjects)
+        .set({
+          fileName: nextFileName,
+          docCategory: nextCategory,
+          unitFolderPath: nextUnitFolder,
+        })
+        .where(eq(documentObjects.id, id))
+        .returning();
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'DOCUMENT_RENAMED',
+        entityType: 'document_object',
+        entityId: String(id),
+        details: {
+          previousFileName: doc.fileName,
+          newFileName: updated.fileName,
+          unitFolderPath: updated.unitFolderPath,
+        },
+        unitId: doc.unitId,
+      });
+
+      res.json({ ok: true, document: { ...updated, effectivePermissions: eff } });
+    } catch (error) {
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao alterar documento.') });
+    }
+  });
+
+  app.post('/api/documents/:id/replace', requireAuth, upload.single('file'), async (req: AuthRequest, res) => {
+    try {
+      const id = parsePositiveIntId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'ID de documento inválido.' });
+      const file = req.file;
+      if (!file) return res.status(400).json({ error: 'Nenhum arquivo enviado para substituição.' });
+
+      const rows = await db.select().from(documentObjects).where(eq(documentObjects.id, id)).limit(1);
+      const doc = rows[0];
+      if (!doc || doc.deletedAt) return res.status(404).json({ error: 'Documento não encontrado.' });
+      if (!isUnitPermitted(req, doc.unitId)) {
+        return res.status(403).json({ error: 'ACL negada: unidade do anexo não autorizada.' });
+      }
+
+      const rules = await loadFolderRulesForUser(doc.unitId);
+      const eff = evaluateDocumentAccess({
+        authUser: req.authUser!,
+        doc,
+        folderRules: rules,
+        context: doc.scope === 'unit' ? 'unit_browser' : 'direct',
+      });
+      if (!eff.view || !eff.edit) {
+        await db.insert(auditLogs).values({
+          userId: req.authUser!.id,
+          userName: req.authUser!.name,
+          action: 'DOCUMENT_ACCESS_DENIED',
+          entityType: 'document_object',
+          entityId: String(id),
+          details: { actionRequested: 'edit/replace', fileName: doc.fileName },
+          unitId: doc.unitId,
+        });
+        return res.status(403).json({ error: 'Permissão negada: seu perfil não pode substituir este arquivo.' });
+      }
+
+      const validationErr = validateUploadFile(file.originalname, file.mimetype, file.size);
+      if (validationErr) return res.status(400).json({ error: validationErr });
+
+      const safeFileName = sanitizeFileName(file.originalname);
+      const stored = await putBucketObject(file.buffer, {
+        folderPath: doc.folderPath,
+        mimeType: file.mimetype,
+        originalName: safeFileName,
+      });
+
+      const [updated] = await db
+        .update(documentObjects)
+        .set({
+          fileName: safeFileName,
+          mimeType: file.mimetype || doc.mimeType,
+          sizeBytes: stored.sizeBytes,
+          previousSha256: doc.sha256Hash,
+          sha256Hash: stored.sha256Hash,
+          storageUri: stored.storageUri,
+          versionNumber: (doc.versionNumber || 1) + 1,
+          uploadedBy: req.authUser!.name,
+          lastSyncedAt: new Date(),
+        })
+        .where(eq(documentObjects.id, id))
+        .returning();
+
+      await db.insert(auditLogs).values({
+        userId: req.authUser!.id,
+        userName: req.authUser!.name,
+        action: 'DOCUMENT_REPLACED',
+        entityType: 'document_object',
+        entityId: String(id),
+        details: {
+          previousFileName: doc.fileName,
+          newFileName: updated.fileName,
+          previousSha256: doc.sha256Hash,
+          newSha256: stored.sha256Hash,
+          versionNumber: updated.versionNumber,
+        },
+        unitId: doc.unitId,
+      });
+
+      res.json({ ok: true, document: { ...updated, effectivePermissions: eff } });
+    } catch (error) {
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao substituir arquivo.') });
+    }
+  });
+
   app.delete('/api/documents/:id', requireAuth, async (req: AuthRequest, res) => {
     try {
       const id = parsePositiveIntId(req.params.id);
@@ -3679,6 +3998,25 @@ async function startServer() {
       if (!doc) return res.status(404).json({ error: 'Documento não encontrado.' });
       if (!isUnitPermitted(req, doc.unitId)) {
         return res.status(403).json({ error: 'ACL negada: unidade do anexo não autorizada.' });
+      }
+      const rules = await loadFolderRulesForUser(doc.unitId);
+      const eff = evaluateDocumentAccess({
+        authUser: req.authUser!,
+        doc,
+        folderRules: rules,
+        context: doc.scope === 'unit' ? 'unit_browser' : 'direct',
+      });
+      if (!eff.view || !eff.delete) {
+        await db.insert(auditLogs).values({
+          userId: req.authUser!.id,
+          userName: req.authUser!.name,
+          action: 'DOCUMENT_ACCESS_DENIED',
+          entityType: 'document_object',
+          entityId: String(id),
+          details: { actionRequested: 'delete/trash', fileName: doc.fileName },
+          unitId: doc.unitId,
+        });
+        return res.status(403).json({ error: 'Permissão negada: você não possui direito de Excluir este arquivo.' });
       }
       const [updated] = await db
         .update(documentObjects)
@@ -3710,6 +4048,25 @@ async function startServer() {
       if (!doc) return res.status(404).json({ error: 'Documento não encontrado.' });
       if (!isUnitPermitted(req, doc.unitId)) {
         return res.status(403).json({ error: 'ACL negada: unidade do anexo não autorizada.' });
+      }
+      const rules = await loadFolderRulesForUser(doc.unitId);
+      const eff = evaluateDocumentAccess({
+        authUser: req.authUser!,
+        doc,
+        folderRules: rules,
+        context: doc.scope === 'unit' ? 'unit_browser' : 'direct',
+      });
+      if (!eff.view || !eff.delete) {
+        await db.insert(auditLogs).values({
+          userId: req.authUser!.id,
+          userName: req.authUser!.name,
+          action: 'DOCUMENT_ACCESS_DENIED',
+          entityType: 'document_object',
+          entityId: String(id),
+          details: { actionRequested: 'delete/purge', fileName: doc.fileName },
+          unitId: doc.unitId,
+        });
+        return res.status(403).json({ error: 'Permissão negada: você não possui direito de Excluir definitivamente.' });
       }
 
       await db.delete(documentObjects).where(eq(documentObjects.id, id));
@@ -3747,6 +4104,16 @@ async function startServer() {
       if (!isUnitPermitted(req, doc.unitId)) {
         return res.status(403).json({ error: 'ACL negada: unidade do anexo não autorizada.' });
       }
+      const rules = await loadFolderRulesForUser(doc.unitId);
+      const eff = evaluateDocumentAccess({
+        authUser: req.authUser!,
+        doc,
+        folderRules: rules,
+        context: doc.scope === 'unit' ? 'unit_browser' : 'direct',
+      });
+      if (!eff.view || (!eff.edit && !eff.delete)) {
+        return res.status(403).json({ error: 'Permissão negada para restaurar este documento.' });
+      }
       const [updated] = await db
         .update(documentObjects)
         .set({ deletedAt: null, deletedBy: null })
@@ -3776,21 +4143,106 @@ async function startServer() {
       const doc = rows[0];
       if (!doc || doc.deletedAt) return res.status(404).json({ error: 'Documento não encontrado ou na lixeira.' });
       if (!isUnitPermitted(req, doc.unitId)) {
-        return res.status(403).json({ error: 'ACL negada: sem concessão para baixar este anexo.' });
+        return res.status(403).json({ error: 'ACL negada: sem concessão para acessar este anexo.' });
+      }
+
+      const isPreview = req.query.preview === '1';
+      const isPrintMode = req.query.mode === 'print';
+      const accessContext =
+        req.query.context === 'unit_browser'
+          ? 'unit_browser'
+          : req.query.context === 'client_dossier'
+          ? 'client_dossier'
+          : doc.scope === 'unit'
+          ? 'unit_browser'
+          : 'direct';
+
+      const rules = await loadFolderRulesForUser(doc.unitId);
+      const eff = evaluateDocumentAccess({
+        authUser: req.authUser!,
+        doc,
+        folderRules: rules,
+        context: accessContext,
+      });
+
+      if (!eff.view) {
+        await db.insert(auditLogs).values({
+          userId: req.authUser!.id,
+          userName: req.authUser!.name,
+          action: 'DOCUMENT_ACCESS_DENIED',
+          entityType: 'document_object',
+          entityId: String(id),
+          details: { actionRequested: 'view', fileName: doc.fileName },
+          unitId: doc.unitId,
+        });
+        return res.status(403).json({ error: 'Permissão negada: seu perfil não pode visualizar este documento.' });
+      }
+
+      if (isPrintMode && !eff.print) {
+        await db.insert(auditLogs).values({
+          userId: req.authUser!.id,
+          userName: req.authUser!.name,
+          action: 'DOCUMENT_ACCESS_DENIED',
+          entityType: 'document_object',
+          entityId: String(id),
+          details: { actionRequested: 'print', fileName: doc.fileName },
+          unitId: doc.unitId,
+        });
+        return res.status(403).json({ error: 'Permissão negada: impressão desabilitada para este arquivo.' });
+      }
+
+      if (!isPreview && !isPrintMode && !eff.download) {
+        await db.insert(auditLogs).values({
+          userId: req.authUser!.id,
+          userName: req.authUser!.name,
+          action: 'DOCUMENT_ACCESS_DENIED',
+          entityType: 'document_object',
+          entityId: String(id),
+          details: { actionRequested: 'download', fileName: doc.fileName },
+          unitId: doc.unitId,
+        });
+        return res.status(403).json({
+          error: 'Permissão negada: download bloqueado. Utilize o leitor interno protegido.',
+        });
       }
 
       const etag = `"${doc.sha256Hash}"`;
-      if (req.headers['if-none-match'] === etag) {
+      if (req.headers['if-none-match'] === etag && !isPrintMode) {
         return res.status(304).end();
       }
 
       const buf = await getBucketObjectBuffer(doc.sha256Hash, doc.storageUri);
       const safeName = sanitizeFileName(doc.fileName);
-      const disposition = req.query.preview === '1' && canPreviewInline(doc.mimeType) ? 'inline' : 'attachment';
+      const disposition =
+        isPrintMode || (isPreview && canPreviewInline(doc.mimeType)) ? 'inline' : 'attachment';
+
+      if (isPrintMode) {
+        await db.insert(auditLogs).values({
+          userId: req.authUser!.id,
+          userName: req.authUser!.name,
+          action: 'DOCUMENT_PRINT',
+          entityType: 'document_object',
+          entityId: String(id),
+          details: { fileName: doc.fileName, unitFolderPath: doc.unitFolderPath },
+          unitId: doc.unitId,
+        });
+      } else if (!isPreview) {
+        await db.insert(auditLogs).values({
+          userId: req.authUser!.id,
+          userName: req.authUser!.name,
+          action: 'DOCUMENT_DOWNLOAD',
+          entityType: 'document_object',
+          entityId: String(id),
+          details: { fileName: doc.fileName, unitFolderPath: doc.unitFolderPath },
+          unitId: doc.unitId,
+        });
+      }
 
       res.setHeader('ETag', etag);
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
       res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('X-Document-Print-Allowed', eff.print ? '1' : '0');
+      res.setHeader('X-Document-Download-Allowed', eff.download ? '1' : '0');
 
       if (buf) {
         res.setHeader('Content-Type', doc.mimeType || 'application/octet-stream');
@@ -5556,21 +6008,34 @@ async function startServer() {
   registerCollectionRoutes(app, { broadcast });
   registerCollectionTasksRoutes(app, { broadcast });
 
-  // Fixed WhatsApp Dock APIs
+  // Fixed & Full Workspace WhatsApp APIs
   app.get('/api/whatsapp/threads', requireAuth, async (req: AuthRequest, res) => {
     try {
       await ensureInitialSeed();
       const allowedUnits = getAllowedUnitIds(req);
-      const threads =
+      const [threads, rawInstances, rawChannels] = await Promise.all([
         allowedUnits === null
-          ? await db.select().from(whatsappThreads).orderBy(desc(whatsappThreads.updatedAt))
+          ? db.select().from(whatsappThreads).orderBy(desc(whatsappThreads.updatedAt))
           : allowedUnits.length === 0
-          ? []
-          : await db
+          ? Promise.resolve([])
+          : db
               .select()
               .from(whatsappThreads)
               .where(inArray(whatsappThreads.unitId, allowedUnits))
-              .orderBy(desc(whatsappThreads.updatedAt));
+              .orderBy(desc(whatsappThreads.updatedAt)),
+        listSanitizedUazapiInstances(),
+        db
+          .select({
+            id: gotalkChannels.id,
+            name: gotalkChannels.name,
+            phoneNumber: gotalkChannels.phoneNumber,
+            unitId: gotalkChannels.unitId,
+            isPrimary: gotalkChannels.isPrimary,
+            isActive: gotalkChannels.isActive,
+          })
+          .from(gotalkChannels)
+          .orderBy(gotalkChannels.id),
+      ]);
       const threadIds = threads.map((t) => t.id);
       const msgs =
         allowedUnits === null
@@ -5582,10 +6047,399 @@ async function startServer() {
               .from(whatsappMessages)
               .where(inArray(whatsappMessages.threadId, threadIds))
               .orderBy(whatsappMessages.createdAt);
-      res.json({ threads, messages: msgs });
+
+      const userGroupId = req.authUser?.groupId ?? null;
+      const isAdminUser = req.authUser?.role === 'admin';
+      const instances = rawInstances.filter((inst) => {
+        if (!inst.active) return false;
+        if (allowedUnits !== null && !allowedUnits.includes(inst.unitId)) return false;
+        if (!isAdminUser && userGroupId && Array.isArray(inst.allowedGroupIds) && inst.allowedGroupIds.length > 0) {
+          return inst.allowedGroupIds.includes(userGroupId);
+        }
+        return true;
+      });
+      const channels = rawChannels.filter(
+        (ch) => ch.isActive && (allowedUnits === null || !ch.unitId || allowedUnits.includes(ch.unitId))
+      );
+
+      res.json({
+        threads,
+        messages: msgs,
+        instances,
+        channels,
+        gotalkStatus: getGotalkStatus(),
+        uazapiRuntime: getUazapiGlobalRuntimeState(),
+      });
     } catch (error) {
       console.error('WhatsApp threads error:', error);
       res.status(500).json({ error: 'Erro ao carregar WhatsApp.' });
+    }
+  });
+
+  app.post('/api/whatsapp/threads', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      await ensureInitialSeed();
+      const { contactPhone, contactName, provider, unitId, clientId, uazapiInstanceId, channelDbId } = (req.body || {}) as {
+        contactPhone?: string;
+        contactName?: string;
+        provider?: 'gotalk' | 'uazapi';
+        unitId?: number;
+        clientId?: number | null;
+        uazapiInstanceId?: string | null;
+        channelDbId?: number | null;
+      };
+      const normalized = normalizePhone(contactPhone);
+      if (!normalized || normalized.length < 8) {
+        return res.status(400).json({ error: 'Informe um telefone/WhatsApp válido com DDD (mínimo 8 dígitos).' });
+      }
+      const chosenProvider: 'gotalk' | 'uazapi' = provider === 'uazapi' ? 'uazapi' : 'gotalk';
+      const targetUnitId = parsePositiveIntId(unitId) || req.activeUnitId || 1;
+      if (!isUnitPermitted(req, targetUnitId)) {
+        return res.status(403).json({ error: 'Sem permissão para criar conversa nesta unidade.' });
+      }
+
+      let resolvedClientId = parsePositiveIntId(clientId) || null;
+      let resolvedName = String(contactName || '').trim();
+      if (resolvedClientId) {
+        const clRows = await db.select().from(clients).where(eq(clients.id, resolvedClientId)).limit(1);
+        if (!clRows[0] || !isUnitPermitted(req, clRows[0].unitId)) {
+          resolvedClientId = null;
+        } else if (!resolvedName) {
+          resolvedName = clRows[0].fullName;
+        }
+      } else {
+        const unitClients = await db
+          .select({ id: clients.id, fullName: clients.fullName, phone: clients.phone, whatsapp: clients.whatsapp })
+          .from(clients)
+          .where(eq(clients.unitId, targetUnitId));
+        const matched = unitClients.find(
+          (c) => phonesMatchBR(c.whatsapp, normalized) || phonesMatchBR(c.phone, normalized)
+        );
+        if (matched) {
+          resolvedClientId = matched.id;
+          if (!resolvedName) resolvedName = matched.fullName;
+        }
+      }
+
+      const existingUnitThreads = await db
+        .select()
+        .from(whatsappThreads)
+        .where(eq(whatsappThreads.unitId, targetUnitId));
+      const existing = existingUnitThreads.find(
+        (t) =>
+          t.provider === chosenProvider &&
+          (phonesMatchBR(t.contactPhone, normalized) || (resolvedClientId !== null && t.clientId === resolvedClientId))
+      );
+
+      let resolvedUazapiInstanceId = uazapiInstanceId?.trim() || null;
+      if (chosenProvider === 'uazapi' && !resolvedUazapiInstanceId) {
+        const creds = await resolveUazapiCredentials({
+          unitId: targetUnitId,
+          groupId: req.authUser?.groupId ?? null,
+        });
+        resolvedUazapiInstanceId = creds?.instanceId || null;
+      }
+
+      let resolvedChannelDbId = parsePositiveIntId(channelDbId) || null;
+      if (chosenProvider === 'gotalk' && !resolvedChannelDbId) {
+        const activeChs = await db.select().from(gotalkChannels).where(eq(gotalkChannels.isActive, true));
+        const unitCh = activeChs.find((c) => c.unitId === targetUnitId) || activeChs.find((c) => c.isPrimary) || activeChs[0];
+        resolvedChannelDbId = unitCh?.id ?? null;
+      }
+
+      if (existing) {
+        const [updated] = await db
+          .update(whatsappThreads)
+          .set({
+            clientId: existing.clientId ?? resolvedClientId,
+            contactName: resolvedName || existing.contactName,
+            uazapiInstanceId: chosenProvider === 'uazapi' ? resolvedUazapiInstanceId ?? existing.uazapiInstanceId : existing.uazapiInstanceId,
+            channelDbId: chosenProvider === 'gotalk' ? resolvedChannelDbId ?? existing.channelDbId : existing.channelDbId,
+            updatedAt: new Date(),
+          })
+          .where(eq(whatsappThreads.id, existing.id))
+          .returning();
+        return res.json({ thread: updated, created: false });
+      }
+
+      const [created] = await db
+        .insert(whatsappThreads)
+        .values({
+          clientId: resolvedClientId,
+          unitId: targetUnitId,
+          contactName: resolvedName || normalized,
+          contactPhone: normalized,
+          provider: chosenProvider,
+          uazapiInstanceId: chosenProvider === 'uazapi' ? resolvedUazapiInstanceId : null,
+          channelDbId: chosenProvider === 'gotalk' ? resolvedChannelDbId : null,
+          operatorName: req.authUser!.name,
+          assignedOperatorId: req.authUser!.id,
+          lastMessagePreview: `Conversa iniciada via ${chosenProvider.toUpperCase()}`,
+          unreadCount: 0,
+          updatedAt: new Date(),
+        })
+        .returning();
+
+      broadcast('whatsapp:thread_created', created);
+      res.status(201).json({ thread: created, created: true });
+    } catch (error) {
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao iniciar conversa WhatsApp.') });
+    }
+  });
+
+  app.patch('/api/whatsapp/threads/:id', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const threadId = parsePositiveIntId(req.params.id);
+      if (!threadId) return res.status(400).json({ error: 'ID de conversa inválido.' });
+      const [thread] = await db.select().from(whatsappThreads).where(eq(whatsappThreads.id, threadId)).limit(1);
+      if (!thread) return res.status(404).json({ error: 'Conversa WhatsApp não encontrada.' });
+      if (!isUnitPermitted(req, thread.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para alterar conversa desta unidade.' });
+      }
+
+      const { provider, uazapiInstanceId, channelDbId, contactName } = (req.body || {}) as {
+        provider?: 'gotalk' | 'uazapi';
+        uazapiInstanceId?: string | null;
+        channelDbId?: number | null;
+        contactName?: string;
+      };
+
+      const nextProvider: 'gotalk' | 'uazapi' =
+        provider === 'uazapi' || provider === 'gotalk'
+          ? provider
+          : thread.provider === 'uazapi'
+          ? 'uazapi'
+          : 'gotalk';
+
+      let nextInstanceId = thread.uazapiInstanceId;
+      if (uazapiInstanceId !== undefined) {
+        if (uazapiInstanceId) {
+          const instRows = await db
+            .select()
+            .from(unitWhatsappCredentials)
+            .where(eq(unitWhatsappCredentials.uazapiInstanceId, uazapiInstanceId))
+            .limit(1);
+          if (!instRows[0]) return res.status(404).json({ error: 'Instância UaZapi não encontrada.' });
+          nextInstanceId = instRows[0].uazapiInstanceId;
+        } else {
+          nextInstanceId = null;
+        }
+      } else if (nextProvider === 'uazapi' && !nextInstanceId) {
+        const creds = await resolveUazapiCredentials({
+          unitId: thread.unitId,
+          groupId: req.authUser?.groupId ?? null,
+        });
+        nextInstanceId = creds?.instanceId || null;
+      }
+
+      let nextChannelDbId = thread.channelDbId;
+      if (channelDbId !== undefined) {
+        if (channelDbId) {
+          const chId = parsePositiveIntId(channelDbId);
+          if (!chId) return res.status(400).json({ error: 'ID de canal GoTalk inválido.' });
+          const chRows = await db.select().from(gotalkChannels).where(eq(gotalkChannels.id, chId)).limit(1);
+          if (!chRows[0]) return res.status(404).json({ error: 'Canal GoTalk não encontrado.' });
+          nextChannelDbId = chRows[0].id;
+        } else {
+          nextChannelDbId = null;
+        }
+      } else if (nextProvider === 'gotalk' && !nextChannelDbId) {
+        const chRows = await db.select().from(gotalkChannels).where(eq(gotalkChannels.isActive, true));
+        const unitCh = chRows.find((c) => c.unitId === thread.unitId) || chRows.find((c) => c.isPrimary) || chRows[0];
+        nextChannelDbId = unitCh?.id ?? null;
+      }
+
+      const [updated] = await db
+        .update(whatsappThreads)
+        .set({
+          provider: nextProvider,
+          uazapiInstanceId: nextInstanceId,
+          channelDbId: nextChannelDbId,
+          ...(contactName?.trim() ? { contactName: contactName.trim() } : {}),
+          updatedAt: new Date(),
+        })
+        .where(eq(whatsappThreads.id, threadId))
+        .returning();
+
+      broadcast('whatsapp:thread_updated', updated);
+      res.json({ ok: true, thread: updated });
+    } catch (error) {
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao atualizar conversa WhatsApp.') });
+    }
+  });
+
+  app.post('/api/whatsapp/threads/:id/read', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const threadId = parsePositiveIntId(req.params.id);
+      if (!threadId) return res.status(400).json({ error: 'ID de conversa inválido.' });
+      const [thread] = await db.select().from(whatsappThreads).where(eq(whatsappThreads.id, threadId)).limit(1);
+      if (!thread) return res.status(404).json({ error: 'Conversa WhatsApp não encontrada.' });
+      if (!isUnitPermitted(req, thread.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para acessar conversa desta unidade.' });
+      }
+      if ((thread.unreadCount || 0) !== 0) {
+        await db.update(whatsappThreads).set({ unreadCount: 0 }).where(eq(whatsappThreads.id, threadId));
+        broadcast('whatsapp:read', { threadId });
+      }
+      res.json({ ok: true, threadId, unreadCount: 0 });
+    } catch (error) {
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao confirmar leitura da conversa.') });
+    }
+  });
+
+  app.post('/api/whatsapp/sync', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      await ensureInitialSeed();
+      const { unitId, instanceId } = (req.body || {}) as { unitId?: number; instanceId?: string };
+      const allowedUnits = getAllowedUnitIds(req);
+      const requestedUnitId = parsePositiveIntId(unitId);
+      if (requestedUnitId && allowedUnits !== null && !allowedUnits.includes(requestedUnitId)) {
+        return res.status(403).json({ error: 'Sem permissão para sincronizar esta unidade.' });
+      }
+
+      const allInstRows = await db.select().from(unitWhatsappCredentials).orderBy(unitWhatsappCredentials.id);
+      const scopedInstRows = allInstRows.filter((r) => {
+        if (!r.active) return false;
+        if (instanceId && r.uazapiInstanceId !== instanceId) return false;
+        if (requestedUnitId && r.unitId !== requestedUnitId) return false;
+        if (allowedUnits !== null && !allowedUnits.includes(r.unitId)) return false;
+        return true;
+      });
+
+      const [allThreads, allClients, firstUnit] = await Promise.all([
+        db.select().from(whatsappThreads),
+        db.select({ id: clients.id, phone: clients.phone, whatsapp: clients.whatsapp, unitId: clients.unitId }).from(clients),
+        db.select().from(units).orderBy(units.id).limit(1),
+      ]);
+
+      let instancesChecked = 0;
+      let connectedCount = 0;
+      let threadsSynced = 0;
+      let messagesSynced = 0;
+
+      for (const row of scopedInstRows) {
+        const plainToken = decryptUazapiToken(row.uazapiTokenEncrypted);
+        if (!plainToken) continue;
+        instancesChecked++;
+        const creds: UazapiCredentials = {
+          unitId: row.unitId,
+          instanceId: row.uazapiInstanceId,
+          label: row.label,
+          serverUrl: row.uazapiServerUrl || getDefaultUazapiServerUrl(),
+          token: plainToken,
+        };
+
+        const liveStatus = await getUazapiInstanceStatus(creds);
+        if (liveStatus.ok) {
+          await db
+            .update(unitWhatsappCredentials)
+            .set({
+              isConnected: liveStatus.connected,
+              connectedPhone: liveStatus.connectedPhone || row.connectedPhone,
+              profileName: liveStatus.profileName || row.profileName,
+              updatedAt: new Date(),
+            })
+            .where(eq(unitWhatsappCredentials.id, row.id));
+        }
+        if (!liveStatus.ok || !liveStatus.connected) continue;
+        connectedCount++;
+
+        const chats = await findUazapiChats(creds, 12, 0).catch(() => []);
+        for (const ch of chats) {
+          const matchedClient = allClients.find(
+            (c) => phonesMatchBR(c.whatsapp, ch.phone) || phonesMatchBR(c.phone, ch.phone)
+          );
+          let thread =
+            allThreads.find(
+              (t) =>
+                t.provider === 'uazapi' &&
+                t.uazapiInstanceId === creds.instanceId &&
+                phonesMatchBR(t.contactPhone, ch.phone)
+            ) ||
+            allThreads.find(
+              (t) =>
+                t.provider === 'uazapi' &&
+                !t.uazapiInstanceId &&
+                phonesMatchBR(t.contactPhone, ch.phone)
+            );
+          if (!thread) {
+            const [created] = await db
+              .insert(whatsappThreads)
+              .values({
+                unitId: creds.unitId || matchedClient?.unitId || firstUnit[0]?.id || 1,
+                clientId: matchedClient?.id ?? null,
+                contactName: ch.name || ch.phone,
+                contactPhone: normalizePhone(ch.phone) || ch.phone,
+                provider: 'uazapi',
+                uazapiInstanceId: creds.instanceId || null,
+                unreadCount: ch.unreadCount,
+                lastMessagePreview: ch.lastMessagePreview || 'Conversa sincronizada UaZapi',
+                updatedAt: new Date(),
+              })
+              .returning();
+            thread = created;
+            allThreads.push(created);
+          } else {
+            await db
+              .update(whatsappThreads)
+              .set({
+                uazapiInstanceId: creds.instanceId || thread.uazapiInstanceId,
+                lastMessagePreview: ch.lastMessagePreview || thread.lastMessagePreview,
+                updatedAt: new Date(),
+              })
+              .where(eq(whatsappThreads.id, thread.id));
+          }
+          threadsSynced++;
+
+          const msgs = await findUazapiMessages(creds, ch.chatId, 12).catch(() => []);
+          for (const m of msgs) {
+            if (!m.body) continue;
+            const dup = await db
+              .select({ id: whatsappMessages.id })
+              .from(whatsappMessages)
+              .where(eq(whatsappMessages.externalMessageId, m.id))
+              .limit(1);
+            if (dup[0]) continue;
+            await db.insert(whatsappMessages).values({
+              threadId: thread.id,
+              externalMessageId: m.id,
+              direction: m.fromMe ? 'outbound' : 'inbound',
+              contentType: m.type,
+              body: m.body,
+              ackStatus: m.fromMe ? 2 : null,
+              deliveryProvider: 'uazapi',
+              deliveryStatus: m.fromMe ? 'sent' : 'received',
+              senderName: m.fromMe ? 'Consultor UaZapi' : m.senderName || ch.name || ch.phone,
+              createdAt: new Date(m.timestampMs),
+            });
+            messagesSynced++;
+          }
+        }
+      }
+
+      let gotalkSynced: { channelsSynced: number; operatorsSynced: number; templatesSynced: number } | null = null;
+      let gotalkError: string | null = null;
+      if (isGotalkConfigured()) {
+        try {
+          await authenticateGotalk();
+          gotalkSynced = await syncGotalkResources();
+        } catch (err) {
+          gotalkError = err instanceof Error ? err.message : 'Erro ao sincronizar GoTalk';
+        }
+      }
+
+      broadcast('whatsapp:synced', { threadsSynced, messagesSynced });
+      res.json({
+        ok: true,
+        uazapi: { instancesChecked, connectedCount, threadsSynced, messagesSynced },
+        gotalk: {
+          configured: isGotalkConfigured(),
+          synced: gotalkSynced,
+          error: gotalkError,
+        },
+      });
+    } catch (error) {
+      res.status(500).json({ ok: false, error: sanitizeErrorMessage(error, 'Erro ao sincronizar WhatsApp.') });
     }
   });
 
@@ -5647,18 +6501,31 @@ async function startServer() {
       }
 
       const activeDelivery = gotalkDelivery || uazapiDelivery;
+      const resolvedDirection = direction || 'outbound';
+      const deliveryStatus =
+        resolvedDirection === 'inbound'
+          ? 'received'
+          : activeDelivery?.dispatched
+          ? 'sent'
+          : activeDelivery?.provider?.includes('error')
+          ? 'failed'
+          : 'queued';
+
       const [msg] = await db
         .insert(whatsappMessages)
         .values({
           threadId,
           externalMessageId: activeDelivery?.externalMessageId || null,
-          direction: direction || 'outbound',
+          direction: resolvedDirection,
           contentType: contentType || 'text',
           body,
           iviAudioTranscript: iviTranscript,
-          ackStatus: (direction || 'outbound') === 'outbound' && activeDelivery?.dispatched ? 1 : null,
-          operatorName: (direction || 'outbound') === 'outbound' ? req.authUser!.name : null,
-          senderName: direction === 'inbound' ? 'Cliente' : req.authUser!.name,
+          ackStatus: resolvedDirection === 'outbound' && activeDelivery?.dispatched ? 1 : null,
+          deliveryProvider: activeDelivery?.provider || thread.provider,
+          deliveryStatus,
+          deliveryDetail: activeDelivery?.detail || null,
+          operatorName: resolvedDirection === 'outbound' ? req.authUser!.name : null,
+          senderName: resolvedDirection === 'inbound' ? 'Cliente' : req.authUser!.name,
         })
         .returning();
 
@@ -5674,7 +6541,7 @@ async function startServer() {
         channel: thread.provider === 'uazapi' ? 'whatsapp_uazapi' : 'whatsapp_gotalk',
         provider: thread.provider === 'uazapi' ? 'uazapi' : 'gotalk',
         threadId: thread.id,
-        direction: (direction || 'outbound') === 'inbound' ? 'inbound' : 'outbound',
+        direction: resolvedDirection === 'inbound' ? 'inbound' : 'outbound',
         contentType: contentType === 'audio' ? 'audio' : 'text',
         body,
         audioTranscript: iviTranscript,
@@ -5788,6 +6655,11 @@ async function startServer() {
       }
 
       const activeDelivery = gotalkDelivery || uazapiDelivery;
+      const deliveryStatus = activeDelivery?.dispatched
+        ? 'sent'
+        : activeDelivery?.provider?.includes('error')
+        ? 'failed'
+        : 'queued';
       const [msg] = await db
         .insert(whatsappMessages)
         .values({
@@ -5803,6 +6675,9 @@ async function startServer() {
           mediaStorageUri: bucketStored.storageUri,
           iviAudioTranscript: iviTranscript,
           ackStatus: activeDelivery?.dispatched ? 1 : null,
+          deliveryProvider: activeDelivery?.provider || thread.provider,
+          deliveryStatus,
+          deliveryDetail: activeDelivery?.detail || null,
           operatorName: req.authUser!.name,
           senderName: req.authUser!.name,
         })
@@ -6187,6 +7062,9 @@ async function startServer() {
       const threads = await db.select().from(whatsappThreads).where(eq(whatsappThreads.id, threadId)).limit(1);
       const thread = threads[0];
       if (!thread) return res.status(404).json({ error: 'Conversa não encontrada.' });
+      if (!isUnitPermitted(req, thread.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para disparar template nesta unidade.' });
+      }
 
       const tpls = await db
         .select()
@@ -6228,6 +7106,12 @@ async function startServer() {
         if (fallbackDelivery.dispatched) gotalkDelivery = fallbackDelivery;
       }
 
+      const deliveryStatus = gotalkDelivery.dispatched
+        ? 'sent'
+        : gotalkDelivery.provider?.includes('error')
+        ? 'failed'
+        : 'queued';
+
       const [msg] = await db
         .insert(whatsappMessages)
         .values({
@@ -6238,6 +7122,9 @@ async function startServer() {
           body: `[Template HSM: ${tpl.templateName}]\n${renderedBody}`,
           attachmentName: tpl.templateName,
           ackStatus: gotalkDelivery.dispatched ? 1 : null,
+          deliveryProvider: gotalkDelivery.provider,
+          deliveryStatus,
+          deliveryDetail: gotalkDelivery.detail || null,
           operatorName: req.authUser!.name,
           senderName: req.authUser!.name,
         })
@@ -6245,7 +7132,7 @@ async function startServer() {
 
       await db
         .update(whatsappThreads)
-        .set({ lastMessagePreview: renderedBody.slice(0, 70), updatedAt: new Date() })
+        .set({ lastMessagePreview: renderedBody.slice(0, 70), updatedAt: new Date(), unreadCount: 0 })
         .where(eq(whatsappThreads.id, thread.id));
 
       broadcast('whatsapp:message', msg);
@@ -6258,7 +7145,7 @@ async function startServer() {
 
   // Webhook Oficial GoTalk (suporta /api/integrations/gotalk/webhook e alias /api/gotalk/webhook)
   const handleGotalkWebhook = async (req: express.Request, res: express.Response) => {
-    const webhookSecret = process.env.GOTALK_WEBHOOK_SECRET?.trim();
+    const webhookSecret = getGotalkWebhookSecret();
     if (webhookSecret) {
       const authHeader = req.headers.authorization;
       const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : undefined;
@@ -6266,6 +7153,7 @@ async function startServer() {
         (req.headers['x-gotalk-token'] as string | undefined) ||
         (req.headers['x-webhook-token'] as string | undefined) ||
         (req.headers['x-gotalk-webhook-secret'] as string | undefined) ||
+        (req.headers['x-webhook-secret'] as string | undefined) ||
         (req.headers['x-hub-signature'] as string | undefined) ||
         bearerToken ||
         (req.query.token as string | undefined) ||
@@ -6603,7 +7491,7 @@ async function startServer() {
         (c) => phonesMatchBR(c.whatsapp, rawPhone) || phonesMatchBR(c.phone, rawPhone)
       );
 
-      let thread = allThreads.find((t) => phonesMatchBR(t.contactPhone, rawPhone));
+      let thread = allThreads.find((t) => phonesMatchBR(t.contactPhone, rawPhone) && t.provider === 'gotalk');
       const preview = (textBody || attachmentName || `[${contentType.toUpperCase()}]`).slice(0, 70);
 
       if (!thread) {
@@ -6632,7 +7520,6 @@ async function startServer() {
         await db
           .update(whatsappThreads)
           .set({
-            provider: 'gotalk',
             clientId: thread.clientId ?? matchedClient?.id ?? null,
             gotalkContactId: gotalkContactId ?? thread.gotalkContactId,
             gotalkAttendanceId: gotalkAttendanceId ?? thread.gotalkAttendanceId,
@@ -6742,7 +7629,7 @@ async function startServer() {
     try {
       const port = process.env.PORT || 3000;
       const localUrl = `http://127.0.0.1:${port}/api/integrations/gotalk/webhook`;
-      const webhookSecret = process.env.GOTALK_WEBHOOK_SECRET?.trim();
+      const webhookSecret = getGotalkWebhookSecret();
       const testExtId = `selftest_${Date.now()}`;
       const testPhone = '5581999990099';
 
@@ -6904,7 +7791,7 @@ async function startServer() {
             unitId: matched.unitId,
             instanceId: matched.uazapiInstanceId,
             label: matched.label,
-            serverUrl: matched.uazapiServerUrl || DEFAULT_UAZAPI_SERVER_URL,
+            serverUrl: matched.uazapiServerUrl || getDefaultUazapiServerUrl(),
             token,
           };
         }
@@ -7070,7 +7957,7 @@ async function startServer() {
       if (!token?.trim()) {
         return res.status(400).json({ error: 'Token da instância ou AdminToken UaZapi é obrigatório.' });
       }
-      const resolvedServerUrl = (serverUrl || DEFAULT_UAZAPI_SERVER_URL).trim().replace(/\/$/, '');
+      const resolvedServerUrl = (serverUrl || getDefaultUazapiServerUrl()).trim().replace(/\/$/, '');
       const firstUnit = await db.select().from(units).orderBy(units.id).limit(1);
       const resolvedUnitId = unitId || req.activeUnitId || firstUnit[0]?.id || 1;
       const tempCreds: UazapiCredentials = { serverUrl: resolvedServerUrl, token: token.trim() };
@@ -7154,20 +8041,21 @@ async function startServer() {
 
   app.post('/api/integrations/uazapi/discover', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
     try {
-      const adminToken = process.env.UAZAPI_ADMIN_TOKEN?.trim();
+      const adminToken = getUazapiAdminToken();
       if (!adminToken) {
         return res.status(400).json({
           ok: false,
-          error: 'UAZAPI_ADMIN_TOKEN não configurado nos Secrets do servidor.',
+          error: 'AdminToken UaZapi não configurado (configure na aba WhatsApp UaZapi & Grupos).',
         });
       }
-      const discovery = await fetchUazapiInstancesWithAdminToken(DEFAULT_UAZAPI_SERVER_URL, adminToken);
+      const serverUrl = getDefaultUazapiServerUrl();
+      const discovery = await fetchUazapiInstancesWithAdminToken(serverUrl, adminToken);
       if (!discovery.ok) {
         return res.status(502).json({ ok: false, error: discovery.error || 'Falha ao listar instâncias no UaZapi.' });
       }
       const firstUnit = await db.select().from(units).orderBy(units.id).limit(1);
       const savedList = await upsertDiscoveredUazapiInstances({
-        serverUrl: DEFAULT_UAZAPI_SERVER_URL,
+        serverUrl,
         discovered: discovery.instances,
         fallbackUnitId: req.activeUnitId || firstUnit[0]?.id || 1,
       });
@@ -7291,7 +8179,7 @@ async function startServer() {
       if (!creds) return res.status(400).json({ ok: false, error: 'Credenciais UaZapi não configuradas.' });
 
       const baseUrl = resolvePublicBaseUrl(req);
-      const hookSecret = process.env.UAZAPI_WEBHOOK_SECRET?.trim() || creds.token;
+      const hookSecret = getUazapiWebhookSecret() || creds.token;
       const webhookUrl = `${baseUrl}/api/integrations/uazapi/webhook?token=${encodeURIComponent(hookSecret)}`;
       const reg = await registerUazapiWebhook(creds, webhookUrl);
 
@@ -7337,7 +8225,19 @@ async function startServer() {
         const matchedClient = allClients.find(
           (c) => phonesMatchBR(c.whatsapp, ch.phone) || phonesMatchBR(c.phone, ch.phone)
         );
-        let thread = allThreads.find((t) => phonesMatchBR(t.contactPhone, ch.phone) && t.provider === 'uazapi');
+        let thread =
+          allThreads.find(
+            (t) =>
+              t.provider === 'uazapi' &&
+              t.uazapiInstanceId === creds.instanceId &&
+              phonesMatchBR(t.contactPhone, ch.phone)
+          ) ||
+          allThreads.find(
+            (t) =>
+              t.provider === 'uazapi' &&
+              !t.uazapiInstanceId &&
+              phonesMatchBR(t.contactPhone, ch.phone)
+          );
         if (!thread) {
           const [created] = await db
             .insert(whatsappThreads)
@@ -7426,7 +8326,7 @@ async function startServer() {
         ).trim() || null;
 
       const creds = await resolveUazapiCredentials({ instanceId: instanceCandidate });
-      const envSecret = process.env.UAZAPI_WEBHOOK_SECRET?.trim();
+      const envSecret = getUazapiWebhookSecret();
       const expectedTokens = [envSecret, creds?.token].filter((v): v is string => Boolean(v));
 
       if (expectedTokens.length > 0) {
@@ -7643,7 +8543,16 @@ async function startServer() {
         const matchedClient = allClients.find(
           (c) => phonesMatchBR(c.whatsapp, rawPhone) || phonesMatchBR(c.phone, rawPhone)
         );
-        let thread = allThreads.find((t) => phonesMatchBR(t.contactPhone, rawPhone) && t.provider === 'uazapi');
+        const targetInstId = creds?.instanceId || instanceCandidate;
+        let thread =
+          (targetInstId &&
+            allThreads.find(
+              (t) =>
+                t.provider === 'uazapi' &&
+                t.uazapiInstanceId === targetInstId &&
+                phonesMatchBR(t.contactPhone, rawPhone)
+            )) ||
+          allThreads.find((t) => phonesMatchBR(t.contactPhone, rawPhone) && t.provider === 'uazapi');
 
         if (!thread) {
           const [created] = await db
@@ -7778,7 +8687,7 @@ async function startServer() {
       const port = process.env.PORT || 3000;
       const localUrl = `http://127.0.0.1:${port}/api/integrations/uazapi/webhook`;
       const creds = await resolveUazapiCredentials({ unitId: req.activeUnitId });
-      const activeSecret = process.env.UAZAPI_WEBHOOK_SECRET?.trim() || creds?.token || null;
+      const activeSecret = getUazapiWebhookSecret() || creds?.token || null;
       const testExtId = `uaz_selftest_${Date.now()}`;
       const testPhone = '5581999990088';
 
@@ -8126,7 +9035,7 @@ async function startServer() {
       const [allUnits, allGroups, allUsers, schedules, fields, categories, settings, logs, channels, operators, templates] = await Promise.all([
         db.select().from(units).orderBy(units.id),
         db.select().from(userGroups).orderBy(userGroups.id),
-        db.select({ id: users.id, uid: users.uid, email: users.email, name: users.name, role: users.role, groupId: users.groupId, defaultUnitId: users.defaultUnitId, allowedUnitIds: users.allowedUnitIds, active: users.active, whatsappPhone: users.whatsappPhone, points: users.points }).from(users),
+        db.select({ id: users.id, uid: users.uid, email: users.email, name: users.name, role: users.role, groupId: users.groupId, defaultUnitId: users.defaultUnitId, allowedUnitIds: users.allowedUnitIds, documentPermissionOverrides: users.documentPermissionOverrides, active: users.active, whatsappPhone: users.whatsappPhone, points: users.points }).from(users),
         db.select().from(workSchedules).orderBy(workSchedules.id),
         db.select().from(customFields).orderBy(customFields.id),
         db.select().from(paymentCategories).orderBy(paymentCategories.id),
@@ -8506,7 +9415,7 @@ async function startServer() {
 
   registerInternalMessagingRoutes(app, { broadcast });
   registerCadastrosRoutes(app, broadcast);
-  registerConfigRoutes(app);
+  registerConfigRoutes(app, { broadcast });
   registerAppointmentsRoutes(app, { broadcast, resolveUazapiCredentials });
   registerFinancialRoutes(app, { broadcast });
   registerAuditRoutes(app, { broadcast });
@@ -8516,6 +9425,7 @@ async function startServer() {
   registerCompanyLegalRoutes(app, { broadcast });
   registerDataHubRoutes(app, { broadcast });
   registerMigrationRoutes(app, { broadcast });
+  registerUnitFilesRoutes(app, { broadcast, uploadSingleFile: upload.single('file') });
   registerBackupRoutes(app, broadcast);
   registerTrainingDocsRoutes(app);
   startBackupScheduler(broadcast, ensureSqlHostProxySocket);
@@ -8528,10 +9438,13 @@ async function startServer() {
   app.use((err: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
     if (req.path.startsWith('/api')) {
       if (res.headersSent) return next(err);
-      const status =
-        typeof err === 'object' && err !== null && 'status' in err && typeof (err as { status?: number }).status === 'number'
-          ? (err as { status: number }).status
-          : 500;
+      const errObj = typeof err === 'object' && err !== null ? (err as { status?: number; code?: string }) : {};
+      if (errObj.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({
+          error: 'O arquivo enviado excede o limite máximo suportado de 500 MB.',
+        });
+      }
+      const status = typeof errObj.status === 'number' ? errObj.status : 500;
       const message = sanitizeErrorMessage(err, 'Erro interno no servidor API.');
       console.error(`API Error [${req.method} ${req.path}]:`, err);
       return res.status(status).json({ error: message });
@@ -8562,6 +9475,10 @@ async function startServer() {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
+
+  server.keepAliveTimeout = 65_000;
+  server.headersTimeout = 66_000;
+  server.requestTimeout = 300_000;
 
   server.listen(3000, '0.0.0.0', () => {
     console.log('FinancePro Assessoria server running on http://0.0.0.0:3000');

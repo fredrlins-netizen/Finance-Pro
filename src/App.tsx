@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import {
   ArrowDownCircle,
@@ -67,6 +67,7 @@ import {
   NavigationIntent,
   PortalBrandingConfig,
   Unit,
+  UserDocPermissionSummary,
   UserGroup,
 } from './types.ts';
 import { LoginScreen } from './components/LoginScreen.tsx';
@@ -82,6 +83,7 @@ import { AuditModule } from './components/modules/AuditModule.tsx';
 import { LegalModule } from './components/modules/LegalModule.tsx';
 import { NegotiationsModule } from './components/modules/NegotiationsModule.tsx';
 import { InternalMessagingModule } from './components/modules/InternalMessagingModule.tsx';
+import { WhatsappMessagingModule } from './components/modules/WhatsappMessagingModule.tsx';
 import { FinanceModule } from './components/modules/FinanceModule.tsx';
 import { CollectionModule } from './components/modules/CollectionModule.tsx';
 import { FormsModule } from './components/modules/FormsModule.tsx';
@@ -91,6 +93,12 @@ import { ManagerialDashboardModule } from './components/modules/ManagerialDashbo
 import { CompanyLegalModule } from './components/modules/CompanyLegalModule.tsx';
 import { TrainingDocsModule } from './components/modules/TrainingDocsModule.tsx';
 import { sanitizeHelpHtml } from './components/modules/config/ConfigGovernanceViews.tsx';
+import { R2MigrationFloatingBanner } from './components/R2MigrationFloatingBanner.tsx';
+import {
+  getR2SyncSnapshot,
+  isR2MigrationIdleSuspended,
+  subscribeR2Sync,
+} from './services/r2BrowserSyncManager.ts';
 
 interface NavItem {
   id: ModuleId;
@@ -147,6 +155,11 @@ const ACOMP_JURIDICO_SUBMENUS: Array<{ id: ModuleId; label: string; icon: React.
   { id: 'jur_prazos', label: 'Prazos e Audiências', icon: CalendarClock },
 ];
 
+const MENSAGERIA_SUBMENUS: Array<{ id: ModuleId; label: string; icon: React.FC<{ className?: string }> }> = [
+  { id: 'whatsapp_messaging', label: 'Whatsapp (GoTalk & UaZapi)', icon: MessageSquare },
+  { id: 'internal_messaging', label: 'Mensageria Interna', icon: MessageSquareText },
+];
+
 const NAV_ITEMS: NavItem[] = [
   { id: 'home', label: 'Home', shortLabel: 'Home', group: 'entrada', icon: Home },
   { id: 'overview', label: 'Visão Executiva', shortLabel: 'Início', group: 'entrada', icon: LayoutDashboard },
@@ -155,7 +168,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'audit', label: 'Auditoria & Boletos', shortLabel: 'Auditoria', group: 'operacao', icon: ClipboardCheck },
   { id: 'legal', label: 'Jurídico & Escavador', shortLabel: 'Jurídico', group: 'operacao', icon: Scale },
   { id: 'negotiations', label: 'Negociações Bancárias', shortLabel: 'Negociar', group: 'operacao', icon: TrendingDown },
-  { id: 'internal_messaging', label: 'Mensageria Interna', shortLabel: 'Mensagens', group: 'operacao', icon: MessageSquareText },
+  { id: 'internal_messaging', label: 'Mensageria', shortLabel: 'Mensageria', group: 'operacao', icon: MessageSquareText },
   { id: 'collection', label: 'Cobrança & Ranking', shortLabel: 'Cobrança', group: 'gestao', icon: Briefcase },
   { id: 'forms', label: 'Formulários', shortLabel: 'Forms', group: 'analises', icon: ClipboardList },
   { id: 'reports', label: 'Relatórios Gerais', shortLabel: 'Relatórios', group: 'analises', icon: FileBarChart2 },
@@ -183,7 +196,11 @@ export default function App() {
   const [activeUnitId, setActiveUnitId] = useState<number>(1);
   const [forcedLockMessage, setForcedLockMessage] = useState('');
   const [group, setGroup] = useState<UserGroup | null>(null);
+  const [docPermissionSummary, setDocPermissionSummary] = useState<UserDocPermissionSummary | null>(null);
   const [activeModule, setActiveModule] = useState<ModuleId>('home');
+  const [activeConfigTab, setActiveConfigTab] = useState<string>('units');
+  const r2SyncState = useSyncExternalStore(subscribeR2Sync, getR2SyncSnapshot);
+  const r2SyncRunning = Boolean(r2SyncState?.running);
   const [navIntent, setNavIntent] = useState<NavigationIntent | null>(null);
   const [navHistory, setNavHistory] = useState<Array<{ mod: ModuleId; intent: NavigationIntent | null }>>([]);
   const activeModuleRef = React.useRef<ModuleId>('home');
@@ -197,6 +214,7 @@ export default function App() {
   const [contaCorrenteCadastroExpanded, setContaCorrenteCadastroExpanded] = useState(false);
   const [collectionExpanded, setCollectionExpanded] = useState(false);
   const [acompJuridicoExpanded, setAcompJuridicoExpanded] = useState(false);
+  const [mensageriaExpanded, setMensageriaExpanded] = useState(false);
   const [cadastrosVersion, setCadastrosVersion] = useState(0);
 
   // Live Nav Badges (real pending counts from /api/overview + unread messages per sector)
@@ -324,11 +342,13 @@ export default function App() {
         units: Unit[];
         allUnits: Unit[];
         group: UserGroup | null;
+        docPermissionSummary?: UserDocPermissionSummary | null;
       }>('/api/auth/me');
       setCurrentUser(me.user);
       setUnits(me.units);
       setAllUnits(me.allUnits);
       setGroup(me.group);
+      setDocPermissionSummary(me.docPermissionSummary || null);
       const initialUnit = me.activeUnitId || me.units[0]?.id || 1;
       setActiveUnitId(initialUnit);
       setActiveUnitHeader(initialUnit);
@@ -501,6 +521,9 @@ export default function App() {
     if (mod === 'acomp_juridico' || mod.startsWith('jur_')) {
       setAcompJuridicoExpanded(true);
     }
+    if (mod === 'internal_messaging' || mod === 'whatsapp_messaging') {
+      setMensageriaExpanded(true);
+    }
   }, []);
 
   const navigateTo = useCallback(
@@ -589,6 +612,7 @@ export default function App() {
     }
     setAuthToken(null);
     setCurrentUser(null);
+    setDocPermissionSummary(null);
     setTokenReady(false);
     setForcedLockMessage(lockMsg);
     activeModuleRef.current = 'home';
@@ -617,7 +641,7 @@ export default function App() {
     try {
       const raw = Number(localStorage.getItem(STORAGE_KEY) || 0);
       if (Number.isFinite(raw) && raw > 0) storedAt = raw;
-      if (nowInit - storedAt >= IDLE_TIMEOUT_MS) {
+      if (!isR2MigrationIdleSuspended() && nowInit - storedAt >= IDLE_TIMEOUT_MS) {
         void handleLogout('Sessão encerrada automaticamente após 3 horas de inatividade (LGPD).');
         return;
       }
@@ -632,6 +656,15 @@ export default function App() {
 
     const markActivity = () => {
       const now = Date.now();
+      if (isR2MigrationIdleSuspended()) {
+        lastActivityAt = now;
+        try {
+          localStorage.setItem(STORAGE_KEY, String(now));
+        } catch {
+          // ignore
+        }
+        return;
+      }
       if (now - lastActivityAt >= IDLE_TIMEOUT_MS) {
         void handleLogout('Sessão encerrada automaticamente após 3 horas de inatividade (LGPD).');
         return;
@@ -651,6 +684,15 @@ export default function App() {
     };
 
     const checkIdle = () => {
+      if (isR2MigrationIdleSuspended()) {
+        lastActivityAt = Date.now();
+        try {
+          localStorage.setItem(STORAGE_KEY, String(lastActivityAt));
+        } catch {
+          // ignore
+        }
+        return;
+      }
       try {
         const synced = Number(localStorage.getItem(STORAGE_KEY) || 0);
         if (Number.isFinite(synced) && synced > lastActivityAt) {
@@ -714,6 +756,17 @@ export default function App() {
     };
   }, [tokenReady, handleLogout]);
 
+  // Reinicia relógio de inatividade limpo ao iniciar/encerrar rotina de Migração R2
+  useEffect(() => {
+    if (!tokenReady) return;
+    try {
+      localStorage.setItem('fp_last_activity_at', String(Date.now()));
+    } catch {
+      // ignore
+    }
+    apiFetch('/api/auth/activity', { method: 'POST' }).catch(() => {});
+  }, [tokenReady, r2SyncRunning]);
+
   const handleUnitSwitch = (unitId: number) => {
     setActiveUnitId(unitId);
     setActiveUnitHeader(unitId);
@@ -775,10 +828,31 @@ export default function App() {
     );
   }
 
+  const hasFullConfigAccess =
+    currentUser.role === 'admin' ||
+    !group?.modulePermissions ||
+    group.modulePermissions.config !== false;
+  const canBrowseUnitFiles =
+    currentUser.role === 'admin' ||
+    group?.modulePermissions?.unit_files === true ||
+    docPermissionSummary?.canBrowseUnitFiles === true;
+
+  const visibleMensageriaSubmenus = MENSAGERIA_SUBMENUS.filter((sub) => {
+    if (currentUser.role === 'admin') return true;
+    if (!group?.modulePermissions) return true;
+    if (sub.id === 'whatsapp_messaging') {
+      const explicit = group.modulePermissions.whatsapp_messaging;
+      return explicit !== undefined ? explicit !== false : group.modulePermissions.internal_messaging !== false;
+    }
+    return group.modulePermissions[sub.id] !== false;
+  });
+
   const visibleNavItems = NAV_ITEMS.filter((item) => {
     if (item.id === 'home') return true;
     if (item.id === 'backup_restore' && currentUser.role !== 'admin') return false;
     if (currentUser.role === 'admin') return true;
+    if (item.id === 'config') return hasFullConfigAccess || canBrowseUnitFiles;
+    if (item.id === 'internal_messaging') return visibleMensageriaSubmenus.length > 0;
     if (!group?.modulePermissions) return true;
     return group.modulePermissions[item.id] !== false;
   });
@@ -809,6 +883,7 @@ export default function App() {
 
   const isCollectionActive = activeModule === 'collection' || activeModule.startsWith('collection_');
   const isAcompJuridicoActive = activeModule === 'acomp_juridico' || activeModule.startsWith('jur_');
+  const isMensageriaActive = activeModule === 'internal_messaging' || activeModule === 'whatsapp_messaging';
   const selectableUnits = units.length > 0 ? units : allUnits;
   const cadastrosAnchorId: ModuleId = visibleNavItems.some((i) => i.id === 'appointments')
     ? 'appointments'
@@ -817,6 +892,7 @@ export default function App() {
   const activeFinanceMeta = FINANCE_ALL_SUBMENUS.find((s) => s.id === activeModule);
   const activeCollectionMeta = COLLECTION_SUBMENUS.find((s) => s.id === activeModule);
   const activeAcompJuridicoMeta = ACOMP_JURIDICO_SUBMENUS.find((s) => s.id === activeModule);
+  const activeMensageriaMeta = MENSAGERIA_SUBMENUS.find((s) => s.id === activeModule);
   const activeNavMeta = activeCadMeta
     ? { id: activeCadMeta.id, label: `Cadastros Comuns · ${activeCadMeta.label}` }
     : activeFinanceMeta
@@ -825,6 +901,8 @@ export default function App() {
     ? { id: activeCollectionMeta.id, label: `Cobrança & Ranking · ${activeCollectionMeta.label}` }
     : activeAcompJuridicoMeta
     ? { id: activeAcompJuridicoMeta.id, label: `Acompanhamento Jurídico · ${activeAcompJuridicoMeta.label}` }
+    : activeMensageriaMeta
+    ? { id: activeMensageriaMeta.id, label: `Mensageria · ${activeMensageriaMeta.label}` }
     : NAV_ITEMS.find((i) => i.id === activeModule);
   const previousModMeta = (() => {
     const prevMod = navHistory.length > 0 ? navHistory[navHistory.length - 1].mod : 'home';
@@ -838,6 +916,8 @@ export default function App() {
     if (col) return `Cobrança & Ranking · ${col.label}`;
     const jur = ACOMP_JURIDICO_SUBMENUS.find((s) => s.id === prevMod);
     if (jur) return `Acompanhamento Jurídico · ${jur.label}`;
+    const msg = MENSAGERIA_SUBMENUS.find((s) => s.id === prevMod);
+    if (msg) return `Mensageria · ${msg.label}`;
     return NAV_ITEMS.find((i) => i.id === prevMod)?.label || 'Home';
   })();
   const hasDedicatedBackButton =
@@ -875,7 +955,8 @@ export default function App() {
   };
 
   const getUnreadMsgForModule = (modId: ModuleId): number => {
-    if (modId === 'internal_messaging') return totalUnreadMessages;
+    if (modId === 'internal_messaging') return totalUnreadMessages + waUnreadCount;
+    if (modId === 'whatsapp_messaging') return waUnreadCount;
     const secKey = getSectorKeyForModule(modId);
     return secKey ? sectorUnreadCounts[secKey] || 0 : 0;
   };
@@ -1107,7 +1188,8 @@ export default function App() {
                   const active =
                     activeModule === item.id ||
                     (item.id === 'collection' && isCollectionActive) ||
-                    (item.id === 'acomp_juridico' && isAcompJuridicoActive);
+                    (item.id === 'acomp_juridico' && isAcompJuridicoActive) ||
+                    (item.id === 'internal_messaging' && isMensageriaActive);
                   const itemUnread = getUnreadMsgForModule(item.id);
                   const itemBadgeCount = (navCounts[item.id] || 0) + itemUnread;
                   return (
@@ -1117,6 +1199,7 @@ export default function App() {
                         onClick={() => {
                           if (item.id === 'collection') navigateTo('collection_operacional');
                           else if (item.id === 'acomp_juridico') navigateTo('jur_dashboard');
+                          else if (item.id === 'internal_messaging') navigateTo(visibleMensageriaSubmenus[0]?.id || 'whatsapp_messaging');
                           else navigateTo(item.id);
                         }}
                         title={
@@ -1585,29 +1668,106 @@ export default function App() {
                       );
                     }
 
+                    if (item.id === 'internal_messaging') {
+                      if (visibleMensageriaSubmenus.length === 0) return null;
+                      const combinedUnread = totalUnreadMessages + waUnreadCount;
+                      return (
+                        <div key={item.id} className="space-y-0.5">
+                          <button
+                            type="button"
+                            aria-expanded={mensageriaExpanded}
+                            onClick={() => setMensageriaExpanded((prev) => !prev)}
+                            className={`w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors text-left ${
+                              isMensageriaActive && !mensageriaExpanded
+                                ? 'fp-nav-active'
+                                : isMensageriaActive
+                                ? 'fp-sidebar-parent-active'
+                                : 'fp-sidebar-item'
+                            }`}
+                          >
+                            <span className="flex items-center gap-2.5 min-w-0">
+                              <Icon className="w-4 h-4 shrink-0 text-current opacity-85" />
+                              <span className="truncate">Mensageria</span>
+                              {combinedUnread > 0 && renderBlinkingDot()}
+                            </span>
+                            <span className="flex items-center gap-1.5 shrink-0">
+                              {combinedUnread > 0 && (
+                                <span
+                                  title={`${totalUnreadMessages} interna(s) · ${waUnreadCount} WhatsApp não lida(s)`}
+                                  className="inline-flex items-center justify-center rounded-full px-1.5 py-0.5 font-mono text-[10px] font-bold tabular-nums bg-rose-500 text-white"
+                                >
+                                  {combinedUnread}
+                                </span>
+                              )}
+                              {mensageriaExpanded ? (
+                                <ChevronDown className="w-3.5 h-3.5 shrink-0 fp-sidebar-muted" />
+                              ) : (
+                                <ChevronRight className="w-3.5 h-3.5 shrink-0 fp-sidebar-muted" />
+                              )}
+                            </span>
+                          </button>
+
+                          {mensageriaExpanded && (
+                            <div className="ml-4 pl-2.5 border-l border-current/15 space-y-0.5 py-0.5">
+                              {visibleMensageriaSubmenus.map((sub) => {
+                                const SubIcon = sub.icon;
+                                const subActive = activeModule === sub.id;
+                                const subUnread =
+                                  sub.id === 'whatsapp_messaging' ? waUnreadCount : totalUnreadMessages;
+                                return (
+                                  <button
+                                    key={sub.id}
+                                    type="button"
+                                    onClick={() => navigateTo(sub.id)}
+                                    className={`w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors text-left ${
+                                      subActive ? 'fp-nav-active' : 'fp-sidebar-item'
+                                    }`}
+                                  >
+                                    <span className="flex items-center gap-2 min-w-0">
+                                      <SubIcon className="w-3.5 h-3.5 shrink-0 text-current opacity-85" />
+                                      <span className="truncate">{sub.label}</span>
+                                    </span>
+                                    {subUnread > 0 && (
+                                      <span className="inline-flex items-center justify-center rounded-full px-1.5 py-0.5 font-mono text-[10px] font-bold tabular-nums shrink-0 bg-rose-500 text-white">
+                                        {subUnread}
+                                      </span>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+
                     const itemUnread = getUnreadMsgForModule(item.id);
                     const totalBadge = pendingCount + itemUnread;
                     return (
                       <React.Fragment key={item.id}>
                         <button
                           type="button"
-                          onClick={() => navigateTo(item.id)}
+                          onClick={() =>
+                            item.id === 'config' && !hasFullConfigAccess && canBrowseUnitFiles
+                              ? navigateTo('config', { tab: 'unit_files' })
+                              : navigateTo(item.id)
+                          }
                           className={`w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors text-left ${
                             active ? 'fp-nav-active' : 'fp-sidebar-item'
                           }`}
                         >
                           <span className="flex items-center gap-2.5 min-w-0">
                             <Icon className="w-4 h-4 shrink-0 text-current opacity-85" />
-                            <span className="truncate">{item.label}</span>
+                            <span className="truncate">
+                              {item.id === 'config' && !hasFullConfigAccess && canBrowseUnitFiles
+                                ? 'Arquivos da Unidade'
+                                : item.label}
+                            </span>
                             {itemUnread > 0 && renderBlinkingDot()}
                           </span>
                           {totalBadge > 0 && (
                             <span
-                              title={
-                                item.id === 'internal_messaging'
-                                  ? `${itemUnread} mensagem(ns) não lida(s)`
-                                  : `${pendingCount} pendência(s) · ${itemUnread} nova(s) mensagem(ns)`
-                              }
+                              title={`${pendingCount} pendência(s) · ${itemUnread} nova(s) mensagem(ns)`}
                               className={`inline-flex items-center justify-center rounded-full px-1.5 py-0.5 font-mono text-[10px] font-bold tabular-nums shrink-0 ${
                                 itemUnread > 0
                                   ? 'bg-rose-500 text-white'
@@ -2152,20 +2312,93 @@ export default function App() {
                             );
                           }
 
+                          if (item.id === 'internal_messaging') {
+                            if (visibleMensageriaSubmenus.length === 0) return null;
+                            const combinedUnread = totalUnreadMessages + waUnreadCount;
+                            return (
+                              <div key={item.id} className="space-y-0.5">
+                                <button
+                                  type="button"
+                                  aria-expanded={mensageriaExpanded}
+                                  onClick={() => setMensageriaExpanded((prev) => !prev)}
+                                  className={`w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold min-h-[44px] ${
+                                    isMensageriaActive ? 'fp-sidebar-parent-active' : 'fp-sidebar-item'
+                                  }`}
+                                >
+                                  <span className="flex items-center gap-2.5">
+                                    <Icon className="w-4 h-4 shrink-0 text-current opacity-85" />
+                                    <span>Mensageria</span>
+                                    {combinedUnread > 0 && renderBlinkingDot()}
+                                  </span>
+                                  <span className="flex items-center gap-1.5">
+                                    {combinedUnread > 0 && (
+                                      <span className="inline-flex items-center justify-center rounded-full px-1.5 py-0.5 font-mono text-[10px] font-bold bg-rose-500 text-white">
+                                        {combinedUnread}
+                                      </span>
+                                    )}
+                                    {mensageriaExpanded ? (
+                                      <ChevronDown className="w-3.5 h-3.5 shrink-0 fp-sidebar-muted" />
+                                    ) : (
+                                      <ChevronRight className="w-3.5 h-3.5 shrink-0 fp-sidebar-muted" />
+                                    )}
+                                  </span>
+                                </button>
+                                {mensageriaExpanded && (
+                                  <div className="ml-4 pl-2.5 border-l border-current/15 space-y-0.5 py-0.5">
+                                    {visibleMensageriaSubmenus.map((sub) => {
+                                      const SubIcon = sub.icon;
+                                      const subActive = activeModule === sub.id;
+                                      const subUnread =
+                                        sub.id === 'whatsapp_messaging' ? waUnreadCount : totalUnreadMessages;
+                                      return (
+                                        <button
+                                          key={sub.id}
+                                          type="button"
+                                          onClick={() => navigateTo(sub.id)}
+                                          className={`w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold min-h-[40px] ${
+                                            subActive ? 'fp-nav-active' : 'fp-sidebar-item'
+                                          }`}
+                                        >
+                                          <span className="flex items-center gap-2">
+                                            <SubIcon className="w-3.5 h-3.5 shrink-0 text-current opacity-85" />
+                                            <span>{sub.label}</span>
+                                          </span>
+                                          {subUnread > 0 && (
+                                            <span className="inline-flex items-center justify-center rounded-full px-1.5 py-0.5 font-mono text-[10px] font-bold bg-rose-500 text-white">
+                                              {subUnread}
+                                            </span>
+                                          )}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          }
+
                           const mobUnread = getUnreadMsgForModule(item.id);
                           const mobBadge = pendingCount + mobUnread;
                           return (
                             <React.Fragment key={item.id}>
                               <button
                                 type="button"
-                                onClick={() => navigateTo(item.id)}
+                                onClick={() =>
+                                  item.id === 'config' && !hasFullConfigAccess && canBrowseUnitFiles
+                                    ? navigateTo('config', { tab: 'unit_files' })
+                                    : navigateTo(item.id)
+                                }
                                 className={`w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold min-h-[44px] ${
                                   active ? 'fp-nav-active' : 'fp-sidebar-item'
                                 }`}
                               >
                                 <span className="flex items-center gap-2.5">
                                   <Icon className="w-4 h-4 shrink-0 text-current opacity-85" />
-                                  <span>{item.label}</span>
+                                  <span>
+                                    {item.id === 'config' && !hasFullConfigAccess && canBrowseUnitFiles
+                                      ? 'Arquivos da Unidade'
+                                      : item.label}
+                                  </span>
                                   {mobUnread > 0 && renderBlinkingDot()}
                                 </span>
                                 {mobBadge > 0 && (
@@ -2404,6 +2637,8 @@ export default function App() {
                 units={allUnits}
                 activeUnitId={activeUnitId}
                 currentUser={currentUser}
+                navIntent={navIntent}
+                onClearIntent={clearIntent}
                 onNavigate={navigateTo}
                 onGoBack={handleGoBack}
                 previousScreenLabel={previousModMeta}
@@ -2485,6 +2720,21 @@ export default function App() {
                 onMessagesUpdated={refreshNavCounts}
               />
             )}
+            {activeModule === 'whatsapp_messaging' && (
+              <WhatsappMessagingModule
+                currentUser={currentUser}
+                units={allUnits}
+                activeUnitId={activeUnitId}
+                wsTick={wsTick}
+                navIntent={navIntent}
+                onClearIntent={clearIntent}
+                onNavigate={navigateTo}
+                onUnreadCountChange={setWaUnreadCount}
+                onCopyToClipboard={(text) => {
+                  setCopiedWhatsappText(text);
+                }}
+              />
+            )}
             {(activeModule === 'finance' || activeModule.startsWith('finance_')) && (
               <FinanceModule
                 units={allUnits}
@@ -2549,14 +2799,23 @@ export default function App() {
               <ConfigModule
                 currentUser={currentUser}
                 wsTick={wsTick}
-                initialTab={activeModule === 'backup_restore' ? 'backup_restore' : (navIntent?.tab || 'units')}
+                initialTab={
+                  activeModule === 'backup_restore'
+                    ? 'backup_restore'
+                    : navIntent?.tab || (!hasFullConfigAccess && canBrowseUnitFiles ? 'unit_files' : 'units')
+                }
+                hasFullConfigAccess={hasFullConfigAccess}
+                canBrowseUnitFiles={canBrowseUnitFiles}
+                unitsFallback={selectableUnits}
                 onUnitsUpdated={loadProfile}
                 onBrandingUpdated={(nextBranding) => {
                   setPortalBranding(nextBranding);
                   setCachedPortalBranding(nextBranding);
                 }}
+                onNavigate={navigateTo}
                 onGoBack={handleGoBack}
                 previousScreenLabel={previousModMeta}
+                onActiveTabChange={setActiveConfigTab}
               />
             )}
             {activeModule === 'training_docs' && (
@@ -2575,6 +2834,7 @@ export default function App() {
           onCloseMobile={() => setMobileWaOpen(false)}
           isDesktopOpen={desktopWaOpen}
           onCloseDesktop={() => setDesktopWaOpen(false)}
+          onOpenFullWhatsapp={() => navigateTo('whatsapp_messaging')}
           onCopyToClipboard={(text) => {
             setCopiedWhatsappText(text);
           }}
@@ -2856,6 +3116,11 @@ export default function App() {
           </div>
         </div>
       )}
+
+      <R2MigrationFloatingBanner
+        isOnMigrationTab={activeModule === 'config' && activeConfigTab === 'r2_migration'}
+        onOpenMigrationTab={() => navigateTo('config', { tab: 'r2_migration' })}
+      />
 
       <OfflineIndicator />
     </div>

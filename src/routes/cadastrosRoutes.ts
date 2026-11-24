@@ -332,6 +332,8 @@ export function registerCadastrosRoutes(
       const city = String(req.query.city || '').trim().toLowerCase();
       const state = String(req.query.state || '').trim().toUpperCase();
       const cpfFilter = String(req.query.cpfCnpj || '').trim().replace(/\D/g, '');
+      const docFilter = String(req.query.docFilter || '').trim().toLowerCase(); // '' | 'with_docs' | 'without_docs'
+      const docQuery = String(req.query.docQuery || '').trim().toLowerCase();
       const sortKey = String(req.query.sortKey || 'fullName');
       const sortDir = String(req.query.sortDir || 'asc') === 'desc' ? 'desc' : 'asc';
       const allowedUnitIds = getAllowedUnitIds(req);
@@ -339,13 +341,69 @@ export function registerCadastrosRoutes(
       const [allClients, allDocs, allAdms] = await Promise.all([
         db.select().from(clients).orderBy(desc(clients.id)),
         db
-          .select({ id: documentObjects.id, clientId: documentObjects.clientId, deletedAt: documentObjects.deletedAt })
+          .select({
+            id: documentObjects.id,
+            clientId: documentObjects.clientId,
+            admissionId: documentObjects.admissionId,
+            fileName: documentObjects.fileName,
+            docCategory: documentObjects.docCategory,
+            folderPath: documentObjects.folderPath,
+            unitFolderPath: documentObjects.unitFolderPath,
+            relativeSubpath: documentObjects.relativeSubpath,
+            integrativeCode: documentObjects.integrativeCode,
+          })
           .from(documentObjects)
           .where(isNull(documentObjects.deletedAt)),
         db
           .select({ id: admissions.id, clientId: admissions.clientId, assetOwnerId: admissions.assetOwnerId })
           .from(admissions),
       ]);
+
+      const admClientMap = new Map<number, number[]>();
+      const admissionsCountByClient = new Map<number, number>();
+      for (const a of allAdms) {
+        const targets: number[] = [];
+        if (a.clientId) targets.push(a.clientId);
+        if (a.assetOwnerId && a.assetOwnerId !== a.clientId) targets.push(a.assetOwnerId);
+        admClientMap.set(a.id, targets);
+        for (const cid of targets) {
+          admissionsCountByClient.set(cid, (admissionsCountByClient.get(cid) || 0) + 1);
+        }
+      }
+
+      const docsByClient = new Map<number, { count: number; hayParts: string[]; sampleNames: string[] }>();
+      const attachDocToClient = (cid: number, d: (typeof allDocs)[number]) => {
+        let entry = docsByClient.get(cid);
+        if (!entry) {
+          entry = { count: 0, hayParts: [], sampleNames: [] };
+          docsByClient.set(cid, entry);
+        }
+        entry.count += 1;
+        if (entry.sampleNames.length < 4 && d.fileName) {
+          entry.sampleNames.push(d.fileName);
+        }
+        entry.hayParts.push(
+          [
+            d.fileName,
+            d.docCategory,
+            d.folderPath,
+            d.unitFolderPath,
+            d.relativeSubpath,
+            d.integrativeCode || '',
+          ]
+            .join(' ')
+            .toLowerCase()
+        );
+      };
+
+      for (const d of allDocs) {
+        if (d.clientId) {
+          attachDocToClient(d.clientId, d);
+        } else if (d.admissionId) {
+          const owners = admClientMap.get(d.admissionId) || [];
+          for (const cid of owners) attachDocToClient(cid, d);
+        }
+      }
 
       const filtered = allClients.filter((c) => {
         if (allowedUnitIds && !allowedUnitIds.includes(c.unitId)) return false;
@@ -354,13 +412,23 @@ export function registerCadastrosRoutes(
         if (city && !c.city.toLowerCase().includes(city)) return false;
         if (state && c.state.toUpperCase() !== state) return false;
         if (cpfFilter && !c.cpfCnpj.replace(/\D/g, '').includes(cpfFilter)) return false;
+
+        const docMeta = docsByClient.get(c.id);
+        const docsCount = docMeta?.count || 0;
+        const docHaystack = docMeta ? docMeta.hayParts.join(' ') : '';
+
+        if (docFilter === 'with_docs' && docsCount === 0) return false;
+        if (docFilter === 'without_docs' && docsCount > 0) return false;
+        if (docQuery && !docHaystack.includes(docQuery)) return false;
+
         if (q) {
           const matchText =
             c.fullName.toLowerCase().includes(q) ||
             String(c.id).includes(q) ||
             c.cpfCnpj.toLowerCase().includes(q) ||
             c.phone.toLowerCase().includes(q) ||
-            c.city.toLowerCase().includes(q);
+            c.city.toLowerCase().includes(q) ||
+            (q.length >= 2 && docHaystack.includes(q));
           const matchDigits =
             qDigits.length >= 2 &&
             (c.cpfCnpj.replace(/\D/g, '').includes(qDigits) || c.phone.replace(/\D/g, '').includes(qDigits));
@@ -378,11 +446,15 @@ export function registerCadastrosRoutes(
 
       const total = filtered.length;
       const offset = (page - 1) * limit;
-      const pageItems = filtered.slice(offset, offset + limit).map((c) => ({
-        ...c,
-        docsCount: allDocs.filter((d) => d.clientId === c.id).length,
-        admissionsCount: allAdms.filter((a) => a.clientId === c.id || a.assetOwnerId === c.id).length,
-      }));
+      const pageItems = filtered.slice(offset, offset + limit).map((c) => {
+        const docMeta = docsByClient.get(c.id);
+        return {
+          ...c,
+          docsCount: docMeta?.count || 0,
+          docsSampleNames: docMeta?.sampleNames || [],
+          admissionsCount: admissionsCountByClient.get(c.id) || 0,
+        };
+      });
 
       res.json({
         data: pageItems,

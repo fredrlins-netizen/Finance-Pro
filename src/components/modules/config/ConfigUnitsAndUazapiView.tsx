@@ -7,6 +7,7 @@ import {
   Copy as CopyIcon,
   Edit3,
   History,
+  KeyRound,
   Link2,
   Play,
   Plus,
@@ -1100,6 +1101,64 @@ export const ConfigUazapiView: React.FC<{
   const [histLoading, setHistLoading] = useState(false);
   const [importState, setImportState] = useState<UazapiImportState | null>(null);
 
+  // Configuração Global UaZapi Persistente (AdminToken + Default Server URL + Webhook Secret)
+  const [globalOpen, setGlobalOpen] = useState(false);
+  const [globalServerUrl, setGlobalServerUrl] = useState('https://centralhub.uazapi.com');
+  const [globalAdminToken, setGlobalAdminToken] = useState('');
+  const [globalWebhookSecret, setGlobalWebhookSecret] = useState('');
+  const [globalHasAdminToken, setGlobalHasAdminToken] = useState(false);
+  const [globalHasWebhookSecret, setGlobalHasWebhookSecret] = useState(false);
+  const [globalSource, setGlobalSource] = useState<'database' | 'env' | 'default'>('default');
+  const [globalSaving, setGlobalSaving] = useState(false);
+  const [globalErr, setGlobalErr] = useState('');
+
+  const loadGlobalConfig = useCallback(async () => {
+    if (!isAdmin) return;
+    try {
+      const res = await apiFetch<{
+        defaultServerUrl: string;
+        hasAdminToken: boolean;
+        hasWebhookSecret: boolean;
+        source: 'database' | 'env' | 'default';
+      }>('/api/config/uazapi/global-config', { passive: true });
+      setGlobalServerUrl(res.defaultServerUrl || 'https://centralhub.uazapi.com');
+      setGlobalHasAdminToken(Boolean(res.hasAdminToken));
+      setGlobalHasWebhookSecret(Boolean(res.hasWebhookSecret));
+      setGlobalSource(res.source || 'default');
+      setGlobalAdminToken('');
+      setGlobalWebhookSecret('');
+    } catch {
+      // ignore initial global config fetch failure
+    }
+  }, [isAdmin]);
+
+  useEffect(() => {
+    void loadGlobalConfig();
+  }, [loadGlobalConfig]);
+
+  const handleSaveGlobalConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setGlobalErr('');
+    setGlobalSaving(true);
+    try {
+      await apiFetch('/api/config/uazapi/global-config', {
+        method: 'PUT',
+        body: JSON.stringify({
+          defaultServerUrl: globalServerUrl.trim() || 'https://centralhub.uazapi.com',
+          adminToken: globalAdminToken.trim() || undefined,
+          webhookSecret: globalWebhookSecret.trim() || undefined,
+        }),
+      });
+      await loadGlobalConfig();
+      await onRefresh();
+      onToast('Configuração global UaZapi salva com criptografia no PostgreSQL.');
+    } catch (err) {
+      setGlobalErr(err instanceof Error ? err.message : 'Erro ao salvar configuração global UaZapi.');
+    } finally {
+      setGlobalSaving(false);
+    }
+  };
+
   useEffect(() => {
     if (initialUnitFilter) {
       setUnitFilter(String(initialUnitFilter));
@@ -1387,7 +1446,123 @@ export const ConfigUazapiView: React.FC<{
         <p className="text-slate-600 leading-relaxed dark:text-slate-300">
           Para evitar acoplar credenciais sensíveis apenas ao cadastro fiscal de Unidades ou expor tokens nas telas operacionais, cada linha WhatsApp é provisionada com criptografia <strong>AES-256-GCM</strong> nesta grade e associada simultaneamente a <strong>Unidade</strong>, múltiplos <strong>Grupos de Usuários</strong>, <strong>Módulos</strong> (Prospecção, Admissão, Cobrança, Jurídico) e <strong>Colaborador Titular</strong> opcional.
         </p>
+        {isAdmin && (
+          <div className="pt-1 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 dark:border-slate-800">
+            <div className="text-[11px] text-slate-500 dark:text-slate-400">
+              Servidor Padrão: <span className="font-mono text-slate-800 dark:text-slate-200">{globalServerUrl}</span>
+              {' · '}
+              <span
+                className={`font-semibold ${
+                  globalHasAdminToken ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'
+                }`}
+              >
+                {globalHasAdminToken ? 'AdminToken configurado' : 'AdminToken não configurado'}
+              </span>
+              {' · '}
+              <span>
+                {globalSource === 'database'
+                  ? 'Persistido no PostgreSQL'
+                  : globalSource === 'env'
+                  ? 'Via Ambiente'
+                  : 'Padrão'}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setGlobalOpen((o) => !o)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+            >
+              <KeyRound className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              Configuração Global UaZapi
+            </button>
+          </div>
+        )}
       </div>
+
+      {isAdmin && globalOpen && (
+        <form
+          onSubmit={handleSaveGlobalConfig}
+          className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 text-xs dark:border-slate-700 dark:bg-slate-900"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="font-semibold text-slate-900 dark:text-slate-100">
+                Configuração Global UaZapi (Auto-Descoberta &amp; Webhook)
+              </div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                Armazenamento persistente no PostgreSQL (criptografado AES-256-GCM) para uso após reinicializações.
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setGlobalOpen(false)}
+              className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          {globalErr && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 font-medium text-red-700 dark:border-red-800 dark:bg-red-950/60 dark:text-red-300">
+              {globalErr}
+            </div>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">
+                Server URL Padrão UaZapi
+              </label>
+              <input
+                type="url"
+                value={globalServerUrl}
+                onChange={(e) => setGlobalServerUrl(e.target.value)}
+                placeholder="https://centralhub.uazapi.com"
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">
+                AdminToken Global {globalHasAdminToken ? '(em branco p/ manter)' : ''}
+              </label>
+              <input
+                type="password"
+                value={globalAdminToken}
+                onChange={(e) => setGlobalAdminToken(e.target.value)}
+                placeholder={globalHasAdminToken ? '••••••••••••' : 'Cole o UAZAPI_ADMIN_TOKEN'}
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">
+                Webhook Secret {globalHasWebhookSecret ? '(em branco p/ manter)' : '(opcional)'}
+              </label>
+              <input
+                type="password"
+                value={globalWebhookSecret}
+                onChange={(e) => setGlobalWebhookSecret(e.target.value)}
+                placeholder={globalHasWebhookSecret ? '••••••••••••' : 'Segredo opcional do webhook'}
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setGlobalOpen(false)}
+              className="rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200"
+            >
+              Fechar
+            </button>
+            <button
+              type="submit"
+              disabled={globalSaving}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-1.5 font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+            >
+              <Check className="w-3.5 h-3.5" />
+              {globalSaving ? 'Salvando...' : 'Salvar Configuração Global'}
+            </button>
+          </div>
+        </form>
+      )}
 
       {subView === 'instances' ? (
         <>

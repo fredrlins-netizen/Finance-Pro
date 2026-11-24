@@ -48,10 +48,12 @@ import {
 } from './schema.ts';
 import { hashPassword } from '../middleware/auth.ts';
 import { asc, count, eq } from 'drizzle-orm';
+import { isProductionModeLocked } from '../services/productionModeService.ts';
 
 let seedPromise: Promise<void> | null = null;
 
 export async function ensureInitialSeed(): Promise<void> {
+  if (await isProductionModeLocked()) return;
   if (seedPromise) return seedPromise;
   seedPromise = runSeedInternal().catch((err) => {
     seedPromise = null;
@@ -61,6 +63,7 @@ export async function ensureInitialSeed(): Promise<void> {
 }
 
 async function runSeedInternal(): Promise<void> {
+  if (await isProductionModeLocked()) return;
   const existingUnits = await db.select({ value: count() }).from(units);
   if (Number(existingUnits[0]?.value || 0) > 0) {
     await ensureCommonCadastrosSeed();
@@ -378,6 +381,7 @@ async function runSeedInternal(): Promise<void> {
 let cadastrosSeedPromise: Promise<void> | null = null;
 
 export async function ensureCommonCadastrosSeed(): Promise<void> {
+  if (await isProductionModeLocked()) return;
   if (cadastrosSeedPromise) return cadastrosSeedPromise;
   cadastrosSeedPromise = runCommonCadastrosSeedInternal().catch((err) => {
     cadastrosSeedPromise = null;
@@ -387,6 +391,7 @@ export async function ensureCommonCadastrosSeed(): Promise<void> {
 }
 
 async function runCommonCadastrosSeedInternal(): Promise<void> {
+  if (await isProductionModeLocked()) return;
   // 1. Estados Civis
   const existingMarital = await db.select().from(systemSettings).where(eq(systemSettings.key, 'cad_marital_statuses')).limit(1);
   if (!existingMarital[0]) {

@@ -32,12 +32,47 @@ export const units = pgTable('units', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+export interface DocumentActionPermissionSet {
+  view: boolean;
+  print: boolean;
+  download: boolean;
+  edit: boolean;
+  delete: boolean;
+}
+
+export interface DocumentPermissionGroupMatrix {
+  unitFiles: DocumentActionPermissionSet;
+  clientDocs: DocumentActionPermissionSet;
+}
+
+export type PermissionTriState = 'inherit' | 'allow' | 'deny';
+
+export interface DocumentActionOverrideSet {
+  view?: PermissionTriState;
+  print?: PermissionTriState;
+  download?: PermissionTriState;
+  edit?: PermissionTriState;
+  delete?: PermissionTriState;
+}
+
+export interface DocumentPermissionUserOverrides {
+  unitFiles?: DocumentActionOverrideSet;
+  clientDocs?: DocumentActionOverrideSet;
+}
+
 export const userGroups = pgTable('user_groups', {
   id: serial('id').primaryKey(),
   name: text('name').notNull().unique(),
   description: text('description').notNull().default(''),
   modulePermissions: jsonb('module_permissions').$type<Record<string, boolean>>().notNull().default({}),
   fieldPermissions: jsonb('field_permissions').$type<Record<string, Record<string, 'edit' | 'read' | 'hidden'>>>().notNull().default({}),
+  documentPermissions: jsonb('document_permissions')
+    .$type<DocumentPermissionGroupMatrix>()
+    .notNull()
+    .default({
+      unitFiles: { view: false, print: false, download: false, edit: false, delete: false },
+      clientDocs: { view: true, print: true, download: true, edit: true, delete: false },
+    }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
@@ -50,6 +85,10 @@ export const users = pgTable('users', {
   groupId: integer('group_id').references(() => userGroups.id),
   defaultUnitId: integer('default_unit_id').references(() => units.id),
   allowedUnitIds: jsonb('allowed_unit_ids').$type<number[]>().notNull().default([]),
+  documentPermissionOverrides: jsonb('document_permission_overrides')
+    .$type<DocumentPermissionUserOverrides>()
+    .notNull()
+    .default({}),
   passwordHash: text('password_hash').notNull().default(''),
   tempPassword: text('temp_password'),
   mustChangePassword: boolean('must_change_password').notNull().default(false),
@@ -273,11 +312,14 @@ export const admissions = pgTable('admissions', {
 
 export const documentObjects = pgTable('document_objects', {
   id: serial('id').primaryKey(),
-  clientId: integer('client_id').references(() => clients.id).notNull(),
+  clientId: integer('client_id').references(() => clients.id),
   admissionId: integer('admission_id').references(() => admissions.id),
+  scope: text('scope').notNull().default('client'), // 'client' | 'unit'
+  unitFolderPath: text('unit_folder_path').notNull().default(''),
+  isInterlinked: boolean('is_interlinked').notNull().default(false),
   folderPath: text('folder_path').notNull(),
   fileName: text('file_name').notNull(),
-  docCategory: text('doc_category').notNull(), // 'ficha_admissao' | 'contrato' | 'procuracao' | 'pessoal' | 'residencia' | 'crlv' | 'aditivo' | 'termo_cancelamento' | 'comprovante' | 'audio_whatsapp'
+  docCategory: text('doc_category').notNull(), // 'ficha_admissao' | 'contrato' | 'procuracao' | 'pessoal' | 'residencia' | 'crlv' | 'aditivo' | 'termo_cancelamento' | 'comprovante' | 'audio_whatsapp' | 'arquivo_unidade'
   mimeType: text('mime_type').notNull().default('application/pdf'),
   sizeBytes: bigint('size_bytes', { mode: 'number' }).notNull().default(0),
   sha256Hash: text('sha256_hash').notNull(),
@@ -295,6 +337,23 @@ export const documentObjects = pgTable('document_objects', {
   deletedAt: timestamp('deleted_at'),
   deletedBy: text('deleted_by'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const folderPermissionRules = pgTable('folder_permission_rules', {
+  id: serial('id').primaryKey(),
+  unitId: integer('unit_id').references(() => units.id, { onDelete: 'cascade' }).notNull(),
+  scope: text('scope').notNull().default('all'), // 'unit' | 'client' | 'all'
+  folderPrefix: text('folder_prefix').notNull().default(''), // e.g. 'ADMINISTRAÇÃO' or '' for whole unit
+  targetType: text('target_type').notNull(), // 'group' | 'user'
+  targetId: integer('target_id').notNull(),
+  canView: text('can_view').notNull().default('inherit'), // 'inherit' | 'allow' | 'deny'
+  canPrint: text('can_print').notNull().default('inherit'),
+  canDownload: text('can_download').notNull().default('inherit'),
+  canEdit: text('can_edit').notNull().default('inherit'),
+  canDelete: text('can_delete').notNull().default('inherit'),
+  createdBy: text('created_by').notNull().default('Administrador'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const prospectionLeads = pgTable('prospection_leads', {
@@ -767,6 +826,9 @@ export const whatsappMessages = pgTable('whatsapp_messages', {
   mediaStorageUri: text('media_storage_uri'),
   iviAudioTranscript: text('ivi_audio_transcript'),
   ackStatus: integer('ack_status'), // 1=server, 2=delivered, 3=read
+  deliveryProvider: text('delivery_provider'), // 'gotalk' | 'uazapi' | 'gotalk_local_queue' | 'uazapi_local_queue' | 'gotalk_api_error' | 'uazapi_api_error'
+  deliveryStatus: text('delivery_status'), // 'sent' | 'queued' | 'failed' | 'received'
+  deliveryDetail: text('delivery_detail'),
   deletedInOrigin: boolean('deleted_in_origin').notNull().default(false),
   operatorName: text('operator_name'),
   department: text('department'),
@@ -1570,6 +1632,8 @@ export const vaultMigrationBatches = pgTable('vault_migration_batches', {
   updatedPathCount: integer('updated_path_count').notNull().default(0),
   deduplicatedCount: integer('deduplicated_count').notNull().default(0),
   unmatchedCount: integer('unmatched_count').notNull().default(0),
+  unitFilesCount: integer('unit_files_count').notNull().default(0),
+  interlinkedCount: integer('interlinked_count').notNull().default(0),
   blockedCount: integer('blocked_count').notNull().default(0),
   failedCount: integer('failed_count').notNull().default(0),
   uploadedBytes: bigint('uploaded_bytes', { mode: 'number' }).notNull().default(0),
@@ -1589,6 +1653,8 @@ export const vaultMigrationItems = pgTable('vault_migration_items', {
   unitFolderName: text('unit_folder_name').notNull().default(''),
   extractedUnitCode: text('extracted_unit_code').notNull().default(''),
   unitId: integer('unit_id').references(() => units.id, { onDelete: 'set null' }),
+  itemScope: text('item_scope').notNull().default('client'), // 'client' | 'unit' | 'interlinked'
+  unitFolderPath: text('unit_folder_path').notNull().default(''),
   contractFolderName: text('contract_folder_name').notNull().default(''),
   extractedContractNumber: text('extracted_contract_number').notNull().default(''),
   clientId: integer('client_id').references(() => clients.id, { onDelete: 'set null' }),

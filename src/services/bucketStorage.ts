@@ -257,6 +257,10 @@ export async function getActiveR2ConfigForMigration(): Promise<CloudflareR2Confi
   return resolveActiveR2Bucket();
 }
 
+function toAsciiS3MetaValue(val: string): string {
+  return encodeURIComponent(String(val || '').trim()).slice(0, 1024);
+}
+
 export async function initiateR2MultipartUpload(
   cfg: CloudflareR2Config,
   objectKey: string,
@@ -269,10 +273,10 @@ export async function initiateR2MultipartUpload(
     path: pathSuffix,
     query: { uploads: '' },
     headers: {
-      'content-type': meta.originalMime || 'application/octet-stream',
-      'x-amz-meta-sha256': meta.sha256,
-      'x-amz-meta-original-name': meta.originalName,
-      'x-amz-meta-logical-folder': meta.logicalFolder,
+      'content-type': String(meta.originalMime || 'application/octet-stream').replace(/[^\x20-\x7E]/g, '') || 'application/octet-stream',
+      'x-amz-meta-sha256': String(meta.sha256 || '').replace(/[^a-fA-F0-9]/g, ''),
+      'x-amz-meta-original-name': toAsciiS3MetaValue(meta.originalName),
+      'x-amz-meta-logical-folder': toAsciiS3MetaValue(meta.logicalFolder),
     },
     accessKeyId: cfg.accessKeyId,
     secretAccessKey: cfg.secretAccessKey,
@@ -450,10 +454,10 @@ async function r2PutEncryptedObject(
 ): Promise<void> {
   const res = await fetchR2Signed(cfg, 'PUT', bucketName, objectKey, sealed, {
     'content-type': 'application/octet-stream',
-    'x-amz-meta-sha256': meta.sha256,
-    'x-amz-meta-original-name': meta.originalName,
-    'x-amz-meta-original-mime': meta.originalMime,
-    'x-amz-meta-logical-folder': meta.logicalFolder,
+    'x-amz-meta-sha256': String(meta.sha256 || '').replace(/[^a-fA-F0-9]/g, ''),
+    'x-amz-meta-original-name': toAsciiS3MetaValue(meta.originalName),
+    'x-amz-meta-original-mime': String(meta.originalMime || 'application/octet-stream').replace(/[^\x20-\x7E]/g, '') || 'application/octet-stream',
+    'x-amz-meta-logical-folder': toAsciiS3MetaValue(meta.logicalFolder),
     'x-amz-meta-cipher': 'AES-256-GCM',
   });
   if (!res.ok) {
@@ -781,3 +785,217 @@ export async function getBucketRuntimeStats(): Promise<{
     lastError: activeR2 ? null : r2BucketChecked?.lastError || null,
   };
 }
+
+function unescapeXmlText(val: string): string {
+  return String(val || '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'");
+}
+
+function escapeXmlText(val: string): string {
+  return String(val || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+async function listR2ObjectKeysBatch(
+  cfg: CloudflareR2Config,
+  continuationToken?: string
+): Promise<{ keys: string[]; isTruncated: boolean; nextContinuationToken?: string }> {
+  const query: Record<string, string> = {
+    'list-type': '2',
+    'max-keys': '1000',
+  };
+  if (continuationToken) {
+    query['continuation-token'] = continuationToken;
+  }
+  const signed = signR2Request({
+    method: 'GET',
+    endpoint: cfg.endpoint,
+    path: `/${cfg.bucketName}`,
+    query,
+    accessKeyId: cfg.accessKeyId,
+    secretAccessKey: cfg.secretAccessKey,
+    region: 'auto',
+  });
+  const reqHeaders = new Headers();
+  for (const [k, v] of Object.entries(signed.headers)) {
+    if (k !== 'host') reqHeaders.set(k, v);
+  }
+  const res = await fetch(signed.url, {
+    method: 'GET',
+    headers: reqHeaders,
+    signal: AbortSignal.timeout(30000),
+  });
+  const xml = await res.text();
+  if (!res.ok) {
+    throw new Error(`Falha ao listar objetos no Cloudflare R2 (HTTP ${res.status}): ${xml.slice(0, 200)}`);
+  }
+  const keys: string[] = [];
+  const keyMatches = xml.matchAll(/<Key>([\s\S]*?)<\/Key>/g);
+  for (const m of keyMatches) {
+    if (m[1] !== undefined) keys.push(unescapeXmlText(m[1]));
+  }
+  const isTruncated = /<IsTruncated>\s*true\s*<\/IsTruncated>/i.test(xml);
+  const nextMatch = xml.match(/<NextContinuationToken>([\s\S]*?)<\/NextContinuationToken>/);
+  const nextContinuationToken = nextMatch?.[1] ? unescapeXmlText(nextMatch[1]) : undefined;
+  return { keys, isTruncated, nextContinuationToken };
+}
+
+async function deleteR2KeysBatch(cfg: CloudflareR2Config, keys: string[]): Promise<number> {
+  if (keys.length === 0) return 0;
+  const bodyXml =
+    '<Delete><Quiet>true</Quiet>' +
+    keys.map((k) => `<Object><Key>${escapeXmlText(k)}</Key></Object>`).join('') +
+    '</Delete>';
+  const bodyBuf = Buffer.from(bodyXml, 'utf8');
+  const contentMd5 = crypto.createHash('md5').update(bodyBuf).digest('base64');
+  const signed = signR2Request({
+    method: 'POST',
+    endpoint: cfg.endpoint,
+    path: `/${cfg.bucketName}`,
+    query: { delete: '' },
+    headers: {
+      'content-type': 'application/xml',
+      'content-md5': contentMd5,
+    },
+    body: bodyBuf,
+    accessKeyId: cfg.accessKeyId,
+    secretAccessKey: cfg.secretAccessKey,
+    region: 'auto',
+  });
+  const reqHeaders = new Headers();
+  for (const [k, v] of Object.entries(signed.headers)) {
+    if (k !== 'host') reqHeaders.set(k, v);
+  }
+  const res = await fetch(signed.url, {
+    method: 'POST',
+    headers: reqHeaders,
+    body: new Uint8Array(bodyBuf),
+    signal: AbortSignal.timeout(60000),
+  });
+  if (res.ok) {
+    return keys.length;
+  }
+  // Fallback: delete individually if batch DeleteObjects is rejected
+  let deleted = 0;
+  for (const key of keys) {
+    await r2DeleteObject(cfg, cfg.bucketName, key);
+    deleted++;
+  }
+  return deleted;
+}
+
+async function abortAllR2MultipartUploads(cfg: CloudflareR2Config): Promise<number> {
+  let aborted = 0;
+  const signed = signR2Request({
+    method: 'GET',
+    endpoint: cfg.endpoint,
+    path: `/${cfg.bucketName}`,
+    query: { uploads: '' },
+    accessKeyId: cfg.accessKeyId,
+    secretAccessKey: cfg.secretAccessKey,
+    region: 'auto',
+  });
+  const reqHeaders = new Headers();
+  for (const [k, v] of Object.entries(signed.headers)) {
+    if (k !== 'host') reqHeaders.set(k, v);
+  }
+  const res = await fetch(signed.url, {
+    method: 'GET',
+    headers: reqHeaders,
+    signal: AbortSignal.timeout(20000),
+  }).catch(() => null);
+  if (!res || !res.ok) return 0;
+  const xml = await res.text().catch(() => '');
+  const uploadMatches = xml.matchAll(/<Upload>[\s\S]*?<Key>([\s\S]*?)<\/Key>[\s\S]*?<UploadId>([\s\S]*?)<\/UploadId>[\s\S]*?<\/Upload>/g);
+  for (const m of uploadMatches) {
+    const key = m[1] ? unescapeXmlText(m[1]) : '';
+    const uploadId = m[2] ? unescapeXmlText(m[2]) : '';
+    if (key && uploadId) {
+      await abortR2MultipartUpload(cfg, key, uploadId);
+      aborted++;
+    }
+  }
+  return aborted;
+}
+
+export async function purgeAllBucketObjects(): Promise<{
+  bucketName: string;
+  r2Configured: boolean;
+  r2Purged: boolean;
+  r2DeletedCount: number;
+  r2AbortedUploads: number;
+  localDeletedCount: number;
+  r2Error: string | null;
+}> {
+  const r2Cfg = getCloudflareR2Config();
+  const bucketName = r2Cfg?.bucketName || 'bucketdainvicta';
+  let r2Purged = false;
+  let r2DeletedCount = 0;
+  let r2AbortedUploads = 0;
+  let r2Error: string | null = null;
+
+  if (r2Cfg) {
+    try {
+      const activeR2 = await resolveActiveR2Bucket(true);
+      const targetCfg = activeR2 || r2Cfg;
+      let continuationToken: string | undefined = undefined;
+      for (let page = 0; page < 500; page++) {
+        const listed = await listR2ObjectKeysBatch(targetCfg, continuationToken);
+        if (listed.keys.length > 0) {
+          r2DeletedCount += await deleteR2KeysBatch(targetCfg, listed.keys);
+        }
+        if (!listed.isTruncated || !listed.nextContinuationToken) {
+          break;
+        }
+        continuationToken = listed.nextContinuationToken;
+      }
+      r2AbortedUploads = await abortAllR2MultipartUploads(targetCfg);
+      r2Purged = true;
+    } catch (err) {
+      r2Error = err instanceof Error ? err.message : 'Erro ao limpar objetos do Cloudflare R2.';
+    }
+  }
+
+  let localDeletedCount = 0;
+  if (fs.existsSync(OBJECT_BUCKET_DIR)) {
+    const shards = fs.readdirSync(OBJECT_BUCKET_DIR, { withFileTypes: true });
+    for (const s of shards) {
+      const shardPath = path.join(OBJECT_BUCKET_DIR, s.name);
+      if (s.isDirectory()) {
+        const inner = fs.readdirSync(shardPath, { withFileTypes: true });
+        localDeletedCount += inner.filter((f) => f.isFile()).length;
+        fs.rmSync(shardPath, { recursive: true, force: true });
+      } else if (s.isFile()) {
+        fs.unlinkSync(shardPath);
+        localDeletedCount++;
+      }
+    }
+  }
+  if (fs.existsSync(VAULT_ROOT)) {
+    for (const f of fs.readdirSync(VAULT_ROOT, { withFileTypes: true })) {
+      if (f.isFile() && f.name.endsWith('.bin')) {
+        fs.unlinkSync(path.join(VAULT_ROOT, f.name));
+        localDeletedCount++;
+      }
+    }
+  }
+
+  return {
+    bucketName,
+    r2Configured: Boolean(r2Cfg),
+    r2Purged,
+    r2DeletedCount,
+    r2AbortedUploads,
+    localDeletedCount,
+    r2Error,
+  };
+}
+

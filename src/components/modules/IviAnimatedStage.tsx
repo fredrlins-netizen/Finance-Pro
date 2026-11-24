@@ -1,6 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Volume2 } from 'lucide-react';
+import { Sparkles, Volume2 } from 'lucide-react';
+import iviNanoWelcome from '../../assets/images/ivi_sala_boasvindas_1794935549743.jpg';
+import iviNanoExplaining from '../../assets/images/ivi_sala_explicacao_1794935552145.jpg';
+import iviNanoQa from '../../assets/images/ivi_sala_duvidas_1794935552080.jpg';
 
 interface IviAnimatedStageProps {
   traineeName: string;
@@ -9,6 +12,7 @@ interface IviAnimatedStageProps {
   stepNumber: number;
   totalSteps: number;
   isSpeaking: boolean;
+  isDoubtOpen?: boolean;
   selectedVoice: 'Aoede' | 'Kore' | 'Zephyr';
   onChangeVoice: (voice: 'Aoede' | 'Kore' | 'Zephyr') => void;
 }
@@ -20,9 +24,25 @@ export const IviAnimatedStage: React.FC<IviAnimatedStageProps> = ({
   stepNumber,
   totalSteps,
   isSpeaking,
+  isDoubtOpen = false,
   selectedVoice,
   onChangeVoice,
 }) => {
+  const [stageMode, setStageMode] = useState<'nanobanana' | 'animated'>('nanobanana');
+
+  const activeNanoAsset = isDoubtOpen
+    ? iviNanoQa
+    : stepNumber <= 1 && !isSpeaking
+    ? iviNanoWelcome
+    : stepNumber <= 1 && moduleTitle?.toLowerCase().includes('diagrama')
+    ? iviNanoWelcome
+    : iviNanoExplaining;
+
+  const activeSceneLabel = isDoubtOpen
+    ? 'Momento de Dúvidas · Sala Invicta'
+    : stepNumber <= 1
+    ? 'Apresentação na Sala Invicta'
+    : 'Explicação em Quadro';
   // Movimentação calma, natural e contida na sala de aula para não tirar o foco do conteúdo
   const walkXFrames = [-16, -4, 10, 20, 8, -8, -16];
   const walkCycleDuration = isSpeaking ? 16 : 22;
@@ -56,6 +76,38 @@ export const IviAnimatedStage: React.FC<IviAnimatedStageProps> = ({
 
       {/* Classroom Scene Canvas with Ivi Wearing Invicta Polo Shirt */}
       <div className="relative flex-1 w-full min-h-[385px] bg-slate-100 dark:bg-slate-900 overflow-hidden flex flex-col justify-between">
+        {stageMode === 'nanobanana' ? (
+          <div className="relative flex-1 w-full overflow-hidden bg-slate-200 dark:bg-slate-950 flex items-center justify-center">
+            <motion.img
+              key={activeNanoAsset}
+              src={activeNanoAsset}
+              alt={`Apresentação Nano Banana da Instrutora Ivi na Sala de Aula da Invicta (${activeSceneLabel}) para ${traineeName}`}
+              referrerPolicy="no-referrer"
+              initial={{ opacity: 0.72, scale: 1.01 }}
+              animate={{
+                opacity: 1,
+                scale: isSpeaking ? [1.01, 1.028, 1.01] : [1.0, 1.014, 1.0],
+                x: isSpeaking ? [-3, 3, -3] : [-1.5, 1.5, -1.5],
+              }}
+              transition={{
+                opacity: { duration: 0.45 },
+                scale: { duration: isSpeaking ? 5.5 : 8.5, repeat: Infinity, ease: 'easeInOut' },
+                x: { duration: isSpeaking ? 9 : 14, repeat: Infinity, ease: 'easeInOut' },
+              }}
+              className="w-full h-[365px] sm:h-[395px] object-cover object-top select-none block"
+            />
+            <div className="absolute top-2.5 left-2.5 inline-flex items-center gap-1.5 rounded-md bg-slate-950/75 px-2.5 py-1 text-[10px] font-semibold text-amber-300 backdrop-blur-xs border border-amber-400/30">
+              <Sparkles className="w-3 h-3 shrink-0" />
+              <span>Nano Banana · {activeSceneLabel}</span>
+            </div>
+            {isSpeaking && (
+              <div className="absolute bottom-2.5 right-2.5 inline-flex items-center gap-1.5 rounded-md bg-blue-700/90 px-2.5 py-1 text-[10px] font-semibold text-white">
+                <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
+                <span>Ivi falando com {traineeName}</span>
+              </div>
+            )}
+          </div>
+        ) : (
         <div className="relative flex-1 w-full flex items-end justify-center">
           <svg
             viewBox="0 0 400 350"
@@ -393,8 +445,9 @@ export const IviAnimatedStage: React.FC<IviAnimatedStageProps> = ({
             </motion.g>
           </svg>
         </div>
+        )}
 
-        {/* Bottom Caption & Voice Bar (Quietly Below Scene) */}
+        {/* Bottom Caption, Visual Engine & Voice Bar (Quietly Below Scene) */}
         <div className="px-3 py-2 bg-slate-900 text-white flex items-center justify-between gap-2 text-[11px] border-t border-slate-700 shrink-0">
           <div className="flex items-center gap-1.5 min-w-0">
             <Volume2 className="w-3.5 h-3.5 text-amber-300 shrink-0" />
@@ -402,16 +455,42 @@ export const IviAnimatedStage: React.FC<IviAnimatedStageProps> = ({
               {fieldLabel ? `No Quadro: ${fieldLabel}` : `Instrutora Ivi · Invicta`}
             </span>
           </div>
-          <select
-            value={selectedVoice}
-            onChange={(e) => onChangeVoice(e.target.value as 'Aoede' | 'Kore' | 'Zephyr')}
-            aria-label="Voz da Ivi no Gemini"
-            className="rounded-md border border-slate-600 bg-slate-800 px-2 py-1 text-[11px] font-medium text-slate-100 shrink-0"
-          >
-            <option value="Aoede">Aoede</option>
-            <option value="Kore">Kore</option>
-            <option value="Zephyr">Zephyr</option>
-          </select>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <div className="inline-flex rounded-md border border-slate-600 bg-slate-800 p-0.5 text-[10px] font-semibold">
+              <button
+                type="button"
+                onClick={() => setStageMode('nanobanana')}
+                className={`px-2 py-0.5 rounded transition-colors ${
+                  stageMode === 'nanobanana'
+                    ? 'bg-amber-400 text-slate-950'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                Nano Banana
+              </button>
+              <button
+                type="button"
+                onClick={() => setStageMode('animated')}
+                className={`px-2 py-0.5 rounded transition-colors ${
+                  stageMode === 'animated'
+                    ? 'bg-blue-600 text-white'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                Animado
+              </button>
+            </div>
+            <select
+              value={selectedVoice}
+              onChange={(e) => onChangeVoice(e.target.value as 'Aoede' | 'Kore' | 'Zephyr')}
+              aria-label="Voz da Ivi no Gemini"
+              className="rounded-md border border-slate-600 bg-slate-800 px-2 py-1 text-[11px] font-medium text-slate-100 shrink-0"
+            >
+              <option value="Aoede">Aoede</option>
+              <option value="Kore">Kore</option>
+              <option value="Zephyr">Zephyr</option>
+            </select>
+          </div>
         </div>
       </div>
     </div>

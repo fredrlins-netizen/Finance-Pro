@@ -12,6 +12,11 @@ import {
   clients,
   collaborators,
   customFields,
+  type DocumentActionPermissionSet,
+  type DocumentActionOverrideSet,
+  type DocumentPermissionGroupMatrix,
+  type DocumentPermissionUserOverrides,
+  type PermissionTriState,
   financialTitles,
   gotalkChannels,
   gotalkHsmTemplates,
@@ -47,11 +52,23 @@ import {
   encryptUazapiToken,
   findUazapiChats,
   findUazapiMessages,
+  getDefaultUazapiServerUrl,
   getUazapiInstanceStatus,
+  getUazapiWebhookSecret,
   registerUazapiWebhook,
   UazapiCredentials,
 } from '../services/uazapi.ts';
+import {
+  getGotalkPersistedCredentialsSummary,
+  getUazapiGlobalPersistedSummary,
+  saveGotalkPersistedCredentials,
+  saveUazapiGlobalPersistedConfig,
+} from '../services/messagingConfigPersistence.ts';
 import type { PortalBrandingConfig } from '../types.ts';
+import {
+  activateProductionModeAndPurge,
+  getProductionModeStatus,
+} from '../services/productionModeService.ts';
 
 export const DEFAULT_PORTAL_BRANDING: PortalBrandingConfig = {
   companyName: 'FinancePro Assessoria',
@@ -217,6 +234,65 @@ export async function getPortalBranding(): Promise<PortalBrandingConfig> {
   }
 }
 
+function normalizeActionPermSet(raw: unknown, fallback: DocumentActionPermissionSet): DocumentActionPermissionSet {
+  const obj = typeof raw === 'object' && raw !== null ? (raw as Partial<DocumentActionPermissionSet>) : {};
+  const view = typeof obj.view === 'boolean' ? obj.view : fallback.view;
+  if (!view) {
+    return { view: false, print: false, download: false, edit: false, delete: false };
+  }
+  return {
+    view: true,
+    print: typeof obj.print === 'boolean' ? obj.print : fallback.print,
+    download: typeof obj.download === 'boolean' ? obj.download : fallback.download,
+    edit: typeof obj.edit === 'boolean' ? obj.edit : fallback.edit,
+    delete: typeof obj.delete === 'boolean' ? obj.delete : fallback.delete,
+  };
+}
+
+function normalizeDocPermissionMatrix(raw: unknown): DocumentPermissionGroupMatrix {
+  const obj = typeof raw === 'object' && raw !== null ? (raw as Partial<DocumentPermissionGroupMatrix>) : {};
+  return {
+    unitFiles: normalizeActionPermSet(obj.unitFiles, {
+      view: false,
+      print: false,
+      download: false,
+      edit: false,
+      delete: false,
+    }),
+    clientDocs: normalizeActionPermSet(obj.clientDocs, {
+      view: true,
+      print: true,
+      download: true,
+      edit: true,
+      delete: false,
+    }),
+  };
+}
+
+function normalizeTri(raw: unknown): PermissionTriState {
+  if (raw === 'allow' || raw === 'deny') return raw;
+  return 'inherit';
+}
+
+function normalizeOverrideSet(raw: unknown): DocumentActionOverrideSet {
+  const obj = typeof raw === 'object' && raw !== null ? (raw as Partial<DocumentActionOverrideSet>) : {};
+  return {
+    view: normalizeTri(obj.view),
+    print: normalizeTri(obj.print),
+    download: normalizeTri(obj.download),
+    edit: normalizeTri(obj.edit),
+    delete: normalizeTri(obj.delete),
+  };
+}
+
+function normalizeUserDocOverrides(raw: unknown): DocumentPermissionUserOverrides {
+  const obj = typeof raw === 'object' && raw !== null ? (raw as Partial<DocumentPermissionUserOverrides>) : {};
+  return {
+    unitFiles: normalizeOverrideSet(obj.unitFiles),
+    clientDocs: normalizeOverrideSet(obj.clientDocs),
+  };
+}
+
 function sanitizeUserResponse(u: typeof users.$inferSelect) {
   return {
     id: u.id,
@@ -227,6 +303,7 @@ function sanitizeUserResponse(u: typeof users.$inferSelect) {
     groupId: u.groupId,
     defaultUnitId: u.defaultUnitId,
     allowedUnitIds: u.allowedUnitIds,
+    documentPermissionOverrides: u.documentPermissionOverrides || {},
     whatsappPhone: u.whatsappPhone,
     active: u.active,
     points: u.points,
@@ -241,7 +318,10 @@ function sanitizeUserResponse(u: typeof users.$inferSelect) {
   };
 }
 
-export function registerConfigRoutes(app: Express) {
+export function registerConfigRoutes(
+  app: Express,
+  deps?: { broadcast?: (event: string, payload: unknown) => void }
+) {
   // ---------------------------------------------------------------------------
   // 1. PORTAL & IDENTIDADE VISUAL (Público para Login + Protegido para Admin)
   // ---------------------------------------------------------------------------
@@ -576,7 +656,7 @@ export function registerConfigRoutes(app: Express) {
             connectedPhone = probe.connectedPhone || connectedPhone;
             profileName = probe.profileName || profileName;
             const baseUrl = resolvePublicBaseUrl(req);
-            const hookSecret = process.env.UAZAPI_WEBHOOK_SECRET?.trim() || newTokenPlain;
+            const hookSecret = getUazapiWebhookSecret() || newTokenPlain;
             const reg = await registerUazapiWebhook(
               { serverUrl, token: newTokenPlain, instanceId },
               `${baseUrl}/api/integrations/uazapi/webhook?token=${encodeURIComponent(hookSecret)}`
@@ -653,7 +733,7 @@ export function registerConfigRoutes(app: Express) {
         });
 
         const baseUrl = resolvePublicBaseUrl(req);
-        const hookSecret = process.env.UAZAPI_WEBHOOK_SECRET?.trim() || plainToken;
+        const hookSecret = getUazapiWebhookSecret() || plainToken;
         let webhookRegisteredAt: Date | null = null;
         let webhookLastError: string | null = null;
 
@@ -843,6 +923,87 @@ export function registerConfigRoutes(app: Express) {
     }
   });
 
+  app.get('/api/config/uazapi/global-config', requireAuth, requireAdmin, async (_req: AuthRequest, res) => {
+    try {
+      const summary = await getUazapiGlobalPersistedSummary();
+      res.json(summary);
+    } catch (error) {
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao ler configuração global UaZapi.') });
+    }
+  });
+
+  app.put('/api/config/uazapi/global-config', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      const { defaultServerUrl, adminToken, webhookSecret, clearAdminToken, clearWebhookSecret } = (req.body || {}) as {
+        defaultServerUrl?: string;
+        adminToken?: string;
+        webhookSecret?: string;
+        clearAdminToken?: boolean;
+        clearWebhookSecret?: boolean;
+      };
+      if (defaultServerUrl && !/^https?:\/\//i.test(defaultServerUrl.trim())) {
+        return res.status(400).json({ error: 'Server URL UaZapi deve começar com http:// ou https://.' });
+      }
+      const saved = await saveUazapiGlobalPersistedConfig({
+        defaultServerUrl,
+        adminToken,
+        webhookSecret,
+        clearAdminToken: Boolean(clearAdminToken),
+        clearWebhookSecret: Boolean(clearWebhookSecret),
+        updatedBy: req.authUser?.name,
+      });
+      await logConfigAudit(req, 'UAZAPI_GLOBAL_CONFIG_SAVED', 'integration', 'uazapi_global', {
+        defaultServerUrl: saved.defaultServerUrl,
+        hasAdminToken: saved.hasAdminToken,
+        hasWebhookSecret: saved.hasWebhookSecret,
+      });
+      res.json({ ok: true, config: saved });
+    } catch (error) {
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao salvar configuração global UaZapi.') });
+    }
+  });
+
+  app.get('/api/config/gotalk/credentials', requireAuth, requireAdmin, async (_req: AuthRequest, res) => {
+    try {
+      const summary = await getGotalkPersistedCredentialsSummary();
+      res.json(summary);
+    } catch (error) {
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao consultar credenciais GoTalk.') });
+    }
+  });
+
+  app.put('/api/config/gotalk/credentials', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      const { baseUrl, login, password, webhookSecret, clearWebhookSecret } = (req.body || {}) as {
+        baseUrl?: string;
+        login?: string;
+        password?: string;
+        webhookSecret?: string;
+        clearWebhookSecret?: boolean;
+      };
+      if (baseUrl && !/^https?:\/\//i.test(baseUrl.trim())) {
+        return res.status(400).json({ error: 'Base URL GoTalk deve começar com http:// ou https://.' });
+      }
+      const saved = await saveGotalkPersistedCredentials({
+        baseUrl,
+        login,
+        password,
+        webhookSecret,
+        clearWebhookSecret: Boolean(clearWebhookSecret),
+        updatedBy: req.authUser?.name,
+      });
+      await logConfigAudit(req, 'GOTALK_CREDENTIALS_SAVED', 'integration', 'gotalk_credentials', {
+        baseUrl: saved.baseUrl,
+        login: saved.login,
+        hasPassword: saved.hasPassword,
+        hasWebhookSecret: saved.hasWebhookSecret,
+      });
+      res.json({ ok: true, credentials: saved });
+    } catch (error) {
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao salvar credenciais GoTalk.') });
+    }
+  });
+
   app.get('/api/config/uazapi/import-status', requireAuth, (_req, res) => {
     res.json({ importState: uazapiImportState });
   });
@@ -872,7 +1033,7 @@ export function registerConfigRoutes(app: Express) {
             unitId: row.unitId,
             instanceId: row.uazapiInstanceId,
             label: row.label,
-            serverUrl: row.uazapiServerUrl || DEFAULT_UAZAPI_SERVER_URL,
+            serverUrl: row.uazapiServerUrl || getDefaultUazapiServerUrl(),
             token: tok,
           });
         }
@@ -884,7 +1045,7 @@ export function registerConfigRoutes(app: Express) {
           unitId: req.activeUnitId || 1,
           instanceId: process.env.UAZAPI_INSTANCE_ID?.trim() || 'default-env',
           label: 'Instância Padrão',
-          serverUrl: DEFAULT_UAZAPI_SERVER_URL,
+          serverUrl: getDefaultUazapiServerUrl(),
           token: envToken,
         });
       }
@@ -1494,6 +1655,7 @@ export function registerConfigRoutes(app: Express) {
         description?: string;
         modulePermissions?: Record<string, boolean>;
         fieldPermissions?: Record<string, Record<string, 'edit' | 'read' | 'hidden'>>;
+        documentPermissions?: DocumentPermissionGroupMatrix;
         uazapiInstanceIds?: number[];
       };
 
@@ -1511,6 +1673,9 @@ export function registerConfigRoutes(app: Express) {
             description: String(body.description || '').trim(),
             ...(body.modulePermissions ? { modulePermissions: body.modulePermissions } : {}),
             ...(body.fieldPermissions ? { fieldPermissions: body.fieldPermissions } : {}),
+            ...(body.documentPermissions
+              ? { documentPermissions: normalizeDocPermissionMatrix(body.documentPermissions) }
+              : {}),
           })
           .where(eq(userGroups.id, groupId))
           .returning();
@@ -1536,6 +1701,7 @@ export function registerConfigRoutes(app: Express) {
               config: false,
             },
             fieldPermissions: body.fieldPermissions || {},
+            documentPermissions: normalizeDocPermissionMatrix(body.documentPermissions),
           })
           .returning();
         savedGroup = created;
@@ -1596,6 +1762,7 @@ export function registerConfigRoutes(app: Express) {
         groupId?: number | null;
         defaultUnitId?: number | null;
         allowedUnitIds?: number[];
+        documentPermissionOverrides?: DocumentPermissionUserOverrides;
         whatsappPhone?: string;
         password?: string;
         mustChangePassword?: boolean;
@@ -1639,6 +1806,9 @@ export function registerConfigRoutes(app: Express) {
           whatsappPhone,
           active,
         };
+        if (body.documentPermissionOverrides !== undefined) {
+          updateSet.documentPermissionOverrides = normalizeUserDocOverrides(body.documentPermissionOverrides);
+        }
         if (body.password && body.password.trim().length >= 6) {
           updateSet.passwordHash = hashPassword(body.password.trim());
           updateSet.mustChangePassword = Boolean(body.mustChangePassword);
@@ -1717,6 +1887,9 @@ export function registerConfigRoutes(app: Express) {
             groupId,
             defaultUnitId,
             allowedUnitIds,
+            documentPermissionOverrides: body.documentPermissionOverrides
+              ? normalizeUserDocOverrides(body.documentPermissionOverrides)
+              : {},
             whatsappPhone,
             passwordHash: hashPassword(rawPwd),
             mustChangePassword: body.mustChangePassword !== false,
@@ -2398,6 +2571,60 @@ export function registerConfigRoutes(app: Express) {
       res.json({ ok: true });
     } catch (error) {
       res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao excluir categoria.') });
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // 10. MODO PRODUÇÃO & LIMPEZA DEFINITIVA DE DADOS FICTÍCIOS (EXCLUSIVO ADMIN)
+  // ---------------------------------------------------------------------------
+  app.get('/api/admin/production-mode/status', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      const status = await getProductionModeStatus(req.authUser!.id);
+      res.json(status);
+    } catch (error) {
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao consultar status do Modo Produção.') });
+    }
+  });
+
+  app.post('/api/admin/production-mode/clean', requireAuth, requireAdmin, async (req: AuthRequest, res) => {
+    try {
+      const { confirmationText } = (req.body || {}) as { confirmationText?: string };
+      const normalized = String(confirmationText || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toUpperCase();
+
+      if (normalized !== 'MODO PRODUCAO') {
+        return res.status(400).json({
+          error: 'Confirmação inválida. Digite exatamente MODO PRODUCAO para confirmar a limpeza e ativar a trava permanente.',
+        });
+      }
+
+      const result = await activateProductionModeAndPurge({
+        id: req.authUser!.id,
+        name: req.authUser!.name,
+        email: req.authUser!.email,
+      });
+      markManualAuditLogged();
+
+      const updatedStatus = await getProductionModeStatus(req.authUser!.id);
+
+      deps?.broadcast?.('system:production_mode_activated', {
+        activatedByName: req.authUser!.name,
+        activatedAt: result.lockRecord.activatedAt,
+        lastPurgeAt: result.lockRecord.lastPurgeAt,
+      });
+
+      res.json({
+        ok: true,
+        ...result,
+        status: updatedStatus,
+      });
+    } catch (error) {
+      res.status(500).json({
+        error: sanitizeErrorMessage(error, 'Erro ao limpar dados fictícios e ativar o Modo Produção.'),
+      });
     }
   });
 

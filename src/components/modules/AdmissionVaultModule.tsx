@@ -51,10 +51,8 @@ import {
 } from '../../lib/api.ts';
 import type { FormMergeContext } from '../../lib/formTemplateRenderer.ts';
 import { FormTemplateButton } from '../FormTemplateButton.tsx';
-import {
-  DossierDocumentPreviewModal,
-  FullFreeAreaDocumentShell,
-} from '../DossierDocumentViewer.tsx';
+import { ProtectedDocumentViewerModal } from '../common/ProtectedDocumentViewerModal.tsx';
+import { FullFreeAreaDocumentShell } from '../DossierDocumentViewer.tsx';
 import {
   Admission,
   AdmissionScenarioCol,
@@ -294,6 +292,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
   const [links, setLinks] = useState<ClientAssetLink[]>([]);
   const [admissions, setAdmissions] = useState<Admission[]>([]);
   const [documents, setDocuments] = useState<DocumentObject[]>([]);
+  const [docsLoaded, setDocsLoaded] = useState(false);
   const [trashedDocuments, setTrashedDocuments] = useState<DocumentObject[]>([]);
   const [consultants, setConsultants] = useState<ConsultantOption[]>([]);
   const [threadPhones, setThreadPhones] = useState<string[]>([]);
@@ -305,6 +304,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
   const [viewHistory, setViewHistory] = useState<Array<'list' | 'form' | 'vault'>>([]);
   const viewModeRef = useRef<'list' | 'form' | 'vault'>('list');
   const enteredViaIntentRef = useRef(false);
+  const [originReturn, setOriginReturn] = useState<{ mod: ModuleId; clientId?: number } | null>(null);
   const [formTab, setFormTab] = useState<'formulario' | 'whatsapp' | 'atendimentos' | 'documentos'>('formulario');
   const [editingAdmissionId, setEditingAdmissionId] = useState<number | null>(null);
 
@@ -325,6 +325,19 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
       setViewMode(prevMode);
       return;
     }
+    if (originReturn) {
+      const targetReturn = originReturn;
+      setOriginReturn(null);
+      enteredViaIntentRef.current = false;
+      if (targetReturn.clientId && onNavigate) {
+        onNavigate(targetReturn.mod, { clientId: targetReturn.clientId });
+        return;
+      }
+      if (onGoBack) {
+        onGoBack();
+        return;
+      }
+    }
     if (enteredViaIntentRef.current && onGoBack) {
       enteredViaIntentRef.current = false;
       onGoBack();
@@ -344,6 +357,9 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
   const [filterConsultant, setFilterConsultant] = useState('all');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
+  const [filterDocStatus, setFilterDocStatus] = useState<'all' | 'with_docs' | 'without_docs'>('all');
+  const [filterDocQueryInput, setFilterDocQueryInput] = useState('');
+  const [filterDocQueryDebounced, setFilterDocQueryDebounced] = useState('');
   const [sortBy, setSortBy] = useState<'date' | 'contract' | 'client'>('date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
@@ -462,11 +478,10 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
   const [docSearchFilter, setDocSearchFilter] = useState('');
   const [docCategoryFilter, setDocCategoryFilter] = useState('all');
   const [bucketStats, setBucketStats] = useState<BucketRuntimeStats | null>(null);
-  const [previewDocModal, setPreviewDocModal] = useState<{
-    doc: DocumentObject;
-    blobUrl: string;
-    loading: boolean;
-  } | null>(null);
+  const [viewerDoc, setViewerDoc] = useState<DocumentObject | null>(null);
+  const [renameDocTarget, setRenameDocTarget] = useState<DocumentObject | null>(null);
+  const [renameDocValue, setRenameDocValue] = useState('');
+  const [renamingDoc, setRenamingDoc] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
 
@@ -504,6 +519,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
     if (data.bucketStats) setBucketStats(data.bucketStats);
     if (bankData.banks.length) setBanksCatalog(bankData.banks);
     if (cadBoot) setCadastrosData(cadBoot);
+    setDocsLoaded(true);
   };
 
   useEffect(() => {
@@ -519,20 +535,66 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
   }, [quickSearchInput]);
 
   useEffect(() => {
+    const timer = setTimeout(() => {
+      setFilterDocQueryDebounced(filterDocQueryInput.trim().toLowerCase());
+      setPage(1);
+    }, 280);
+    return () => clearTimeout(timer);
+  }, [filterDocQueryInput]);
+
+  useEffect(() => {
     if (!navIntent) return;
     enteredViaIntentRef.current = true;
-    if (navIntent.triggerNew) {
-      openNewForm();
-    } else if (navIntent.admissionId) {
-      const target = admissions.find((a) => a.id === navIntent.admissionId);
-      if (target) openEditForm(target);
-    } else if (navIntent.clientId) {
-      const target = admissions.find((a) => a.clientId === navIntent.clientId);
-      if (target) openEditForm(target);
+    if (navIntent.returnToModule) {
+      setOriginReturn({
+        mod: navIntent.returnToModule,
+        clientId: navIntent.returnClientId || navIntent.clientId,
+      });
+    } else {
+      setOriginReturn(null);
     }
-    if (navIntent.tab === 'vault') navigateViewMode('vault', false);
+
+    if (navIntent.tab === 'vault') {
+      setViewHistory([]);
+      navigateViewMode('vault', false);
+      onClearIntent?.();
+      return;
+    }
+
+    if (navIntent.triggerNew) {
+      if (!docsLoaded && navIntent.clientId) return;
+      setViewHistory([]);
+      openNewForm(false, navIntent.clientId);
+      onClearIntent?.();
+      return;
+    }
+
+    if (navIntent.admissionId) {
+      const target = admissions.find((a) => a.id === navIntent.admissionId);
+      if (target) {
+        setViewHistory([]);
+        openEditForm(target, 'formulario', false);
+        onClearIntent?.();
+      } else if (docsLoaded) {
+        onClearIntent?.();
+      }
+      return;
+    }
+
+    if (navIntent.clientId) {
+      const target = admissions.find((a) => a.clientId === navIntent.clientId || a.assetOwnerId === navIntent.clientId);
+      if (target) {
+        setViewHistory([]);
+        openEditForm(target, 'formulario', false);
+        onClearIntent?.();
+      } else if (docsLoaded) {
+        onClearIntent?.();
+      }
+      return;
+    }
+
     onClearIntent?.();
-  }, [navIntent, admissions.length]);
+  }, [navIntent, admissions.length, clients.length, docsLoaded]);
 
   // Remote SmartSelect search >= 3 characters (Guide Sec 3)
   useEffect(() => {
@@ -789,19 +851,21 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
   const servicesTotalCents = Math.max(0, servicesSubtotalCents - discountCents + additionCents);
 
   // Open New / Edit Form Helpers
-  const openNewForm = () => {
+  const openNewForm = (pushHistory = true, preselectedClientId?: number) => {
     const savedDefaultSeries = localStorage.getItem(SERIES_DEFAULT_STORAGE_KEY) || 'ADM';
-    const targetUnit = units.find((u) => u.id === activeUnitId) || units[0];
+    const preselectedClient = preselectedClientId ? clients.find((c) => c.id === preselectedClientId) : undefined;
+    const targetUnit =
+      units.find((u) => u.id === (preselectedClient?.unitId || activeUnitId)) || units[0];
     setEditingAdmissionId(null);
-    navigateViewMode('form');
+    navigateViewMode('form', pushHistory);
     setFormTab('formulario');
     setClientRoleSelected('responsavel');
     setUnitId(targetUnit?.id || 1);
     setStatus('pendente');
     setOrigin('');
-    setResponsibleClientId(null);
+    setResponsibleClientId(preselectedClient?.id || null);
     setTitularClientId(null);
-    setRespSearch('');
+    setRespSearch(preselectedClient?.fullName || '');
     setTitSearch('');
     setBankName('');
     setConsultantId(consultants[0]?.id || null);
@@ -839,9 +903,13 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
     setFeedback('');
   };
 
-  const openEditForm = (adm: Admission, initialTab: typeof formTab = 'formulario') => {
+  const openEditForm = (
+    adm: Admission,
+    initialTab: typeof formTab = 'formulario',
+    pushHistory = true
+  ) => {
     setEditingAdmissionId(adm.id);
-    navigateViewMode('form');
+    navigateViewMode('form', pushHistory);
     setFormTab(initialTab);
     setClientRoleSelected(
       adm.clientRoleSelected === 'titular' || Boolean(adm.assetOwnerId) ? 'titular' : 'responsavel'
@@ -1217,7 +1285,11 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
         setFeedback(`Ficha ${savedAdm.contractNumber} salva com sucesso.`);
       } else {
         setFeedback(`Processo ${savedAdm.contractNumber} salvo com sucesso (${LIST_STATUS_LABELS[savedAdm.status]?.label || savedAdm.status}).`);
-        navigateViewMode('list', false);
+        if (originReturn) {
+          handleBackFromSubView();
+        } else {
+          navigateViewMode('list', false);
+        }
       }
       return savedAdm;
     } catch (err) {
@@ -1516,20 +1588,27 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
     URL.revokeObjectURL(url);
   };
 
-  const handlePreviewDoc = async (doc: DocumentObject) => {
-    setPreviewDocModal({ doc, blobUrl: '', loading: true });
+  const handlePreviewDoc = (doc: DocumentObject) => {
+    setViewerDoc(doc);
+  };
+
+  const handleRenameDocSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!renameDocTarget || !renameDocValue.trim()) return;
+    setRenamingDoc(true);
+    setErrorMsg('');
     try {
-      const token = getAuthToken();
-      const res = await fetch(`/api/documents/${doc.id}/download?preview=1`, {
-        headers: { Authorization: `Bearer ${token}` },
+      await apiFetch(`/api/documents/${renameDocTarget.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ fileName: renameDocValue.trim() }),
       });
-      if (!res.ok) throw new Error('Falha ao carregar visualização segura do bucket.');
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      setPreviewDocModal({ doc, blobUrl: url, loading: false });
+      setFeedback(`Documento renomeado para "${renameDocValue.trim()}".`);
+      setRenameDocTarget(null);
+      await load();
     } catch (err) {
-      setPreviewDocModal(null);
-      setErrorMsg(err instanceof Error ? err.message : 'Erro ao visualizar documento.');
+      setErrorMsg(err instanceof Error ? err.message : 'Erro ao renomear documento.');
+    } finally {
+      setRenamingDoc(false);
     }
   };
 
@@ -1587,10 +1666,62 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
     [admissions]
   );
 
+  const docMetaByAdmission = useMemo(() => {
+    const map = new Map<
+      number,
+      { directCount: number; sharedCount: number; totalCount: number; sampleNames: string[]; haystack: string }
+    >();
+    const docsByAdmission = new Map<number, DocumentObject[]>();
+    const sharedDocsByClient = new Map<number, DocumentObject[]>();
+
+    for (const d of documents) {
+      if (d.admissionId) {
+        const list = docsByAdmission.get(d.admissionId) || [];
+        list.push(d);
+        docsByAdmission.set(d.admissionId, list);
+      } else if (d.clientId) {
+        const list = sharedDocsByClient.get(d.clientId) || [];
+        list.push(d);
+        sharedDocsByClient.set(d.clientId, list);
+      }
+    }
+
+    for (const adm of admissions) {
+      const direct = docsByAdmission.get(adm.id) || [];
+      const sharedResp = sharedDocsByClient.get(adm.clientId) || [];
+      const sharedOwner =
+        adm.assetOwnerId && adm.assetOwnerId !== adm.clientId
+          ? sharedDocsByClient.get(adm.assetOwnerId) || []
+          : [];
+      const allMap = new Map<number, DocumentObject>();
+      for (const d of direct) allMap.set(d.id, d);
+      for (const d of sharedResp) allMap.set(d.id, d);
+      for (const d of sharedOwner) allMap.set(d.id, d);
+      const combined = Array.from(allMap.values());
+      const sampleNames = combined.slice(0, 4).map((d) => d.fileName);
+      const haystack = combined
+        .map((d) =>
+          [d.fileName, d.unitFolderPath || '', d.docCategory || '', d.storageUri || '', d.sha256Hash || '']
+            .join(' ')
+            .toLowerCase()
+        )
+        .join(' | ');
+      map.set(adm.id, {
+        directCount: direct.length,
+        sharedCount: combined.length - direct.length,
+        totalCount: combined.length,
+        sampleNames,
+        haystack,
+      });
+    }
+    return map;
+  }, [admissions, documents]);
+
   const filteredAndSortedList = useMemo(() => {
     const filtered = admissions.filter((adm) => {
       const cl = clients.find((c) => c.id === adm.clientId);
       const clName = (cl?.fullName || '').toLowerCase();
+      const docMeta = docMetaByAdmission.get(adm.id);
       if (quickSearchDebounced) {
         const digits = quickSearchDebounced.replace(/\D/g, '');
         const matchQuick =
@@ -1599,6 +1730,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
           adm.protocolCode.toLowerCase().includes(quickSearchDebounced) ||
           (cl?.cpfCnpj || '').toLowerCase().includes(quickSearchDebounced) ||
           (cl?.phone || '').toLowerCase().includes(quickSearchDebounced) ||
+          (quickSearchDebounced.length >= 2 && Boolean(docMeta?.haystack.includes(quickSearchDebounced))) ||
           (digits.length >= 3 &&
             ((cl?.cpfCnpj || '').replace(/\D/g, '').includes(digits) ||
               (cl?.phone || '').replace(/\D/g, '').includes(digits)));
@@ -1610,6 +1742,9 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
       if (filterBank !== 'all' && adm.bankName !== filterBank) return false;
       if (filterStatus !== 'all' && adm.status !== filterStatus) return false;
       if (filterConsultant !== 'all' && String(adm.consultantId || '') !== filterConsultant) return false;
+      if (filterDocStatus === 'with_docs' && (docMeta?.totalCount || 0) === 0) return false;
+      if (filterDocStatus === 'without_docs' && (docMeta?.totalCount || 0) > 0) return false;
+      if (filterDocQueryDebounced && !(docMeta?.haystack.includes(filterDocQueryDebounced))) return false;
       if (filterDateFrom) {
         const d = new Date(adm.createdAt).toISOString().slice(0, 10);
         if (d < filterDateFrom) return false;
@@ -1637,11 +1772,14 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
   }, [
     admissions,
     clients,
+    docMetaByAdmission,
     quickSearchDebounced,
     filterClientName,
     filterBank,
     filterStatus,
     filterConsultant,
+    filterDocStatus,
+    filterDocQueryDebounced,
     filterDateFrom,
     filterDateTo,
     sortBy,
@@ -1714,7 +1852,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
               </button>
               <button
                 type="button"
-                onClick={openNewForm}
+                onClick={() => openNewForm(true)}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700 whitespace-nowrap"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -1732,14 +1870,27 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                   type="text"
                   value={quickSearchInput}
                   onChange={(e) => setQuickSearchInput(e.target.value)}
-                  placeholder="Pesquisa rápida por cliente, nº contrato, CPF/CNPJ ou telefone..."
+                  placeholder="Pesquisa rápida por cliente, nº contrato, CPF/CNPJ, telefone ou arquivo no bucket..."
                   className="w-full rounded-lg border border-slate-200 pl-8 pr-3 py-2 text-xs dark:border-slate-700"
                 />
               </div>
+              <select
+                value={filterDocStatus}
+                onChange={(e) => {
+                  setFilterDocStatus(e.target.value as 'all' | 'with_docs' | 'without_docs');
+                  setPage(1);
+                }}
+                aria-label="Filtrar por documentos no bucket"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 whitespace-nowrap shrink-0"
+              >
+                <option value="all">Docs Bucket: Todos</option>
+                <option value="with_docs">Com documentos no R2</option>
+                <option value="without_docs">Sem documentos no R2</option>
+              </select>
               <button
                 type="button"
                 onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 <Filter className="w-3.5 h-3.5" />
                 Filtros Avançados
@@ -1748,7 +1899,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
             </div>
 
             {showAdvancedFilters && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2.5 pt-2 border-t border-slate-100 text-xs dark:border-slate-800">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-2 border-t border-slate-100 text-xs dark:border-slate-800">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">Filtrar Cliente</label>
                   <input
@@ -1841,6 +1992,18 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                     className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-mono dark:border-slate-700"
                   />
                 </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1 dark:text-slate-400">
+                    Pesquisar Documentos no Bucket (arquivo, pasta, categoria)
+                  </label>
+                  <input
+                    type="text"
+                    value={filterDocQueryInput}
+                    onChange={(e) => setFilterDocQueryInput(e.target.value)}
+                    placeholder="Ex.: contrato, CNH, ADMINISTRAÇÃO, .pdf..."
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                  />
+                </div>
               </div>
             )}
           </div>
@@ -1880,6 +2043,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                     </th>
                     <th className="py-3 px-4">Origem</th>
                     <th className="py-3 px-4">Unidade</th>
+                    <th className="py-3 px-4">Bucket R2</th>
                     <th className="py-3 px-4">Status</th>
                     <th className="py-3 px-4 text-right">Ações</th>
                   </tr>
@@ -1887,7 +2051,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {pagedList.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-8 text-center text-slate-500 dark:text-slate-400">
+                      <td colSpan={8} className="py-8 text-center text-slate-500 dark:text-slate-400">
                         Nenhuma ficha de admissão localizada nos critérios atuais.
                       </td>
                     </tr>
@@ -1897,6 +2061,8 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                       const un = units.find((u) => u.id === adm.unitId);
                       const phoneTail = String(cl?.phone || cl?.whatsapp || '').replace(/\D/g, '').slice(-8);
                       const hasGoTalk = Boolean(phoneTail && threadPhones.includes(phoneTail));
+                      const docMeta = docMetaByAdmission.get(adm.id);
+                      const totalBucketDocs = docMeta?.totalCount || 0;
                       const stInfo = LIST_STATUS_LABELS[adm.status] || {
                         label: adm.status.replace(/_/g, ' '),
                         tone: 'text-slate-700',
@@ -1918,6 +2084,14 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-1.5 font-semibold text-slate-900 dark:text-slate-100">
                               <span>{cl?.fullName || 'Cliente'}</span>
+                              {totalBucketDocs > 0 && (
+                                <span
+                                  title={`${totalBucketDocs} documento(s) associado(s) no bucketdainvicta: ${docMeta?.sampleNames.join(', ')}`}
+                                  className="inline-flex items-center text-amber-600 dark:text-amber-400"
+                                >
+                                  <FolderOpen className="w-3.5 h-3.5" />
+                                </span>
+                              )}
                               {hasGoTalk && (
                                 <span title="Possui histórico WhatsApp / GoTalk" className="text-emerald-600 dark:text-emerald-400">
                                   <MessageSquare className="w-3.5 h-3.5" />
@@ -1931,6 +2105,24 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                           </td>
                           <td className="py-3 px-4 text-slate-700 whitespace-nowrap dark:text-slate-200">
                             {un?.name || `Unidade ${adm.unitId}`}
+                          </td>
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            {totalBucketDocs > 0 ? (
+                              <button
+                                type="button"
+                                onClick={() => openEditForm(adm, 'documentos')}
+                                title={`Abrir documentos do processo (${docMeta?.sampleNames.join(', ')})`}
+                                className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100 tabular-nums dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-900/50"
+                              >
+                                <FolderOpen className="w-3 h-3 shrink-0" />
+                                <span>{totalBucketDocs} doc{totalBucketDocs > 1 ? 's' : ''}</span>
+                                {(docMeta?.sharedCount || 0) > 0 && (docMeta?.directCount || 0) === 0 && (
+                                  <span className="text-[10px] opacity-80">cliente</span>
+                                )}
+                              </button>
+                            ) : (
+                              <span className="text-[11px] text-slate-400 dark:text-slate-500">Sem anexos</span>
+                            )}
                           </td>
                           <td className="py-3 px-4 whitespace-nowrap">
                             <span className={stInfo.tone}>{stInfo.label}</span>
@@ -2073,6 +2265,8 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                 <ArrowLeft className="w-3.5 h-3.5" />
                 {viewHistory.length > 0 && viewHistory[viewHistory.length - 1] === 'vault'
                   ? 'Voltar ao Cofre'
+                  : viewHistory.length === 0 && originReturn?.clientId
+                  ? 'Fechar e Voltar ao Cliente'
                   : 'Voltar para Lista'}
               </button>
 
@@ -3300,6 +3494,8 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                   <ArrowLeft className="w-3.5 h-3.5" />
                   {viewHistory.length > 0 && viewHistory[viewHistory.length - 1] === 'vault'
                     ? 'Voltar ao Cofre / Cancelar'
+                    : viewHistory.length === 0 && originReturn?.clientId
+                    ? 'Fechar e Voltar ao Cliente'
                     : 'Voltar para Lista / Cancelar'}
                 </button>
 
@@ -3921,6 +4117,13 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                             const ownerClient = clients.find((c) => c.id === doc.clientId);
                             const isTitularDoc = Boolean(titularClientId && doc.clientId === titularClientId);
                             const isTrashItem = docScopeTab === 'lixeira';
+                            const eff = doc.effectivePermissions || {
+                              view: true,
+                              print: true,
+                              download: true,
+                              edit: true,
+                              delete: true,
+                            };
 
                             return (
                               <div key={doc.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -3955,25 +4158,30 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                                   </div>
                                   <div className="font-mono text-[11px] text-slate-500 truncate dark:text-slate-400">
                                     {doc.docCategory} · {formatBytes(doc.sizeBytes)} · SHA256:{doc.sha256Hash.slice(0, 12)} ·{' '}
-                                    {doc.folderPath} · {formatDateBR(doc.createdAt)} · Por {doc.uploadedBy}
+                                    {doc.isInterlinked || doc.unitFolderPath
+                                      ? `Subpasta: ${doc.unitFolderPath || doc.folderPath}`
+                                      : doc.folderPath}{' '}
+                                    · {formatDateBR(doc.createdAt)} · Por {doc.uploadedBy}
                                   </div>
                                 </div>
 
                                 <div className="flex flex-wrap items-center gap-1.5 shrink-0">
                                   {isTrashItem ? (
                                     <>
-                                      <button
-                                        type="button"
-                                        onClick={async () => {
-                                          await apiFetch(`/api/documents/${doc.id}/restore`, { method: 'POST' });
-                                          setFeedback(`Arquivo "${doc.fileName}" restaurado para o dossiê.`);
-                                          await load();
-                                        }}
-                                        className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
-                                      >
-                                        <RotateCcw className="w-3.5 h-3.5" /> Restaurar
-                                      </button>
-                                      {!isApprovedLocked && (
+                                      {eff.edit && (
+                                        <button
+                                          type="button"
+                                          onClick={async () => {
+                                            await apiFetch(`/api/documents/${doc.id}/restore`, { method: 'POST' });
+                                            setFeedback(`Arquivo "${doc.fileName}" restaurado para o dossiê.`);
+                                            await load();
+                                          }}
+                                          className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
+                                        >
+                                          <RotateCcw className="w-3.5 h-3.5" /> Restaurar
+                                        </button>
+                                      )}
+                                      {eff.delete && !isApprovedLocked && (
                                         <button
                                           type="button"
                                           onClick={async () => {
@@ -3989,21 +4197,38 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                                     </>
                                   ) : (
                                     <>
-                                      <button
-                                        type="button"
-                                        onClick={() => handlePreviewDoc(doc)}
-                                        className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2.5 py-1 font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                                      >
-                                        <Eye className="w-3.5 h-3.5" /> Visualizar
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleDownloadDoc(doc)}
-                                        className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2.5 py-1 font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                                      >
-                                        <Download className="w-3.5 h-3.5" /> Baixar
-                                      </button>
-                                      {editingAdmissionId && !isFromThisFicha && !isApprovedLocked && (
+                                      {eff.view && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handlePreviewDoc(doc)}
+                                          className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2.5 py-1 font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                                        >
+                                          <Eye className="w-3.5 h-3.5" /> Visualizar
+                                        </button>
+                                      )}
+                                      {eff.download && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDownloadDoc(doc)}
+                                          className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2.5 py-1 font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                                        >
+                                          <Download className="w-3.5 h-3.5" /> Baixar
+                                        </button>
+                                      )}
+                                      {eff.edit && !isApprovedLocked && (
+                                        <button
+                                          type="button"
+                                          title="Renomear documento"
+                                          onClick={() => {
+                                            setRenameDocTarget(doc);
+                                            setRenameDocValue(doc.fileName);
+                                          }}
+                                          className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                                        >
+                                          <Pencil className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
+                                      {eff.edit && editingAdmissionId && !isFromThisFicha && !isApprovedLocked && (
                                         <button
                                           type="button"
                                           title="Vincular ao dossiê desta ficha sem duplicar arquivo no bucket"
@@ -4013,7 +4238,7 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                                           <Link2 className="w-3.5 h-3.5" /> Vincular à Ficha
                                         </button>
                                       )}
-                                      {!isApprovedLocked && (
+                                      {eff.delete && !isApprovedLocked && (
                                         <button
                                           type="button"
                                           title="Mover para a lixeira segura"
@@ -4096,25 +4321,40 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
                     <td className="py-2.5 px-3 font-mono text-slate-500 dark:text-slate-400">{formatDateBR(doc.createdAt)}</td>
                     <td className="py-2.5 px-3 text-right">
                       {showTrash ? (
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            await apiFetch(`/api/documents/${doc.id}/restore`, { method: 'POST' });
-                            setFeedback(`Arquivo "${doc.fileName}" restaurado com sucesso.`);
-                            await load();
-                          }}
-                          className="inline-flex items-center gap-1 text-emerald-700 font-semibold hover:underline dark:text-emerald-300"
-                        >
-                          <RotateCcw className="w-3 h-3" /> Restaurar
-                        </button>
+                        doc.effectivePermissions?.edit !== false && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await apiFetch(`/api/documents/${doc.id}/restore`, { method: 'POST' });
+                              setFeedback(`Arquivo "${doc.fileName}" restaurado com sucesso.`);
+                              await load();
+                            }}
+                            className="inline-flex items-center gap-1 text-emerald-700 font-semibold hover:underline dark:text-emerald-300"
+                          >
+                            <RotateCcw className="w-3 h-3" /> Restaurar
+                          </button>
+                        )
                       ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleDownloadDoc(doc)}
-                          className="text-blue-700 font-semibold hover:underline dark:text-blue-300"
-                        >
-                          Baixar
-                        </button>
+                        <div className="inline-flex items-center gap-2">
+                          {doc.effectivePermissions?.view !== false && (
+                            <button
+                              type="button"
+                              onClick={() => handlePreviewDoc(doc)}
+                              className="text-slate-700 font-semibold hover:underline dark:text-slate-200"
+                            >
+                              Visualizar
+                            </button>
+                          )}
+                          {doc.effectivePermissions?.download !== false && (
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadDoc(doc)}
+                              className="text-blue-700 font-semibold hover:underline dark:text-blue-300"
+                            >
+                              Baixar
+                            </button>
+                          )}
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -4480,27 +4720,73 @@ export const AdmissionVaultModule: React.FC<AdmissionVaultModuleProps> = ({
       />
 
       {/* ===================================================================
-          MODAL: PRÉ-VISUALIZAÇÃO SEGURA DE DOCUMENTO DO BUCKET (TEMA DARK/WHITE)
+          MODAL: PRÉ-VISUALIZAÇÃO PROTEGIDA DE DOCUMENTO DO BUCKET
          =================================================================== */}
-      <DossierDocumentPreviewModal
-        open={Boolean(previewDocModal)}
-        title={previewDocModal?.doc.fileName || ''}
+      <ProtectedDocumentViewerModal
+        open={Boolean(viewerDoc)}
+        documentId={viewerDoc?.id || null}
+        fileName={viewerDoc?.fileName || ''}
+        mimeType={viewerDoc?.mimeType || ''}
         subtitle={
-          previewDocModal
-            ? `${previewDocModal.doc.storageUri} · SHA256:${previewDocModal.doc.sha256Hash}`
+          viewerDoc
+            ? `${viewerDoc.unitFolderPath || viewerDoc.storageUri} · SHA256:${viewerDoc.sha256Hash}`
             : ''
         }
-        mimeType={previewDocModal?.doc.mimeType || ''}
-        blobUrl={previewDocModal?.blobUrl || ''}
-        loading={Boolean(previewDocModal?.loading)}
-        onDownload={
-          previewDocModal ? () => handleDownloadDoc(previewDocModal.doc) : undefined
-        }
-        onClose={() => {
-          if (previewDocModal?.blobUrl) URL.revokeObjectURL(previewDocModal.blobUrl);
-          setPreviewDocModal(null);
-        }}
+        context="client_dossier"
+        canPrint={viewerDoc ? viewerDoc.effectivePermissions?.print !== false : false}
+        canDownload={viewerDoc ? viewerDoc.effectivePermissions?.download !== false : false}
+        onClose={() => setViewerDoc(null)}
       />
+
+      {renameDocTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 dark:bg-slate-950/80">
+          <form
+            onSubmit={handleRenameDocSubmit}
+            className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-2xl space-y-4 text-xs"
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
+                Renomear Documento do Dossiê
+              </div>
+              <button
+                type="button"
+                onClick={() => setRenameDocTarget(null)}
+                className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
+                Nome do Arquivo *
+              </label>
+              <input
+                type="text"
+                required
+                value={renameDocValue}
+                onChange={(e) => setRenameDocValue(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-slate-900 dark:text-slate-100"
+              />
+            </div>
+            <div className="flex justify-end gap-2 border-t border-slate-100 dark:border-slate-800 pt-3">
+              <button
+                type="button"
+                onClick={() => setRenameDocTarget(null)}
+                className="rounded-lg border border-slate-200 dark:border-slate-700 px-3.5 py-2 font-semibold text-slate-700 dark:text-slate-200"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={renamingDoc || !renameDocValue.trim()}
+                className="rounded-lg bg-slate-900 dark:bg-emerald-600 px-4 py-2 font-semibold text-white hover:bg-slate-800 dark:hover:bg-emerald-500 disabled:opacity-50"
+              >
+                {renamingDoc ? 'Salvando...' : 'Salvar Nome'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 };

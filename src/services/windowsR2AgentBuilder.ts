@@ -70,17 +70,58 @@ const MIME_BY_EXT = {
 };
 
 function parseArgs(argv) {
-  const args = { dir: '', concurrency: 6, dryRun: false, forceRescan: false };
+  const args = {
+    dir: '',
+    unit: '',
+    cookie: process.env.INVICTA_PROXY_COOKIE || '',
+    concurrency: 6,
+    dryRun: false,
+    forceRescan: false,
+  };
   for (let i = 2; i < argv.length; i++) {
     const k = argv[i];
     if (k === '--dir' && argv[i + 1]) args.dir = argv[++i];
+    else if (k === '--unit' && argv[i + 1]) args.unit = argv[++i];
+    else if (k === '--cookie' && argv[i + 1]) args.cookie = argv[++i];
     else if (k === '--concurrency' && argv[i + 1]) args.concurrency = Math.max(1, Math.min(16, Number(argv[++i]) || 6));
     else if (k === '--dry-run') args.dryRun = true;
     else if (k === '--force-rescan') args.forceRescan = true;
     else if (k === '--server' && argv[i + 1]) CONFIG.serverUrl = argv[++i].replace(/\\/+$/, '');
     else if (k === '--token' && argv[i + 1]) CONFIG.agentToken = argv[++i];
   }
+  if (args.cookie) CONFIG.proxyCookie = args.cookie;
   return args;
+}
+
+function normalizeTokenCli(raw) {
+  return String(raw || '')
+    .normalize('NFD')
+    .replace(/[\\u0300-\\u036f]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .trim();
+}
+
+function matchUnitForFolder(folderName, unitsList) {
+  const raw = String(folderName || '').trim();
+  const fullNorm = normalizeTokenCli(raw);
+  if (!fullNorm || !Array.isArray(unitsList)) return null;
+  const parts = raw
+    .split(/[-–—_:/\\\\\\[\\]()\\s]+/)
+    .map((p) => normalizeTokenCli(p))
+    .filter(Boolean);
+  for (const u of unitsList) {
+    const codeNorm = normalizeTokenCli(u.code);
+    if (codeNorm && (fullNorm === codeNorm || parts.includes(codeNorm))) return u;
+  }
+  for (const u of unitsList) {
+    const cityNorm = normalizeTokenCli(u.city);
+    const nameNorm = normalizeTokenCli(u.name);
+    if ((cityNorm.length >= 4 && fullNorm.includes(cityNorm)) || (nameNorm.length >= 4 && fullNorm.includes(nameNorm))) {
+      return u;
+    }
+  }
+  return null;
 }
 
 function guessMime(fileName) {
@@ -98,29 +139,64 @@ async function computeFileSha256(filePath) {
   });
 }
 
-async function apiJson(endpointPath, method = 'GET', bodyObj = undefined) {
-  const headers = {
-    'x-migration-agent-token': CONFIG.agentToken,
-  };
-  if (bodyObj !== undefined) {
-    headers['content-type'] = 'application/json';
+async function apiJson(endpointPath, method = 'GET', bodyObj = undefined, attempts = 4) {
+  let lastErr;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      const headers = {
+        'x-migration-agent-token': CONFIG.agentToken,
+        'accept': 'application/json',
+      };
+      if (CONFIG.proxyCookie) {
+        headers['cookie'] = CONFIG.proxyCookie;
+      }
+      if (bodyObj !== undefined) {
+        headers['content-type'] = 'application/json';
+      }
+      const res = await fetch(\`\${CONFIG.serverUrl}\${endpointPath}\`, {
+        method,
+        headers,
+        body: bodyObj !== undefined ? JSON.stringify(bodyObj) : undefined,
+        signal: AbortSignal.timeout(120000),
+      });
+      const finalUrl = String(res.url || '');
+      const ct = String(res.headers.get('content-type') || '').toLowerCase();
+      const text = await res.text();
+
+      if (
+        finalUrl.includes('__cookie_check') ||
+        finalUrl.includes('accounts.google.com') ||
+        (!ct.includes('application/json') && text.trim().startsWith('<'))
+      ) {
+        const err = new Error(
+          \`[BLOQUEIO PROXY HTML] O endereço \${CONFIG.serverUrl} está protegido pelo proxy Google/AI Studio (ais-dev / ais-pre), que exige login interativo de navegador e devolveu HTML em vez de JSON. Solução recomendada: use o botão "Selecionar Pasta de Origem e Enviar" direto pelo navegador autenticado na tela Migração R2 (64 GB), ou aponte --server para uma URL pública publicada sem bloqueio Google.\`
+        );
+        err.noRetry = true;
+        throw err;
+      }
+
+      if ((res.status === 429 || res.status === 502 || res.status === 503 || res.status === 504) && attempt < attempts - 1) {
+        await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
+        continue;
+      }
+
+      let data = null;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(\`Resposta inválida (não-JSON, HTTP \${res.status}) de \${endpointPath}: \${text.slice(0, 160)}\`);
+      }
+      if (!res.ok) {
+        throw new Error(data?.error || \`HTTP \${res.status}: \${text.slice(0, 200)}\`);
+      }
+      return data;
+    } catch (err) {
+      if (err?.noRetry || attempt === attempts - 1) throw err;
+      lastErr = err;
+      await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
+    }
   }
-  const res = await fetch(\`\${CONFIG.serverUrl}\${endpointPath}\`, {
-    method,
-    headers,
-    body: bodyObj !== undefined ? JSON.stringify(bodyObj) : undefined,
-  });
-  const text = await res.text();
-  let data = {};
-  try {
-    data = JSON.parse(text);
-  } catch {
-    data = { raw: text };
-  }
-  if (!res.ok) {
-    throw new Error(data.error || \`HTTP \${res.status}: \${text.slice(0, 200)}\`);
-  }
-  return data;
+  throw lastErr;
 }
 
 async function withRetry(fn, attempts = 3) {
@@ -137,14 +213,20 @@ async function withRetry(fn, attempts = 3) {
   throw lastErr;
 }
 
-async function walkDirectory(rootDir) {
+async function walkDirectory(rootDir, unitsList = [], fallbackUnit = null) {
   const entries = [];
+  const rootName = path.basename(rootDir);
+  const rootMatchedUnit = fallbackUnit || matchUnitForFolder(rootName, unitsList) || (unitsList.length === 1 ? unitsList[0] : null);
   const topDirs = await fsp.readdir(rootDir, { withFileTypes: true });
-  for (const unitEntry of topDirs) {
-    if (!unitEntry.isDirectory()) continue;
-    if (unitEntry.name.startsWith('.')) continue;
-    const unitFolderName = unitEntry.name;
-    const unitFullPath = path.join(rootDir, unitFolderName);
+  for (const topEntry of topDirs) {
+    if (!topEntry.isDirectory()) continue;
+    if (topEntry.name.startsWith('.')) continue;
+
+    const childMatchedUnit = matchUnitForFolder(topEntry.name, unitsList);
+    const useRootUnit = !childMatchedUnit && Boolean(rootMatchedUnit);
+    const unitFolderName = childMatchedUnit ? topEntry.name : useRootUnit ? rootMatchedUnit.code : topEntry.name;
+    const initialRelSegments = useRootUnit ? [topEntry.name] : [];
+    const topFullPath = path.join(rootDir, topEntry.name);
 
     async function walkSub(currentDir, relSegments) {
       const children = await fsp.readdir(currentDir, { withFileTypes: true });
@@ -166,7 +248,7 @@ async function walkDirectory(rootDir) {
         }
       }
     }
-    await walkSub(unitFullPath, []);
+    await walkSub(topFullPath, initialRelSegments);
   }
   return entries;
 }
@@ -257,6 +339,13 @@ async function main() {
     process.exit(1);
   }
 
+  console.log(\`[Conexão] Verificando autenticação e API em \${CONFIG.serverUrl}...\`);
+  const handshake = await apiJson(\`/api/migration/batches/\${CONFIG.batchId}/agent-handshake\`, 'GET');
+  console.log(\`[Conexão] OK! Lote \${handshake.batchCode} ativo | Modo Armazenamento: \${handshake.r2Configured ? 'Cloudflare R2' : 'Cofre Local Criptografado AES-256'}\`);
+  if (args.dryRun) {
+    console.log('[Aviso] Executando com --dry-run: os números são simulados apenas aqui no terminal e NÃO alteram o painel web.');
+  }
+
   const checkpointPath = path.join(rootDir, \`.invicta-r2-checkpoint-\${CONFIG.batchCode}.json\`);
   let checkpoint = {};
   if (!args.forceRescan && fs.existsSync(checkpointPath)) {
@@ -268,9 +357,19 @@ async function main() {
     }
   }
 
-  console.log(\`[Scan] Mapeando pastas de unidades em: \${rootDir}\`);
-  const allFiles = await walkDirectory(rootDir);
-  console.log(\`[Scan] \${allFiles.length} arquivos detectados. Analisando alterações contra checkpoint...\`);
+  const unitsList = Array.isArray(handshake.units) ? handshake.units : [];
+  let explicitUnit = null;
+  if (args.unit) {
+    explicitUnit =
+      unitsList.find((u) => String(u.id) === String(args.unit) || normalizeTokenCli(u.code) === normalizeTokenCli(args.unit)) ||
+      matchUnitForFolder(args.unit, unitsList);
+  } else if (Array.isArray(handshake.targetUnitIds) && handshake.targetUnitIds.length === 1) {
+    explicitUnit = unitsList.find((u) => Number(u.id) === Number(handshake.targetUnitIds[0])) || null;
+  }
+
+  console.log(\`[Scan] Mapeando subpastas e conteúdos em: \${rootDir}\`);
+  const allFiles = await walkDirectory(rootDir, unitsList, explicitUnit);
+  console.log(\`[Scan] \${allFiles.length} arquivos em subpastas detectados. Analisando alterações contra checkpoint...\`);
 
   const filesToProcess = allFiles.filter((f) => {
     const cp = checkpoint[f.fullPath];
@@ -282,85 +381,103 @@ async function main() {
 
   for (let offset = 0; offset < filesToProcess.length; offset += CONFIG.manifestChunkSize) {
     const slice = filesToProcess.slice(offset, offset + CONFIG.manifestChunkSize);
-    const manifest = [];
-    for (const f of slice) {
-      const sha256Hash = await computeFileSha256(f.fullPath);
-      manifest.push({
-        unitFolderName: f.unitFolderName,
-        pathSegmentsFromUnit: f.pathSegmentsFromUnit,
-        fileName: f.fileName,
-        legacySourcePath: f.fullPath,
-        mimeType: guessMime(f.fileName),
-        sizeBytes: f.sizeBytes,
-        mtimeMs: f.mtimeMs,
-        sha256Hash,
-      });
-    }
-
-    const diffRes = await apiJson(\`/api/migration/batches/\${CONFIG.batchId}/manifest-diff\`, 'POST', {
-      sourceRootPath: rootDir,
-      dryRun: args.dryRun,
-      files: manifest,
-    });
-
-    const uploadQueue = [];
-    for (const d of diffRes.decisions || []) {
-      const sourceFile = manifest.find((m) => m.legacySourcePath === d.legacySourcePath);
-      if (d.action === 'unchanged') {
-        stats.deduplicated++;
-        if (sourceFile) checkpoint[sourceFile.legacySourcePath] = { sizeBytes: sourceFile.sizeBytes, mtimeMs: sourceFile.mtimeMs, sha256Hash: sourceFile.sha256Hash };
-      } else if (d.action === 'update_path') {
-        stats.updatedPath++;
-        if (sourceFile) checkpoint[sourceFile.legacySourcePath] = { sizeBytes: sourceFile.sizeBytes, mtimeMs: sourceFile.mtimeMs, sha256Hash: sourceFile.sha256Hash };
-      } else if (d.action === 'blocked_ext') {
-        stats.blocked++;
-      } else if (d.action === 'unmatched_unit' || d.action === 'unmatched_contract') {
-        stats.unmatched++;
-      } else if (d.action === 'create' || d.action === 'update_content') {
-        if (!args.dryRun && sourceFile) {
-          uploadQueue.push({ ...d, fullPath: sourceFile.legacySourcePath, mimeType: sourceFile.mimeType, sizeBytes: sourceFile.sizeBytes, mtimeMs: sourceFile.mtimeMs, sha256Hash: sourceFile.sha256Hash });
-        }
+    try {
+      const manifest = [];
+      for (const f of slice) {
+        const sha256Hash = await computeFileSha256(f.fullPath);
+        manifest.push({
+          unitFolderName: f.unitFolderName,
+          pathSegmentsFromUnit: f.pathSegmentsFromUnit,
+          fileName: f.fileName,
+          legacySourcePath: f.fullPath,
+          mimeType: guessMime(f.fileName),
+          sizeBytes: f.sizeBytes,
+          mtimeMs: f.mtimeMs,
+          sha256Hash,
+        });
       }
-    }
 
-    if (!args.dryRun && uploadQueue.length > 0) {
-      const committedItems = [];
-      let cursor = 0;
-      const workers = Array.from({ length: Math.min(args.concurrency, uploadQueue.length) }, async () => {
-        while (cursor < uploadQueue.length) {
-          const item = uploadQueue[cursor++];
-          try {
-            if (item.uploadMode === 'r2_multipart') {
-              await uploadMultipartPresigned(item);
-              committedItems.push({ itemId: item.itemId, storageUri: item.storageUri, success: true });
-            } else if (item.uploadMode === 'r2_presigned' && item.presignedPutUrl) {
-              await withRetry(() => uploadSinglePresigned(item.presignedPutUrl, item.fullPath, item.mimeType));
-              committedItems.push({ itemId: item.itemId, storageUri: item.storageUri, success: true });
-            } else {
-              await withRetry(() => uploadFallbackToServer(item.itemId, item.fullPath, item.mimeType));
-            }
-            if (item.action === 'update_content') stats.updatedContent++;
+      const diffRes = await apiJson(\`/api/migration/batches/\${CONFIG.batchId}/manifest-diff\`, 'POST', {
+        sourceRootPath: rootDir,
+        dryRun: args.dryRun,
+        fallbackUnitId: explicitUnit?.id || matchUnitForFolder(path.basename(rootDir), unitsList)?.id,
+        files: manifest,
+      });
+      if (!Array.isArray(diffRes?.decisions)) {
+        throw new Error('Resposta inesperada de /manifest-diff: lista de decisões ausente.');
+      }
+
+      const uploadQueue = [];
+      for (const d of diffRes.decisions) {
+        const sourceFile = manifest.find((m) => m.legacySourcePath === d.legacySourcePath);
+        if (d.action === 'unchanged') {
+          stats.deduplicated++;
+          if (sourceFile) checkpoint[sourceFile.legacySourcePath] = { sizeBytes: sourceFile.sizeBytes, mtimeMs: sourceFile.mtimeMs, sha256Hash: sourceFile.sha256Hash };
+        } else if (d.action === 'update_path') {
+          stats.updatedPath++;
+          if (sourceFile) checkpoint[sourceFile.legacySourcePath] = { sizeBytes: sourceFile.sizeBytes, mtimeMs: sourceFile.mtimeMs, sha256Hash: sourceFile.sha256Hash };
+        } else if (d.action === 'blocked_ext') {
+          stats.blocked++;
+        } else if (d.action === 'unmatched_unit' || d.action === 'unmatched_contract') {
+          stats.unmatched++;
+        } else if (d.action === 'create' || d.action === 'update_content') {
+          if (args.dryRun) {
+            if (d.action === 'update_content') stats.updatedContent++;
             else stats.created++;
-            checkpoint[item.fullPath] = { sizeBytes: item.sizeBytes, mtimeMs: item.mtimeMs, sha256Hash: item.sha256Hash };
-          } catch (err) {
-            stats.failed++;
-            committedItems.push({ itemId: item.itemId, success: false, errorMessage: err instanceof Error ? err.message : String(err) });
+          } else if (d.deduplicatedInstant) {
+            if (d.action === 'update_content') stats.updatedContent++;
+            else stats.created++;
+            if (sourceFile) checkpoint[sourceFile.legacySourcePath] = { sizeBytes: sourceFile.sizeBytes, mtimeMs: sourceFile.mtimeMs, sha256Hash: sourceFile.sha256Hash };
+          } else if (sourceFile) {
+            uploadQueue.push({ ...d, fullPath: sourceFile.legacySourcePath, mimeType: sourceFile.mimeType, sizeBytes: sourceFile.sizeBytes, mtimeMs: sourceFile.mtimeMs, sha256Hash: sourceFile.sha256Hash });
           }
         }
-      });
-      await Promise.all(workers);
-
-      const needCommit = committedItems.filter((c) => c.storageUri || !c.success);
-      if (needCommit.length > 0) {
-        await apiJson(\`/api/migration/batches/\${CONFIG.batchId}/commit-items\`, 'POST', { items: needCommit });
       }
-    }
 
-    if (!args.dryRun) {
-      fs.writeFileSync(checkpointPath, JSON.stringify(checkpoint));
+      if (!args.dryRun && uploadQueue.length > 0) {
+        const committedItems = [];
+        let cursor = 0;
+        const workers = Array.from({ length: Math.min(args.concurrency, uploadQueue.length) }, async () => {
+          while (cursor < uploadQueue.length) {
+            const item = uploadQueue[cursor++];
+            try {
+              if (item.uploadMode === 'r2_multipart') {
+                await uploadMultipartPresigned(item);
+                committedItems.push({ itemId: item.itemId, storageUri: item.storageUri, success: true });
+              } else if (item.uploadMode === 'r2_presigned' && item.presignedPutUrl) {
+                await withRetry(() => uploadSinglePresigned(item.presignedPutUrl, item.fullPath, item.mimeType));
+                committedItems.push({ itemId: item.itemId, storageUri: item.storageUri, success: true });
+              } else {
+                await withRetry(() => uploadFallbackToServer(item.itemId, item.fullPath, item.mimeType));
+              }
+              if (item.action === 'update_content') stats.updatedContent++;
+              else stats.created++;
+              checkpoint[item.fullPath] = { sizeBytes: item.sizeBytes, mtimeMs: item.mtimeMs, sha256Hash: item.sha256Hash };
+            } catch (err) {
+              stats.failed++;
+              committedItems.push({ itemId: item.itemId, success: false, errorMessage: err instanceof Error ? err.message : String(err) });
+            }
+          }
+        });
+        await Promise.all(workers);
+
+        const needCommit = committedItems.filter((c) => c.storageUri || !c.success);
+        if (needCommit.length > 0) {
+          await apiJson(\`/api/migration/batches/\${CONFIG.batchId}/commit-items\`, 'POST', { items: needCommit });
+        }
+      }
+
+      if (!args.dryRun) {
+        fs.writeFileSync(checkpointPath, JSON.stringify(checkpoint));
+      }
+    } catch (chunkErr) {
+      if (chunkErr?.noRetry) throw chunkErr;
+      stats.failed += slice.length;
+      console.error(\`[Aviso Lote \${offset}] Falha no bloco após retentativas (continuando próximos blocos): \${chunkErr?.message || chunkErr}\`);
     }
     const processed = Math.min(offset + slice.length, filesToProcess.length);
-    console.log(\`[Progresso] \${processed}/\${filesToProcess.length} | Novos: \${stats.created} · Atualizados: \${stats.updatedContent} · Pastas movidas: \${stats.updatedPath} · Deduplicados: \${stats.deduplicated} · Pend. vínculo: \${stats.unmatched} · Bloq: \${stats.blocked}\`);
+    const prefix = args.dryRun ? '[Simulação --dry-run]' : '[Progresso]';
+    console.log(\`\${prefix} \${processed}/\${filesToProcess.length} | Novos: \${stats.created} · Atualizados: \${stats.updatedContent} · Pastas movidas: \${stats.updatedPath} · Deduplicados: \${stats.deduplicated} · Pend. vínculo: \${stats.unmatched} · Bloq: \${stats.blocked} · Falhas: \${stats.failed}\`);
   }
 
   if (!args.dryRun) {
@@ -370,7 +487,7 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error('[Erro Fatal]', err);
+  console.error('[Erro Fatal]', err?.message || err);
   process.exit(1);
 });
 `;
@@ -379,22 +496,41 @@ main().catch((err) => {
 export function buildWindowsBatchLauncher(params: {
   scriptFileName: string;
   batchCode: string;
+  defaultRootDir?: string;
 }): string {
+  const cleanDefaultDir = String(params.defaultRootDir || '')
+    .trim()
+    .replace(/[\\/]+$/, '');
   return `@echo off
+chcp 65001 >nul
 setlocal
 echo ============================================================================
 echo   Invicta / FinancePro - Agente de Migracao 64GB -> Cloudflare R2
 echo   Lote: ${params.batchCode}
 echo ============================================================================
-set /p ROOT_DIR="Informe o caminho completo da pasta raiz das Unidades (ex: D:\\Dados_Unidades): "
+${
+  cleanDefaultDir
+    ? `set "ROOT_DIR=${cleanDefaultDir}"
+echo Pasta padrao configurada: %ROOT_DIR%
+set /p CUSTOM_DIR="Pressione ENTER para usar esta pasta ou digite outro caminho raiz: "
+if not "%CUSTOM_DIR%"=="" set "ROOT_DIR=%CUSTOM_DIR%"`
+    : `set /p ROOT_DIR="Informe o caminho completo da pasta-mae das Unidades (ex: W:\\Invicta4\\Convertidos\\Invicta0910260919): "`
+}
+set "ROOT_DIR=%ROOT_DIR:"=%"
 if "%ROOT_DIR%"=="" (
   echo Caminho nao informado.
   pause
   exit /b 1
 )
+if "%ROOT_DIR:~-1%"=="\\" set "ROOT_DIR=%ROOT_DIR:~0,-1%"
 node "%~dp0${params.scriptFileName}" --dir "%ROOT_DIR%" --concurrency 6
 echo.
-echo Processo finalizado! Confira o Painel Web para emitir os Codigos Seguros Integrativos.
+if errorlevel 1 (
+  echo [ATENCAO] O envio via terminal foi interrompido. Se exibiu "[BLOQUEIO PROXY HTML]",
+  echo utilize o botao "Selecionar Pasta de Origem e Enviar" diretamente no navegador autenticado.
+) else (
+  echo Processo finalizado! Confira o progresso e os Codigos Integrativos no Painel Web.
+)
 pause
 `;
 }

@@ -187,6 +187,7 @@ const MODULE_KEY_ALIASES: Record<string, string[]> = {
   forms: ['forms', 'formularios', 'analises'],
   reports: ['reports', 'relatorios', 'relatorios_gerais'],
   config: ['config', 'administracao'],
+  unit_files: ['unit_files', 'arquivos_unidade'],
   training_docs: ['training_docs', 'treinamento', 'documentacao'],
 };
 
@@ -217,6 +218,8 @@ export interface AuthRequest extends Request {
     mustChangePassword: boolean;
     points: number;
     modulePermissions: Record<string, boolean>;
+    documentPermissionOverrides?: import('../db/schema.ts').DocumentPermissionUserOverrides;
+    groupDocumentPermissions?: import('../db/schema.ts').DocumentPermissionGroupMatrix | null;
   };
   activeUnitId?: number;
   scheduleWarning?: ScheduleClosingWarning | null;
@@ -470,9 +473,11 @@ export const requireAuth = async (req: AuthRequest, res: Response, next: NextFun
     }
 
     let modulePermissions: Record<string, boolean> = {};
+    let groupDocumentPermissions: import('../db/schema.ts').DocumentPermissionGroupMatrix | null = null;
     if (dbUser.groupId) {
       const grp = await db.select().from(userGroups).where(eq(userGroups.id, dbUser.groupId)).limit(1);
       modulePermissions = normalizeModulePermissions(grp[0]?.modulePermissions);
+      groupDocumentPermissions = grp[0]?.documentPermissions || null;
     }
 
     req.authUser = {
@@ -487,6 +492,8 @@ export const requireAuth = async (req: AuthRequest, res: Response, next: NextFun
       mustChangePassword: dbUser.mustChangePassword,
       points: dbUser.points,
       modulePermissions,
+      documentPermissionOverrides: dbUser.documentPermissionOverrides || {},
+      groupDocumentPermissions,
     };
     req.activeUnitId = activeUnitId;
     req.scheduleWarning = scheduleCheck.closingWarning || null;

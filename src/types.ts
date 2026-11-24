@@ -16,6 +16,7 @@ export type ModuleId =
   | 'legal'
   | 'negotiations'
   | 'internal_messaging'
+  | 'whatsapp_messaging'
   | 'finance'
   | 'finance_cadastros'
   | 'finance_cad_fornecedores'
@@ -56,6 +57,8 @@ export interface NavigationIntent {
   unitId?: number;
   highlightMovementId?: number;
   titleId?: number;
+  returnToModule?: ModuleId;
+  returnClientId?: number;
 }
 
 export interface Unit {
@@ -78,6 +81,57 @@ export interface Unit {
   active: boolean;
 }
 
+export interface DocumentActionPermissionSet {
+  view: boolean;
+  print: boolean;
+  download: boolean;
+  edit: boolean;
+  delete: boolean;
+}
+
+export interface DocumentPermissionGroupMatrix {
+  unitFiles: DocumentActionPermissionSet;
+  clientDocs: DocumentActionPermissionSet;
+}
+
+export type PermissionTriState = 'inherit' | 'allow' | 'deny';
+
+export interface DocumentActionOverrideSet {
+  view?: PermissionTriState;
+  print?: PermissionTriState;
+  download?: PermissionTriState;
+  edit?: PermissionTriState;
+  delete?: PermissionTriState;
+}
+
+export interface DocumentPermissionUserOverrides {
+  unitFiles?: DocumentActionOverrideSet;
+  clientDocs?: DocumentActionOverrideSet;
+}
+
+export interface UserDocPermissionSummary {
+  canBrowseUnitFiles: boolean;
+  unitFiles: DocumentActionPermissionSet;
+  clientDocs: DocumentActionPermissionSet;
+}
+
+export interface FolderPermissionRule {
+  id: number;
+  unitId: number;
+  scope: 'unit' | 'client' | 'all' | string;
+  folderPrefix: string;
+  targetType: 'group' | 'user' | string;
+  targetId: number;
+  canView: PermissionTriState;
+  canPrint: PermissionTriState;
+  canDownload: PermissionTriState;
+  canEdit: PermissionTriState;
+  canDelete: PermissionTriState;
+  createdBy: string;
+  updatedAt: string;
+  createdAt: string;
+}
+
 export interface AuthUser {
   id: number;
   uid: string;
@@ -89,6 +143,7 @@ export interface AuthUser {
   allowedUnitIds: number[];
   mustChangePassword: boolean;
   points: number;
+  documentPermissionOverrides?: DocumentPermissionUserOverrides;
 }
 
 export interface UserGroup {
@@ -97,6 +152,7 @@ export interface UserGroup {
   description: string;
   modulePermissions: Record<string, boolean>;
   fieldPermissions: Record<string, Record<string, 'edit' | 'read' | 'hidden'>>;
+  documentPermissions?: DocumentPermissionGroupMatrix;
 }
 
 export interface Client {
@@ -344,8 +400,14 @@ export interface Admission {
 
 export interface DocumentObject {
   id: number;
-  clientId: number;
+  clientId: number | null;
   admissionId: number | null;
+  scope?: 'client' | 'unit' | string;
+  unitFolderPath?: string;
+  relativeSubpath?: string;
+  isInterlinked?: boolean;
+  integrativeCode?: string | null;
+  versionNumber?: number;
   folderPath: string;
   fileName: string;
   docCategory: string;
@@ -358,6 +420,20 @@ export interface DocumentObject {
   deletedAt?: string | null;
   deletedBy?: string | null;
   createdAt: string;
+  effectivePermissions?: DocumentActionPermissionSet;
+}
+
+export interface UnitFileEntry extends DocumentObject {
+  unitCode?: string | null;
+  unitName?: string | null;
+  treeNodePath?: string | null;
+  treeBranch?: 'unit' | 'clients' | 'interlinked' | string;
+  clientName?: string | null;
+  clientCpfCnpj?: string | null;
+  contractNumber?: string | null;
+  protocolCode?: string | null;
+  admissionIntegrativeCode?: string | null;
+  effectivePermissions: DocumentActionPermissionSet;
 }
 
 export interface RecalcScenario {
@@ -963,6 +1039,7 @@ export interface WhatsappThread {
   gotalkContactId?: string | null;
   gotalkAttendanceId?: string | null;
   uazapiInstanceId?: string | null;
+  channelDbId?: number | null;
   operatorName?: string | null;
   department?: string | null;
   assignedOperatorId?: number | null;
@@ -985,6 +1062,9 @@ export interface WhatsappMessage {
   mediaStorageUri?: string | null;
   iviAudioTranscript: string | null;
   ackStatus?: number | null;
+  deliveryProvider?: string | null;
+  deliveryStatus?: string | null;
+  deliveryDetail?: string | null;
   deletedInOrigin?: boolean;
   operatorName?: string | null;
   department?: string | null;
@@ -1049,7 +1129,10 @@ export interface UazapiInstancePublic {
 export interface UazapiStatus {
   configured: boolean;
   envConfigured?: boolean;
+  adminTokenConfigured?: boolean;
+  source?: 'database' | 'env' | 'none';
   serverUrl: string;
+  defaultServerUrl?: string;
   encryptionKeyDedicated?: boolean;
   webhookSecretConfigured?: boolean;
   instancesCount: number;
@@ -1109,6 +1192,7 @@ export interface ConfigUserItem {
   groupId: number | null;
   defaultUnitId: number | null;
   allowedUnitIds: number[];
+  documentPermissionOverrides?: DocumentPermissionUserOverrides;
   whatsappPhone: string;
   active: boolean;
   points: number;

@@ -10,17 +10,22 @@ import {
   Download,
   Edit3,
   FileSpreadsheet,
+  FolderOpen,
   HardDrive,
   History,
   KeyRound,
+  Lock,
   MessageSquare,
   Palette,
   Play,
   Plus,
   QrCode,
   Shield,
+  ShieldAlert,
   Sliders,
+  Sparkles,
   Trash2,
+  Upload,
   X,
 } from 'lucide-react';
 import { apiFetch, getActiveUnitHeader, getAuthToken } from '../../lib/api.ts';
@@ -34,6 +39,8 @@ import {
   GotalkOperatorPublic,
   HelpCenterTopic,
   ModalityItem,
+  ModuleId,
+  NavigationIntent,
   PortalBrandingConfig,
   UazapiInstancePublic,
   UazapiStatus,
@@ -56,15 +63,26 @@ import {
 import { ConfigDataHubView } from './config/ConfigDataHubView.tsx';
 import { ConfigR2MigrationView } from './config/ConfigR2MigrationView.tsx';
 import { ConfigBackupRestoreView } from './config/ConfigBackupRestoreView.tsx';
+import { ConfigUnitFilesView } from './config/ConfigUnitFilesView.tsx';
+import {
+  ProductionModeBannerCard,
+  ProductionModeConfirmModal,
+  ProductionModeStatusData,
+} from './config/ConfigProductionModeView.tsx';
 
 interface ConfigModuleProps {
   currentUser: AuthUser;
   wsTick?: number;
   initialTab?: ConfigTab | string;
+  hasFullConfigAccess?: boolean;
+  canBrowseUnitFiles?: boolean;
+  unitsFallback?: Unit[];
   onUnitsUpdated: () => void;
   onBrandingUpdated?: (branding: PortalBrandingConfig) => void;
+  onNavigate?: (mod: ModuleId, intent?: NavigationIntent) => void;
   onGoBack?: () => void;
   previousScreenLabel?: string;
+  onActiveTabChange?: (tab: string) => void;
 }
 
 type ConfigTab =
@@ -79,6 +97,7 @@ type ConfigTab =
   | 'branding'
   | 'ai_regua'
   | 'import'
+  | 'unit_files'
   | 'r2_migration'
   | 'backup_restore'
   | 'sql';
@@ -108,14 +127,26 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
   currentUser,
   wsTick,
   initialTab,
+  hasFullConfigAccess,
+  canBrowseUnitFiles,
+  unitsFallback,
   onUnitsUpdated,
   onBrandingUpdated,
+  onNavigate,
   onGoBack,
   previousScreenLabel,
+  onActiveTabChange,
 }) => {
   const isAdmin = currentUser.role === 'admin';
+  const fullConfigAllowed = isAdmin || hasFullConfigAccess !== false;
+  const unitFilesAllowed = isAdmin || fullConfigAllowed || canBrowseUnitFiles === true;
+
   const resolvedInitialTab: ConfigTab =
-    initialTab === 'backup_restore' && isAdmin
+    initialTab === 'unit_files' && unitFilesAllowed
+      ? 'unit_files'
+      : !fullConfigAllowed && unitFilesAllowed
+      ? 'unit_files'
+      : initialTab === 'backup_restore' && isAdmin
       ? 'backup_restore'
       : initialTab === 'r2_migration' && isAdmin
       ? 'r2_migration'
@@ -127,9 +158,28 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
   const tabRef = React.useRef<ConfigTab>(resolvedInitialTab);
 
   useEffect(() => {
-    if (!initialTab) return;
+    onActiveTabChange?.(tab);
+  }, [tab, onActiveTabChange]);
+
+  useEffect(() => {
+    if (!initialTab) {
+      if (!fullConfigAllowed && unitFilesAllowed && tabRef.current !== 'unit_files') {
+        tabRef.current = 'unit_files';
+        setTab('unit_files');
+      }
+      return;
+    }
+    if (!fullConfigAllowed) {
+      if (unitFilesAllowed) {
+        tabRef.current = 'unit_files';
+        setTab('unit_files');
+        setTabHistory([]);
+      }
+      return;
+    }
     if (initialTab === 'backup_restore' && !isAdmin) return;
     if ((initialTab === 'r2_migration' || initialTab === 'sql') && !isAdmin) return;
+    if (initialTab === 'unit_files' && !unitFilesAllowed) return;
     const validTabs: ConfigTab[] = [
       'units',
       'uazapi',
@@ -142,6 +192,7 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
       'branding',
       'ai_regua',
       'import',
+      'unit_files',
       'r2_migration',
       'backup_restore',
       'sql',
@@ -151,7 +202,7 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
       setTab(initialTab as ConfigTab);
       setTabHistory([]);
     }
-  }, [initialTab, isAdmin]);
+  }, [initialTab, isAdmin, fullConfigAllowed, unitFilesAllowed]);
 
   const switchTab = useCallback((nextTab: ConfigTab) => {
     const curr = tabRef.current;
@@ -277,12 +328,35 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
   const [toast, setToast] = useState('');
   const [busy, setBusy] = useState(false);
   const [routineAuditOpen, setRoutineAuditOpen] = useState(false);
+  const [productionStatus, setProductionStatus] = useState<ProductionModeStatusData | null>(null);
+  const [productionLoading, setProductionLoading] = useState(false);
+  const [productionModalOpen, setProductionModalOpen] = useState(false);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
   }, []);
 
+  const loadProductionStatus = useCallback(async () => {
+    if (!isAdmin) return;
+    setProductionLoading(true);
+    try {
+      const data = await apiFetch<ProductionModeStatusData>('/api/admin/production-mode/status');
+      setProductionStatus(data);
+    } catch {
+      // ignore non-fatal status read error
+    } finally {
+      setProductionLoading(false);
+    }
+  }, [isAdmin]);
+
   const loadAll = useCallback(async () => {
+    if (!fullConfigAllowed) {
+      if (unitsFallback && unitsFallback.length > 0) {
+        setUnits(unitsFallback);
+      }
+      return;
+    }
+
     const [cfg, gov] = await Promise.all([
       apiFetch<{
         units: Unit[];
@@ -354,11 +428,12 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
     setHelpTopics(gov.helpTopics || []);
     setModalities(gov.modalities || []);
     setCollaborators(gov.collaborators || []);
-  }, []);
+  }, [fullConfigAllowed, unitsFallback]);
 
   useEffect(() => {
     loadAll();
-  }, [loadAll]);
+    loadProductionStatus();
+  }, [loadAll, loadProductionStatus, wsTick]);
 
   const handleSaveSchedule = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -565,22 +640,28 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
     }
   };
 
-  const tabs: Array<{ id: ConfigTab; label: string; icon: React.FC<{ className?: string }> }> = [
-    { id: 'units', label: 'Unidades & Custos', icon: Building2 },
-    { id: 'uazapi', label: 'WhatsApp UaZapi & Grupos', icon: QrCode },
-    { id: 'gotalk', label: 'Mensagens & Canais GoTalk', icon: MessageSquare },
-    { id: 'groups', label: 'Grupos, Usuários & RBAC', icon: Shield },
-    { id: 'audit_checklist', label: 'Checklist & Auditoria', icon: ClipboardCheck },
-    { id: 'schedules', label: 'Quadro de Horários', icon: Clock },
-    { id: 'fields_categories', label: 'Campos & Categorias', icon: Sliders },
-    { id: 'help_center', label: 'Central de Ajuda', icon: BookOpen },
-    { id: 'branding', label: 'Portal & Identidade', icon: Palette },
-    { id: 'ai_regua', label: 'IA Ivi & Régua', icon: KeyRound },
-    { id: 'import', label: 'Modelos & Importação Excel', icon: FileSpreadsheet },
-    ...(isAdmin ? [{ id: 'r2_migration' as ConfigTab, label: 'Migração R2 (64 GB)', icon: CloudUpload }] : []),
-    ...(isAdmin ? [{ id: 'backup_restore' as ConfigTab, label: 'Backup & Restore (Google Drive)', icon: HardDrive }] : []),
-    ...(isAdmin ? [{ id: 'sql' as ConfigTab, label: 'Console SQL Admin', icon: Database }] : []),
-  ];
+  const tabs: Array<{ id: ConfigTab; label: string; icon: React.FC<{ className?: string }> }> =
+    fullConfigAllowed
+      ? [
+          { id: 'units', label: 'Unidades & Custos', icon: Building2 },
+          { id: 'uazapi', label: 'WhatsApp UaZapi & Grupos', icon: QrCode },
+          { id: 'gotalk', label: 'Mensagens & Canais GoTalk', icon: MessageSquare },
+          { id: 'groups', label: 'Grupos, Usuários & RBAC', icon: Shield },
+          { id: 'audit_checklist', label: 'Checklist & Auditoria', icon: ClipboardCheck },
+          { id: 'schedules', label: 'Quadro de Horários', icon: Clock },
+          { id: 'fields_categories', label: 'Campos & Categorias', icon: Sliders },
+          { id: 'help_center', label: 'Central de Ajuda', icon: BookOpen },
+          { id: 'branding', label: 'Portal & Identidade', icon: Palette },
+          { id: 'ai_regua', label: 'IA Ivi & Régua', icon: KeyRound },
+          { id: 'import', label: 'Modelos & Importação Excel', icon: FileSpreadsheet },
+          ...(unitFilesAllowed ? [{ id: 'unit_files' as ConfigTab, label: 'Arquivos da Unidade', icon: FolderOpen }] : []),
+          ...(isAdmin ? [{ id: 'r2_migration' as ConfigTab, label: 'Migração R2 (64 GB)', icon: CloudUpload }] : []),
+          ...(isAdmin ? [{ id: 'backup_restore' as ConfigTab, label: 'Backup & Restore (Google Drive)', icon: HardDrive }] : []),
+          ...(isAdmin ? [{ id: 'sql' as ConfigTab, label: 'Console SQL Admin', icon: Database }] : []),
+        ]
+      : unitFilesAllowed
+      ? [{ id: 'unit_files' as ConfigTab, label: 'Arquivos da Unidade', icon: FolderOpen }]
+      : [];
 
   const dayNames: Record<number, string> = {
     1: 'Seg',
@@ -597,21 +678,68 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4 dark:border-slate-700">
         <div>
           <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-            Governança Corporativa · Unidades &amp; Custos · Canais Multi-Grupo UaZapi &amp; GoTalk · RBAC · Checklist Condicional · Identidade Visual
+            {fullConfigAllowed
+              ? 'Governança Corporativa · Unidades & Custos · Canais Multi-Grupo UaZapi & GoTalk · RBAC · Arquivos da Unidade'
+              : 'Governança Corporativa · Repositório Geral & Subpastas Autorizadas por Unidade'}
           </p>
           <h1 className="mt-1 font-display text-2xl font-bold text-slate-900 dark:text-slate-100">
-            Configurações Corporativas &amp; Segurança
+            {fullConfigAllowed ? 'Configurações Corporativas & Segurança' : 'Arquivos da Unidade'}
           </h1>
         </div>
         <div className="flex flex-wrap items-center gap-2 self-start sm:self-center shrink-0">
-          <button
-            type="button"
-            onClick={() => setRoutineAuditOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 min-h-[38px]"
-          >
-            <History className="w-3.5 h-3.5" />
-            <span>Auditoria</span>
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => {
+                loadProductionStatus();
+                setProductionModalOpen(true);
+              }}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold shadow-xs min-h-[38px] ${
+                productionStatus?.locked
+                  ? 'border border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                  : 'bg-rose-600 text-white hover:bg-rose-700'
+              }`}
+            >
+              {productionStatus?.locked ? (
+                <Lock className="w-3.5 h-3.5" />
+              ) : (
+                <ShieldAlert className="w-3.5 h-3.5" />
+              )}
+              <span>
+                {productionStatus?.locked
+                  ? 'Modo Produção Ativo (Travado)'
+                  : 'Limpar Dados Fictícios / Modo Produção'}
+              </span>
+            </button>
+          )}
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => {
+                switchTab('import');
+                setTimeout(() => {
+                  document.getElementById('ivi-folha-rosto-500mb-card')?.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start',
+                  });
+                }, 80);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800 shadow-xs min-h-[38px]"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Ivi · Importar PDF Folhas de Rosto (500 MB)</span>
+            </button>
+          )}
+          {fullConfigAllowed && (
+            <button
+              type="button"
+              onClick={() => setRoutineAuditOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 min-h-[38px]"
+            >
+              <History className="w-3.5 h-3.5" />
+              <span>Auditoria</span>
+            </button>
+          )}
           {(tabHistory.length > 0 || onGoBack) && (
             <button
               type="button"
@@ -1213,7 +1341,38 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
 
       {/* 10. CADEIA IA IVI & PARÂMETROS DA RÉGUA */}
       {tab === 'ai_regua' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+        <div className="space-y-4 text-xs">
+          {isAdmin && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 dark:border-emerald-800/70 dark:bg-emerald-950/40">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 font-display text-sm font-bold text-emerald-900 dark:text-emerald-200">
+                  <Sparkles className="w-4 h-4" />
+                  Leitura &amp; Importação Ivi de Folhas de Rosto em PDF (até 500 MB)
+                </div>
+                <p className="text-emerald-800/90 dark:text-emerald-300">
+                  Envie arquivos <strong>PDF (.pdf)</strong> de até 500 MB (ou planilhas .xlsx/.csv) para que a Ivi compare com <strong>Folha de Rosto - Veículo</strong> e <strong>Folha de Rosto - Cartão de Crédito</strong> e cadastre Clientes, Titulares, Bancos, Colaboradores e Admissões.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  switchTab('import');
+                  setTimeout(() => {
+                    document.getElementById('ivi-folha-rosto-500mb-card')?.scrollIntoView({
+                      behavior: 'smooth',
+                      block: 'start',
+                    });
+                  }, 80);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-4 py-2 font-semibold text-white hover:bg-emerald-800 whitespace-nowrap shrink-0"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                Abrir Importação PDF Ivi (500 MB)
+              </button>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 dark:border-slate-700 dark:bg-slate-900">
             <h3 className="font-display text-sm font-bold text-slate-900 dark:text-slate-100">
               Cadeia de Fallback IA — Agente Ivi
@@ -1253,6 +1412,7 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
             <pre className="rounded-lg bg-slate-900 text-slate-100 p-3 font-mono text-[11px] overflow-x-auto max-h-64 dark:bg-slate-950 dark:border-slate-700">
               {JSON.stringify(settings, null, 2)}
             </pre>
+          </div>
           </div>
         </div>
       )}
@@ -1353,6 +1513,19 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
         />
       )}
 
+      {/* 11A. ARQUIVOS DA UNIDADE & PERMISSÕES GRANULARES */}
+      {tab === 'unit_files' && unitFilesAllowed && (
+        <ConfigUnitFilesView
+          currentUser={currentUser}
+          units={units.length > 0 ? units : unitsFallback || []}
+          groups={groups}
+          usersList={usersList}
+          wsTick={wsTick}
+          onToast={showToast}
+          onNavigate={onNavigate}
+        />
+      )}
+
       {/* 11B. MIGRAÇÃO R2 (64 GB) & CÓDIGO SEGURO INTEGRATIVO */}
       {tab === 'r2_migration' && isAdmin && (
         <ConfigR2MigrationView wsTick={wsTick} onToast={showToast} />
@@ -1372,6 +1545,17 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
 
       {/* 12. ADMIN POSTGRESQL SQL CONSOLE */}
       {tab === 'sql' && isAdmin && (
+        <div className="space-y-4">
+          <ProductionModeBannerCard
+            status={productionStatus}
+            loading={productionLoading}
+            onRefresh={loadProductionStatus}
+            onOpenModal={() => {
+              loadProductionStatus();
+              setProductionModalOpen(true);
+            }}
+          />
+
         <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4 dark:border-slate-700 dark:bg-slate-900">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
@@ -1478,6 +1662,22 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
             </div>
           )}
         </div>
+        </div>
+      )}
+
+      {/* Modal de Limpeza Definitiva / Modo Produção */}
+      {isAdmin && (
+        <ProductionModeConfirmModal
+          open={productionModalOpen}
+          status={productionStatus}
+          onClose={() => setProductionModalOpen(false)}
+          onToast={showToast}
+          onActivated={async (nextStatus) => {
+            setProductionStatus(nextStatus);
+            await loadAll();
+            onUnitsUpdated();
+          }}
+        />
       )}
 
       {/* Modal Global de Pareamento QR Code UaZapi */}
@@ -1503,6 +1703,7 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
           branding: { entityType: 'system_settings', title: 'Portal & Identidade Visual' },
           ai_regua: { entityType: 'system_settings', title: 'IA Ivi & Régua' },
           import: { entityType: 'clients,admissions,legal_processes', title: 'Importação & Exportação' },
+          unit_files: { entityType: 'document_objects,folder_permission_rules', title: 'Arquivos da Unidade' },
           r2_migration: { entityType: 'vault_migration_items,document_objects', title: 'Migração R2' },
           backup_restore: { entityType: 'backup_schedules,backup_executions', title: 'Backup & Restore (Google Drive)' },
           sql: { entityType: 'all', title: 'Auditoria Global & Console SQL' },

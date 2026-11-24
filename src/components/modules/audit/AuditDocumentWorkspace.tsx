@@ -16,10 +16,8 @@ import {
 } from 'lucide-react';
 import { apiFetch, formatBytes, formatDateTimeBR, getAuthToken } from '../../../lib/api.ts';
 import { useTheme } from '../../../lib/theme.tsx';
-import {
-  DossierDocumentPreviewModal,
-  ThemedDocumentContent,
-} from '../../DossierDocumentViewer.tsx';
+import { ProtectedDocumentViewerModal } from '../../common/ProtectedDocumentViewerModal.tsx';
+import { ThemedDocumentContent } from '../../DossierDocumentViewer.tsx';
 import { DocumentObject, IviDocumentInspectionResult } from '../../../types.ts';
 
 interface AuditDocumentWorkspaceProps {
@@ -78,9 +76,6 @@ export const AuditDocumentWorkspace: React.FC<AuditDocumentWorkspaceProps> = ({
   const [previewError, setPreviewError] = useState('');
   const [zoomPct, setZoomPct] = useState(100);
   const [fullViewDoc, setFullViewDoc] = useState<DocumentObject | null>(null);
-  const [fullViewBlobUrl, setFullViewBlobUrl] = useState('');
-  const [fullViewLoading, setFullViewLoading] = useState(false);
-  const [fullViewError, setFullViewError] = useState('');
 
   const [uploadCategory, setUploadCategory] = useState('comprovante');
   const [uploading, setUploading] = useState(false);
@@ -173,49 +168,6 @@ export const AuditDocumentWorkspace: React.FC<AuditDocumentWorkspaceProps> = ({
     a.remove();
     URL.revokeObjectURL(url);
   };
-
-  useEffect(() => {
-    let active = true;
-    let createdUrl = '';
-    if (!fullViewDoc) {
-      setFullViewBlobUrl('');
-      setFullViewError('');
-      setFullViewLoading(false);
-      return;
-    }
-    if (selectedDoc?.id === fullViewDoc.id && previewUrl) {
-      setFullViewBlobUrl(previewUrl);
-      setFullViewError(previewError);
-      setFullViewLoading(previewLoading);
-      return;
-    }
-    setFullViewLoading(true);
-    setFullViewError('');
-    setFullViewBlobUrl('');
-    const token = getAuthToken();
-    fetch(`/api/documents/${fullViewDoc.id}/download?preview=1`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const blob = await res.blob();
-        if (!active) return;
-        createdUrl = URL.createObjectURL(blob);
-        setFullViewBlobUrl(createdUrl);
-      })
-      .catch((err) => {
-        if (active) {
-          setFullViewError(err instanceof Error ? err.message : 'Falha ao abrir documento.');
-        }
-      })
-      .finally(() => {
-        if (active) setFullViewLoading(false);
-      });
-    return () => {
-      active = false;
-      if (createdUrl) URL.revokeObjectURL(createdUrl);
-    };
-  }, [fullViewDoc, selectedDoc?.id, previewUrl, previewError, previewLoading]);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -400,25 +352,29 @@ export const AuditDocumentWorkspace: React.FC<AuditDocumentWorkspaceProps> = ({
                     </button>
 
                     <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedDocId(doc.id);
-                          setFullViewDoc(doc);
-                        }}
-                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 min-h-[34px] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        Visualizar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDownload(doc)}
-                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 min-h-[34px] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                        Baixar
-                      </button>
+                      {doc.effectivePermissions?.view !== false && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedDocId(doc.id);
+                            setFullViewDoc(doc);
+                          }}
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 min-h-[34px] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          Visualizar
+                        </button>
+                      )}
+                      {doc.effectivePermissions?.download !== false && (
+                        <button
+                          type="button"
+                          onClick={() => handleDownload(doc)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 min-h-[34px] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          Baixar
+                        </button>
+                      )}
                       <button
                         type="button"
                         disabled={inspectingDocId === doc.id}
@@ -512,6 +468,26 @@ export const AuditDocumentWorkspace: React.FC<AuditDocumentWorkspaceProps> = ({
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   Selecione um documento ao lado para conferir sem precisar sair desta tela.
                 </p>
+              ) : (selectedDoc.mimeType === 'application/pdf' ||
+                  selectedDoc.fileName.toLowerCase().endsWith('.pdf')) &&
+                (selectedDoc.effectivePermissions?.download === false ||
+                  selectedDoc.effectivePermissions?.print === false) ? (
+                <div className="p-6 text-center space-y-3 text-xs">
+                  <p className="font-semibold text-slate-800 dark:text-slate-100">
+                    Este PDF possui restrição de download/impressão.
+                  </p>
+                  <p className="text-slate-600 dark:text-slate-400">
+                    Abra no Leitor Interno Protegido (renderização segura sem barra de exportação).
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setFullViewDoc(selectedDoc)}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 dark:bg-emerald-600 px-4 py-2 font-semibold text-white hover:bg-slate-800 dark:hover:bg-emerald-500"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    Abrir Leitor Interno Protegido
+                  </button>
+                </div>
               ) : (
                 <ThemedDocumentContent
                   fileName={selectedDoc.fileName}
@@ -522,7 +498,11 @@ export const AuditDocumentWorkspace: React.FC<AuditDocumentWorkspaceProps> = ({
                   zoomPct={selectedDoc.mimeType.startsWith('image/') ? zoomPct : undefined}
                   adaptPdfToTheme={adaptPdfToTheme}
                   heightClass="h-[380px]"
-                  onDownload={() => handleDownload(selectedDoc)}
+                  onDownload={
+                    selectedDoc.effectivePermissions?.download !== false
+                      ? () => handleDownload(selectedDoc)
+                      : undefined
+                  }
                 />
               )}
             </div>
@@ -629,19 +609,19 @@ export const AuditDocumentWorkspace: React.FC<AuditDocumentWorkspaceProps> = ({
         </div>
       </div>
 
-      <DossierDocumentPreviewModal
+      <ProtectedDocumentViewerModal
         open={Boolean(fullViewDoc)}
-        title={fullViewDoc?.fileName || ''}
+        documentId={fullViewDoc?.id || null}
+        fileName={fullViewDoc?.fileName || ''}
+        mimeType={fullViewDoc?.mimeType || ''}
         subtitle={
           fullViewDoc
-            ? `${fullViewDoc.folderPath || 'bucketdainvicta'} · ${formatBytes(fullViewDoc.sizeBytes)} · ${fullViewDoc.mimeType}`
+            ? `${fullViewDoc.unitFolderPath || fullViewDoc.folderPath || 'bucketdainvicta'} · ${formatBytes(fullViewDoc.sizeBytes)} · ${fullViewDoc.mimeType}`
             : ''
         }
-        mimeType={fullViewDoc?.mimeType || ''}
-        blobUrl={fullViewBlobUrl}
-        loading={fullViewLoading}
-        errorMsg={fullViewError}
-        onDownload={fullViewDoc ? () => void handleDownload(fullViewDoc) : undefined}
+        context="client_dossier"
+        canPrint={fullViewDoc ? fullViewDoc.effectivePermissions?.print !== false : false}
+        canDownload={fullViewDoc ? fullViewDoc.effectivePermissions?.download !== false : false}
         onClose={() => setFullViewDoc(null)}
       />
     </div>

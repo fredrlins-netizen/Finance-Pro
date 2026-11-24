@@ -9,6 +9,7 @@ import {
   Eye,
   FileText,
   Filter,
+  KeyRound,
   MessageSquare,
   Phone,
   Play,
@@ -30,6 +31,7 @@ import { ConfirmDeleteModal, formatPhoneMask } from '../cadastros/CadastrosShare
 
 export interface GotalkStatusSummary {
   configured: boolean;
+  source?: 'database' | 'env' | 'none';
   webhookSecretConfigured?: boolean;
   baseUrl: string;
   authenticated: boolean;
@@ -125,6 +127,87 @@ export const ConfigGotalkView: React.FC<{
   const isAdmin = currentUser.role === 'admin';
   const [subTab, setSubTab] = useState<'messages' | 'channels' | 'menus' | 'attendances'>('messages');
   const [testingConn, setTestingConn] = useState(false);
+
+  // Credenciais Persistentes GoTalk (PostgreSQL system_settings AES-256-GCM)
+  const [credsOpen, setCredsOpen] = useState(false);
+  const [credBaseUrl, setCredBaseUrl] = useState('https://app.gotalk.digital');
+  const [credLogin, setCredLogin] = useState('');
+  const [credPassword, setCredPassword] = useState('');
+  const [credWebhookSecret, setCredWebhookSecret] = useState('');
+  const [credHasPassword, setCredHasPassword] = useState(false);
+  const [credHasWebhookSecret, setCredHasWebhookSecret] = useState(false);
+  const [credSource, setCredSource] = useState<'database' | 'env' | 'none'>('none');
+  const [credSaving, setCredSaving] = useState(false);
+  const [credErr, setCredErr] = useState('');
+
+  const loadPersistedCreds = useCallback(async () => {
+    if (!isAdmin) return;
+    try {
+      const res = await apiFetch<{
+        configured: boolean;
+        source: 'database' | 'env' | 'none';
+        baseUrl: string;
+        login: string;
+        hasPassword: boolean;
+        hasWebhookSecret: boolean;
+      }>('/api/config/gotalk/credentials', { passive: true });
+      setCredBaseUrl(res.baseUrl || 'https://app.gotalk.digital');
+      setCredLogin(res.login || '');
+      setCredHasPassword(Boolean(res.hasPassword));
+      setCredHasWebhookSecret(Boolean(res.hasWebhookSecret));
+      setCredSource(res.source || 'none');
+      setCredPassword('');
+      setCredWebhookSecret('');
+    } catch {
+      // ignore initial credential summary failure
+    }
+  }, [isAdmin]);
+
+  useEffect(() => {
+    void loadPersistedCreds();
+  }, [loadPersistedCreds]);
+
+  const handleSavePersistedCreds = async (andTest = false) => {
+    setCredErr('');
+    if (!credLogin.trim()) {
+      setCredErr('Informe o login da API GoTalk.');
+      return;
+    }
+    if (!credHasPassword && !credPassword.trim()) {
+      setCredErr('Informe a senha da API GoTalk.');
+      return;
+    }
+    setCredSaving(true);
+    try {
+      await apiFetch('/api/config/gotalk/credentials', {
+        method: 'PUT',
+        body: JSON.stringify({
+          baseUrl: credBaseUrl.trim() || 'https://app.gotalk.digital',
+          login: credLogin.trim(),
+          password: credPassword.trim() || undefined,
+          webhookSecret: credWebhookSecret.trim() || undefined,
+        }),
+      });
+      await loadPersistedCreds();
+      if (andTest) {
+        const res = await apiFetch<{ ok?: boolean; error?: string }>('/api/integrations/gotalk/test', {
+          method: 'POST',
+        });
+        onToast(
+          res.ok
+            ? 'Credenciais GoTalk persistidas no banco e autenticação validada.'
+            : res.error || 'Credenciais salvas; verifique retorno da autenticação GoTalk.'
+        );
+      } else {
+        onToast('Credenciais GoTalk salvas com criptografia no PostgreSQL.');
+      }
+      await onRefreshConfig();
+    } catch (err) {
+      setCredErr(err instanceof Error ? err.message : 'Erro ao salvar credenciais GoTalk.');
+    } finally {
+      setCredSaving(false);
+    }
+  };
 
   // ---------------------------------------------------------------------------
   // 1. GRADE DE MENSAGENS GOTALK (50/página + ordenação + filtros)
@@ -553,11 +636,33 @@ export const ConfigGotalkView: React.FC<{
               <span className="font-mono tabular-nums">{operators.length} operador(es)</span>
               {' · '}
               <span className="font-mono tabular-nums">{templates.length} template(s) HSM</span>
+              {' · '}
+              <span
+                className={`font-semibold ${
+                  gotalkConfig?.configured
+                    ? 'text-emerald-700 dark:text-emerald-300'
+                    : 'text-amber-700 dark:text-amber-300'
+                }`}
+              >
+                {credSource === 'database'
+                  ? 'Credenciais persistidas no PostgreSQL'
+                  : gotalkConfig?.configured
+                  ? 'Credenciais via ambiente'
+                  : 'Credenciais não configuradas'}
+              </span>
             </div>
           </div>
 
           {isAdmin && (
             <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCredsOpen((o) => !o)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shrink-0 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+              >
+                <KeyRound className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                Credenciais GoTalk
+              </button>
               <button
                 type="button"
                 disabled={testingConn}
@@ -575,12 +680,12 @@ export const ConfigGotalkView: React.FC<{
                     });
                     const data = await parseJsonResponse<{ ok?: boolean; error?: string }>(
                       resp,
-                      'Aviso ao autenticar GoTalk (verifique secrets).'
+                      'Aviso ao autenticar GoTalk (verifique credenciais).'
                     );
                     onToast(
                       data.ok
                         ? 'GoTalk autenticado e recursos sincronizados.'
-                        : data.error || 'Aviso ao autenticar GoTalk (verifique secrets).'
+                        : data.error || 'Aviso ao autenticar GoTalk (verifique credenciais).'
                     );
                     await onRefreshConfig();
                   } catch (err) {
@@ -647,6 +752,101 @@ export const ConfigGotalkView: React.FC<{
             </div>
           )}
         </div>
+
+        {isAdmin && credsOpen && (
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3.5 space-y-3 dark:border-slate-700 dark:bg-slate-800/70">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="font-semibold text-slate-900 dark:text-slate-100">
+                  Credenciais Persistentes GoTalk (PostgreSQL · AES-256-GCM)
+                </div>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Salvas com criptografia no banco para manter autenticação e disparo ativos após reinícios do servidor.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCredsOpen(false)}
+                className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {credErr && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 font-medium text-red-700 dark:border-red-800 dark:bg-red-950/60 dark:text-red-300">
+                {credErr}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Base URL GoTalk *</label>
+                <input
+                  type="url"
+                  value={credBaseUrl}
+                  onChange={(e) => setCredBaseUrl(e.target.value)}
+                  placeholder="https://app.gotalk.digital"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Login / E-mail API *</label>
+                <input
+                  type="text"
+                  value={credLogin}
+                  onChange={(e) => setCredLogin(e.target.value)}
+                  placeholder="usuario@empresa.com.br"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">
+                  Senha API {credHasPassword ? '(em branco p/ manter)' : '*'}
+                </label>
+                <input
+                  type="password"
+                  value={credPassword}
+                  onChange={(e) => setCredPassword(e.target.value)}
+                  placeholder={credHasPassword ? '••••••••••••' : 'Digite a senha GoTalk'}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">
+                  Webhook Secret {credHasWebhookSecret ? '(em branco p/ manter)' : '(opcional)'}
+                </label>
+                <input
+                  type="password"
+                  value={credWebhookSecret}
+                  onChange={(e) => setCredWebhookSecret(e.target.value)}
+                  placeholder={credHasWebhookSecret ? '••••••••••••' : 'Token de assinatura webhook'}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                disabled={credSaving}
+                onClick={() => void handleSavePersistedCreds(false)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-800 hover:bg-slate-100 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+              >
+                {credSaving ? 'Salvando...' : 'Salvar Credenciais'}
+              </button>
+              <button
+                type="button"
+                disabled={credSaving}
+                onClick={() => void handleSavePersistedCreds(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-1.5 font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                <Check className="w-3.5 h-3.5" />
+                {credSaving ? 'Salvando...' : 'Salvar & Testar Autenticação'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Sub-tabs */}
         <div className="flex flex-wrap gap-1 rounded-lg bg-slate-100 p-1 w-fit dark:bg-slate-800">

@@ -1,4 +1,7 @@
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import readline from 'node:readline';
 import * as XLSX from 'xlsx';
 import { eq } from 'drizzle-orm';
 import { db } from '../db/index.ts';
@@ -47,6 +50,12 @@ import {
   TIER_LABELS,
 } from './dataHubRegistry.ts';
 import { generateIntegrativeCode } from './integrativeVaultService.ts';
+import {
+  readSpreadsheetChunk,
+  SPREADSHEET_CHUNK_ROWS,
+  streamSpreadsheetToChunks,
+  triggerBestEffortGc,
+} from './spreadsheetStreamReader.ts';
 
 function normText(v: unknown): string {
   return String(v ?? '').trim();
@@ -656,7 +665,7 @@ async function fetchEntityExportRows(
         .map((d) => ({
           codigo_unidade: unitCodeById.get(d.unitId) || '',
           codigo_seguro_integrativo: d.integrativeCode || '',
-          cpf_cnpj_cliente: clientCpfById.get(d.clientId) || '',
+          cpf_cnpj_cliente: d.clientId ? clientCpfById.get(d.clientId) || '' : '',
           numero_contrato: d.admissionId ? admContractById.get(d.admissionId) || '' : '',
           subpasta_relativa: d.relativeSubpath || d.fileName,
           nome_arquivo: d.fileName,
@@ -852,6 +861,199 @@ export interface ExcelImportResult {
   returnFileName?: string;
 }
 
+export interface ExcelPlannedChunkMeta {
+  chunkIndex: number;
+  sheetName: string;
+  entityKey: string;
+  label: string;
+  tier: number;
+  order: number;
+  fileName: string;
+  startRowNumber: number;
+  endRowNumber: number;
+  rowCount: number;
+  dryRunStatus: 'pending' | 'done';
+  commitStatus: 'pending' | 'done';
+}
+
+export interface ExcelImportPrepareResult {
+  totalSheets: number;
+  totalChunks: number;
+  totalRows: number;
+  batchSizeRows: number;
+  orderedSheets: ExcelImportSheetSummary[];
+  unrecognizedSheets: string[];
+  chunks: Array<{
+    chunkIndex: number;
+    sheetName: string;
+    entityKey: string;
+    label: string;
+    tier: number;
+    rowCount: number;
+  }>;
+}
+
+export interface ExcelImportBatchResult {
+  mode: 'dry_run' | 'commit';
+  processedChunks: number;
+  totalChunks: number;
+  markedReadChunks: number;
+  processedRows: number;
+  totalRows: number;
+  batchProcessedRows: number;
+  currentSheetName: string;
+  currentEntityLabel: string;
+  currentTier: number;
+  cumulativeTotals: {
+    totalRows: number;
+    inserts: number;
+    updates: number;
+    skips: number;
+    errors: number;
+  };
+  done: boolean;
+}
+
+interface ExcelImportPlanFile {
+  filePath: string;
+  originalFileName: string;
+  totalRows: number;
+  totalChunks: number;
+  batchSizeRows: number;
+  unrecognizedSheets: string[];
+  orderedSheets: ExcelImportSheetSummary[];
+  headersBySheet: Record<string, string[]>;
+  chunks: ExcelPlannedChunkMeta[];
+}
+
+interface SerializedLookupState {
+  virtualSeq: number;
+  codeCounter: number;
+  baseUnitsCount: number;
+  baseAdmissionsCount: number;
+  baseTitlesCount: number;
+  unitEntries: Array<[string, { id: number; code: string }]>;
+  groupEntries: Array<[string, number]>;
+  deptEntries: Array<[string, number]>;
+  roleEntries: Array<[string, number]>;
+  seriesEntries: Array<[string, number]>;
+  catEntries: Array<[string, number]>;
+  bearerEntries: Array<[string, number]>;
+  docTypeEntries: Array<[string, number]>;
+  chartEntries: Array<[string, number]>;
+  modalEntries: Array<[string, number]>;
+  bankEntries: Array<[string, number]>;
+  mUnitEntries: Array<[string, number]>;
+  productEntries: Array<[string, number]>;
+  serviceEntries: Array<[string, number]>;
+  collabEntries: Array<[string, number]>;
+  userEntries: Array<[string, number]>;
+  clientEntries: Array<[string, { id: number; cpfCnpj: string; unitId: number }]>;
+  bankAccEntries: Array<[string, number]>;
+  admEntries: Array<
+    [
+      string,
+      {
+        id: number;
+        unitId: number;
+        clientId: number;
+        protocolCode: string;
+        contractNumber: string;
+        integrativeCode: string | null;
+      },
+    ]
+  >;
+  negEntries: Array<[string, number]>;
+  titleEntries: Array<[string, { id: number; titleCode: string }]>;
+  legalProcEntries: Array<[string, number]>;
+  compProcEntries: Array<[string, number]>;
+  sheetSummaries: ExcelImportSheetSummary[];
+  totals: { totalRows: number; inserts: number; updates: number; skips: number; errors: number };
+}
+
+interface HydratedLookupMaps {
+  virtualSeq: number;
+  codeCounter: number;
+  baseUnitsCount: number;
+  baseAdmissionsCount: number;
+  baseTitlesCount: number;
+  unitMap: Map<string, { id: number; code: string }>;
+  groupMap: Map<string, number>;
+  deptMap: Map<string, number>;
+  roleMap: Map<string, number>;
+  seriesMap: Map<string, number>;
+  catMap: Map<string, number>;
+  bearerMap: Map<string, number>;
+  docTypeMap: Map<string, number>;
+  chartMap: Map<string, number>;
+  modalMap: Map<string, number>;
+  bankMap: Map<string, number>;
+  mUnitMap: Map<string, number>;
+  productMap: Map<string, number>;
+  serviceMap: Map<string, number>;
+  collabMap: Map<string, number>;
+  userMap: Map<string, number>;
+  clientMap: Map<string, { id: number; cpfCnpj: string; unitId: number }>;
+  bankAccMap: Map<string, number>;
+  admMap: Map<
+    string,
+    {
+      id: number;
+      unitId: number;
+      clientId: number;
+      protocolCode: string;
+      contractNumber: string;
+      integrativeCode: string | null;
+    }
+  >;
+  negMap: Map<string, number>;
+  titleMap: Map<string, { id: number; titleCode: string }>;
+  legalProcMap: Map<string, number>;
+  compProcMap: Map<string, number>;
+  sheetSummaries: ExcelImportSheetSummary[];
+  totals: { totalRows: number; inserts: number; updates: number; skips: number; errors: number };
+}
+
+const ENTITY_TABLE_DEPS: Record<string, string[]> = {
+  units: ['units'],
+  user_groups: ['user_groups'],
+  departments: ['departments'],
+  roles_catalog: ['roles_catalog'],
+  series_catalog: ['series_catalog'],
+  payment_categories: ['payment_categories'],
+  bearers: ['bearers', 'units'],
+  document_types: ['document_types'],
+  chart_of_accounts: ['chart_of_accounts'],
+  modalities: ['modalities'],
+  banks: ['banks'],
+  measurement_units: ['measurement_units'],
+  products: ['products', 'measurement_units'],
+  schedule_services: ['schedule_services'],
+  collaborators: ['collaborators', 'units', 'departments', 'roles_catalog'],
+  users: ['users', 'units', 'user_groups'],
+  clients: ['clients', 'units'],
+  client_asset_links: ['clients'],
+  bank_accounts: ['bank_accounts', 'units'],
+  prospection_leads: ['units'],
+  admissions: ['admissions', 'units', 'clients'],
+  negotiations: ['negotiations', 'units', 'clients', 'admissions'],
+  commercial_deals: ['units', 'clients', 'admissions'],
+  financial_titles: ['financial_titles', 'units', 'clients', 'admissions', 'payment_categories', 'chart_of_accounts'],
+  title_settlements: ['financial_titles', 'bank_accounts'],
+  bank_movements: ['bank_accounts', 'units', 'chart_of_accounts'],
+  legal_processes: ['legal_processes', 'units', 'clients', 'admissions'],
+  company_legal_processes: ['company_legal_processes', 'units', 'clients', 'admissions'],
+  company_legal_process_movements: ['company_legal_processes'],
+  company_legal_process_deadlines: ['company_legal_processes', 'collaborators'],
+  company_legal_process_hearings: ['company_legal_processes'],
+  appointments: ['units', 'users', 'clients', 'schedule_services'],
+  document_objects: ['units', 'clients', 'admissions'],
+};
+
+function getExcelWorkDir(filePath: string): string {
+  return `${filePath}.excel-work`;
+}
+
 function matchSheetToEntity(
   sheetName: string,
   headers: string[],
@@ -895,57 +1097,17 @@ function matchSheetToEntity(
   return best?.layout || null;
 }
 
-export async function processExcelImport(params: {
-  buffer: Buffer;
-  expectedLayoutKey?: string;
-  mode: 'dry_run' | 'commit';
-  unitFallbackId?: number | null;
-  assignIntegrative?: boolean;
-  actorUserId?: number | null;
-  actorName: string;
-}): Promise<ExcelImportResult> {
-  const wb = XLSX.read(params.buffer, { type: 'buffer', cellDates: true });
-
-  const matchedPairs: Array<{ sheetName: string; layout: DataHubEntityLayout; rows: Array<Record<string, unknown>> }> = [];
-  const unrecognizedSheets: string[] = [];
-
-  for (const sName of wb.SheetNames) {
-    const ws = wb.Sheets[sName];
-    if (!ws) continue;
-    const aoa = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' });
-    if (aoa.length === 0) continue;
-    const rawHeaders = (aoa[0] || []).map((h) => String(h ?? '').trim());
-    const layout = matchSheetToEntity(sName, rawHeaders, params.expectedLayoutKey);
-    if (!layout) {
-      const clean = normKey(sName);
-      if (!['_ordem_precedencia', 'dicionario_campos', 'listas_dominio', '_retorno_importacao'].includes(clean)) {
-        unrecognizedSheets.push(sName);
-      }
-      continue;
+async function hydrateProjectedLookupsForEntities(
+  entityKeys: string[],
+  initialSummaries: ExcelImportSheetSummary[]
+): Promise<HydratedLookupMaps> {
+  const needed = new Set<string>();
+  for (const ek of entityKeys) {
+    for (const dep of ENTITY_TABLE_DEPS[ek] || [ek]) {
+      needed.add(dep);
     }
-
-    // Normalize headers to exact canonical layout column headers (case/accent insensitive)
-    const canonicalByNorm = new Map(layout.columns.map((c) => [normKey(c.header), c.header]));
-    const parsedRows: Array<Record<string, unknown>> = [];
-    for (let rIdx = 1; rIdx < aoa.length; rIdx++) {
-      const arr = aoa[rIdx] || [];
-      const hasAnyValue = arr.some((cell) => normText(cell) !== '');
-      if (!hasAnyValue) continue;
-      const obj: Record<string, unknown> = { __rowNumber: rIdx + 1 };
-      for (let cIdx = 0; cIdx < rawHeaders.length; cIdx++) {
-        const canonical = canonicalByNorm.get(normKey(rawHeaders[cIdx])) || rawHeaders[cIdx];
-        if (canonical) obj[canonical] = arr[cIdx];
-      }
-      parsedRows.push(obj);
-    }
-
-    matchedPairs.push({ sheetName: sName, layout, rows: parsedRows });
   }
 
-  // Sort strictly by precedence tier & order!
-  matchedPairs.sort((a, b) => a.layout.order - b.layout.order);
-
-  // Hydrate lookup maps from Cloud SQL
   const [
     existingUnits,
     existingGroups,
@@ -971,29 +1133,40 @@ export async function processExcelImport(params: {
     existingLegalProcs,
     existingCompProcs,
   ] = await Promise.all([
-    db.select().from(units),
-    db.select().from(userGroups),
-    db.select().from(departments),
-    db.select().from(rolesCatalog),
-    db.select().from(seriesCatalog),
-    db.select().from(paymentCategories),
-    db.select().from(bearers),
-    db.select().from(documentTypes),
-    db.select().from(chartOfAccounts),
-    db.select().from(modalities),
-    db.select().from(banks),
-    db.select().from(measurementUnits),
-    db.select().from(products),
-    db.select().from(scheduleServices),
-    db.select().from(collaborators),
-    db.select().from(users),
-    db.select().from(clients),
-    db.select().from(bankAccounts),
-    db.select().from(admissions),
-    db.select().from(negotiations),
-    db.select().from(financialTitles),
-    db.select().from(legalProcesses),
-    db.select().from(companyLegalProcesses),
+    needed.has('units') ? db.select({ id: units.id, code: units.code }).from(units) : Promise.resolve([]),
+    needed.has('user_groups') ? db.select({ id: userGroups.id, name: userGroups.name }).from(userGroups) : Promise.resolve([]),
+    needed.has('departments') ? db.select({ id: departments.id, code: departments.code, name: departments.name }).from(departments) : Promise.resolve([]),
+    needed.has('roles_catalog') ? db.select({ id: rolesCatalog.id, name: rolesCatalog.name }).from(rolesCatalog) : Promise.resolve([]),
+    needed.has('series_catalog') ? db.select({ id: seriesCatalog.id, sigla: seriesCatalog.sigla }).from(seriesCatalog) : Promise.resolve([]),
+    needed.has('payment_categories') ? db.select({ id: paymentCategories.id, name: paymentCategories.name }).from(paymentCategories) : Promise.resolve([]),
+    needed.has('bearers') ? db.select({ id: bearers.id, code: bearers.code, name: bearers.name }).from(bearers) : Promise.resolve([]),
+    needed.has('document_types') ? db.select({ id: documentTypes.id, description: documentTypes.description }).from(documentTypes) : Promise.resolve([]),
+    needed.has('chart_of_accounts') ? db.select({ id: chartOfAccounts.id, code: chartOfAccounts.code }).from(chartOfAccounts) : Promise.resolve([]),
+    needed.has('modalities') ? db.select({ id: modalities.id, type: modalities.type, description: modalities.description }).from(modalities) : Promise.resolve([]),
+    needed.has('banks') ? db.select({ id: banks.id, code: banks.code, name: banks.name }).from(banks) : Promise.resolve([]),
+    needed.has('measurement_units') ? db.select({ id: measurementUnits.id, name: measurementUnits.name }).from(measurementUnits) : Promise.resolve([]),
+    needed.has('products') ? db.select({ id: products.id, description: products.description }).from(products) : Promise.resolve([]),
+    needed.has('schedule_services') ? db.select({ id: scheduleServices.id, name: scheduleServices.name }).from(scheduleServices) : Promise.resolve([]),
+    needed.has('collaborators') ? db.select({ id: collaborators.id, code: collaborators.code, email: collaborators.email, name: collaborators.name, unitId: collaborators.unitId }).from(collaborators) : Promise.resolve([]),
+    needed.has('users') ? db.select({ id: users.id, email: users.email }).from(users) : Promise.resolve([]),
+    needed.has('clients') ? db.select({ id: clients.id, cpfCnpj: clients.cpfCnpj, unitId: clients.unitId }).from(clients) : Promise.resolve([]),
+    needed.has('bank_accounts') ? db.select({ id: bankAccounts.id, bankName: bankAccounts.bankName, accountNumber: bankAccounts.accountNumber }).from(bankAccounts) : Promise.resolve([]),
+    needed.has('admissions')
+      ? db
+          .select({
+            id: admissions.id,
+            unitId: admissions.unitId,
+            clientId: admissions.clientId,
+            protocolCode: admissions.protocolCode,
+            contractNumber: admissions.contractNumber,
+            integrativeCode: admissions.integrativeCode,
+          })
+          .from(admissions)
+      : Promise.resolve([]),
+    needed.has('negotiations') ? db.select({ id: negotiations.id, clientId: negotiations.clientId, contractNumber: negotiations.contractNumber }).from(negotiations) : Promise.resolve([]),
+    needed.has('financial_titles') ? db.select({ id: financialTitles.id, titleCode: financialTitles.titleCode, contractNumber: financialTitles.contractNumber, installmentNumber: financialTitles.installmentNumber }).from(financialTitles) : Promise.resolve([]),
+    needed.has('legal_processes') ? db.select({ id: legalProcesses.id, processNumber: legalProcesses.processNumber }).from(legalProcesses) : Promise.resolve([]),
+    needed.has('company_legal_processes') ? db.select({ id: companyLegalProcesses.id, processNumber: companyLegalProcesses.processNumber }).from(companyLegalProcesses) : Promise.resolve([]),
   ]);
 
   const unitMap = new Map<string, { id: number; code: string }>();
@@ -1041,7 +1214,10 @@ export async function processExcelImport(params: {
     if (b.accountNumber) bankAccMap.set(normKey(b.accountNumber), b.id);
     bankAccMap.set(`${normKey(b.bankName)}::${normKey(b.accountNumber)}`, b.id);
   }
-  const admMap = new Map<string, { id: number; unitId: number; clientId: number; protocolCode: string; contractNumber: string; integrativeCode: string | null }>();
+  const admMap = new Map<
+    string,
+    { id: number; unitId: number; clientId: number; protocolCode: string; contractNumber: string; integrativeCode: string | null }
+  >();
   for (const a of existingAdmissions) {
     if (a.protocolCode) admMap.set(`PROTO::${normKey(a.protocolCode)}`, a);
     if (a.integrativeCode) admMap.set(`INT::${normKey(a.integrativeCode)}`, a);
@@ -1058,1247 +1234,1637 @@ export async function processExcelImport(params: {
   for (const t of existingTitles) {
     titleMap.set(normKey(t.titleCode), { id: t.id, titleCode: t.titleCode });
     if (t.contractNumber) {
-      titleMap.set(`CTR_INST::${normKey(t.contractNumber)}::${t.installmentNumber}`, { id: t.id, titleCode: t.titleCode });
+      titleMap.set(`CTR_INST::${normKey(t.contractNumber)}::${t.installmentNumber}`, {
+        id: t.id,
+        titleCode: t.titleCode,
+      });
     }
   }
   const legalProcMap = new Map<string, number>(existingLegalProcs.map((l) => [normKey(l.processNumber), l.id]));
   const compProcMap = new Map<string, number>(existingCompProcs.map((c) => [normKey(c.processNumber), c.id]));
 
-  let virtualSeq = 100000;
-  let codeCounter = 1;
+  return {
+    virtualSeq: 100000,
+    codeCounter: 1,
+    baseUnitsCount: existingUnits.length,
+    baseAdmissionsCount: existingAdmissions.length,
+    baseTitlesCount: existingTitles.length,
+    unitMap,
+    groupMap,
+    deptMap,
+    roleMap,
+    seriesMap,
+    catMap,
+    bearerMap,
+    docTypeMap,
+    chartMap,
+    modalMap,
+    bankMap,
+    mUnitMap,
+    productMap,
+    serviceMap,
+    collabMap,
+    userMap,
+    clientMap,
+    bankAccMap,
+    admMap,
+    negMap,
+    titleMap,
+    legalProcMap,
+    compProcMap,
+    sheetSummaries: initialSummaries.map((s) => ({ ...s, inserts: 0, updates: 0, skips: 0, errors: 0 })),
+    totals: { totalRows: 0, inserts: 0, updates: 0, skips: 0, errors: 0 },
+  };
+}
+
+function serializeLookupMaps(state: HydratedLookupMaps): SerializedLookupState {
+  return {
+    virtualSeq: state.virtualSeq,
+    codeCounter: state.codeCounter,
+    baseUnitsCount: state.baseUnitsCount,
+    baseAdmissionsCount: state.baseAdmissionsCount,
+    baseTitlesCount: state.baseTitlesCount,
+    unitEntries: [...state.unitMap.entries()],
+    groupEntries: [...state.groupMap.entries()],
+    deptEntries: [...state.deptMap.entries()],
+    roleEntries: [...state.roleMap.entries()],
+    seriesEntries: [...state.seriesMap.entries()],
+    catEntries: [...state.catMap.entries()],
+    bearerEntries: [...state.bearerMap.entries()],
+    docTypeEntries: [...state.docTypeMap.entries()],
+    chartEntries: [...state.chartMap.entries()],
+    modalEntries: [...state.modalMap.entries()],
+    bankEntries: [...state.bankMap.entries()],
+    mUnitEntries: [...state.mUnitMap.entries()],
+    productEntries: [...state.productMap.entries()],
+    serviceEntries: [...state.serviceMap.entries()],
+    collabEntries: [...state.collabMap.entries()],
+    userEntries: [...state.userMap.entries()],
+    clientEntries: [...state.clientMap.entries()],
+    bankAccEntries: [...state.bankAccMap.entries()],
+    admEntries: [...state.admMap.entries()],
+    negEntries: [...state.negMap.entries()],
+    titleEntries: [...state.titleMap.entries()],
+    legalProcEntries: [...state.legalProcMap.entries()],
+    compProcEntries: [...state.compProcMap.entries()],
+    sheetSummaries: state.sheetSummaries,
+    totals: state.totals,
+  };
+}
+
+function deserializeLookupMaps(s: SerializedLookupState): HydratedLookupMaps {
+  return {
+    virtualSeq: s.virtualSeq,
+    codeCounter: s.codeCounter,
+    baseUnitsCount: s.baseUnitsCount,
+    baseAdmissionsCount: s.baseAdmissionsCount,
+    baseTitlesCount: s.baseTitlesCount,
+    unitMap: new Map(s.unitEntries),
+    groupMap: new Map(s.groupEntries),
+    deptMap: new Map(s.deptEntries),
+    roleMap: new Map(s.roleEntries),
+    seriesMap: new Map(s.seriesEntries),
+    catMap: new Map(s.catEntries),
+    bearerMap: new Map(s.bearerEntries),
+    docTypeMap: new Map(s.docTypeEntries),
+    chartMap: new Map(s.chartEntries),
+    modalMap: new Map(s.modalEntries),
+    bankMap: new Map(s.bankEntries),
+    mUnitMap: new Map(s.mUnitEntries),
+    productMap: new Map(s.productEntries),
+    serviceMap: new Map(s.serviceEntries),
+    collabMap: new Map(s.collabEntries),
+    userMap: new Map(s.userEntries),
+    clientMap: new Map(s.clientEntries),
+    bankAccMap: new Map(s.bankAccEntries),
+    admMap: new Map(s.admEntries),
+    negMap: new Map(s.negEntries),
+    titleMap: new Map(s.titleEntries),
+    legalProcMap: new Map(s.legalProcEntries),
+    compProcMap: new Map(s.compProcEntries),
+    sheetSummaries: s.sheetSummaries,
+    totals: s.totals,
+  };
+}
+
+async function processExcelEntityRow(params: {
+  tx: any;
+  isCommit: boolean;
+  layout: DataHubEntityLayout;
+  sheetName: string;
+  row: Record<string, unknown>;
+  state: HydratedLookupMaps;
+  summary: ExcelImportSheetSummary;
+  unitFallbackId?: number | null;
+  assignIntegrative?: boolean;
+  actorName: string;
+}): Promise<ExcelImportRowEval> {
+  const { tx, isCommit, layout, sheetName, row: r, state, summary } = params;
+  const rowNumber = Number(r.__rowNumber || 0);
+  let action: ExcelImportRowEval['action'] = 'INSERT';
+  let naturalKey = '';
+  let assignedCode = '';
+  let integrativeCode = '';
+  let message = '';
+
   const nextAutoCode = (prefix: string) => {
-    const seq = existingUnits.length + existingAdmissions.length + codeCounter++;
+    const seq = state.baseUnitsCount + state.baseAdmissionsCount + state.codeCounter++;
     return `${prefix}-${String(seq).padStart(4, '0')}`;
   };
 
-  const orderedSheets: ExcelImportSheetSummary[] = [];
-  const rowResults: ExcelImportRowEval[] = [];
-  const isCommit = params.mode === 'commit';
-
-  const executeWork = async (tx: any) => {
-    for (const pair of matchedPairs) {
-      const { layout, sheetName, rows } = pair;
-      const summary: ExcelImportSheetSummary = {
-        entityKey: layout.key,
-        label: layout.label,
-        sheetName,
-        tier: layout.tier,
-        order: layout.order,
-        totalRows: rows.length,
-        inserts: 0,
-        updates: 0,
-        skips: 0,
-        errors: 0,
-      };
-
-      const resolveUnitId = (codeVal: unknown): number | null => {
-        const k = normKey(codeVal);
-        if (k && unitMap.has(k)) return unitMap.get(k)!.id;
-        if (!k && params.unitFallbackId) return params.unitFallbackId;
-        return null;
-      };
-
-      const resolveUnitCode = (unitId: number): string => {
-        for (const u of unitMap.values()) {
-          if (u.id === unitId) return u.code;
-        }
-        return `U${unitId}`;
-      };
-
-      for (const r of rows) {
-        const rowNumber = Number(r.__rowNumber || 0);
-        let action: ExcelImportRowEval['action'] = 'INSERT';
-        let naturalKey = '';
-        let assignedCode = '';
-        let integrativeCode = '';
-        let message = '';
-
-        try {
-          switch (layout.key) {
-            case 'units': {
-              const rawCode = normText(r.codigo_unidade).toUpperCase();
-              const name = normText(r.nome_unidade);
-              const city = normText(r.cidade) || 'Recife';
-              const state = normText(r.uf).toUpperCase().slice(0, 2) || 'PE';
-              if (!name) throw new Error('nome_unidade obrigatório');
-              const code = rawCode || nextAutoCode('U');
-              naturalKey = code;
-              assignedCode = code;
-              const existing = unitMap.get(normKey(code));
-              const payload = {
-                code,
-                name,
-                legalName: normText(r.razao_social),
-                cnpj: normText(r.cnpj),
-                city,
-                state,
-                phone: normText(r.telefone),
-                email: normText(r.email),
-                whatsappNumber: normText(r.whatsapp),
-                zipCode: normText(r.cep),
-                address: normText(r.logradouro),
-                addressNumber: normText(r.numero),
-                neighborhood: normText(r.bairro),
-                minAdmissionCostCents: parseCentsFromBrl(r.custo_minimo_admissao_brl) || 150000,
-                active: parseBool(r.ativo, true),
-              };
-              if (existing) {
-                action = 'UPDATE';
-                message = `Unidade ${code} atualizada`;
-                if (isCommit) await tx.update(units).set(payload).where(eq(units.id, existing.id));
-              } else {
-                action = 'INSERT';
-                message = `Unidade ${code} criada`;
-                let newId = -(virtualSeq++);
-                if (isCommit) {
-                  const [ins] = await tx.insert(units).values(payload).returning();
-                  newId = ins.id;
-                }
-                unitMap.set(normKey(code), { id: newId, code });
-              }
-              break;
-            }
-            case 'user_groups': {
-              const name = normText(r.nome_grupo);
-              if (!name) throw new Error('nome_grupo obrigatório');
-              naturalKey = name;
-              assignedCode = name;
-              const existingId = groupMap.get(normKey(name));
-              if (existingId) {
-                action = 'UPDATE';
-                message = 'Grupo atualizado';
-                if (isCommit) await tx.update(userGroups).set({ description: normText(r.descricao) }).where(eq(userGroups.id, existingId));
-              } else {
-                action = 'INSERT';
-                message = 'Grupo criado';
-                let newId = -(virtualSeq++);
-                if (isCommit) {
-                  const [ins] = await tx.insert(userGroups).values({ name, description: normText(r.descricao) }).returning();
-                  newId = ins.id;
-                }
-                groupMap.set(normKey(name), newId);
-              }
-              break;
-            }
-            case 'departments': {
-              const name = normText(r.nome_departamento);
-              if (!name) throw new Error('nome_departamento obrigatório');
-              const existingId = deptMap.get(normKey(r.codigo_departamento)) || deptMap.get(normKey(name));
-              const code = normText(r.codigo_departamento) || nextAutoCode('DEP');
-              naturalKey = code;
-              assignedCode = code;
-              const payload = { code, name, managerName: normText(r.gestor), status: normText(r.status) || 'ATIVO' };
-              if (existingId) {
-                action = 'UPDATE';
-                message = `Departamento ${code} atualizado`;
-                if (isCommit) await tx.update(departments).set(payload).where(eq(departments.id, existingId));
-              } else {
-                action = 'INSERT';
-                message = `Departamento ${code} criado`;
-                let newId = -(virtualSeq++);
-                if (isCommit) {
-                  const [ins] = await tx.insert(departments).values(payload).returning();
-                  newId = ins.id;
-                }
-                deptMap.set(normKey(code), newId);
-                deptMap.set(normKey(name), newId);
-              }
-              break;
-            }
-            case 'roles_catalog': {
-              const name = normText(r.nome_cargo);
-              if (!name) throw new Error('nome_cargo obrigatório');
-              naturalKey = name;
-              const existingId = roleMap.get(normKey(name));
-              const payload = {
-                name,
-                participatesInScheduleQueue: parseBool(r.participa_fila_agenda, true),
-                sortOrder: parseIntSafe(r.ordem, 0),
-                active: parseBool(r.ativo, true),
-              };
-              if (existingId) {
-                action = 'UPDATE';
-                message = 'Cargo atualizado';
-                if (isCommit) await tx.update(rolesCatalog).set(payload).where(eq(rolesCatalog.id, existingId));
-              } else {
-                action = 'INSERT';
-                message = 'Cargo criado';
-                let newId = -(virtualSeq++);
-                if (isCommit) {
-                  const [ins] = await tx.insert(rolesCatalog).values(payload).returning();
-                  newId = ins.id;
-                }
-                roleMap.set(normKey(name), newId);
-              }
-              break;
-            }
-            case 'series_catalog': {
-              const sigla = normText(r.sigla_serie).toUpperCase();
-              const description = normText(r.descricao);
-              if (!sigla || !description) throw new Error('sigla_serie e descricao obrigatórios');
-              naturalKey = sigla;
-              assignedCode = sigla;
-              const existingId = seriesMap.get(normKey(sigla));
-              const payload = {
-                sigla,
-                description,
-                generalNumber: Math.max(1, parseIntSafe(r.numeracao_geral, 1)),
-                isDefault: parseBool(r.padrao, false),
-              };
-              if (existingId) {
-                action = 'UPDATE';
-                message = `Série ${sigla} atualizada`;
-                if (isCommit) await tx.update(seriesCatalog).set(payload).where(eq(seriesCatalog.id, existingId));
-              } else {
-                action = 'INSERT';
-                message = `Série ${sigla} criada`;
-                let newId = -(virtualSeq++);
-                if (isCommit) {
-                  const [ins] = await tx.insert(seriesCatalog).values(payload).returning();
-                  newId = ins.id;
-                }
-                seriesMap.set(normKey(sigla), newId);
-              }
-              break;
-            }
-            case 'payment_categories': {
-              const name = normText(r.nome_categoria);
-              if (!name) throw new Error('nome_categoria obrigatório');
-              naturalKey = name;
-              const existingId = catMap.get(normKey(name));
-              const payload = { name, providerCode: normText(r.codigo_provedor) || 'custom', active: parseBool(r.ativo, true) };
-              if (existingId) {
-                action = 'UPDATE';
-                message = 'Categoria atualizada';
-                if (isCommit) await tx.update(paymentCategories).set(payload).where(eq(paymentCategories.id, existingId));
-              } else {
-                action = 'INSERT';
-                message = 'Categoria criada';
-                let newId = -(virtualSeq++);
-                if (isCommit) {
-                  const [ins] = await tx.insert(paymentCategories).values(payload).returning();
-                  newId = ins.id;
-                }
-                catMap.set(normKey(name), newId);
-              }
-              break;
-            }
-            case 'bearers': {
-              const name = normText(r.nome_portador);
-              if (!name) throw new Error('nome_portador obrigatório');
-              const existingId = bearerMap.get(normKey(r.codigo_portador)) || bearerMap.get(normKey(name));
-              const code = normText(r.codigo_portador) || nextAutoCode('POR');
-              const unitId = r.codigo_unidade ? resolveUnitId(r.codigo_unidade) : null;
-              if (r.codigo_unidade && !unitId) throw new Error(`Unidade "${r.codigo_unidade}" não encontrada`);
-              naturalKey = code;
-              assignedCode = code;
-              const payload = { code, name, type: normText(r.tipo) || 'banco', unitId, active: parseBool(r.ativo, true) };
-              if (existingId) {
-                action = 'UPDATE';
-                message = `Portador ${code} atualizado`;
-                if (isCommit) await tx.update(bearers).set(payload).where(eq(bearers.id, existingId));
-              } else {
-                action = 'INSERT';
-                message = `Portador ${code} criado`;
-                let newId = -(virtualSeq++);
-                if (isCommit) {
-                  const [ins] = await tx.insert(bearers).values(payload).returning();
-                  newId = ins.id;
-                }
-                bearerMap.set(normKey(code), newId);
-                bearerMap.set(normKey(name), newId);
-              }
-              break;
-            }
-            case 'document_types': {
-              const description = normText(r.descricao);
-              if (!description) throw new Error('descricao obrigatório');
-              naturalKey = description;
-              const existingId = docTypeMap.get(normKey(description));
-              const payload = {
-                description,
-                category: normText(r.categoria) || 'ambos',
-                isFiscal: parseBool(r.fiscal, false),
-                requiresNumber: parseBool(r.exige_numero, false),
-                active: parseBool(r.ativo, true),
-              };
-              if (existingId) {
-                action = 'UPDATE';
-                message = 'Tipo de documento atualizado';
-                if (isCommit) await tx.update(documentTypes).set(payload).where(eq(documentTypes.id, existingId));
-              } else {
-                action = 'INSERT';
-                message = 'Tipo de documento criado';
-                let newId = -(virtualSeq++);
-                if (isCommit) {
-                  const [ins] = await tx.insert(documentTypes).values(payload).returning();
-                  newId = ins.id;
-                }
-                docTypeMap.set(normKey(description), newId);
-              }
-              break;
-            }
-            case 'chart_of_accounts': {
-              const name = normText(r.nome_conta);
-              if (!name) throw new Error('nome_conta obrigatório');
-              const code = normText(r.codigo_conta) || nextAutoCode('PC');
-              naturalKey = code;
-              assignedCode = code;
-              const existingId = chartMap.get(normKey(code));
-              const payload = {
-                code,
-                name,
-                type: normText(r.tipo) || 'despesa',
-                isAnalytic: parseBool(r.analitica, true),
-                active: parseBool(r.ativo, true),
-              };
-              if (existingId) {
-                action = 'UPDATE';
-                message = `Conta contábil ${code} atualizada`;
-                if (isCommit) await tx.update(chartOfAccounts).set(payload).where(eq(chartOfAccounts.id, existingId));
-              } else {
-                action = 'INSERT';
-                message = `Conta contábil ${code} criada`;
-                let newId = -(virtualSeq++);
-                if (isCommit) {
-                  const [ins] = await tx.insert(chartOfAccounts).values(payload).returning();
-                  newId = ins.id;
-                }
-                chartMap.set(normKey(code), newId);
-              }
-              break;
-            }
-            case 'modalities': {
-              const type = normText(r.tipo_segmento);
-              const description = normText(r.descricao_modalidade);
-              if (!type || !description) throw new Error('tipo_segmento e descricao_modalidade obrigatórios');
-              const k = `${normKey(type)}::${normKey(description)}`;
-              naturalKey = `${type} - ${description}`;
-              const existingId = modalMap.get(k);
-              const payload = {
-                type,
-                description,
-                hasVehicleSection: parseBool(r.exige_dados_veiculo, false),
-                active: parseBool(r.ativo, true),
-              };
-              if (existingId) {
-                action = 'UPDATE';
-                message = 'Modalidade atualizada';
-                if (isCommit) await tx.update(modalities).set(payload).where(eq(modalities.id, existingId));
-              } else {
-                action = 'INSERT';
-                message = 'Modalidade criada';
-                let newId = -(virtualSeq++);
-                if (isCommit) {
-                  const [ins] = await tx.insert(modalities).values(payload).returning();
-                  newId = ins.id;
-                }
-                modalMap.set(k, newId);
-              }
-              break;
-            }
-            case 'banks': {
-              const name = normText(r.nome_banco);
-              if (!name) throw new Error('nome_banco obrigatório');
-              const existingId = bankMap.get(normKey(r.codigo_banco)) || bankMap.get(normKey(name));
-              const code = normText(r.codigo_banco) || nextAutoCode('BCO');
-              naturalKey = code;
-              assignedCode = code;
-              const payload = {
-                code,
-                name,
-                febrabanCode: normText(r.codigo_febraban),
-                status: normText(r.status) || 'ATIVO',
-                notes: normText(r.observacoes),
-              };
-              if (existingId) {
-                action = 'UPDATE';
-                message = `Banco ${code} atualizado`;
-                if (isCommit) await tx.update(banks).set(payload).where(eq(banks.id, existingId));
-              } else {
-                action = 'INSERT';
-                message = `Banco ${code} criado`;
-                let newId = -(virtualSeq++);
-                if (isCommit) {
-                  const [ins] = await tx.insert(banks).values(payload).returning();
-                  newId = ins.id;
-                }
-                bankMap.set(normKey(code), newId);
-                bankMap.set(normKey(name), newId);
-              }
-              break;
-            }
-            case 'measurement_units': {
-              const name = normText(r.nome_unidade_medida);
-              if (!name) throw new Error('nome_unidade_medida obrigatório');
-              naturalKey = name;
-              const existingId = mUnitMap.get(normKey(name));
-              const payload = { name, conversionFactor: normText(r.fator_conversao) || '1' };
-              if (existingId) {
-                action = 'UPDATE';
-                message = 'Unidade de medida atualizada';
-                if (isCommit) await tx.update(measurementUnits).set(payload).where(eq(measurementUnits.id, existingId));
-              } else {
-                action = 'INSERT';
-                message = 'Unidade de medida criada';
-                let newId = -(virtualSeq++);
-                if (isCommit) {
-                  const [ins] = await tx.insert(measurementUnits).values(payload).returning();
-                  newId = ins.id;
-                }
-                mUnitMap.set(normKey(name), newId);
-              }
-              break;
-            }
-            case 'products': {
-              const description = normText(r.descricao);
-              if (!description) throw new Error('descricao obrigatório');
-              naturalKey = description;
-              const mUnitId = r.unidade_medida ? mUnitMap.get(normKey(r.unidade_medida)) ?? null : null;
-              const existingId = productMap.get(normKey(description));
-              const payload = { type: normText(r.tipo) || 'SERVICO', description, unitId: mUnitId };
-              if (existingId) {
-                action = 'UPDATE';
-                message = 'Produto/Serviço atualizado';
-                if (isCommit) await tx.update(products).set(payload).where(eq(products.id, existingId));
-              } else {
-                action = 'INSERT';
-                message = 'Produto/Serviço criado';
-                let newId = -(virtualSeq++);
-                if (isCommit) {
-                  const [ins] = await tx.insert(products).values(payload).returning();
-                  newId = ins.id;
-                }
-                productMap.set(normKey(description), newId);
-              }
-              break;
-            }
-            case 'schedule_services': {
-              const name = normText(r.nome_servico);
-              if (!name) throw new Error('nome_servico obrigatório');
-              naturalKey = name;
-              const existingId = serviceMap.get(normKey(name));
-              const payload = {
-                name,
-                durationMinutes: Math.max(5, parseIntSafe(r.duracao_minutos, 30)),
-                priceCents: parseCentsFromBrl(r.valor_brl),
-                color: normText(r.cor_hex) || '#e0e7ff',
-                active: parseBool(r.ativo, true),
-              };
-              if (existingId) {
-                action = 'UPDATE';
-                message = 'Serviço de agenda atualizado';
-                if (isCommit) await tx.update(scheduleServices).set(payload).where(eq(scheduleServices.id, existingId));
-              } else {
-                action = 'INSERT';
-                message = 'Serviço de agenda criado';
-                let newId = -(virtualSeq++);
-                if (isCommit) {
-                  const [ins] = await tx.insert(scheduleServices).values(payload).returning();
-                  newId = ins.id;
-                }
-                serviceMap.set(normKey(name), newId);
-              }
-              break;
-            }
-            case 'collaborators': {
-              const name = normText(r.nome_completo);
-              const unitId = resolveUnitId(r.codigo_unidade);
-              if (!name) throw new Error('nome_completo obrigatório');
-              if (!unitId) throw new Error(`codigo_unidade "${r.codigo_unidade}" não encontrado`);
-              const email = normText(r.email);
-              const existingId =
-                collabMap.get(normKey(r.codigo_colaborador)) ||
-                (email ? collabMap.get(normKey(email)) : undefined) ||
-                collabMap.get(`${normKey(name)}::${unitId}`);
-              const code = normText(r.codigo_colaborador) || nextAutoCode('COL');
-              naturalKey = code;
-              assignedCode = code;
-              const payload = {
-                code,
-                name,
-                unitId,
-                departmentId: r.departamento ? deptMap.get(normKey(r.departamento)) ?? null : null,
-                roleId: r.cargo ? roleMap.get(normKey(r.cargo)) ?? null : null,
-                jobTitle: normText(r.funcao_exibicao),
-                email,
-                phone: normText(r.telefone),
-                isWhatsapp: parseBool(r.whatsapp_ativo, false),
-                participatesInScheduleQueue: parseBool(r.fila_agenda, false),
-                active: parseBool(r.ativo, true),
-                city: normText(r.cidade),
-                state: normText(r.uf).toUpperCase().slice(0, 2),
-              };
-              if (existingId) {
-                action = 'UPDATE';
-                message = `Colaborador ${code} atualizado`;
-                if (isCommit) await tx.update(collaborators).set(payload).where(eq(collaborators.id, existingId));
-              } else {
-                action = 'INSERT';
-                message = `Colaborador ${code} criado`;
-                let newId = -(virtualSeq++);
-                if (isCommit) {
-                  const [ins] = await tx.insert(collaborators).values(payload).returning();
-                  newId = ins.id;
-                }
-                collabMap.set(normKey(code), newId);
-                if (email) collabMap.set(normKey(email), newId);
-                collabMap.set(`${normKey(name)}::${unitId}`, newId);
-              }
-              break;
-            }
-            case 'users': {
-              const email = normText(r.email_login).toLowerCase();
-              const name = normText(r.nome_usuario);
-              if (!email || !name) throw new Error('email_login e nome_usuario obrigatórios');
-              const uid = normText(r.codigo_uid) || nextAutoCode('USR');
-              naturalKey = email;
-              assignedCode = uid;
-              const defaultUnitId = r.codigo_unidade_padrao ? resolveUnitId(r.codigo_unidade_padrao) : null;
-              const groupId = r.grupo_acesso ? groupMap.get(normKey(r.grupo_acesso)) ?? null : null;
-              const existingId = userMap.get(normKey(email));
-              if (existingId) {
-                action = 'UPDATE';
-                message = `Usuário ${email} atualizado`;
-                if (isCommit) {
-                  await tx
-                    .update(users)
-                    .set({
-                      name,
-                      role: normText(r.perfil_role) || 'consultant',
-                      groupId,
-                      defaultUnitId,
-                      whatsappPhone: normText(r.whatsapp),
-                      active: parseBool(r.ativo, true),
-                    })
-                    .where(eq(users.id, existingId));
-                }
-              } else {
-                action = 'INSERT';
-                message = `Usuário ${email} criado (código ${uid})`;
-                let newId = -(virtualSeq++);
-                if (isCommit) {
-                  const [ins] = await tx
-                    .insert(users)
-                    .values({
-                      uid: `${uid}-${crypto.randomBytes(2).toString('hex')}`,
-                      email,
-                      name,
-                      role: normText(r.perfil_role) || 'consultant',
-                      groupId,
-                      defaultUnitId,
-                      allowedUnitIds: defaultUnitId ? [defaultUnitId] : [],
-                      whatsappPhone: normText(r.whatsapp),
-                      active: parseBool(r.ativo, true),
-                      mustChangePassword: true,
-                    })
-                    .returning();
-                  newId = ins.id;
-                }
-                userMap.set(normKey(email), newId);
-              }
-              break;
-            }
-            case 'clients': {
-              const fullName = normText(r.nome_completo);
-              const rawCpf = normText(r.cpf_cnpj);
-              const digits = normDigits(rawCpf);
-              const unitId = resolveUnitId(r.codigo_unidade);
-              if (!fullName) throw new Error('nome_completo obrigatório');
-              if (digits.length < 11) throw new Error('cpf_cnpj inválido (< 11 dígitos)');
-              if (!unitId) throw new Error(`codigo_unidade "${r.codigo_unidade}" não encontrado`);
-              naturalKey = rawCpf;
-              assignedCode = rawCpf;
-              const existing = clientMap.get(digits);
-              const payload = {
-                personNature: normText(r.natureza_pf_pj) || (digits.length > 11 ? 'PJ' : 'PF'),
-                fullName,
-                cpfCnpj: rawCpf,
-                rg: normText(r.rg),
-                birthDate: normText(r.data_nascimento),
-                profession: normText(r.profissao),
-                maritalStatus: normText(r.estado_civil),
-                phone: normText(r.telefone),
-                whatsapp: normText(r.whatsapp),
-                secondaryPhone: normText(r.telefone_secundario),
-                email: normText(r.email),
-                zipCode: normText(r.cep),
-                address: normText(r.logradouro),
-                addressNumber: normText(r.numero),
-                complement: normText(r.complemento),
-                neighborhood: normText(r.bairro),
-                city: normText(r.cidade),
-                state: normText(r.uf).toUpperCase().slice(0, 2),
-                clientType: normText(r.tipo_cliente) || 'titular',
-                natureza: normText(r.natureza_cadastro) || 'C',
-                status: normText(r.status) || 'ativo',
-                notes: normText(r.observacoes),
-                unitId,
-              };
-              if (existing) {
-                action = 'UPDATE';
-                message = `Cliente ${rawCpf} atualizado via Upsert`;
-                if (isCommit) await tx.update(clients).set(payload).where(eq(clients.id, existing.id));
-              } else {
-                action = 'INSERT';
-                message = `Cliente ${rawCpf} inserido`;
-                let newId = -(virtualSeq++);
-                if (isCommit) {
-                  const [ins] = await tx.insert(clients).values(payload).returning();
-                  newId = ins.id;
-                }
-                clientMap.set(digits, { id: newId, cpfCnpj: rawCpf, unitId });
-              }
-              break;
-            }
-            case 'client_asset_links': {
-              const titDig = normDigits(r.cpf_cnpj_titular);
-              const ownDig = normDigits(r.cpf_cnpj_responsavel_bem);
-              const tit = clientMap.get(titDig);
-              const own = clientMap.get(ownDig);
-              if (!tit) throw new Error(`Titular "${r.cpf_cnpj_titular}" não localizado`);
-              if (!own) throw new Error(`Responsável pelo bem "${r.cpf_cnpj_responsavel_bem}" não localizado`);
-              naturalKey = `${titDig} -> ${ownDig}`;
-              action = 'INSERT';
-              message = 'Vínculo titular/possuidor registrado';
-              if (isCommit) {
-                await tx.insert(clientAssetLinks).values({
-                  titularClientId: tit.id,
-                  assetOwnerClientId: own.id,
-                  relationshipLabel: normText(r.grau_vinculo) || 'Responsável pelo Bem',
-                  vehiclePlate: normText(r.placa_veiculo),
-                  vehicleModel: normText(r.modelo_veiculo),
-                  renavam: normText(r.renavam),
-                });
-              }
-              break;
-            }
-            case 'bank_accounts': {
-              const bankName = normText(r.nome_banco);
-              const accountNumber = normText(r.numero_conta);
-              if (!bankName || !accountNumber) throw new Error('nome_banco e numero_conta obrigatórios');
-              const unitId = r.codigo_unidade ? resolveUnitId(r.codigo_unidade) : null;
-              naturalKey = accountNumber;
-              assignedCode = accountNumber;
-              const existingId =
-                bankAccMap.get(`${normKey(bankName)}::${normKey(accountNumber)}`) ||
-                bankAccMap.get(normKey(accountNumber));
-              const payload = {
-                bankName,
-                agency: normText(r.agencia),
-                accountNumber,
-                accountType: normText(r.tipo_conta) || 'corrente',
-                initialBalanceCents: parseCentsFromBrl(r.saldo_inicial_brl),
-                currentBalanceCents: parseCentsFromBrl(r.saldo_atual_brl),
-                unitId,
-                active: parseBool(r.ativo, true),
-              };
-              if (existingId) {
-                action = 'UPDATE';
-                message = `Conta ${accountNumber} atualizada`;
-                if (isCommit) await tx.update(bankAccounts).set(payload).where(eq(bankAccounts.id, existingId));
-              } else {
-                action = 'INSERT';
-                message = `Conta ${accountNumber} criada`;
-                let newId = -(virtualSeq++);
-                if (isCommit) {
-                  const [ins] = await tx.insert(bankAccounts).values(payload).returning();
-                  newId = ins.id;
-                }
-                bankAccMap.set(normKey(accountNumber), newId);
-                bankAccMap.set(`${normKey(bankName)}::${normKey(accountNumber)}`, newId);
-              }
-              break;
-            }
-            case 'prospection_leads': {
-              const name = normText(r.nome_lead);
-              const phone = normText(r.telefone);
-              const unitId = resolveUnitId(r.codigo_unidade);
-              if (!name || !phone || !unitId) throw new Error('codigo_unidade, nome_lead e telefone obrigatórios');
-              naturalKey = phone;
-              action = 'INSERT';
-              message = `Lead ${name} inserido`;
-              if (isCommit) {
-                await tx.insert(prospectionLeads).values({
-                  name,
-                  phone,
-                  email: normText(r.email),
-                  channel: normText(r.canal_origem) || 'whatsapp_uazapi',
-                  unitId,
-                  stage: normText(r.estagio) || 'novo',
-                  summaryText: normText(r.resumo),
-                });
-              }
-              break;
-            }
-            case 'admissions': {
-              const unitId = resolveUnitId(r.codigo_unidade);
-              const contractNumber = normText(r.numero_contrato);
-              const client = clientMap.get(normDigits(r.cpf_cnpj_cliente));
-              const bankName = normText(r.banco_credor) || 'Não Informado';
-              if (!unitId) throw new Error(`codigo_unidade "${r.codigo_unidade}" não encontrado`);
-              if (!contractNumber) throw new Error('numero_contrato obrigatório');
-              if (!client) throw new Error(`Cliente "${r.cpf_cnpj_cliente}" não encontrado (Cadastre na aba Clientes antes)`);
-
-              const assetOwner = r.cpf_cnpj_responsavel_bem ? clientMap.get(normDigits(r.cpf_cnpj_responsavel_bem)) : null;
-              const rawProto = normText(r.codigo_protocolo);
-              const rawInt = normText(r.codigo_seguro_integrativo);
-              const existing =
-                (rawInt ? admMap.get(`INT::${normKey(rawInt)}`) : undefined) ||
-                (rawProto ? admMap.get(`PROTO::${normKey(rawProto)}`) : undefined) ||
-                admMap.get(`CTR::${unitId}::${normKey(contractNumber)}`) ||
-                admMap.get(`CTR_ANY::${normKey(contractNumber)}`);
-
-              const series = normText(r.serie) || 'ADM';
-              const protocolCode = existing?.protocolCode || rawProto || `${series}-${String(existingAdmissions.length + codeCounter++).padStart(4, '0')}-${crypto.randomInt(10, 99)}`;
-              const unitCode = resolveUnitCode(unitId);
-
-              naturalKey = contractNumber;
-              assignedCode = protocolCode;
-
-              const payload = {
-                protocolCode,
-                clientId: client.id,
-                assetOwnerId: assetOwner?.id ?? null,
-                unitId,
-                bankName,
-                contractNumber,
-                debtType: normText(r.segmento_divida) || 'veicular',
-                modality: normText(r.modalidade) || 'CDC Veículo',
-                series,
-                consultantName: normText(r.consultor_nome),
-                origin: normText(r.origem),
-                vehicleBrand: normText(r.veiculo_marca),
-                vehicleModel: normText(r.veiculo_modelo),
-                vehicleYear: normText(r.veiculo_ano),
-                vehiclePlate: normText(r.veiculo_placa),
-                vehicleRenavam: normText(r.veiculo_renavam),
-                vehicleChassis: normText(r.veiculo_chassi),
-                debtTotalInstallments: parseIntSafe(r.qtd_parcelas_totais, 48),
-                debtPaidInstallments: parseIntSafe(r.qtd_parcelas_pagas, 0),
-                debtOverdueInstallments: parseIntSafe(r.qtd_parcelas_atraso, 0),
-                financedAmountCents: parseCentsFromBrl(r.valor_financiado_brl),
-                currentInstallmentCents: parseCentsFromBrl(r.valor_parcela_atual_brl),
-                debtAmountCents: parseCentsFromBrl(r.valor_divida_brl),
-                serviceFeeCents: parseCentsFromBrl(r.valor_honorarios_brl),
-                installmentsCount: Math.max(1, parseIntSafe(r.parcelas_honorarios, 6)),
-                status: normText(r.status_admissao) || 'aprovada',
-                notes: normText(r.observacoes),
-              };
-
-              if (existing) {
-                action = 'UPDATE';
-                integrativeCode =
-                  existing.integrativeCode ||
-                  rawInt ||
-                  (params.assignIntegrative && existing.id > 0
-                    ? generateIntegrativeCode({ unitCode, entityType: 'DOSS', entityId: existing.id, referenceSeed: contractNumber })
-                    : '');
-                message = `Admissão contrato ${contractNumber} atualizada via Upsert`;
-                if (isCommit) {
-                  await tx
-                    .update(admissions)
-                    .set({
-                      ...payload,
-                      integrativeCode: integrativeCode || existing.integrativeCode || null,
-                    })
-                    .where(eq(admissions.id, existing.id));
-                }
-              } else {
-                action = 'INSERT';
-                let newId = -(virtualSeq++);
-                if (isCommit) {
-                  const [ins] = await tx.insert(admissions).values(payload).returning();
-                  newId = ins.id;
-                  if (params.assignIntegrative !== false) {
-                    integrativeCode = generateIntegrativeCode({
-                      unitCode,
-                      entityType: 'DOSS',
-                      entityId: newId,
-                      referenceSeed: contractNumber,
-                    });
-                    await tx
-                      .update(admissions)
-                      .set({ integrativeCode, legacyProtocolCode: protocolCode })
-                      .where(eq(admissions.id, newId));
-                  }
-                } else {
-                  integrativeCode = `INV-${unitCode}-DOSS-PREVIA-HMAC`;
-                }
-                const entry = {
-                  id: newId,
-                  unitId,
-                  clientId: client.id,
-                  protocolCode,
-                  contractNumber,
-                  integrativeCode: integrativeCode || null,
-                };
-                admMap.set(`PROTO::${normKey(protocolCode)}`, entry);
-                admMap.set(`CTR::${unitId}::${normKey(contractNumber)}`, entry);
-                admMap.set(`CTR_ANY::${normKey(contractNumber)}`, entry);
-                message = `Admissão criada (${protocolCode})`;
-              }
-              break;
-            }
-            case 'negotiations': {
-              const unitId = resolveUnitId(r.codigo_unidade);
-              const client = clientMap.get(normDigits(r.cpf_cnpj_cliente));
-              const contractNumber = normText(r.numero_contrato);
-              if (!unitId || !client) throw new Error('codigo_unidade e cpf_cnpj_cliente válidos obrigatórios');
-              const adm = contractNumber
-                ? admMap.get(`CTR::${unitId}::${normKey(contractNumber)}`) || admMap.get(`CTR_ANY::${normKey(contractNumber)}`)
-                : undefined;
-              naturalKey = `${client.cpfCnpj} / ${contractNumber || 'S/C'}`;
-              const existingId = negMap.get(`${client.id}::${normKey(contractNumber)}`);
-              const payload = {
-                unitId,
-                clientId: client.id,
-                admissionId: adm?.id && adm.id > 0 ? adm.id : null,
-                contractNumber,
-                bankName: normText(r.banco_credor) || 'Não Informado',
-                collaboratorName: normText(r.negociador),
-                openDate: normText(r.data_abertura),
-                originalDebtCents: parseCentsFromBrl(r.divida_original_brl),
-                targetReductionPct: parseIntSafe(r.meta_desconto_pct, 55),
-                currentReductionPct: parseIntSafe(r.desconto_atual_pct, 20),
-                estimatedSavingsCents: parseCentsFromBrl(r.economia_estimada_brl),
-                targetDeadline: parseDateSafe(r.prazo_alvo, new Date(Date.now() + 30 * 86400000)),
-                negotiationStatus: normText(r.status_negociacao) || 'EM_ANDAMENTO',
-                notes: normText(r.observacoes),
-              };
-              if (existingId) {
-                action = 'UPDATE';
-                message = 'Negociação atualizada';
-                if (isCommit) await tx.update(negotiations).set(payload).where(eq(negotiations.id, existingId));
-              } else {
-                action = 'INSERT';
-                message = 'Negociação criada';
-                let newId = -(virtualSeq++);
-                if (isCommit) {
-                  const [ins] = await tx.insert(negotiations).values(payload).returning();
-                  newId = ins.id;
-                }
-                negMap.set(`${client.id}::${normKey(contractNumber)}`, newId);
-              }
-              break;
-            }
-            case 'commercial_deals': {
-              const unitId = resolveUnitId(r.codigo_unidade);
-              const client = clientMap.get(normDigits(r.cpf_cnpj_cliente));
-              if (!unitId || !client) throw new Error('codigo_unidade e cpf_cnpj_cliente válidos obrigatórios');
-              const contractNumber = normText(r.numero_contrato);
-              const adm = contractNumber ? admMap.get(`CTR_ANY::${normKey(contractNumber)}`) : undefined;
-              naturalKey = `${client.cpfCnpj} / ${normText(r.banco_credor)}`;
-              action = 'INSERT';
-              message = 'Oportunidade comercial inserida';
-              if (isCommit) {
-                await tx.insert(commercialDeals).values({
-                  unitId,
-                  clientId: client.id,
-                  admissionId: adm?.id && adm.id > 0 ? adm.id : null,
-                  bankName: normText(r.banco_credor) || 'Banco',
-                  collaboratorName: normText(r.responsavel),
-                  stage: normText(r.estagio_funil) || 'TRIAGEM',
-                  debtValueCents: parseCentsFromBrl(r.valor_divida_brl),
-                  proposedValueCents: r.valor_proposto_brl ? parseCentsFromBrl(r.valor_proposto_brl) : null,
-                  notes: normText(r.observacoes),
-                });
-              }
-              break;
-            }
-            case 'financial_titles': {
-              const unitId = resolveUnitId(r.codigo_unidade);
-              const client = clientMap.get(normDigits(r.cpf_cnpj_cliente));
-              if (!unitId || !client) throw new Error('codigo_unidade e cpf_cnpj_cliente válidos obrigatórios');
-              const contractNumber = normText(r.numero_contrato);
-              const adm = contractNumber
-                ? admMap.get(`CTR::${unitId}::${normKey(contractNumber)}`) || admMap.get(`CTR_ANY::${normKey(contractNumber)}`)
-                : undefined;
-              const inst = Math.max(1, parseIntSafe(r.parcela_atual, 1));
-              const totalInst = Math.max(inst, parseIntSafe(r.total_parcelas, 1));
-              const rawCode = normText(r.codigo_titulo);
-              const existing =
-                (rawCode ? titleMap.get(normKey(rawCode)) : undefined) ||
-                (contractNumber ? titleMap.get(`CTR_INST::${normKey(contractNumber)}::${inst}`) : undefined);
-              const titleCode =
-                existing?.titleCode ||
-                rawCode ||
-                `TIT-${resolveUnitCode(unitId)}-${existingTitles.length + codeCounter++}-${String(inst).padStart(2, '0')}`;
-              naturalKey = titleCode;
-              assignedCode = titleCode;
-              const amountCents = parseCentsFromBrl(r.valor_brl);
-              const balanceCents = r.saldo_aberto_brl !== '' && r.saldo_aberto_brl !== undefined ? parseCentsFromBrl(r.saldo_aberto_brl) : amountCents;
-              const payload = {
-                titleCode,
-                scope: normText(r.carteira) || 'RECEBER',
-                titleType: normText(r.tipo_titulo) || 'PADRAO',
-                origin: 'IMPORTACAO',
-                documentNumber: normText(r.numero_documento),
-                description: normText(r.descricao),
-                clientId: client.id,
-                admissionId: adm?.id && adm.id > 0 ? adm.id : null,
-                unitId,
-                categoryId: r.categoria_financeira ? catMap.get(normKey(r.categoria_financeira)) ?? null : null,
-                chartAccountId: r.codigo_plano_contas ? chartMap.get(normKey(r.codigo_plano_contas)) ?? null : null,
-                installmentNumber: inst,
-                totalInstallments: totalInst,
-                amountCents,
-                originalValueCents: amountCents,
-                currentBalanceCents: balanceCents,
-                issueDate: parseDateSafe(r.data_emissao),
-                dueDate: parseDateSafe(r.data_vencimento),
-                status: normText(r.status) || 'ABERTO',
-                contractNumber,
-              };
-              if (existing) {
-                action = 'UPDATE';
-                message = `Título ${titleCode} atualizado`;
-                if (isCommit) await tx.update(financialTitles).set(payload).where(eq(financialTitles.id, existing.id));
-              } else {
-                action = 'INSERT';
-                message = `Título ${titleCode} inserido`;
-                let newId = -(virtualSeq++);
-                if (isCommit) {
-                  const [ins] = await tx.insert(financialTitles).values(payload).returning();
-                  newId = ins.id;
-                }
-                titleMap.set(normKey(titleCode), { id: newId, titleCode });
-                if (contractNumber) titleMap.set(`CTR_INST::${normKey(contractNumber)}::${inst}`, { id: newId, titleCode });
-              }
-              break;
-            }
-            case 'title_settlements': {
-              const title = titleMap.get(normKey(r.codigo_titulo));
-              if (!title) throw new Error(`Título "${r.codigo_titulo}" não encontrado`);
-              naturalKey = title.titleCode;
-              action = 'INSERT';
-              message = `Baixa vinculada ao título ${title.titleCode}`;
-              if (isCommit && title.id > 0) {
-                await tx.insert(titleSettlements).values({
-                  titleId: title.id,
-                  settlementDate: parseDateSafe(r.data_baixa),
-                  principalCents: parseCentsFromBrl(r.principal_brl),
-                  interestCents: parseCentsFromBrl(r.juros_brl),
-                  fineCents: parseCentsFromBrl(r.multa_brl),
-                  discountCents: parseCentsFromBrl(r.desconto_brl),
-                  amountCents: parseCentsFromBrl(r.valor_total_pago_brl),
-                  origin: 'IMPORTACAO_EXCEL',
-                  paymentMethod: normText(r.forma_pagamento) || 'PIX',
-                  bankAccountId: r.conta_bancaria ? bankAccMap.get(normKey(r.conta_bancaria)) ?? null : null,
-                  history: normText(r.historico),
-                  createdByName: params.actorName,
-                });
-              }
-              break;
-            }
-            case 'bank_movements': {
-              const accId = bankAccMap.get(normKey(r.numero_conta));
-              if (!accId) throw new Error(`Conta bancária "${r.numero_conta}" não encontrada`);
-              const unitId = r.codigo_unidade ? resolveUnitId(r.codigo_unidade) : null;
-              naturalKey = `${normText(r.numero_conta)} / ${normText(r.numero_documento) || formatDateIso(parseDateSafe(r.data_movimento))}`;
-              action = 'INSERT';
-              message = 'Movimento bancário registrado';
-              if (isCommit && accId > 0) {
-                await tx.insert(bankMovements).values({
-                  bankAccountId: accId,
-                  movementType: normText(r.tipo_movimento) || 'CREDITO',
-                  amountCents: parseCentsFromBrl(r.valor_brl),
-                  movementDate: parseDateSafe(r.data_movimento),
-                  documentNumber: normText(r.numero_documento),
-                  description: normText(r.descricao) || 'Importação Excel',
-                  categoryId: r.codigo_plano_contas ? chartMap.get(normKey(r.codigo_plano_contas)) ?? null : null,
-                  reconciled: parseBool(r.conciliado, false),
-                  status: parseBool(r.conciliado, false) ? 'CONCILIADO' : 'PENDENTE',
-                  unitId,
-                });
-              }
-              break;
-            }
-            case 'legal_processes': {
-              const unitId = resolveUnitId(r.codigo_unidade);
-              const client = clientMap.get(normDigits(r.cpf_cnpj_cliente));
-              const processNumber = normText(r.numero_processo_cnj);
-              if (!unitId || !client || !processNumber) {
-                throw new Error('codigo_unidade, cpf_cnpj_cliente e numero_processo_cnj obrigatórios');
-              }
-              const adm = r.numero_contrato ? admMap.get(`CTR_ANY::${normKey(r.numero_contrato)}`) : undefined;
-              naturalKey = processNumber;
-              assignedCode = processNumber;
-              const existingId = legalProcMap.get(normKey(processNumber));
-              const payload = {
-                processNumber,
-                clientId: client.id,
-                admissionId: adm?.id && adm.id > 0 ? adm.id : null,
-                unitId,
-                courtName: normText(r.vara_tribunal) || 'Vara Cível',
-                actionType: normText(r.tipo_acao) || 'busca_apreensao',
-                hasSearchSeizure: parseBool(r.possui_busca_apreensao, false),
-                vehicleSeized: parseBool(r.veiculo_apreendido, false),
-                status: normText(r.status) || 'em_acompanhamento',
-                escavadorMonitored: parseBool(r.monitorado_escavador, true),
-              };
-              if (existingId) {
-                action = 'UPDATE';
-                message = `Processo ${processNumber} atualizado`;
-                if (isCommit) await tx.update(legalProcesses).set(payload).where(eq(legalProcesses.id, existingId));
-              } else {
-                action = 'INSERT';
-                message = `Processo ${processNumber} inserido`;
-                let newId = -(virtualSeq++);
-                if (isCommit) {
-                  const [ins] = await tx.insert(legalProcesses).values(payload).returning();
-                  newId = ins.id;
-                }
-                legalProcMap.set(normKey(processNumber), newId);
-              }
-              break;
-            }
-            case 'company_legal_processes': {
-              const processNumber = normText(r.numero_processo);
-              if (!processNumber) throw new Error('numero_processo obrigatório');
-              const unitId = r.codigo_unidade ? resolveUnitId(r.codigo_unidade) : null;
-              const partner = r.cpf_cnpj_parceiro_cliente ? clientMap.get(normDigits(r.cpf_cnpj_parceiro_cliente)) : null;
-              const contractNumber = normText(r.numero_contrato);
-              const adm = contractNumber ? admMap.get(`CTR_ANY::${normKey(contractNumber)}`) : undefined;
-              naturalKey = processNumber;
-              assignedCode = processNumber;
-              const existingId = compProcMap.get(normKey(processNumber));
-              const payload = {
-                unitId,
-                processNumber,
-                court: normText(r.tribunal),
-                jurisdiction: normText(r.comarca_vara),
-                type: normText(r.tipo_processo) || 'CÍVEL',
-                role: normText(r.polo) || 'RÉU',
-                opposingParty: normText(r.parte_contraria),
-                opposingPartyDocument: normText(r.cpf_cnpj_parte_contraria),
-                partnerId: partner?.id && partner.id > 0 ? partner.id : null,
-                admissionId: adm?.id && adm.id > 0 ? adm.id : null,
-                contractNumber,
-                responsibleLawyer: normText(r.advogado_responsavel),
-                responsibleLawyerOab: normText(r.oab_responsavel),
-                status: normText(r.status) || 'ATIVO',
-                riskLevel: normText(r.grau_risco) || 'MEDIO',
-                causeValue: normText(r.valor_causa),
-                provisionValue: normText(r.valor_provisao),
-                distributionDate: normText(r.data_distribuicao),
-                subject: normText(r.assunto),
-                notes: normText(r.anotacoes),
-              };
-              if (existingId) {
-                action = 'UPDATE';
-                message = `Processo empresarial ${processNumber} atualizado`;
-                if (isCommit) await tx.update(companyLegalProcesses).set(payload).where(eq(companyLegalProcesses.id, existingId));
-              } else {
-                action = 'INSERT';
-                message = `Processo empresarial ${processNumber} inserido`;
-                let newId = -(virtualSeq++);
-                if (isCommit) {
-                  const [ins] = await tx.insert(companyLegalProcesses).values(payload).returning();
-                  newId = ins.id;
-                }
-                compProcMap.set(normKey(processNumber), newId);
-              }
-              break;
-            }
-            case 'company_legal_process_movements': {
-              const procId = compProcMap.get(normKey(r.numero_processo));
-              if (!procId) throw new Error(`Processo "${r.numero_processo}" não localizado`);
-              naturalKey = normText(r.numero_processo);
-              action = 'INSERT';
-              message = 'Movimentação vinculada ao processo';
-              if (isCommit && procId > 0) {
-                await tx.insert(companyLegalProcessMovements).values({
-                  processId: procId,
-                  date: normText(r.data_movimentacao),
-                  type: normText(r.tipo) || 'DESPACHO',
-                  description: normText(r.descricao),
-                  source: normText(r.origem) || 'Importação Excel',
-                });
-              }
-              break;
-            }
-            case 'company_legal_process_deadlines': {
-              const procId = compProcMap.get(normKey(r.numero_processo));
-              if (!procId) throw new Error(`Processo "${r.numero_processo}" não localizado`);
-              naturalKey = normText(r.numero_processo);
-              action = 'INSERT';
-              message = 'Prazo vinculado ao processo';
-              if (isCommit && procId > 0) {
-                await tx.insert(companyLegalProcessDeadlines).values({
-                  processId: procId,
-                  type: normText(r.tipo_prazo) || 'OUTRO',
-                  description: normText(r.descricao),
-                  dueDate: normText(r.data_vencimento),
-                  status: normText(r.status) || 'PENDENTE',
-                  responsibleId: r.codigo_colaborador ? collabMap.get(normKey(r.codigo_colaborador)) ?? null : null,
-                  notes: normText(r.observacoes),
-                });
-              }
-              break;
-            }
-            case 'company_legal_process_hearings': {
-              const procId = compProcMap.get(normKey(r.numero_processo));
-              if (!procId) throw new Error(`Processo "${r.numero_processo}" não localizado`);
-              naturalKey = normText(r.numero_processo);
-              action = 'INSERT';
-              message = 'Audiência vinculada ao processo';
-              if (isCommit && procId > 0) {
-                await tx.insert(companyLegalProcessHearings).values({
-                  processId: procId,
-                  type: normText(r.tipo_audiencia) || 'INICIAL',
-                  date: normText(r.data_audiencia),
-                  time: normText(r.horario),
-                  location: normText(r.local_link),
-                  status: normText(r.status) || 'AGENDADA',
-                  notes: normText(r.observacoes),
-                });
-              }
-              break;
-            }
-            case 'appointments': {
-              const unitId = resolveUnitId(r.codigo_unidade);
-              const consultantId = userMap.get(normKey(r.email_consultor));
-              const clientName = normText(r.nome_cliente);
-              const clientPhone = normText(r.telefone_cliente);
-              if (!unitId || !consultantId || !clientName || !clientPhone) {
-                throw new Error('codigo_unidade, email_consultor, nome_cliente e telefone_cliente obrigatórios');
-              }
-              const client = r.cpf_cnpj_cliente ? clientMap.get(normDigits(r.cpf_cnpj_cliente)) : null;
-              naturalKey = `${clientName} (${clientPhone})`;
-              action = 'INSERT';
-              message = 'Agendamento inserido';
-              if (isCommit && consultantId > 0) {
-                await tx.insert(appointments).values({
-                  unitId,
-                  consultantId,
-                  clientId: client?.id && client.id > 0 ? client.id : null,
-                  clientName,
-                  clientPhone,
-                  serviceId: r.nome_servico ? serviceMap.get(normKey(r.nome_servico)) ?? null : null,
-                  serviceName: normText(r.nome_servico),
-                  modality: normText(r.modalidade_atendimento) || 'presencial',
-                  scheduledFor: parseDateSafe(r.data_hora_inicio),
-                  status: normText(r.status) || 'agendado',
-                  notes: normText(r.observacoes),
-                  createdByName: params.actorName,
-                });
-              }
-              break;
-            }
-            case 'document_objects': {
-              const unitId = resolveUnitId(r.codigo_unidade);
-              const client = clientMap.get(normDigits(r.cpf_cnpj_cliente));
-              const fileName = normText(r.nome_arquivo);
-              if (!unitId || !client || !fileName) {
-                throw new Error('codigo_unidade, cpf_cnpj_cliente e nome_arquivo obrigatórios');
-              }
-              const contractNumber = normText(r.numero_contrato);
-              const adm = contractNumber
-                ? admMap.get(`CTR::${unitId}::${normKey(contractNumber)}`) || admMap.get(`CTR_ANY::${normKey(contractNumber)}`)
-                : undefined;
-              const subPath = normText(r.subpasta_relativa) || fileName;
-              const folderPath =
-                normText(r.caminho_bucket) ||
-                `bucketdainvicta/U${unitId}/C${client.id}${adm?.id && adm.id > 0 ? `/ADM-${adm.id}` : '/GERAL'}`;
-              naturalKey = `${contractNumber || client.cpfCnpj}/${subPath}`;
-              assignedCode = normText(r.codigo_seguro_integrativo) || '';
-              action = 'INSERT';
-              message = 'Metadado documental indexado';
-              if (isCommit && client.id > 0) {
-                const [ins] = await tx
-                  .insert(documentObjects)
-                  .values({
-                    clientId: client.id,
-                    admissionId: adm?.id && adm.id > 0 ? adm.id : null,
-                    unitId,
-                    folderPath,
-                    relativeSubpath: subPath,
-                    fileName,
-                    docCategory: normText(r.categoria_documento) || 'contrato',
-                    mimeType: normText(r.mime_type) || 'application/pdf',
-                    sizeBytes: parseIntSafe(r.tamanho_bytes, 0),
-                    sha256Hash: normText(r.sha256_hash) || crypto.createHash('sha256').update(`${folderPath}/${fileName}`).digest('hex'),
-                    storageUri: `bucket://bucketdainvicta/pending-sync`,
-                    uploadedBy: params.actorName,
-                    versionNumber: Math.max(1, parseIntSafe(r.versao, 1)),
-                  })
-                  .returning();
-                if (!assignedCode && params.assignIntegrative !== false) {
-                  integrativeCode = generateIntegrativeCode({
-                    unitCode: resolveUnitCode(unitId),
-                    entityType: 'DOC',
-                    entityId: ins.id,
-                    referenceSeed: ins.sha256Hash || fileName,
-                  });
-                  assignedCode = integrativeCode;
-                  await tx.update(documentObjects).set({ integrativeCode }).where(eq(documentObjects.id, ins.id));
-                }
-              }
-              break;
-            }
-            default: {
-              action = 'SKIP';
-              message = 'Entidade sem manipulador transacional';
-            }
-          }
-        } catch (err) {
-          action = 'ERROR';
-          message = err instanceof Error ? err.message : 'Erro desconhecido';
-        }
-
-        if (action === 'INSERT') summary.inserts++;
-        else if (action === 'UPDATE') summary.updates++;
-        else if (action === 'SKIP') summary.skips++;
-        else summary.errors++;
-
-        rowResults.push({
-          entityKey: layout.key,
-          sheetName,
-          rowNumber,
-          action,
-          naturalKey,
-          assignedCode,
-          integrativeCode,
-          message,
-        });
-      }
-
-      orderedSheets.push(summary);
-    }
+  const resolveUnitId = (codeVal: unknown): number | null => {
+    const k = normKey(codeVal);
+    if (k && state.unitMap.has(k)) return state.unitMap.get(k)!.id;
+    if (!k && params.unitFallbackId) return params.unitFallbackId;
+    return null;
   };
 
-  if (isCommit) {
-    await db.transaction(async (tx) => {
-      await executeWork(tx);
+  const resolveUnitCode = (unitId: number): string => {
+    for (const u of state.unitMap.values()) {
+      if (u.id === unitId) return u.code;
+    }
+    return `U${unitId}`;
+  };
+
+  try {
+    switch (layout.key) {
+      case 'units': {
+        const rawCode = normText(r.codigo_unidade).toUpperCase();
+        const name = normText(r.nome_unidade);
+        const city = normText(r.cidade) || 'Recife';
+        const stateUf = normText(r.uf).toUpperCase().slice(0, 2) || 'PE';
+        if (!name) throw new Error('nome_unidade obrigatório');
+        const code = rawCode || nextAutoCode('U');
+        naturalKey = code;
+        assignedCode = code;
+        const existing = state.unitMap.get(normKey(code));
+        const payload = {
+          code,
+          name,
+          legalName: normText(r.razao_social),
+          cnpj: normText(r.cnpj),
+          city,
+          state: stateUf,
+          phone: normText(r.telefone),
+          email: normText(r.email),
+          whatsappNumber: normText(r.whatsapp),
+          zipCode: normText(r.cep),
+          address: normText(r.logradouro),
+          addressNumber: normText(r.numero),
+          neighborhood: normText(r.bairro),
+          minAdmissionCostCents: parseCentsFromBrl(r.custo_minimo_admissao_brl) || 150000,
+          active: parseBool(r.ativo, true),
+        };
+        if (existing) {
+          action = 'UPDATE';
+          message = `Unidade ${code} atualizada`;
+          if (isCommit) await tx.update(units).set(payload).where(eq(units.id, existing.id));
+        } else {
+          action = 'INSERT';
+          message = `Unidade ${code} criada`;
+          let newId = -(state.virtualSeq++);
+          if (isCommit) {
+            const [ins] = await tx.insert(units).values(payload).returning();
+            newId = ins.id;
+          }
+          state.unitMap.set(normKey(code), { id: newId, code });
+        }
+        break;
+      }
+      case 'user_groups': {
+        const name = normText(r.nome_grupo);
+        if (!name) throw new Error('nome_grupo obrigatório');
+        naturalKey = name;
+        assignedCode = name;
+        const existingId = state.groupMap.get(normKey(name));
+        if (existingId) {
+          action = 'UPDATE';
+          message = 'Grupo atualizado';
+          if (isCommit) await tx.update(userGroups).set({ description: normText(r.descricao) }).where(eq(userGroups.id, existingId));
+        } else {
+          action = 'INSERT';
+          message = 'Grupo criado';
+          let newId = -(state.virtualSeq++);
+          if (isCommit) {
+            const [ins] = await tx.insert(userGroups).values({ name, description: normText(r.descricao) }).returning();
+            newId = ins.id;
+          }
+          state.groupMap.set(normKey(name), newId);
+        }
+        break;
+      }
+      case 'departments': {
+        const name = normText(r.nome_departamento);
+        if (!name) throw new Error('nome_departamento obrigatório');
+        const existingId = state.deptMap.get(normKey(r.codigo_departamento)) || state.deptMap.get(normKey(name));
+        const code = normText(r.codigo_departamento) || nextAutoCode('DEP');
+        naturalKey = code;
+        assignedCode = code;
+        const payload = { code, name, managerName: normText(r.gestor), status: normText(r.status) || 'ATIVO' };
+        if (existingId) {
+          action = 'UPDATE';
+          message = `Departamento ${code} atualizado`;
+          if (isCommit) await tx.update(departments).set(payload).where(eq(departments.id, existingId));
+        } else {
+          action = 'INSERT';
+          message = `Departamento ${code} criado`;
+          let newId = -(state.virtualSeq++);
+          if (isCommit) {
+            const [ins] = await tx.insert(departments).values(payload).returning();
+            newId = ins.id;
+          }
+          state.deptMap.set(normKey(code), newId);
+          state.deptMap.set(normKey(name), newId);
+        }
+        break;
+      }
+      case 'roles_catalog': {
+        const name = normText(r.nome_cargo);
+        if (!name) throw new Error('nome_cargo obrigatório');
+        naturalKey = name;
+        const existingId = state.roleMap.get(normKey(name));
+        const payload = {
+          name,
+          participatesInScheduleQueue: parseBool(r.participa_fila_agenda, true),
+          sortOrder: parseIntSafe(r.ordem, 0),
+          active: parseBool(r.ativo, true),
+        };
+        if (existingId) {
+          action = 'UPDATE';
+          message = 'Cargo atualizado';
+          if (isCommit) await tx.update(rolesCatalog).set(payload).where(eq(rolesCatalog.id, existingId));
+        } else {
+          action = 'INSERT';
+          message = 'Cargo criado';
+          let newId = -(state.virtualSeq++);
+          if (isCommit) {
+            const [ins] = await tx.insert(rolesCatalog).values(payload).returning();
+            newId = ins.id;
+          }
+          state.roleMap.set(normKey(name), newId);
+        }
+        break;
+      }
+      case 'series_catalog': {
+        const sigla = normText(r.sigla_serie).toUpperCase();
+        const description = normText(r.descricao);
+        if (!sigla || !description) throw new Error('sigla_serie e descricao obrigatórios');
+        naturalKey = sigla;
+        assignedCode = sigla;
+        const existingId = state.seriesMap.get(normKey(sigla));
+        const payload = {
+          sigla,
+          description,
+          generalNumber: Math.max(1, parseIntSafe(r.numeracao_geral, 1)),
+          isDefault: parseBool(r.padrao, false),
+        };
+        if (existingId) {
+          action = 'UPDATE';
+          message = `Série ${sigla} atualizada`;
+          if (isCommit) await tx.update(seriesCatalog).set(payload).where(eq(seriesCatalog.id, existingId));
+        } else {
+          action = 'INSERT';
+          message = `Série ${sigla} criada`;
+          let newId = -(state.virtualSeq++);
+          if (isCommit) {
+            const [ins] = await tx.insert(seriesCatalog).values(payload).returning();
+            newId = ins.id;
+          }
+          state.seriesMap.set(normKey(sigla), newId);
+        }
+        break;
+      }
+      case 'payment_categories': {
+        const name = normText(r.nome_categoria);
+        if (!name) throw new Error('nome_categoria obrigatório');
+        naturalKey = name;
+        const existingId = state.catMap.get(normKey(name));
+        const payload = { name, providerCode: normText(r.codigo_provedor) || 'custom', active: parseBool(r.ativo, true) };
+        if (existingId) {
+          action = 'UPDATE';
+          message = 'Categoria atualizada';
+          if (isCommit) await tx.update(paymentCategories).set(payload).where(eq(paymentCategories.id, existingId));
+        } else {
+          action = 'INSERT';
+          message = 'Categoria criada';
+          let newId = -(state.virtualSeq++);
+          if (isCommit) {
+            const [ins] = await tx.insert(paymentCategories).values(payload).returning();
+            newId = ins.id;
+          }
+          state.catMap.set(normKey(name), newId);
+        }
+        break;
+      }
+      case 'bearers': {
+        const name = normText(r.nome_portador);
+        if (!name) throw new Error('nome_portador obrigatório');
+        const existingId = state.bearerMap.get(normKey(r.codigo_portador)) || state.bearerMap.get(normKey(name));
+        const code = normText(r.codigo_portador) || nextAutoCode('POR');
+        const unitId = r.codigo_unidade ? resolveUnitId(r.codigo_unidade) : null;
+        if (r.codigo_unidade && !unitId) throw new Error(`Unidade "${r.codigo_unidade}" não encontrada`);
+        naturalKey = code;
+        assignedCode = code;
+        const payload = { code, name, type: normText(r.tipo) || 'banco', unitId, active: parseBool(r.ativo, true) };
+        if (existingId) {
+          action = 'UPDATE';
+          message = `Portador ${code} atualizado`;
+          if (isCommit) await tx.update(bearers).set(payload).where(eq(bearers.id, existingId));
+        } else {
+          action = 'INSERT';
+          message = `Portador ${code} criado`;
+          let newId = -(state.virtualSeq++);
+          if (isCommit) {
+            const [ins] = await tx.insert(bearers).values(payload).returning();
+            newId = ins.id;
+          }
+          state.bearerMap.set(normKey(code), newId);
+          state.bearerMap.set(normKey(name), newId);
+        }
+        break;
+      }
+      case 'document_types': {
+        const description = normText(r.descricao);
+        if (!description) throw new Error('descricao obrigatório');
+        naturalKey = description;
+        const existingId = state.docTypeMap.get(normKey(description));
+        const payload = {
+          description,
+          category: normText(r.categoria) || 'ambos',
+          isFiscal: parseBool(r.fiscal, false),
+          requiresNumber: parseBool(r.exige_numero, false),
+          active: parseBool(r.ativo, true),
+        };
+        if (existingId) {
+          action = 'UPDATE';
+          message = 'Tipo de documento atualizado';
+          if (isCommit) await tx.update(documentTypes).set(payload).where(eq(documentTypes.id, existingId));
+        } else {
+          action = 'INSERT';
+          message = 'Tipo de documento criado';
+          let newId = -(state.virtualSeq++);
+          if (isCommit) {
+            const [ins] = await tx.insert(documentTypes).values(payload).returning();
+            newId = ins.id;
+          }
+          state.docTypeMap.set(normKey(description), newId);
+        }
+        break;
+      }
+      case 'chart_of_accounts': {
+        const name = normText(r.nome_conta);
+        if (!name) throw new Error('nome_conta obrigatório');
+        const code = normText(r.codigo_conta) || nextAutoCode('PC');
+        naturalKey = code;
+        assignedCode = code;
+        const existingId = state.chartMap.get(normKey(code));
+        const payload = {
+          code,
+          name,
+          type: normText(r.tipo) || 'despesa',
+          isAnalytic: parseBool(r.analitica, true),
+          active: parseBool(r.ativo, true),
+        };
+        if (existingId) {
+          action = 'UPDATE';
+          message = `Conta contábil ${code} atualizada`;
+          if (isCommit) await tx.update(chartOfAccounts).set(payload).where(eq(chartOfAccounts.id, existingId));
+        } else {
+          action = 'INSERT';
+          message = `Conta contábil ${code} criada`;
+          let newId = -(state.virtualSeq++);
+          if (isCommit) {
+            const [ins] = await tx.insert(chartOfAccounts).values(payload).returning();
+            newId = ins.id;
+          }
+          state.chartMap.set(normKey(code), newId);
+        }
+        break;
+      }
+      case 'modalities': {
+        const type = normText(r.tipo_segmento);
+        const description = normText(r.descricao_modalidade);
+        if (!type || !description) throw new Error('tipo_segmento e descricao_modalidade obrigatórios');
+        const k = `${normKey(type)}::${normKey(description)}`;
+        naturalKey = `${type} - ${description}`;
+        const existingId = state.modalMap.get(k);
+        const payload = {
+          type,
+          description,
+          hasVehicleSection: parseBool(r.exige_dados_veiculo, false),
+          active: parseBool(r.ativo, true),
+        };
+        if (existingId) {
+          action = 'UPDATE';
+          message = 'Modalidade atualizada';
+          if (isCommit) await tx.update(modalities).set(payload).where(eq(modalities.id, existingId));
+        } else {
+          action = 'INSERT';
+          message = 'Modalidade criada';
+          let newId = -(state.virtualSeq++);
+          if (isCommit) {
+            const [ins] = await tx.insert(modalities).values(payload).returning();
+            newId = ins.id;
+          }
+          state.modalMap.set(k, newId);
+        }
+        break;
+      }
+      case 'banks': {
+        const name = normText(r.nome_banco);
+        if (!name) throw new Error('nome_banco obrigatório');
+        const existingId = state.bankMap.get(normKey(r.codigo_banco)) || state.bankMap.get(normKey(name));
+        const code = normText(r.codigo_banco) || nextAutoCode('BCO');
+        naturalKey = code;
+        assignedCode = code;
+        const payload = {
+          code,
+          name,
+          febrabanCode: normText(r.codigo_febraban),
+          status: normText(r.status) || 'ATIVO',
+          notes: normText(r.observacoes),
+        };
+        if (existingId) {
+          action = 'UPDATE';
+          message = `Banco ${code} atualizado`;
+          if (isCommit) await tx.update(banks).set(payload).where(eq(banks.id, existingId));
+        } else {
+          action = 'INSERT';
+          message = `Banco ${code} criado`;
+          let newId = -(state.virtualSeq++);
+          if (isCommit) {
+            const [ins] = await tx.insert(banks).values(payload).returning();
+            newId = ins.id;
+          }
+          state.bankMap.set(normKey(code), newId);
+          state.bankMap.set(normKey(name), newId);
+        }
+        break;
+      }
+      case 'measurement_units': {
+        const name = normText(r.nome_unidade_medida);
+        if (!name) throw new Error('nome_unidade_medida obrigatório');
+        naturalKey = name;
+        const existingId = state.mUnitMap.get(normKey(name));
+        const payload = { name, conversionFactor: normText(r.fator_conversao) || '1' };
+        if (existingId) {
+          action = 'UPDATE';
+          message = 'Unidade de medida atualizada';
+          if (isCommit) await tx.update(measurementUnits).set(payload).where(eq(measurementUnits.id, existingId));
+        } else {
+          action = 'INSERT';
+          message = 'Unidade de medida criada';
+          let newId = -(state.virtualSeq++);
+          if (isCommit) {
+            const [ins] = await tx.insert(measurementUnits).values(payload).returning();
+            newId = ins.id;
+          }
+          state.mUnitMap.set(normKey(name), newId);
+        }
+        break;
+      }
+      case 'products': {
+        const description = normText(r.descricao);
+        if (!description) throw new Error('descricao obrigatório');
+        naturalKey = description;
+        const mUnitId = r.unidade_medida ? state.mUnitMap.get(normKey(r.unidade_medida)) ?? null : null;
+        const existingId = state.productMap.get(normKey(description));
+        const payload = { type: normText(r.tipo) || 'SERVICO', description, unitId: mUnitId };
+        if (existingId) {
+          action = 'UPDATE';
+          message = 'Produto/Serviço atualizado';
+          if (isCommit) await tx.update(products).set(payload).where(eq(products.id, existingId));
+        } else {
+          action = 'INSERT';
+          message = 'Produto/Serviço criado';
+          let newId = -(state.virtualSeq++);
+          if (isCommit) {
+            const [ins] = await tx.insert(products).values(payload).returning();
+            newId = ins.id;
+          }
+          state.productMap.set(normKey(description), newId);
+        }
+        break;
+      }
+      case 'schedule_services': {
+        const name = normText(r.nome_servico);
+        if (!name) throw new Error('nome_servico obrigatório');
+        naturalKey = name;
+        const existingId = state.serviceMap.get(normKey(name));
+        const payload = {
+          name,
+          durationMinutes: Math.max(5, parseIntSafe(r.duracao_minutos, 30)),
+          priceCents: parseCentsFromBrl(r.valor_brl),
+          color: normText(r.cor_hex) || '#e0e7ff',
+          active: parseBool(r.ativo, true),
+        };
+        if (existingId) {
+          action = 'UPDATE';
+          message = 'Serviço de agenda atualizado';
+          if (isCommit) await tx.update(scheduleServices).set(payload).where(eq(scheduleServices.id, existingId));
+        } else {
+          action = 'INSERT';
+          message = 'Serviço de agenda criado';
+          let newId = -(state.virtualSeq++);
+          if (isCommit) {
+            const [ins] = await tx.insert(scheduleServices).values(payload).returning();
+            newId = ins.id;
+          }
+          state.serviceMap.set(normKey(name), newId);
+        }
+        break;
+      }
+      case 'collaborators': {
+        const name = normText(r.nome_completo);
+        const unitId = resolveUnitId(r.codigo_unidade);
+        if (!name) throw new Error('nome_completo obrigatório');
+        if (!unitId) throw new Error(`codigo_unidade "${r.codigo_unidade}" não encontrado`);
+        const email = normText(r.email);
+        const existingId =
+          state.collabMap.get(normKey(r.codigo_colaborador)) ||
+          (email ? state.collabMap.get(normKey(email)) : undefined) ||
+          state.collabMap.get(`${normKey(name)}::${unitId}`);
+        const code = normText(r.codigo_colaborador) || nextAutoCode('COL');
+        naturalKey = code;
+        assignedCode = code;
+        const payload = {
+          code,
+          name,
+          unitId,
+          departmentId: r.departamento ? state.deptMap.get(normKey(r.departamento)) ?? null : null,
+          roleId: r.cargo ? state.roleMap.get(normKey(r.cargo)) ?? null : null,
+          jobTitle: normText(r.funcao_exibicao),
+          email,
+          phone: normText(r.telefone),
+          isWhatsapp: parseBool(r.whatsapp_ativo, false),
+          participatesInScheduleQueue: parseBool(r.fila_agenda, false),
+          active: parseBool(r.ativo, true),
+          city: normText(r.cidade),
+          state: normText(r.uf).toUpperCase().slice(0, 2),
+        };
+        if (existingId) {
+          action = 'UPDATE';
+          message = `Colaborador ${code} atualizado`;
+          if (isCommit) await tx.update(collaborators).set(payload).where(eq(collaborators.id, existingId));
+        } else {
+          action = 'INSERT';
+          message = `Colaborador ${code} criado`;
+          let newId = -(state.virtualSeq++);
+          if (isCommit) {
+            const [ins] = await tx.insert(collaborators).values(payload).returning();
+            newId = ins.id;
+          }
+          state.collabMap.set(normKey(code), newId);
+          if (email) state.collabMap.set(normKey(email), newId);
+          state.collabMap.set(`${normKey(name)}::${unitId}`, newId);
+        }
+        break;
+      }
+      case 'users': {
+        const email = normText(r.email_login).toLowerCase();
+        const name = normText(r.nome_usuario);
+        if (!email || !name) throw new Error('email_login e nome_usuario obrigatórios');
+        const uid = normText(r.codigo_uid) || nextAutoCode('USR');
+        naturalKey = email;
+        assignedCode = uid;
+        const defaultUnitId = r.codigo_unidade_padrao ? resolveUnitId(r.codigo_unidade_padrao) : null;
+        const groupId = r.grupo_acesso ? state.groupMap.get(normKey(r.grupo_acesso)) ?? null : null;
+        const existingId = state.userMap.get(normKey(email));
+        if (existingId) {
+          action = 'UPDATE';
+          message = `Usuário ${email} atualizado`;
+          if (isCommit) {
+            await tx
+              .update(users)
+              .set({
+                name,
+                role: normText(r.perfil_role) || 'consultant',
+                groupId,
+                defaultUnitId,
+                whatsappPhone: normText(r.whatsapp),
+                active: parseBool(r.ativo, true),
+              })
+              .where(eq(users.id, existingId));
+          }
+        } else {
+          action = 'INSERT';
+          message = `Usuário ${email} criado (código ${uid})`;
+          let newId = -(state.virtualSeq++);
+          if (isCommit) {
+            const [ins] = await tx
+              .insert(users)
+              .values({
+                uid: `${uid}-${crypto.randomBytes(2).toString('hex')}`,
+                email,
+                name,
+                role: normText(r.perfil_role) || 'consultant',
+                groupId,
+                defaultUnitId,
+                allowedUnitIds: defaultUnitId ? [defaultUnitId] : [],
+                whatsappPhone: normText(r.whatsapp),
+                active: parseBool(r.ativo, true),
+                mustChangePassword: true,
+              })
+              .returning();
+            newId = ins.id;
+          }
+          state.userMap.set(normKey(email), newId);
+        }
+        break;
+      }
+      case 'clients': {
+        const fullName = normText(r.nome_completo);
+        const rawCpf = normText(r.cpf_cnpj);
+        const digits = normDigits(rawCpf);
+        const unitId = resolveUnitId(r.codigo_unidade);
+        if (!fullName) throw new Error('nome_completo obrigatório');
+        if (digits.length < 11) throw new Error('cpf_cnpj inválido (< 11 dígitos)');
+        if (!unitId) throw new Error(`codigo_unidade "${r.codigo_unidade}" não encontrado`);
+        naturalKey = rawCpf;
+        assignedCode = rawCpf;
+        const existing = state.clientMap.get(digits);
+        const payload = {
+          personNature: normText(r.natureza_pf_pj) || (digits.length > 11 ? 'PJ' : 'PF'),
+          fullName,
+          cpfCnpj: rawCpf,
+          rg: normText(r.rg),
+          birthDate: normText(r.data_nascimento),
+          profession: normText(r.profissao),
+          maritalStatus: normText(r.estado_civil),
+          phone: normText(r.telefone),
+          whatsapp: normText(r.whatsapp),
+          secondaryPhone: normText(r.telefone_secundario),
+          email: normText(r.email),
+          zipCode: normText(r.cep),
+          address: normText(r.logradouro),
+          addressNumber: normText(r.numero),
+          complement: normText(r.complemento),
+          neighborhood: normText(r.bairro),
+          city: normText(r.cidade),
+          state: normText(r.uf).toUpperCase().slice(0, 2),
+          clientType: normText(r.tipo_cliente) || 'titular',
+          natureza: normText(r.natureza_cadastro) || 'C',
+          status: normText(r.status) || 'ativo',
+          notes: normText(r.observacoes),
+          unitId,
+        };
+        if (existing) {
+          action = 'UPDATE';
+          message = `Cliente ${rawCpf} atualizado via Upsert`;
+          if (isCommit) await tx.update(clients).set(payload).where(eq(clients.id, existing.id));
+        } else {
+          action = 'INSERT';
+          message = `Cliente ${rawCpf} inserido`;
+          let newId = -(state.virtualSeq++);
+          if (isCommit) {
+            const [ins] = await tx.insert(clients).values(payload).returning();
+            newId = ins.id;
+          }
+          state.clientMap.set(digits, { id: newId, cpfCnpj: rawCpf, unitId });
+        }
+        break;
+      }
+      case 'client_asset_links': {
+        const titDig = normDigits(r.cpf_cnpj_titular);
+        const ownDig = normDigits(r.cpf_cnpj_responsavel_bem);
+        const tit = state.clientMap.get(titDig);
+        const own = state.clientMap.get(ownDig);
+        if (!tit) throw new Error(`Titular "${r.cpf_cnpj_titular}" não localizado`);
+        if (!own) throw new Error(`Responsável pelo bem "${r.cpf_cnpj_responsavel_bem}" não localizado`);
+        naturalKey = `${titDig} -> ${ownDig}`;
+        action = 'INSERT';
+        message = 'Vínculo titular/possuidor registrado';
+        if (isCommit && tit.id > 0 && own.id > 0) {
+          await tx.insert(clientAssetLinks).values({
+            titularClientId: tit.id,
+            assetOwnerClientId: own.id,
+            relationshipLabel: normText(r.grau_vinculo) || 'Responsável pelo Bem',
+            vehiclePlate: normText(r.placa_veiculo),
+            vehicleModel: normText(r.modelo_veiculo),
+            renavam: normText(r.renavam),
+          });
+        }
+        break;
+      }
+      case 'bank_accounts': {
+        const bankName = normText(r.nome_banco);
+        const accountNumber = normText(r.numero_conta);
+        if (!bankName || !accountNumber) throw new Error('nome_banco e numero_conta obrigatórios');
+        const unitId = r.codigo_unidade ? resolveUnitId(r.codigo_unidade) : null;
+        naturalKey = accountNumber;
+        assignedCode = accountNumber;
+        const existingId =
+          state.bankAccMap.get(`${normKey(bankName)}::${normKey(accountNumber)}`) ||
+          state.bankAccMap.get(normKey(accountNumber));
+        const payload = {
+          bankName,
+          agency: normText(r.agencia),
+          accountNumber,
+          accountType: normText(r.tipo_conta) || 'corrente',
+          initialBalanceCents: parseCentsFromBrl(r.saldo_inicial_brl),
+          currentBalanceCents: parseCentsFromBrl(r.saldo_atual_brl),
+          unitId,
+          active: parseBool(r.ativo, true),
+        };
+        if (existingId) {
+          action = 'UPDATE';
+          message = `Conta ${accountNumber} atualizada`;
+          if (isCommit) await tx.update(bankAccounts).set(payload).where(eq(bankAccounts.id, existingId));
+        } else {
+          action = 'INSERT';
+          message = `Conta ${accountNumber} criada`;
+          let newId = -(state.virtualSeq++);
+          if (isCommit) {
+            const [ins] = await tx.insert(bankAccounts).values(payload).returning();
+            newId = ins.id;
+          }
+          state.bankAccMap.set(normKey(accountNumber), newId);
+          state.bankAccMap.set(`${normKey(bankName)}::${normKey(accountNumber)}`, newId);
+        }
+        break;
+      }
+      case 'prospection_leads': {
+        const name = normText(r.nome_lead);
+        const phone = normText(r.telefone);
+        const unitId = resolveUnitId(r.codigo_unidade);
+        if (!name || !phone || !unitId) throw new Error('codigo_unidade, nome_lead e telefone obrigatórios');
+        naturalKey = phone;
+        action = 'INSERT';
+        message = `Lead ${name} inserido`;
+        if (isCommit) {
+          await tx.insert(prospectionLeads).values({
+            name,
+            phone,
+            email: normText(r.email),
+            channel: normText(r.canal_origem) || 'whatsapp_uazapi',
+            unitId,
+            stage: normText(r.estagio) || 'novo',
+            summaryText: normText(r.resumo),
+          });
+        }
+        break;
+      }
+      case 'admissions': {
+        const unitId = resolveUnitId(r.codigo_unidade);
+        const contractNumber = normText(r.numero_contrato);
+        const client = state.clientMap.get(normDigits(r.cpf_cnpj_cliente));
+        const bankName = normText(r.banco_credor) || 'Não Informado';
+        if (!unitId) throw new Error(`codigo_unidade "${r.codigo_unidade}" não encontrado`);
+        if (!contractNumber) throw new Error('numero_contrato obrigatório');
+        if (!client) throw new Error(`Cliente "${r.cpf_cnpj_cliente}" não encontrado (Cadastre na aba Clientes antes)`);
+
+        const assetOwner = r.cpf_cnpj_responsavel_bem ? state.clientMap.get(normDigits(r.cpf_cnpj_responsavel_bem)) : null;
+        const rawProto = normText(r.codigo_protocolo);
+        const rawInt = normText(r.codigo_seguro_integrativo);
+        const existing =
+          (rawInt ? state.admMap.get(`INT::${normKey(rawInt)}`) : undefined) ||
+          (rawProto ? state.admMap.get(`PROTO::${normKey(rawProto)}`) : undefined) ||
+          state.admMap.get(`CTR::${unitId}::${normKey(contractNumber)}`) ||
+          state.admMap.get(`CTR_ANY::${normKey(contractNumber)}`);
+
+        const series = normText(r.serie) || 'ADM';
+        const protocolCode =
+          existing?.protocolCode ||
+          rawProto ||
+          `${series}-${String(state.baseAdmissionsCount + state.codeCounter++).padStart(4, '0')}-${crypto.randomInt(10, 99)}`;
+        const unitCode = resolveUnitCode(unitId);
+
+        naturalKey = contractNumber;
+        assignedCode = protocolCode;
+
+        const payload = {
+          protocolCode,
+          clientId: client.id,
+          assetOwnerId: assetOwner?.id ?? null,
+          unitId,
+          bankName,
+          contractNumber,
+          debtType: normText(r.segmento_divida) || 'veicular',
+          modality: normText(r.modalidade) || 'CDC Veículo',
+          series,
+          consultantName: normText(r.consultor_nome),
+          origin: normText(r.origem),
+          vehicleBrand: normText(r.veiculo_marca),
+          vehicleModel: normText(r.veiculo_modelo),
+          vehicleYear: normText(r.veiculo_ano),
+          vehiclePlate: normText(r.veiculo_placa),
+          vehicleRenavam: normText(r.veiculo_renavam),
+          vehicleChassis: normText(r.veiculo_chassi),
+          debtTotalInstallments: parseIntSafe(r.qtd_parcelas_totais, 48),
+          debtPaidInstallments: parseIntSafe(r.qtd_parcelas_pagas, 0),
+          debtOverdueInstallments: parseIntSafe(r.qtd_parcelas_atraso, 0),
+          financedAmountCents: parseCentsFromBrl(r.valor_financiado_brl),
+          currentInstallmentCents: parseCentsFromBrl(r.valor_parcela_atual_brl),
+          debtAmountCents: parseCentsFromBrl(r.valor_divida_brl),
+          serviceFeeCents: parseCentsFromBrl(r.valor_honorarios_brl),
+          installmentsCount: Math.max(1, parseIntSafe(r.parcelas_honorarios, 6)),
+          status: normText(r.status_admissao) || 'aprovada',
+          notes: normText(r.observacoes),
+        };
+
+        if (existing) {
+          action = 'UPDATE';
+          integrativeCode =
+            existing.integrativeCode ||
+            rawInt ||
+            (params.assignIntegrative && existing.id > 0
+              ? generateIntegrativeCode({ unitCode, entityType: 'DOSS', entityId: existing.id, referenceSeed: contractNumber })
+              : '');
+          message = `Admissão contrato ${contractNumber} atualizada via Upsert`;
+          if (isCommit) {
+            await tx
+              .update(admissions)
+              .set({
+                ...payload,
+                integrativeCode: integrativeCode || existing.integrativeCode || null,
+              })
+              .where(eq(admissions.id, existing.id));
+          }
+        } else {
+          action = 'INSERT';
+          let newId = -(state.virtualSeq++);
+          if (isCommit) {
+            const [ins] = await tx.insert(admissions).values(payload).returning();
+            newId = ins.id;
+            if (params.assignIntegrative !== false) {
+              integrativeCode = generateIntegrativeCode({
+                unitCode,
+                entityType: 'DOSS',
+                entityId: newId,
+                referenceSeed: contractNumber,
+              });
+              await tx
+                .update(admissions)
+                .set({ integrativeCode, legacyProtocolCode: protocolCode })
+                .where(eq(admissions.id, newId));
+            }
+          } else {
+            integrativeCode = `INV-${unitCode}-DOSS-PREVIA-HMAC`;
+          }
+          const entry = {
+            id: newId,
+            unitId,
+            clientId: client.id,
+            protocolCode,
+            contractNumber,
+            integrativeCode: integrativeCode || null,
+          };
+          state.admMap.set(`PROTO::${normKey(protocolCode)}`, entry);
+          state.admMap.set(`CTR::${unitId}::${normKey(contractNumber)}`, entry);
+          state.admMap.set(`CTR_ANY::${normKey(contractNumber)}`, entry);
+          message = `Admissão criada (${protocolCode})`;
+        }
+        break;
+      }
+      case 'negotiations': {
+        const unitId = resolveUnitId(r.codigo_unidade);
+        const client = state.clientMap.get(normDigits(r.cpf_cnpj_cliente));
+        const contractNumber = normText(r.numero_contrato);
+        if (!unitId || !client) throw new Error('codigo_unidade e cpf_cnpj_cliente válidos obrigatórios');
+        const adm = contractNumber
+          ? state.admMap.get(`CTR::${unitId}::${normKey(contractNumber)}`) || state.admMap.get(`CTR_ANY::${normKey(contractNumber)}`)
+          : undefined;
+        naturalKey = `${client.cpfCnpj} / ${contractNumber || 'S/C'}`;
+        const existingId = state.negMap.get(`${client.id}::${normKey(contractNumber)}`);
+        const payload = {
+          unitId,
+          clientId: client.id,
+          admissionId: adm?.id && adm.id > 0 ? adm.id : null,
+          contractNumber,
+          bankName: normText(r.banco_credor) || 'Não Informado',
+          collaboratorName: normText(r.negociador),
+          openDate: normText(r.data_abertura),
+          originalDebtCents: parseCentsFromBrl(r.divida_original_brl),
+          targetReductionPct: parseIntSafe(r.meta_desconto_pct, 55),
+          currentReductionPct: parseIntSafe(r.desconto_atual_pct, 20),
+          estimatedSavingsCents: parseCentsFromBrl(r.economia_estimada_brl),
+          targetDeadline: parseDateSafe(r.prazo_alvo, new Date(Date.now() + 30 * 86400000)),
+          negotiationStatus: normText(r.status_negociacao) || 'EM_ANDAMENTO',
+          notes: normText(r.observacoes),
+        };
+        if (existingId) {
+          action = 'UPDATE';
+          message = 'Negociação atualizada';
+          if (isCommit) await tx.update(negotiations).set(payload).where(eq(negotiations.id, existingId));
+        } else {
+          action = 'INSERT';
+          message = 'Negociação criada';
+          let newId = -(state.virtualSeq++);
+          if (isCommit) {
+            const [ins] = await tx.insert(negotiations).values(payload).returning();
+            newId = ins.id;
+          }
+          state.negMap.set(`${client.id}::${normKey(contractNumber)}`, newId);
+        }
+        break;
+      }
+      case 'commercial_deals': {
+        const unitId = resolveUnitId(r.codigo_unidade);
+        const client = state.clientMap.get(normDigits(r.cpf_cnpj_cliente));
+        if (!unitId || !client) throw new Error('codigo_unidade e cpf_cnpj_cliente válidos obrigatórios');
+        const contractNumber = normText(r.numero_contrato);
+        const adm = contractNumber ? state.admMap.get(`CTR_ANY::${normKey(contractNumber)}`) : undefined;
+        naturalKey = `${client.cpfCnpj} / ${normText(r.banco_credor)}`;
+        action = 'INSERT';
+        message = 'Oportunidade comercial inserida';
+        if (isCommit && client.id > 0) {
+          await tx.insert(commercialDeals).values({
+            unitId,
+            clientId: client.id,
+            admissionId: adm?.id && adm.id > 0 ? adm.id : null,
+            bankName: normText(r.banco_credor) || 'Banco',
+            collaboratorName: normText(r.responsavel),
+            stage: normText(r.estagio_funil) || 'TRIAGEM',
+            debtValueCents: parseCentsFromBrl(r.valor_divida_brl),
+            proposedValueCents: r.valor_proposto_brl ? parseCentsFromBrl(r.valor_proposto_brl) : null,
+            notes: normText(r.observacoes),
+          });
+        }
+        break;
+      }
+      case 'financial_titles': {
+        const unitId = resolveUnitId(r.codigo_unidade);
+        const client = state.clientMap.get(normDigits(r.cpf_cnpj_cliente));
+        if (!unitId || !client) throw new Error('codigo_unidade e cpf_cnpj_cliente válidos obrigatórios');
+        const contractNumber = normText(r.numero_contrato);
+        const adm = contractNumber
+          ? state.admMap.get(`CTR::${unitId}::${normKey(contractNumber)}`) || state.admMap.get(`CTR_ANY::${normKey(contractNumber)}`)
+          : undefined;
+        const inst = Math.max(1, parseIntSafe(r.parcela_atual, 1));
+        const totalInst = Math.max(inst, parseIntSafe(r.total_parcelas, 1));
+        const rawCode = normText(r.codigo_titulo);
+        const existing =
+          (rawCode ? state.titleMap.get(normKey(rawCode)) : undefined) ||
+          (contractNumber ? state.titleMap.get(`CTR_INST::${normKey(contractNumber)}::${inst}`) : undefined);
+        const titleCode =
+          existing?.titleCode ||
+          rawCode ||
+          `TIT-${resolveUnitCode(unitId)}-${state.baseTitlesCount + state.codeCounter++}-${String(inst).padStart(2, '0')}`;
+        naturalKey = titleCode;
+        assignedCode = titleCode;
+        const amountCents = parseCentsFromBrl(r.valor_brl);
+        const balanceCents = r.saldo_aberto_brl !== '' && r.saldo_aberto_brl !== undefined ? parseCentsFromBrl(r.saldo_aberto_brl) : amountCents;
+        const payload = {
+          titleCode,
+          scope: normText(r.carteira) || 'RECEBER',
+          titleType: normText(r.tipo_titulo) || 'PADRAO',
+          origin: 'IMPORTACAO',
+          documentNumber: normText(r.numero_documento),
+          description: normText(r.descricao),
+          clientId: client.id,
+          admissionId: adm?.id && adm.id > 0 ? adm.id : null,
+          unitId,
+          categoryId: r.categoria_financeira ? state.catMap.get(normKey(r.categoria_financeira)) ?? null : null,
+          chartAccountId: r.codigo_plano_contas ? state.chartMap.get(normKey(r.codigo_plano_contas)) ?? null : null,
+          installmentNumber: inst,
+          totalInstallments: totalInst,
+          amountCents,
+          originalValueCents: amountCents,
+          currentBalanceCents: balanceCents,
+          issueDate: parseDateSafe(r.data_emissao),
+          dueDate: parseDateSafe(r.data_vencimento),
+          status: normText(r.status) || 'ABERTO',
+          contractNumber,
+        };
+        if (existing) {
+          action = 'UPDATE';
+          message = `Título ${titleCode} atualizado`;
+          if (isCommit) await tx.update(financialTitles).set(payload).where(eq(financialTitles.id, existing.id));
+        } else {
+          action = 'INSERT';
+          message = `Título ${titleCode} inserido`;
+          let newId = -(state.virtualSeq++);
+          if (isCommit) {
+            const [ins] = await tx.insert(financialTitles).values(payload).returning();
+            newId = ins.id;
+          }
+          state.titleMap.set(normKey(titleCode), { id: newId, titleCode });
+          if (contractNumber) state.titleMap.set(`CTR_INST::${normKey(contractNumber)}::${inst}`, { id: newId, titleCode });
+        }
+        break;
+      }
+      case 'title_settlements': {
+        const title = state.titleMap.get(normKey(r.codigo_titulo));
+        if (!title) throw new Error(`Título "${r.codigo_titulo}" não encontrado`);
+        naturalKey = title.titleCode;
+        action = 'INSERT';
+        message = `Baixa vinculada ao título ${title.titleCode}`;
+        if (isCommit && title.id > 0) {
+          await tx.insert(titleSettlements).values({
+            titleId: title.id,
+            settlementDate: parseDateSafe(r.data_baixa),
+            principalCents: parseCentsFromBrl(r.principal_brl),
+            interestCents: parseCentsFromBrl(r.juros_brl),
+            fineCents: parseCentsFromBrl(r.multa_brl),
+            discountCents: parseCentsFromBrl(r.desconto_brl),
+            amountCents: parseCentsFromBrl(r.valor_total_pago_brl),
+            origin: 'IMPORTACAO_EXCEL',
+            paymentMethod: normText(r.forma_pagamento) || 'PIX',
+            bankAccountId: r.conta_bancaria ? state.bankAccMap.get(normKey(r.conta_bancaria)) ?? null : null,
+            history: normText(r.historico),
+            createdByName: params.actorName,
+          });
+        }
+        break;
+      }
+      case 'bank_movements': {
+        const accId = state.bankAccMap.get(normKey(r.numero_conta));
+        if (!accId) throw new Error(`Conta bancária "${r.numero_conta}" não encontrada`);
+        const unitId = r.codigo_unidade ? resolveUnitId(r.codigo_unidade) : null;
+        naturalKey = `${normText(r.numero_conta)} / ${normText(r.numero_documento) || formatDateIso(parseDateSafe(r.data_movimento))}`;
+        action = 'INSERT';
+        message = 'Movimento bancário registrado';
+        if (isCommit && accId > 0) {
+          await tx.insert(bankMovements).values({
+            bankAccountId: accId,
+            movementType: normText(r.tipo_movimento) || 'CREDITO',
+            amountCents: parseCentsFromBrl(r.valor_brl),
+            movementDate: parseDateSafe(r.data_movimento),
+            documentNumber: normText(r.numero_documento),
+            description: normText(r.descricao) || 'Importação Excel',
+            categoryId: r.codigo_plano_contas ? state.chartMap.get(normKey(r.codigo_plano_contas)) ?? null : null,
+            reconciled: parseBool(r.conciliado, false),
+            status: parseBool(r.conciliado, false) ? 'CONCILIADO' : 'PENDENTE',
+            unitId,
+          });
+        }
+        break;
+      }
+      case 'legal_processes': {
+        const unitId = resolveUnitId(r.codigo_unidade);
+        const client = state.clientMap.get(normDigits(r.cpf_cnpj_cliente));
+        const processNumber = normText(r.numero_processo_cnj);
+        if (!unitId || !client || !processNumber) {
+          throw new Error('codigo_unidade, cpf_cnpj_cliente e numero_processo_cnj obrigatórios');
+        }
+        const adm = r.numero_contrato ? state.admMap.get(`CTR_ANY::${normKey(r.numero_contrato)}`) : undefined;
+        naturalKey = processNumber;
+        assignedCode = processNumber;
+        const existingId = state.legalProcMap.get(normKey(processNumber));
+        const payload = {
+          processNumber,
+          clientId: client.id,
+          admissionId: adm?.id && adm.id > 0 ? adm.id : null,
+          unitId,
+          courtName: normText(r.vara_tribunal) || 'Vara Cível',
+          actionType: normText(r.tipo_acao) || 'busca_apreensao',
+          hasSearchSeizure: parseBool(r.possui_busca_apreensao, false),
+          vehicleSeized: parseBool(r.veiculo_apreendido, false),
+          status: normText(r.status) || 'em_acompanhamento',
+          escavadorMonitored: parseBool(r.monitorado_escavador, true),
+        };
+        if (existingId) {
+          action = 'UPDATE';
+          message = `Processo ${processNumber} atualizado`;
+          if (isCommit) await tx.update(legalProcesses).set(payload).where(eq(legalProcesses.id, existingId));
+        } else {
+          action = 'INSERT';
+          message = `Processo ${processNumber} inserido`;
+          let newId = -(state.virtualSeq++);
+          if (isCommit) {
+            const [ins] = await tx.insert(legalProcesses).values(payload).returning();
+            newId = ins.id;
+          }
+          state.legalProcMap.set(normKey(processNumber), newId);
+        }
+        break;
+      }
+      case 'company_legal_processes': {
+        const processNumber = normText(r.numero_processo);
+        if (!processNumber) throw new Error('numero_processo obrigatório');
+        const unitId = r.codigo_unidade ? resolveUnitId(r.codigo_unidade) : null;
+        const partner = r.cpf_cnpj_parceiro_cliente ? state.clientMap.get(normDigits(r.cpf_cnpj_parceiro_cliente)) : null;
+        const contractNumber = normText(r.numero_contrato);
+        const adm = contractNumber ? state.admMap.get(`CTR_ANY::${normKey(contractNumber)}`) : undefined;
+        naturalKey = processNumber;
+        assignedCode = processNumber;
+        const existingId = state.compProcMap.get(normKey(processNumber));
+        const payload = {
+          unitId,
+          processNumber,
+          court: normText(r.tribunal),
+          jurisdiction: normText(r.comarca_vara),
+          type: normText(r.tipo_processo) || 'CÍVEL',
+          role: normText(r.polo) || 'RÉU',
+          opposingParty: normText(r.parte_contraria),
+          opposingPartyDocument: normText(r.cpf_cnpj_parte_contraria),
+          partnerId: partner?.id && partner.id > 0 ? partner.id : null,
+          admissionId: adm?.id && adm.id > 0 ? adm.id : null,
+          contractNumber,
+          responsibleLawyer: normText(r.advogado_responsavel),
+          responsibleLawyerOab: normText(r.oab_responsavel),
+          status: normText(r.status) || 'ATIVO',
+          riskLevel: normText(r.grau_risco) || 'MEDIO',
+          causeValue: normText(r.valor_causa),
+          provisionValue: normText(r.valor_provisao),
+          distributionDate: normText(r.data_distribuicao),
+          subject: normText(r.assunto),
+          notes: normText(r.anotacoes),
+        };
+        if (existingId) {
+          action = 'UPDATE';
+          message = `Processo empresarial ${processNumber} atualizado`;
+          if (isCommit) await tx.update(companyLegalProcesses).set(payload).where(eq(companyLegalProcesses.id, existingId));
+        } else {
+          action = 'INSERT';
+          message = `Processo empresarial ${processNumber} inserido`;
+          let newId = -(state.virtualSeq++);
+          if (isCommit) {
+            const [ins] = await tx.insert(companyLegalProcesses).values(payload).returning();
+            newId = ins.id;
+          }
+          state.compProcMap.set(normKey(processNumber), newId);
+        }
+        break;
+      }
+      case 'company_legal_process_movements': {
+        const procId = state.compProcMap.get(normKey(r.numero_processo));
+        if (!procId) throw new Error(`Processo "${r.numero_processo}" não localizado`);
+        naturalKey = normText(r.numero_processo);
+        action = 'INSERT';
+        message = 'Movimentação vinculada ao processo';
+        if (isCommit && procId > 0) {
+          await tx.insert(companyLegalProcessMovements).values({
+            processId: procId,
+            date: normText(r.data_movimentacao),
+            type: normText(r.tipo) || 'DESPACHO',
+            description: normText(r.descricao),
+            source: normText(r.origem) || 'Importação Excel',
+          });
+        }
+        break;
+      }
+      case 'company_legal_process_deadlines': {
+        const procId = state.compProcMap.get(normKey(r.numero_processo));
+        if (!procId) throw new Error(`Processo "${r.numero_processo}" não localizado`);
+        naturalKey = normText(r.numero_processo);
+        action = 'INSERT';
+        message = 'Prazo vinculado ao processo';
+        if (isCommit && procId > 0) {
+          await tx.insert(companyLegalProcessDeadlines).values({
+            processId: procId,
+            type: normText(r.tipo_prazo) || 'OUTRO',
+            description: normText(r.descricao),
+            dueDate: normText(r.data_vencimento),
+            status: normText(r.status) || 'PENDENTE',
+            responsibleId: r.codigo_colaborador ? state.collabMap.get(normKey(r.codigo_colaborador)) ?? null : null,
+            notes: normText(r.observacoes),
+          });
+        }
+        break;
+      }
+      case 'company_legal_process_hearings': {
+        const procId = state.compProcMap.get(normKey(r.numero_processo));
+        if (!procId) throw new Error(`Processo "${r.numero_processo}" não localizado`);
+        naturalKey = normText(r.numero_processo);
+        action = 'INSERT';
+        message = 'Audiência vinculada ao processo';
+        if (isCommit && procId > 0) {
+          await tx.insert(companyLegalProcessHearings).values({
+            processId: procId,
+            type: normText(r.tipo_audiencia) || 'INICIAL',
+            date: normText(r.data_audiencia),
+            time: normText(r.horario),
+            location: normText(r.local_link),
+            status: normText(r.status) || 'AGENDADA',
+            notes: normText(r.observacoes),
+          });
+        }
+        break;
+      }
+      case 'appointments': {
+        const unitId = resolveUnitId(r.codigo_unidade);
+        const consultantId = state.userMap.get(normKey(r.email_consultor));
+        const clientName = normText(r.nome_cliente);
+        const clientPhone = normText(r.telefone_cliente);
+        if (!unitId || !consultantId || !clientName || !clientPhone) {
+          throw new Error('codigo_unidade, email_consultor, nome_cliente e telefone_cliente obrigatórios');
+        }
+        const client = r.cpf_cnpj_cliente ? state.clientMap.get(normDigits(r.cpf_cnpj_cliente)) : null;
+        naturalKey = `${clientName} (${clientPhone})`;
+        action = 'INSERT';
+        message = 'Agendamento inserido';
+        if (isCommit && consultantId > 0) {
+          await tx.insert(appointments).values({
+            unitId,
+            consultantId,
+            clientId: client?.id && client.id > 0 ? client.id : null,
+            clientName,
+            clientPhone,
+            serviceId: r.nome_servico ? state.serviceMap.get(normKey(r.nome_servico)) ?? null : null,
+            serviceName: normText(r.nome_servico),
+            modality: normText(r.modalidade_atendimento) || 'presencial',
+            scheduledFor: parseDateSafe(r.data_hora_inicio),
+            status: normText(r.status) || 'agendado',
+            notes: normText(r.observacoes),
+            createdByName: params.actorName,
+          });
+        }
+        break;
+      }
+      case 'document_objects': {
+        const unitId = resolveUnitId(r.codigo_unidade);
+        const client = state.clientMap.get(normDigits(r.cpf_cnpj_cliente));
+        const fileName = normText(r.nome_arquivo);
+        if (!unitId || !client || !fileName) {
+          throw new Error('codigo_unidade, cpf_cnpj_cliente e nome_arquivo obrigatórios');
+        }
+        const contractNumber = normText(r.numero_contrato);
+        const adm = contractNumber
+          ? state.admMap.get(`CTR::${unitId}::${normKey(contractNumber)}`) || state.admMap.get(`CTR_ANY::${normKey(contractNumber)}`)
+          : undefined;
+        const subPath = normText(r.subpasta_relativa) || fileName;
+        const folderPath =
+          normText(r.caminho_bucket) ||
+          `bucketdainvicta/U${unitId}/C${client.id}${adm?.id && adm.id > 0 ? `/ADM-${adm.id}` : '/GERAL'}`;
+        naturalKey = `${contractNumber || client.cpfCnpj}/${subPath}`;
+        assignedCode = normText(r.codigo_seguro_integrativo) || '';
+        action = 'INSERT';
+        message = 'Metadado documental indexado';
+        if (isCommit && client.id > 0) {
+          const [ins] = await tx
+            .insert(documentObjects)
+            .values({
+              clientId: client.id,
+              admissionId: adm?.id && adm.id > 0 ? adm.id : null,
+              unitId,
+              folderPath,
+              relativeSubpath: subPath,
+              fileName,
+              docCategory: normText(r.categoria_documento) || 'contrato',
+              mimeType: normText(r.mime_type) || 'application/pdf',
+              sizeBytes: parseIntSafe(r.tamanho_bytes, 0),
+              sha256Hash: normText(r.sha256_hash) || crypto.createHash('sha256').update(`${folderPath}/${fileName}`).digest('hex'),
+              storageUri: `bucket://bucketdainvicta/pending-sync`,
+              uploadedBy: params.actorName,
+              versionNumber: Math.max(1, parseIntSafe(r.versao, 1)),
+            })
+            .returning();
+          if (!assignedCode && params.assignIntegrative !== false) {
+            integrativeCode = generateIntegrativeCode({
+              unitCode: resolveUnitCode(unitId),
+              entityType: 'DOC',
+              entityId: ins.id,
+              referenceSeed: ins.sha256Hash || fileName,
+            });
+            assignedCode = integrativeCode;
+            await tx.update(documentObjects).set({ integrativeCode }).where(eq(documentObjects.id, ins.id));
+          }
+        }
+        break;
+      }
+      default: {
+        action = 'SKIP';
+        message = 'Entidade sem manipulador transacional';
+      }
+    }
+  } catch (err) {
+    action = 'ERROR';
+    message = err instanceof Error ? err.message : 'Erro desconhecido';
+  }
+
+  state.totals.totalRows++;
+  if (action === 'INSERT') {
+    summary.inserts++;
+    state.totals.inserts++;
+  } else if (action === 'UPDATE') {
+    summary.updates++;
+    state.totals.updates++;
+  } else if (action === 'SKIP') {
+    summary.skips++;
+    state.totals.skips++;
+  } else {
+    summary.errors++;
+    state.totals.errors++;
+  }
+
+  return {
+    entityKey: layout.key,
+    sheetName,
+    rowNumber,
+    action,
+    naturalKey,
+    assignedCode,
+    integrativeCode,
+    message,
+  };
+}
+
+export async function prepareExcelImportWork(params: {
+  filePath: string;
+  originalFileName?: string;
+  expectedLayoutKey?: string;
+}): Promise<ExcelImportPrepareResult> {
+  const workDir = getExcelWorkDir(params.filePath);
+  const origName = params.originalFileName || path.basename(params.filePath);
+  const manifest = await streamSpreadsheetToChunks({
+    filePath: params.filePath,
+    originalFileName: origName,
+    workDir,
+    chunkRows: SPREADSHEET_CHUNK_ROWS,
+    headerMode: 'first_non_empty',
+    skipMetaSheets: true,
+  });
+
+  const unrecognizedSheets: string[] = [];
+  const matchedBySheet = new Map<string, DataHubEntityLayout>();
+  const headersBySheet: Record<string, string[]> = {};
+  const orderedSheets: ExcelImportSheetSummary[] = [];
+
+  for (const s of manifest.sheets) {
+    const layout = matchSheetToEntity(s.sheetName, s.headers, params.expectedLayoutKey);
+    if (!layout) {
+      unrecognizedSheets.push(s.sheetName);
+      continue;
+    }
+    matchedBySheet.set(s.sheetName, layout);
+    headersBySheet[s.sheetName] = s.headers;
+    orderedSheets.push({
+      entityKey: layout.key,
+      label: layout.label,
+      sheetName: s.sheetName,
+      tier: layout.tier,
+      order: layout.order,
+      totalRows: s.rowCount,
+      inserts: 0,
+      updates: 0,
+      skips: 0,
+      errors: 0,
     });
+  }
+
+  orderedSheets.sort((a, b) => a.order - b.order);
+
+  // Order chunks strictly by entity precedence order -> row order, and drop chunks from unrecognized sheets
+  const matchedChunksRaw: ExcelPlannedChunkMeta[] = [];
+  for (const ch of manifest.chunks) {
+    const layout = matchedBySheet.get(ch.sheetName);
+    if (!layout) {
+      await fs.promises.unlink(path.join(workDir, ch.fileName)).catch(() => {});
+      continue;
+    }
+    matchedChunksRaw.push({
+      chunkIndex: ch.chunkIndex,
+      sheetName: ch.sheetName,
+      entityKey: layout.key,
+      label: layout.label,
+      tier: layout.tier,
+      order: layout.order,
+      fileName: ch.fileName,
+      startRowNumber: ch.startRowNumber,
+      endRowNumber: ch.endRowNumber,
+      rowCount: ch.rowCount,
+      dryRunStatus: 'pending',
+      commitStatus: 'pending',
+    });
+  }
+
+  matchedChunksRaw.sort((a, b) => a.order - b.order || a.chunkIndex - b.chunkIndex);
+  const plannedChunks: ExcelPlannedChunkMeta[] = matchedChunksRaw.map((c, idx) => ({
+    ...c,
+    chunkIndex: idx,
+  }));
+
+  const totalRows = plannedChunks.reduce((acc, c) => acc + c.rowCount, 0);
+  const plan: ExcelImportPlanFile = {
+    filePath: params.filePath,
+    originalFileName: origName,
+    totalRows,
+    totalChunks: plannedChunks.length,
+    batchSizeRows: SPREADSHEET_CHUNK_ROWS,
+    unrecognizedSheets,
+    orderedSheets,
+    headersBySheet,
+    chunks: plannedChunks,
+  };
+
+  await fs.promises.writeFile(path.join(workDir, 'import-plan.json'), JSON.stringify(plan), 'utf8');
+  triggerBestEffortGc();
+
+  return {
+    totalSheets: orderedSheets.length,
+    totalChunks: plannedChunks.length,
+    totalRows,
+    batchSizeRows: SPREADSHEET_CHUNK_ROWS,
+    orderedSheets,
+    unrecognizedSheets,
+    chunks: plannedChunks.map((c) => ({
+      chunkIndex: c.chunkIndex,
+      sheetName: c.sheetName,
+      entityKey: c.entityKey,
+      label: c.label,
+      tier: c.tier,
+      rowCount: c.rowCount,
+    })),
+  };
+}
+
+export async function processExcelImportBatch(params: {
+  filePath: string;
+  mode: 'dry_run' | 'commit';
+  startChunk: number;
+  batchCount?: number;
+  unitFallbackId?: number | null;
+  assignIntegrative?: boolean;
+  actorName: string;
+}): Promise<ExcelImportBatchResult> {
+  const workDir = getExcelWorkDir(params.filePath);
+  const planPath = path.join(workDir, 'import-plan.json');
+  const plan = JSON.parse(await fs.promises.readFile(planPath, 'utf8')) as ExcelImportPlanFile;
+
+  const statePath = path.join(workDir, `${params.mode}-state.json`);
+  const logsPath = path.join(workDir, `${params.mode}-logs.ndjson`);
+
+  let state: HydratedLookupMaps;
+  if (fs.existsSync(statePath)) {
+    const rawState = JSON.parse(await fs.promises.readFile(statePath, 'utf8')) as SerializedLookupState;
+    state = deserializeLookupMaps(rawState);
+  } else {
+    const uniqueEntityKeys = [...new Set(plan.orderedSheets.map((s) => s.entityKey))];
+    state = await hydrateProjectedLookupsForEntities(uniqueEntityKeys, plan.orderedSheets);
+    await fs.promises.writeFile(logsPath, '', 'utf8');
+  }
+
+  const start = Math.max(0, Math.trunc(params.startChunk));
+  const count = Math.max(1, Math.min(4, Math.trunc(params.batchCount ?? 1)));
+  const end = Math.min(plan.chunks.length - 1, start + count - 1);
+
+  const isCommit = params.mode === 'commit';
+  let batchProcessedRows = 0;
+  let lastSheetName = '';
+  let lastEntityLabel = '';
+  let lastTier = 0;
+
+  for (let idx = start; idx <= end; idx++) {
+    const chunkMeta = plan.chunks[idx];
+    if (!chunkMeta) continue;
+    lastSheetName = chunkMeta.sheetName;
+    lastEntityLabel = chunkMeta.label;
+    lastTier = chunkMeta.tier;
+
+    // Marcação de leitura: pula lotes já concluídos para idempotência em caso de retry
+    const alreadyDone = isCommit ? chunkMeta.commitStatus === 'done' : chunkMeta.dryRunStatus === 'done';
+    if (alreadyDone) continue;
+
+    const layout = getEntityLayout(chunkMeta.entityKey);
+    if (!layout) continue;
+
+    const summary = state.sheetSummaries.find(
+      (s) => s.entityKey === chunkMeta.entityKey && s.sheetName === chunkMeta.sheetName
+    );
+    if (!summary) continue;
+
+    const canonicalByNorm = new Map(layout.columns.map((c) => [normKey(c.header), c.header]));
+    const rawHeaders = plan.headersBySheet[chunkMeta.sheetName] || [];
+    const headerCanonMap = rawHeaders.map((h) => ({
+      raw: h,
+      canonical: canonicalByNorm.get(normKey(h)) || h,
+    }));
+
+    const rows = await readSpreadsheetChunk(workDir, chunkMeta.fileName);
+    const chunkLogs: string[] = [];
+
+    const runChunk = async (tx: any) => {
+      for (const rawRow of rows) {
+        const normalizedRow: Record<string, unknown> = { __rowNumber: rawRow.__rowNumber };
+        for (const hc of headerCanonMap) {
+          if (hc.canonical && rawRow[hc.raw] !== undefined) {
+            normalizedRow[hc.canonical] = rawRow[hc.raw];
+          }
+        }
+        const evalRes = await processExcelEntityRow({
+          tx,
+          isCommit,
+          layout,
+          sheetName: chunkMeta.sheetName,
+          row: normalizedRow,
+          state,
+          summary,
+          unitFallbackId: params.unitFallbackId,
+          assignIntegrative: params.assignIntegrative,
+          actorName: params.actorName,
+        });
+        chunkLogs.push(JSON.stringify(evalRes));
+        batchProcessedRows++;
+      }
+    };
+
+    if (isCommit) {
+      await db.transaction(async (tx) => {
+        await runChunk(tx);
+      });
+    } else {
+      await runChunk(db);
+    }
+
+    if (chunkLogs.length > 0) {
+      await fs.promises.appendFile(logsPath, `${chunkLogs.join('\n')}\n`, 'utf8');
+    }
+
+    // Marcação de leitura no manifesto do disco
+    if (isCommit) chunkMeta.commitStatus = 'done';
+    else chunkMeta.dryRunStatus = 'done';
+    rows.length = 0;
+  }
+
+  await Promise.all([
+    fs.promises.writeFile(statePath, JSON.stringify(serializeLookupMaps(state)), 'utf8'),
+    fs.promises.writeFile(planPath, JSON.stringify(plan), 'utf8'),
+  ]);
+  triggerBestEffortGc();
+
+  const markedReadChunks = plan.chunks.filter((c) =>
+    isCommit ? c.commitStatus === 'done' : c.dryRunStatus === 'done'
+  ).length;
+  const processedRows = plan.chunks
+    .filter((c) => (isCommit ? c.commitStatus === 'done' : c.dryRunStatus === 'done'))
+    .reduce((acc, c) => acc + c.rowCount, 0);
+
+  return {
+    mode: params.mode,
+    processedChunks: markedReadChunks,
+    totalChunks: plan.totalChunks,
+    markedReadChunks,
+    processedRows,
+    totalRows: plan.totalRows,
+    batchProcessedRows,
+    currentSheetName: lastSheetName,
+    currentEntityLabel: lastEntityLabel,
+    currentTier: lastTier,
+    cumulativeTotals: state.totals,
+    done: markedReadChunks >= plan.totalChunks,
+  };
+}
+
+export async function finalizeExcelImportWork(params: {
+  filePath: string;
+  mode: 'dry_run' | 'commit';
+  unitFallbackId?: number | null;
+  actorUserId?: number | null;
+  actorName: string;
+}): Promise<ExcelImportResult> {
+  const workDir = getExcelWorkDir(params.filePath);
+  const planPath = path.join(workDir, 'import-plan.json');
+  const statePath = path.join(workDir, `${params.mode}-state.json`);
+  const logsPath = path.join(workDir, `${params.mode}-logs.ndjson`);
+
+  const plan = JSON.parse(await fs.promises.readFile(planPath, 'utf8')) as ExcelImportPlanFile;
+  let state: HydratedLookupMaps;
+  if (fs.existsSync(statePath)) {
+    state = deserializeLookupMaps(
+      JSON.parse(await fs.promises.readFile(statePath, 'utf8')) as SerializedLookupState
+    );
+  } else {
+    state = await hydrateProjectedLookupsForEntities([], plan.orderedSheets);
+  }
+
+  const uiPreviewRows: ExcelImportRowEval[] = [];
+  const returnSheetRows: Array<Record<string, unknown>> = [];
+  const MAX_RETURN_DETAIL_ROWS = 15000;
+
+  if (fs.existsSync(logsPath)) {
+    const stream = fs.createReadStream(logsPath, { encoding: 'utf8', highWaterMark: 128 * 1024 });
+    const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
+    for await (const line of rl) {
+      if (!line.trim()) continue;
+      const rr = JSON.parse(line) as ExcelImportRowEval;
+      if (uiPreviewRows.length < 500) {
+        uiPreviewRows.push(rr);
+      }
+      if (params.mode === 'commit' && returnSheetRows.length < MAX_RETURN_DETAIL_ROWS) {
+        returnSheetRows.push({
+          aba: rr.sheetName,
+          entidade: rr.entityKey,
+          linha: rr.rowNumber,
+          acao: rr.action,
+          chave_natural: rr.naturalKey,
+          codigo_atribuido: rr.assignedCode,
+          codigo_seguro_integrativo: rr.integrativeCode,
+          detalhe: rr.message,
+        });
+      }
+    }
+  }
+
+  const isCommit = params.mode === 'commit';
+  if (isCommit) {
     await db.insert(auditLogs).values({
       userId: params.actorUserId ?? null,
       userName: params.actorName,
       action: 'EXCEL_PRECEDENCE_IMPORT_COMMITTED',
       entityType: 'data_hub',
-      entityId: String(rowResults.length),
+      entityId: String(state.totals.totalRows),
       details: {
-        sheets: orderedSheets.map((s) => `${s.sheetName}(+${s.inserts}/~${s.updates}/!${s.errors})`),
+        sheets: state.sheetSummaries.map((s) => `${s.sheetName}(+${s.inserts}/~${s.updates}/!${s.errors})`),
         totals: {
-          inserts: orderedSheets.reduce((acc, s) => acc + s.inserts, 0),
-          updates: orderedSheets.reduce((acc, s) => acc + s.updates, 0),
-          errors: orderedSheets.reduce((acc, s) => acc + s.errors, 0),
+          inserts: state.totals.inserts,
+          updates: state.totals.updates,
+          errors: state.totals.errors,
         },
       },
       unitId: params.unitFallbackId ?? null,
     });
-  } else {
-    await executeWork(db);
   }
-
-  const totals = {
-    totalRows: rowResults.length,
-    inserts: orderedSheets.reduce((acc, s) => acc + s.inserts, 0),
-    updates: orderedSheets.reduce((acc, s) => acc + s.updates, 0),
-    skips: orderedSheets.reduce((acc, s) => acc + s.skips, 0),
-    errors: orderedSheets.reduce((acc, s) => acc + s.errors, 0),
-  };
 
   let returnWorkbookBase64: string | undefined;
   let returnFileName: string | undefined;
@@ -2306,31 +2872,98 @@ export async function processExcelImport(params: {
     const retWb = XLSX.utils.book_new();
     appendSheetFromObjects(
       retWb,
+      'Resumo_Importacao',
+      ['ordem', 'camada', 'aba', 'entidade', 'linhas', 'inseridos', 'atualizados', 'ignorados', 'erros'],
+      state.sheetSummaries.map((s, idx) => ({
+        ordem: idx + 1,
+        camada: `Camada ${s.tier}`,
+        aba: s.sheetName,
+        entidade: s.label,
+        linhas: s.totalRows,
+        inseridos: s.inserts,
+        atualizados: s.updates,
+        ignorados: s.skips,
+        erros: s.errors,
+      }))
+    );
+    appendSheetFromObjects(
+      retWb,
       '_Retorno_Importacao',
       ['aba', 'entidade', 'linha', 'acao', 'chave_natural', 'codigo_atribuido', 'codigo_seguro_integrativo', 'detalhe'],
-      rowResults.map((rr) => ({
-        aba: rr.sheetName,
-        entidade: rr.entityKey,
-        linha: rr.rowNumber,
-        acao: rr.action,
-        chave_natural: rr.naturalKey,
-        codigo_atribuido: rr.assignedCode,
-        codigo_seguro_integrativo: rr.integrativeCode,
-        detalhe: rr.message,
-      }))
+      returnSheetRows
     );
     const retBuf = XLSX.write(retWb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
     returnWorkbookBase64 = retBuf.toString('base64');
     returnFileName = `retorno_importacao_${new Date().toISOString().slice(0, 10)}.xlsx`;
   }
 
+  triggerBestEffortGc();
+
   return {
     mode: params.mode,
-    orderedSheets,
-    totals,
-    rowResults: rowResults.slice(0, 500),
-    unrecognizedSheets,
+    orderedSheets: state.sheetSummaries,
+    totals: state.totals,
+    rowResults: uiPreviewRows,
+    unrecognizedSheets: plan.unrecognizedSheets,
     returnWorkbookBase64,
     returnFileName,
   };
+}
+
+export async function processExcelImport(params: {
+  buffer?: Buffer;
+  filePath?: string;
+  originalFileName?: string;
+  expectedLayoutKey?: string;
+  mode: 'dry_run' | 'commit';
+  unitFallbackId?: number | null;
+  assignIntegrative?: boolean;
+  actorUserId?: number | null;
+  actorName: string;
+}): Promise<ExcelImportResult> {
+  if (!params.filePath && !params.buffer) {
+    throw new Error('Arquivo ou caminho da planilha não informado.');
+  }
+
+  let workingPath = params.filePath || '';
+  let tempOwned = false;
+  if (!workingPath && params.buffer) {
+    const tmpName = `direct-xlsx-${Date.now()}-${crypto.randomUUID()}.xlsx`;
+    workingPath = path.join('/tmp', tmpName);
+    await fs.promises.writeFile(workingPath, params.buffer);
+    tempOwned = true;
+  }
+
+  try {
+    const prep = await prepareExcelImportWork({
+      filePath: workingPath,
+      originalFileName: params.originalFileName || path.basename(workingPath),
+      expectedLayoutKey: params.expectedLayoutKey,
+    });
+
+    for (let idx = 0; idx < prep.totalChunks; idx += 2) {
+      await processExcelImportBatch({
+        filePath: workingPath,
+        mode: params.mode,
+        startChunk: idx,
+        batchCount: 2,
+        unitFallbackId: params.unitFallbackId,
+        assignIntegrative: params.assignIntegrative,
+        actorName: params.actorName,
+      });
+    }
+
+    return await finalizeExcelImportWork({
+      filePath: workingPath,
+      mode: params.mode,
+      unitFallbackId: params.unitFallbackId,
+      actorUserId: params.actorUserId,
+      actorName: params.actorName,
+    });
+  } finally {
+    await fs.promises.rm(getExcelWorkDir(workingPath), { recursive: true, force: true }).catch(() => {});
+    if (tempOwned) {
+      await fs.promises.unlink(workingPath).catch(() => {});
+    }
+  }
 }

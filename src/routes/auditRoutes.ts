@@ -24,6 +24,7 @@ import {
 import { AuthRequest, getAllowedUnitIds, isUnitPermitted, requireAuth, requireModule } from '../middleware/auth.ts';
 import { dispatchIviSectorNotification } from '../services/internalMessaging.ts';
 import { getBucketObjectBuffer } from '../services/bucketStorage.ts';
+import { evaluateDocumentAccess, loadFolderRulesForUser } from '../services/documentAccessService.ts';
 import { getEntityTypeAliases, normalizeAuditLogRecord } from '../utils/auditDiff.ts';
 import { parseFiniteNumber, parsePositiveIntId, parseSafeDate, sanitizeErrorMessage } from '../utils/validation.ts';
 import {
@@ -231,14 +232,26 @@ export function registerAuditRoutes(
         db.select().from(auditChecklistItems).orderBy(auditChecklistItems.sortOrder, auditChecklistItems.id),
       ]);
 
+      const folderRules = await loadFolderRulesForUser(adm.unitId);
       const isAdmin = req.authUser?.role === 'admin';
       const allowedUnits = req.authUser?.allowedUnitIds || [];
-      const visibleDocs = allDocs.filter(
-        (d) =>
-          !d.deletedAt &&
-          (d.admissionId === adm.id || d.admissionId === null) &&
-          (isAdmin || allowedUnits.includes(d.unitId))
-      );
+      const visibleDocs = allDocs
+        .filter(
+          (d) =>
+            !d.deletedAt &&
+            (d.admissionId === adm.id || d.admissionId === null) &&
+            (isAdmin || allowedUnits.includes(d.unitId))
+        )
+        .map((d) => ({
+          ...d,
+          effectivePermissions: evaluateDocumentAccess({
+            authUser: req.authUser!,
+            doc: d,
+            folderRules,
+            context: 'client_dossier',
+          }),
+        }))
+        .filter((d) => d.effectivePermissions.view);
 
       const procIds = processes.map((p) => p.id);
       const movements =
