@@ -334,7 +334,7 @@ export const ReportTrainingModal: React.FC<ReportTrainingModalProps> = ({
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {TABLE_CHEATSHEET.map((t) => (
-                        <tr key={t.table} className="hover:bg-slate-50">
+                        <tr key={t.table} className="hover:bg-slate-100/80 transition-colors">
                           <td className="px-3 py-2 font-mono font-semibold text-blue-700 whitespace-nowrap">
                             {t.table}
                           </td>

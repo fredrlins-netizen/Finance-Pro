@@ -891,7 +891,21 @@ export interface FinancialTitle {
   accountingType?: 'CONTABIL' | 'NAO_CONTABIL' | string;
   boletoProvider: string;
   barcode: string;
+  digitableLine?: string;
   ourNumber: string;
+  santanderNsuCode?: string;
+  santanderNsuDate?: string;
+  santanderWorkspaceId?: string;
+  santanderCovenantCode?: string;
+  santanderBankSlipId?: string;
+  santanderStatus?: string;
+  pixTxid?: string;
+  pixCopiaECola?: string;
+  pixLocation?: string;
+  pixStatus?: string;
+  pixChargeType?: string;
+  pixExpiresAt?: string | null;
+  santanderRawJson?: Record<string, unknown> | null;
   receiptDocId: number | null;
   collectorId: number | null;
   coverSheetApproved?: boolean;
@@ -1349,15 +1363,105 @@ export interface ChartAccountItem {
 
 export interface BankAccount {
   id: number;
+  bankId?: number | null;
+  febrabanCode?: string;
   bankName: string;
   agency: string;
+  agencyDigit?: string;
   accountNumber: string;
+  accountDigit?: string;
   accountType: string;
+  beneficiaryDocument?: string;
+  beneficiaryName?: string;
+  apiProvider?: 'none' | 'santander' | string;
+  apiIntegrationEnabled?: boolean;
+  isDefaultBoletoAccount?: boolean;
+  isDefaultPixAccount?: boolean;
   initialBalanceCents: number;
   currentBalanceCents: number;
   unitId?: number | null;
   active: boolean;
   createdAt?: string;
+  santanderSummary?: {
+    configured: boolean;
+    environment: 'sandbox' | 'production' | string;
+    executionMode: 'live_mtls' | 'homologation_offline' | string;
+    boletoEnabled: boolean;
+    pixEnabled: boolean;
+    hybridBoletoPixEnabled: boolean;
+    covenantCode: string;
+    workspaceId: string;
+    pixKey: string;
+    hasClientId: boolean;
+    hasClientSecret: boolean;
+    hasCertificate: boolean;
+    lastTestOk?: boolean | null;
+    lastTestedAt?: string | null;
+  } | null;
+}
+
+export interface SantanderApiConfigSummary {
+  bankAccountId: number;
+  provider: string;
+  environment: 'sandbox' | 'production';
+  executionMode: 'live_mtls' | 'homologation_offline';
+  clientId: string;
+  hasClientSecret: boolean;
+  certType: 'pfx' | 'pem';
+  hasPfx: boolean;
+  hasPfxPassword: boolean;
+  hasCertPem: boolean;
+  hasKeyPem: boolean;
+  certSubject: string;
+  certExpiresAt: string;
+  boletoEnabled: boolean;
+  boletoBaseUrlOverride: string;
+  covenantCode: string;
+  workspaceId: string;
+  workspaceType: string;
+  documentKind: string;
+  paymentType: string;
+  walletCode: string;
+  defaultFinePct: string;
+  defaultInterestPct: string;
+  defaultProtestDays: number;
+  defaultWriteOffDays: number;
+  hybridBoletoPixEnabled: boolean;
+  boletoWebhookUrl: string;
+  nsuSequence: number;
+  pixEnabled: boolean;
+  pixBaseUrlOverride: string;
+  pixKey: string;
+  pixKeyType: 'CNPJ' | 'CPF' | 'EMAIL' | 'TELEFONE' | 'EVP' | string;
+  pixDefaultChargeType: 'cob' | 'cobv' | string;
+  pixExpirationSeconds: number;
+  pixValidityDaysAfterDue: number;
+  pixBeneficiaryCity: string;
+  pixWebhookUrl: string;
+  lastTestedAt: string | null;
+  lastTestOk: boolean | null;
+  lastTestMessage: string;
+  updatedBy: string;
+  updatedAt: string | null;
+}
+
+export interface SantanderEmissionLog {
+  id: number;
+  bankAccountId: number;
+  titleId: number | null;
+  apiScope: string;
+  operation: string;
+  environment: string;
+  executionMode: string;
+  endpoint: string;
+  httpStatus: number | null;
+  ok: boolean;
+  externalRef: string;
+  requestSummaryJson: Record<string, unknown>;
+  responseSummaryJson: Record<string, unknown>;
+  errorMessage: string;
+  createdByName: string;
+  createdAt: string;
 }
 
 export type BankMovementType = 'CREDITO' | 'DEBITO';

@@ -1027,7 +1027,7 @@ export const ConfigGotalkView: React.FC<{
                     </tr>
                   ) : (
                     msgRows.map((m) => (
-                      <tr key={m.id} className="hover:bg-slate-50/80">
+                      <tr key={m.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/70">
                         <td className="px-4 py-2.5 font-mono text-[11px] text-slate-600 tabular-nums whitespace-nowrap dark:text-slate-300">
                           {formatDateTimeBR(m.createdAt)}
                         </td>
@@ -1217,7 +1217,7 @@ export const ConfigGotalkView: React.FC<{
                     channels.map((ch) => {
                       const u = ch.unitId ? units.find((x) => x.id === ch.unitId) : null;
                       return (
-                        <tr key={ch.id} className="hover:bg-slate-50/80">
+                        <tr key={ch.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/70">
                           <td className="px-4 py-2.5">
                             <div className="font-semibold text-slate-900 dark:text-slate-100">{ch.name}</div>
                             {ch.notes && <div className="text-[11px] text-slate-500 dark:text-slate-400">{ch.notes}</div>}

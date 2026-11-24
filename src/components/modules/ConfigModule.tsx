@@ -917,7 +917,7 @@ export const ConfigModule: React.FC<ConfigModuleProps> = ({
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {schedules.map((s) => (
-                    <tr key={s.id} className="hover:bg-slate-50/80">
+                    <tr key={s.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/70">
                       <td className="px-4 py-2.5 font-semibold text-slate-900 dark:text-slate-100">{s.targetLabel}</td>
                       <td className="px-4 py-2.5 uppercase text-[11px] text-slate-600 dark:text-slate-300">{s.targetType}</td>
                       <td className="px-4 py-2.5 font-mono font-semibold text-slate-900 tabular-nums dark:text-slate-100">

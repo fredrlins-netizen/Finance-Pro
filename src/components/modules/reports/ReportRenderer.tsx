@@ -587,8 +587,8 @@ export const ReportRenderer: React.FC<ReportRendererProps> = ({
                             key={rIdx}
                             className={
                               layout.general.zebra && rIdx % 2 === 1
-                                ? 'bg-slate-50/70 hover:bg-blue-50/30 dark:bg-slate-800/60'
-                                : 'bg-white hover:bg-blue-50/30 dark:bg-slate-900'
+                                ? 'bg-slate-50/70 hover:bg-blue-50/30 dark:bg-slate-800/60 dark:hover:bg-slate-800'
+                                : 'bg-white hover:bg-blue-50/30 dark:bg-slate-900 dark:hover:bg-slate-800/80'
                             }
                           >
                             {visibleColumns.map((col) => (

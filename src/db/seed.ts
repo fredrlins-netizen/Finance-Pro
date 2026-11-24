@@ -859,12 +859,47 @@ async function runCommonCadastrosSeedInternal(): Promise<void> {
   }
   // Ensure sample bank accounts
   const existingBankAccs = await db.select({ value: count() }).from(bankAccounts);
+  const santanderBankRows = await db.select().from(banks).where(eq(banks.febrabanCode, '033')).limit(1);
+  const santanderBankId = santanderBankRows[0]?.id ?? null;
   if (Number(existingBankAccs[0]?.value || 0) === 0) {
     await db.insert(bankAccounts).values([
-      { bankName: 'Santander', agency: '1234', accountNumber: '56789-0', accountType: 'corrente', initialBalanceCents: 15000000, currentBalanceCents: 18500000, unitId: unitIdVal },
-      { bankName: 'Banco do Brasil', agency: '4321', accountNumber: '98765-4', accountType: 'corrente', initialBalanceCents: 8000000, currentBalanceCents: 9500000, unitId: unitIdVal },
+      {
+        bankId: santanderBankId,
+        febrabanCode: '033',
+        bankName: 'Banco Santander (Brasil) S.A.',
+        agency: '1234',
+        agencyDigit: '0',
+        accountNumber: '56789',
+        accountDigit: '0',
+        accountType: 'corrente',
+        beneficiaryName: 'FinancePro Assessoria Financeira Ltda',
+        beneficiaryDocument: '12345678000195',
+        apiProvider: 'santander',
+        apiIntegrationEnabled: true,
+        isDefaultBoletoAccount: true,
+        isDefaultPixAccount: true,
+        initialBalanceCents: 15000000,
+        currentBalanceCents: 18500000,
+        unitId: unitIdVal,
+      },
+      { bankName: 'Banco do Brasil', febrabanCode: '001', agency: '4321', accountNumber: '98765-4', accountType: 'corrente', initialBalanceCents: 8000000, currentBalanceCents: 9500000, unitId: unitIdVal },
       { bankName: 'Caixa Interna Matriz', agency: '0001', accountNumber: '00001-9', accountType: 'caixa', initialBalanceCents: 200000, currentBalanceCents: 150000, unitId: unitIdVal },
     ]);
+  } else if (santanderBankId) {
+    // Vincula conta Santander existente caso ainda não tenha bankId associado
+    const existingSantanderAccs = await db.select().from(bankAccounts);
+    for (const acc of existingSantanderAccs) {
+      if (!acc.bankId && acc.bankName.toLowerCase().includes('santander')) {
+        await db
+          .update(bankAccounts)
+          .set({
+            bankId: santanderBankId,
+            febrabanCode: acc.febrabanCode || '033',
+            apiProvider: acc.apiProvider === 'none' ? 'santander' : acc.apiProvider,
+          })
+          .where(eq(bankAccounts.id, acc.id));
+      }
+    }
   }
 
   // Ensure sample bank movements for current month

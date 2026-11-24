@@ -7,6 +7,7 @@ import {
   FileText,
   Landmark,
   Pencil,
+  QrCode,
   Save,
   X,
 } from 'lucide-react';
@@ -50,6 +51,7 @@ interface FinancialTitleFormViewProps {
   onOpenEditPartner: (client: Client) => void;
   onOpenAdmissionViewer: (admissionId: number, contractRef: string) => void;
   onSelectRelatedTitle: (title: FinancialTitle) => void;
+  onOpenPaymentModal?: (titleId: number) => void;
   onNavigate?: (mod: ModuleId, intent?: NavigationIntent) => void;
 }
 
@@ -70,6 +72,7 @@ export const FinancialTitleFormView: React.FC<FinancialTitleFormViewProps> = ({
   onOpenEditPartner,
   onOpenAdmissionViewer,
   onSelectRelatedTitle,
+  onOpenPaymentModal,
   onNavigate,
 }) => {
   const isReceber = scope === 'RECEBER';
@@ -362,7 +365,17 @@ export const FinancialTitleFormView: React.FC<FinancialTitleFormViewProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {isReceber && editingTitle && stUpper !== 'CANCELADO' && onOpenPaymentModal && (
+            <button
+              type="button"
+              onClick={() => onOpenPaymentModal(editingTitle.id)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3.5 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 dark:border-red-800 dark:bg-slate-900 dark:text-red-300 dark:hover:bg-red-950/60"
+            >
+              <QrCode className="w-3.5 h-3.5" />
+              Boleto / PIX Santander
+            </button>
+          )}
           <button
             type="button"
             onClick={onClose}
@@ -863,7 +876,7 @@ export const FinancialTitleFormView: React.FC<FinancialTitleFormViewProps> = ({
                               <tr
                                 key={inv.id}
                                 onClick={() => onSelectRelatedTitle(inv)}
-                                className="hover:bg-blue-50/40 cursor-pointer"
+                                className="hover:bg-blue-50/40 dark:hover:bg-slate-800/80 cursor-pointer transition-colors"
                               >
                                 <td className="px-3 py-1.5 font-mono font-semibold text-blue-700 dark:text-blue-300">
                                   {inv.documentNumber || inv.titleCode}
@@ -902,7 +915,7 @@ export const FinancialTitleFormView: React.FC<FinancialTitleFormViewProps> = ({
                               <tr
                                 key={orig.id}
                                 onClick={() => onSelectRelatedTitle(orig)}
-                                className="hover:bg-blue-50/40 cursor-pointer"
+                                className="hover:bg-blue-50/40 dark:hover:bg-slate-800/80 cursor-pointer transition-colors"
                               >
                                 <td className="px-3 py-1.5 font-mono font-semibold text-blue-700 dark:text-blue-300">
                                   {orig.documentNumber || orig.titleCode}

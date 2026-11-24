@@ -612,7 +612,7 @@ export const ConfigUnitsView: React.FC<{
                   const connectedCount = unitInsts.filter((i) => i.isConnected).length;
                   const primaryInst = unitInsts.find((i) => i.isDefaultForUnit) || unitInsts[0];
                   return (
-                    <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
+                    <tr key={u.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/70 transition-colors">
                       <td className="px-4 py-2.5">
                         <div className="font-semibold text-slate-900 dark:text-slate-100">
                           <span className="font-mono text-slate-700 dark:text-slate-200">{u.code}</span> · {u.name}
@@ -1728,7 +1728,7 @@ export const ConfigUazapiView: React.FC<{
                         .map((m) => MODULE_SCOPE_OPTIONS.find((o) => o.id === m)?.label.split(' ')[0] || m);
 
                       return (
-                        <tr key={inst.id} className="hover:bg-slate-50/80 transition-colors">
+                        <tr key={inst.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/70 transition-colors">
                           <td className="px-4 py-2.5">
                             <div className="font-semibold text-slate-900 dark:text-slate-100">
                               {inst.label}
@@ -2068,7 +2068,7 @@ export const ConfigUazapiView: React.FC<{
                     </tr>
                   ) : (
                     histRows.map((r) => (
-                      <tr key={r.id} className="hover:bg-slate-50/80">
+                      <tr key={r.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/70">
                         <td className="px-4 py-2.5 font-mono text-[11px] text-slate-600 tabular-nums whitespace-nowrap dark:text-slate-300">
                           {formatDateTimeBR(r.createdAt)}
                         </td>

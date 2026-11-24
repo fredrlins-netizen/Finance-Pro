@@ -6,6 +6,7 @@ import {
   ArrowUp,
   ArrowUpDown,
   BarChart3,
+  Barcode,
   Bot,
   Briefcase,
   ChevronDown,
@@ -18,13 +19,16 @@ import {
   FileText,
   Filter,
   History,
+  Landmark,
   ListFilter,
   ListTodo,
   MapPin,
   MessageSquare,
   Monitor,
   Paperclip,
+  QrCode,
   RefreshCw,
+  Repeat,
   Search,
   ShieldAlert,
   Sparkles,
@@ -56,6 +60,7 @@ import {
 import {
   Admission,
   AuthUser,
+  BankAccount,
   BankItem,
   Client,
   CollaboratorItem,
@@ -98,6 +103,12 @@ import {
 import { CollectionCoordinatorTasksView } from './CollectionCoordinatorTasksView.tsx';
 import { CollaboratorRankingTables } from './CollaboratorRankingTables.tsx';
 import { EntityAuditModal } from './cadastros/CadastrosShared.tsx';
+import { RecurringInstallmentsModal } from './finance/FinancialTitlesModals.tsx';
+import { SantanderPaymentModal } from './finance/SantanderPaymentModal.tsx';
+import {
+  ApiBankSettlementModal,
+  EmitReissueBoletoModal,
+} from './finance/SantanderReceivablesActionsModals.tsx';
 
 interface CoordinatorPayload {
   portfolioTitles: FinancialTitle[];
@@ -118,6 +129,7 @@ interface CoordinatorPayload {
   documents: DocumentObject[];
   units: Unit[];
   banks: BankItem[];
+  bankAccounts?: BankAccount[];
   modalities: ModalityItem[];
   series: SeriesItem[];
   collectionNotes: CollectionNote[];
@@ -227,6 +239,10 @@ export const CollectionCoordinatorView: React.FC<CollectionCoordinatorViewProps>
     admissionId?: number | null;
   } | null>(null);
   const [admissionModalObj, setAdmissionModalObj] = useState<Admission | null>(null);
+  const [recurringModel, setRecurringModel] = useState<FinancialTitle | null>(null);
+  const [emitReissueTargets, setEmitReissueTargets] = useState<FinancialTitle[] | null>(null);
+  const [apiSettlementOpen, setApiSettlementOpen] = useState(false);
+  const [paymentModalTitleId, setPaymentModalTitleId] = useState<number | null>(null);
 
   const loadCoordinatorData = useCallback(async () => {
     setErrorBanner('');
@@ -822,6 +838,11 @@ export const CollectionCoordinatorView: React.FC<CollectionCoordinatorViewProps>
     return gridSourceTitles.filter((t) => idSet.has(t.id));
   }, [assignOverrideTitles, gridSourceTitles, selectedIds]);
 
+  const selectedGridTitles = useMemo(() => {
+    const idSet = new Set(selectedIds);
+    return gridSourceTitles.filter((t) => idSet.has(t.id));
+  }, [gridSourceTitles, selectedIds]);
+
   const savedReports = data?.collectionReports || [];
   const activeSavedReport = useMemo(() => {
     if (savedReports.length === 0) return null;
@@ -1260,14 +1281,58 @@ export const CollectionCoordinatorView: React.FC<CollectionCoordinatorViewProps>
                 </button>
               </div>
 
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="font-mono text-xs text-slate-700 tabular-nums dark:text-slate-200">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <div className="font-mono text-xs text-slate-700 tabular-nums dark:text-slate-200 mr-1">
                   <strong>{sortedTitles.length}</strong> título(s) | Saldo:{' '}
                   <strong>{formatBRL(gridTotals.totalBalanceCents)}</strong>{' '}
                   <span className="text-red-700 font-semibold dark:text-red-300">
                     (Vencido: {formatBRL(gridTotals.overdueBalanceCents)})
                   </span>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setErrorBanner('');
+                    if (selectedGridTitles.length !== 1) {
+                      setErrorBanner('Selecione exatamente 1 título modelo na grade para gerar parcelas recorrentes.');
+                      return;
+                    }
+                    setRecurringModel(selectedGridTitles[0]);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+                >
+                  <Repeat className="w-3.5 h-3.5 text-blue-700 dark:text-blue-300" />
+                  Lançamento Recorrente
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setErrorBanner('');
+                    if (selectedGridTitles.length === 0) {
+                      setErrorBanner('Marque ao menos 1 título na grade para emitir ou reemitir boleto.');
+                      return;
+                    }
+                    setEmitReissueTargets(selectedGridTitles);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50/70 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100 whitespace-nowrap dark:border-red-800/70 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-900/50"
+                >
+                  <Barcode className="w-3.5 h-3.5" />
+                  Emitir / Reemitir Boleto
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setErrorBanner('');
+                    setApiSettlementOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+                >
+                  <Landmark className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  Baixar via API
+                </button>
 
                 {selectedIds.length > 0 && (
                   <button
@@ -1276,7 +1341,7 @@ export const CollectionCoordinatorView: React.FC<CollectionCoordinatorViewProps>
                       setAssignOverrideTitles(null);
                       setAssignModalOpen(true);
                     }}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 whitespace-nowrap dark:bg-emerald-600 dark:hover:bg-emerald-500"
                   >
                     <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
                     Atribuir / Transferir ({selectedIds.length})
@@ -1539,9 +1604,9 @@ export const CollectionCoordinatorView: React.FC<CollectionCoordinatorViewProps>
                           key={t.id}
                           className={`transition-colors ${
                             isPaid
-                              ? 'bg-emerald-50/30 hover:bg-emerald-50/60 dark:bg-emerald-950/50'
+                              ? 'bg-emerald-50/30 hover:bg-emerald-50/60 dark:bg-emerald-950/50 dark:hover:bg-emerald-900/50'
                               : isOverdue
-                              ? 'bg-red-50/40 hover:bg-red-50/70 dark:bg-red-950/50'
+                              ? 'bg-red-50/40 hover:bg-red-50/70 dark:bg-red-950/50 dark:hover:bg-red-900/50'
                               : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                           }`}
                         >
@@ -1695,6 +1760,14 @@ export const CollectionCoordinatorView: React.FC<CollectionCoordinatorViewProps>
                           </td>
                           <td className="py-2.5 px-3 text-right whitespace-nowrap">
                             <div className="inline-flex items-center gap-1">
+                              <button
+                                type="button"
+                                title="Boleto / PIX Santander"
+                                onClick={() => setPaymentModalTitleId(t.id)}
+                                className="p-1.5 rounded hover:bg-red-100 text-red-700 dark:hover:bg-red-900/50 dark:text-red-300"
+                              >
+                                <QrCode className="w-3.5 h-3.5" />
+                              </button>
                               <button
                                 type="button"
                                 title="Atribuir / Transferir Operador"
@@ -2967,6 +3040,54 @@ export const CollectionCoordinatorView: React.FC<CollectionCoordinatorViewProps>
           setClientModalState({ clientId: cId, tab: 'dados' })
         }
         onClose={() => setShadowCollaboratorId(null)}
+      />
+
+      <RecurringInstallmentsModal
+        modelTitle={recurringModel}
+        scope="RECEBER"
+        bankAccounts={data?.bankAccounts || []}
+        onClose={() => setRecurringModel(null)}
+        onCreated={async (msg) => {
+          setToast(msg);
+          setSelectedIds([]);
+          await loadCoordinatorData();
+        }}
+      />
+
+      <EmitReissueBoletoModal
+        open={Boolean(emitReissueTargets && emitReissueTargets.length > 0)}
+        titles={emitReissueTargets || []}
+        bankAccounts={data?.bankAccounts || []}
+        onClose={() => setEmitReissueTargets(null)}
+        onCompleted={async (msg) => {
+          setToast(msg);
+          await loadCoordinatorData();
+        }}
+        onViewBoleto={(tid) => setPaymentModalTitleId(tid)}
+      />
+
+      <ApiBankSettlementModal
+        open={apiSettlementOpen}
+        bankAccounts={data?.bankAccounts || []}
+        onClose={() => setApiSettlementOpen(false)}
+        onSettled={async (msg) => {
+          setToast(msg);
+          setSelectedIds([]);
+          await loadCoordinatorData();
+        }}
+        onOpenTitleById={(tid) => {
+          const found =
+            gridSourceTitles.find((item) => item.id === tid) ||
+            (data?.allReceberTitles || []).find((item) => item.id === tid);
+          if (found) setEditingTitle(found);
+        }}
+        onOpenBoletoModal={(tid) => setPaymentModalTitleId(tid)}
+      />
+
+      <SantanderPaymentModal
+        titleId={paymentModalTitleId}
+        onClose={() => setPaymentModalTitleId(null)}
+        onUpdated={loadCoordinatorData}
       />
     </div>
   );

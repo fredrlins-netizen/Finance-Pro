@@ -441,7 +441,7 @@ export const ConfigGroupsAndUsersView: React.FC<{
                   );
                   const memberCount = usersList.filter((u) => u.groupId === grp.id).length;
                   return (
-                    <tr key={grp.id} className="hover:bg-slate-50/80">
+                    <tr key={grp.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/70">
                       <td className="px-4 py-2.5">
                         <div className="font-semibold text-slate-900 dark:text-slate-100">{grp.name}</div>
                         <div className="text-[11px] text-slate-500 dark:text-slate-400">{grp.description || '—'}</div>
@@ -551,7 +551,7 @@ export const ConfigGroupsAndUsersView: React.FC<{
                     const grp = u.groupId ? groups.find((g) => g.id === u.groupId) : null;
                     const defUnit = u.defaultUnitId ? units.find((x) => x.id === u.defaultUnitId) : null;
                     return (
-                      <tr key={u.id} className="hover:bg-slate-50/80">
+                      <tr key={u.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/70">
                         <td className="px-4 py-2.5">
                           <div className="font-semibold text-slate-900 dark:text-slate-100">{u.name}</div>
                           <div className="font-mono text-[11px] text-slate-500 dark:text-slate-400">{u.email}</div>
@@ -1466,7 +1466,7 @@ export const ConfigAuditAndChecklistView: React.FC<{
                   </tr>
                 ) : (
                   visibleChecklist.map((it, idx) => (
-                    <tr key={it.id} className="hover:bg-slate-50/80">
+                    <tr key={it.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/70">
                       <td className="px-4 py-2.5 font-mono font-bold text-slate-900 tabular-nums dark:text-slate-100">
                         #{it.sortOrder}
                       </td>
@@ -1655,7 +1655,7 @@ export const ConfigAuditAndChecklistView: React.FC<{
                     </tr>
                   ) : (
                     unboundRows.map((r, i) => (
-                      <tr key={`${r.entityRef}-${i}`} className="hover:bg-slate-50/80">
+                      <tr key={`${r.entityRef}-${i}`} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/70">
                         <td className="px-4 py-2.5 font-medium text-slate-900 dark:text-slate-100">{r.reasonLabel}</td>
                         <td className="px-4 py-2.5 font-mono text-slate-700 dark:text-slate-200">{r.entityRef}</td>
                         <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">{r.candidateUnits}</td>
@@ -2262,7 +2262,7 @@ export const ConfigHelpCenterView: React.FC<{
                 </tr>
               ) : (
                 filtered.map((t) => (
-                  <tr key={t.id} className="hover:bg-slate-50/80">
+                  <tr key={t.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/70">
                     <td className="px-4 py-2.5 font-medium text-slate-700 whitespace-nowrap dark:text-slate-200">{t.menuPath}</td>
                     <td className="px-4 py-2.5 font-mono text-[11px] text-slate-500 whitespace-nowrap dark:text-slate-400">
                       {t.topicKey}

@@ -6,6 +6,8 @@ import {
   admissions,
   appointments,
   auditLogs,
+  bankAccountApiConfigs,
+  bankAccounts,
   banks,
   bankServices,
   clients,
@@ -371,6 +373,8 @@ export function registerCollectionRoutes(
         operators,
         hsmTemplates,
         gotalkCfgRows,
+        rawBankAccounts,
+        rawBankApiConfigs,
       ] = await Promise.all([
         db
           .select()
@@ -416,6 +420,8 @@ export function registerCollectionRoutes(
         db.select().from(gotalkOperators).orderBy(asc(gotalkOperators.id)),
         db.select().from(gotalkHsmTemplates).orderBy(asc(gotalkHsmTemplates.templateName)),
         db.select().from(systemSettings).where(eq(systemSettings.key, 'gotalk_config')).limit(1),
+        db.select().from(bankAccounts).where(eq(bankAccounts.active, true)).orderBy(asc(bankAccounts.bankName)),
+        db.select().from(bankAccountApiConfigs),
       ]);
 
       const receberTitles = allowedUnits === null ? rawReceberTitles : rawReceberTitles.filter((t) => allowUnit(t.unitId));
@@ -513,6 +519,34 @@ export function registerCollectionRoutes(
           threads.length > 0
       );
 
+      const cfgMap = new Map(rawBankApiConfigs.map((c) => [c.bankAccountId, c]));
+      const coordinatorBankAccounts = rawBankAccounts
+        .filter((acc) => allowedUnits === null || acc.unitId === null || allowedUnits.includes(acc.unitId))
+        .map((acc) => {
+          const cfg = cfgMap.get(acc.id);
+          return {
+            ...acc,
+            santanderSummary: cfg
+              ? {
+                  configured: true,
+                  environment: cfg.environment,
+                  executionMode: cfg.executionMode,
+                  boletoEnabled: cfg.boletoEnabled,
+                  pixEnabled: cfg.pixEnabled,
+                  hybridBoletoPixEnabled: cfg.hybridBoletoPixEnabled,
+                  covenantCode: cfg.covenantCode,
+                  workspaceId: cfg.workspaceId,
+                  pixKey: cfg.pixKey,
+                  hasClientId: Boolean(cfg.clientId || process.env.SANTANDER_CLIENT_ID),
+                  hasClientSecret: Boolean(cfg.clientSecretEncrypted || process.env.SANTANDER_CLIENT_SECRET),
+                  hasCertificate: Boolean(cfg.pfxBase64Encrypted || (cfg.certPemEncrypted && cfg.keyPemEncrypted)),
+                  lastTestOk: cfg.lastTestOk,
+                  lastTestedAt: cfg.lastTestedAt ? new Date(cfg.lastTestedAt).toISOString() : null,
+                }
+              : null,
+          };
+        });
+
       res.json({
         portfolioTitles,
         paidTitles,
@@ -525,6 +559,7 @@ export function registerCollectionRoutes(
         documents: allDocs,
         units: allUnits,
         banks: banksWithServices,
+        bankAccounts: coordinatorBankAccounts,
         modalities: allModalities,
         series: allSeries,
         collectionNotes: notesRows,

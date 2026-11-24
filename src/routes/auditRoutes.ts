@@ -37,6 +37,7 @@ import {
   iviSweepChecklistLocal,
   iviTranslateLegalDispatch,
 } from '../services/ivi.ts';
+import { emitSantanderBoletoForTitle } from '../services/santander.ts';
 
 function formatBrlServer(cents: number): string {
   return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -381,6 +382,7 @@ export function registerAuditRoutes(
         dueDate?: string;
         description?: string;
         allowDuplicate?: boolean;
+        bankAccountId?: number;
       };
 
       const [adm] = await db.select().from(admissions).where(eq(admissions.id, admissionId)).limit(1);
@@ -533,7 +535,26 @@ export function registerAuditRoutes(
         return insertedList;
       });
 
-      res.json({ titles: created });
+      const requestedBankAccId = body.bankAccountId ? parsePositiveIntId(body.bankAccountId) : undefined;
+      let finalCreated = created;
+      if (provider === 'santander' && created.length > 0) {
+        const enriched: typeof created = [];
+        for (const t of created) {
+          try {
+            const emitted = await emitSantanderBoletoForTitle({
+              titleId: t.id,
+              bankAccountId: requestedBankAccId,
+              actorName: req.authUser?.name || 'Auditoria',
+            });
+            enriched.push(emitted.title);
+          } catch {
+            enriched.push(t);
+          }
+        }
+        finalCreated = enriched;
+      }
+
+      res.json({ titles: finalCreated });
     } catch (error) {
       console.error('POST /api/audit/:admissionId/generate-boletos error:', error);
       res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao gerar lançamentos financeiros da auditoria.') });
@@ -553,6 +574,7 @@ export function registerAuditRoutes(
         isElectricVehicle,
         forceElectricOverride,
         notifyDepartments,
+        bankAccountId,
       } = (req.body || {}) as {
         boletoProvider?: string;
         hasSearchSeizure?: boolean;
@@ -561,6 +583,7 @@ export function registerAuditRoutes(
         isElectricVehicle?: boolean;
         forceElectricOverride?: boolean;
         notifyDepartments?: boolean;
+        bankAccountId?: number;
       };
 
       const rows = await db.select().from(admissions).where(eq(admissions.id, admissionId)).limit(1);
@@ -808,11 +831,30 @@ export function registerAuditRoutes(
         hasSearchSeizure: Boolean(hasSearchSeizure),
       });
 
+      let finalCreatedTitles = txResult.createdTitles;
+      if (provider === 'santander' && txResult.createdTitles.length > 0) {
+        const reqBankAcc = bankAccountId ? parsePositiveIntId(bankAccountId) : undefined;
+        const enriched = [];
+        for (const t of txResult.createdTitles) {
+          try {
+            const emitted = await emitSantanderBoletoForTitle({
+              titleId: t.id,
+              bankAccountId: reqBankAcc,
+              actorName: req.authUser?.name || 'Auditoria',
+            });
+            enriched.push(emitted.title);
+          } catch {
+            enriched.push(t);
+          }
+        }
+        finalCreatedTitles = enriched;
+      }
+
       res.json({
         admission: txResult.updatedAdm,
-        titles: txResult.createdTitles.length > 0 ? txResult.createdTitles : txResult.activeTitles,
+        titles: finalCreatedTitles.length > 0 ? finalCreatedTitles : txResult.activeTitles,
         legalProcess: txResult.legalProc,
-        generatedNow: txResult.createdTitles.length,
+        generatedNow: finalCreatedTitles.length,
       });
     } catch (error) {
       console.error('Audit approve error:', error);

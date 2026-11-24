@@ -1,12 +1,16 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
+  Check,
   CheckCircle2,
+  ChevronDown,
   ExternalLink,
   FileText,
   History,
+  Landmark,
   Layers,
   Link2,
+  QrCode,
   Repeat,
   Scale,
   ShieldAlert,
@@ -852,53 +856,178 @@ export const CancelSettlementModal: React.FC<CancelSettlementModalProps> = ({
  * ========================================================================== */
 interface RecurringModalProps {
   modelTitle: FinancialTitle | null;
+  scope?: 'RECEBER' | 'PAGAR';
+  bankAccounts?: BankAccount[];
   onClose: () => void;
   onCreated: (msg: string) => Promise<void>;
 }
 
+function isSantanderAccount(acc: BankAccount): boolean {
+  return (
+    acc.apiProvider === 'santander' ||
+    acc.febrabanCode === '033' ||
+    acc.bankName.toLowerCase().includes('santander')
+  );
+}
+
 export const RecurringInstallmentsModal: React.FC<RecurringModalProps> = ({
   modelTitle,
+  scope = 'RECEBER',
+  bankAccounts = [],
   onClose,
   onCreated,
 }) => {
+  const isReceber = (modelTitle?.scope || scope) === 'RECEBER';
   const [qty, setQty] = useState(12);
+  const [selectedBankAccountId, setSelectedBankAccountId] = useState<number | null>(null);
+  const [bankDropdownOpen, setBankDropdownOpen] = useState(false);
+  const [emitBoletos, setEmitBoletos] = useState(true);
+  const [includePixQr, setIncludePixQr] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
+
+  const sortedAccounts = useMemo(() => {
+    const active = bankAccounts.filter((a) => a.active !== false);
+    return active.slice().sort((a, b) => {
+      const aDefault = a.apiProvider === 'santander' && a.isDefaultBoletoAccount && a.apiIntegrationEnabled ? 0 : 1;
+      const bDefault = b.apiProvider === 'santander' && b.isDefaultBoletoAccount && b.apiIntegrationEnabled ? 0 : 1;
+      if (aDefault !== bDefault) return aDefault - bDefault;
+      const aSant = isSantanderAccount(a) ? 0 : 1;
+      const bSant = isSantanderAccount(b) ? 0 : 1;
+      if (aSant !== bSant) return aSant - bSant;
+      return a.bankName.localeCompare(b.bankName);
+    });
+  }, [bankAccounts]);
+
+  const defaultSantanderAccount = useMemo(() => {
+    return (
+      sortedAccounts.find((a) => a.apiProvider === 'santander' && a.isDefaultBoletoAccount && a.apiIntegrationEnabled) ||
+      sortedAccounts.find((a) => a.apiProvider === 'santander' && a.apiIntegrationEnabled) ||
+      sortedAccounts.find((a) => isSantanderAccount(a)) ||
+      (modelTitle?.bankAccountId ? sortedAccounts.find((a) => a.id === modelTitle.bankAccountId) : undefined) ||
+      sortedAccounts[0] ||
+      null
+    );
+  }, [sortedAccounts, modelTitle?.bankAccountId]);
 
   useEffect(() => {
     setQty(12);
     setErr('');
-  }, [modelTitle?.id]);
+    setBankDropdownOpen(false);
+    const defAcc = defaultSantanderAccount;
+    setSelectedBankAccountId(defAcc?.id ?? null);
+    setEmitBoletos(Boolean(isReceber && defAcc && defAcc.apiProvider === 'santander'));
+    setIncludePixQr(Boolean(defAcc?.santanderSummary?.hybridBoletoPixEnabled ?? true));
+  }, [modelTitle?.id, defaultSantanderAccount, isReceber]);
 
-  const preview = useMemo(() => {
-    if (!modelTitle) return [];
+  useEffect(() => {
+    const onOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setBankDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onOutside);
+    return () => document.removeEventListener('mousedown', onOutside);
+  }, []);
+
+  const selectedAccount = useMemo(
+    () => sortedAccounts.find((a) => a.id === selectedBankAccountId) || defaultSantanderAccount,
+    [sortedAccounts, selectedBankAccountId, defaultSantanderAccount]
+  );
+
+  const selectedIsSantanderApi = Boolean(selectedAccount && selectedAccount.apiProvider === 'santander');
+
+  const [previewItems, setPreviewItems] = useState<
+    Array<{
+      installmentNumber: number;
+      totalInstallments: number;
+      documentNumber: string;
+      dueDateIso: string;
+      amountCents: number;
+    }>
+  >([]);
+  const [skippedDocs, setSkippedDocs] = useState<string[]>([]);
+  const [previewLoading, setPreviewLoading] = useState(false);
+
+  const modelHasBoleto = Boolean(
+    modelTitle &&
+      ((modelTitle.barcode || '').trim() ||
+        (modelTitle.digitableLine || '').trim() ||
+        (modelTitle.santanderBankSlipId || '').trim())
+  );
+
+  useEffect(() => {
+    if (!modelTitle) return;
+    let active = true;
+    setPreviewLoading(true);
     const safeQty = Math.min(120, Math.max(1, qty || 1));
-    const baseDoc = modelTitle.documentNumber || modelTitle.titleCode;
-    const origRaw = modelTitle.originalValueCents ?? 0;
-    const val = origRaw > 0 ? origRaw : modelTitle.amountCents;
-    return Array.from({ length: Math.min(safeQty, 24) }, (_, idx) => {
-      const i = idx + 1;
-      const d = new Date(modelTitle.dueDate);
-      d.setMonth(d.getMonth() + i);
-      return {
-        num: i,
-        doc: `${baseDoc}-${String(i).padStart(2, '0')}/${String(safeQty).padStart(2, '0')}`,
-        dueIso: d.toISOString().slice(0, 10),
-        val,
-      };
-    });
-  }, [modelTitle, qty]);
+    apiFetch<{
+      modelHasBoleto: boolean;
+      skippedDocs: string[];
+      items: Array<{
+        installmentNumber: number;
+        totalInstallments: number;
+        documentNumber: string;
+        dueDateIso: string;
+        amountCents: number;
+      }>;
+    }>(`/api/financial-titles/${modelTitle.id}/recurrence-preview?count=${safeQty}`)
+      .then((res) => {
+        if (!active) return;
+        setPreviewItems(res.items || []);
+        setSkippedDocs(res.skippedDocs || []);
+      })
+      .catch(() => {
+        if (!active) return;
+        setPreviewItems([]);
+        setSkippedDocs([]);
+      })
+      .finally(() => {
+        if (active) setPreviewLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [modelTitle?.id, qty]);
+
+  const preview = useMemo(() => previewItems.slice(0, 24), [previewItems]);
 
   const handleConfirm = async () => {
     if (!modelTitle) return;
     setBusy(true);
     setErr('');
     try {
-      const res = await apiFetch<{ createdCount: number }>('/api/financial-titles/create-installments', {
+      const willEmit = isReceber && emitBoletos && selectedIsSantanderApi;
+      const res = await apiFetch<{
+        createdCount: number;
+        emittedCount?: number;
+        skippedDocs?: string[];
+        emissionErrors?: string[];
+      }>('/api/financial-titles/create-installments', {
         method: 'POST',
-        body: JSON.stringify({ parentTitleId: modelTitle.id, count: Math.min(120, Math.max(1, qty)) }),
+        body: JSON.stringify({
+          parentTitleId: modelTitle.id,
+          count: Math.min(120, Math.max(1, qty)),
+          bankAccountId: selectedAccount?.id ?? modelTitle.bankAccountId ?? null,
+          emitBoletos: willEmit,
+          includePixQr: willEmit ? includePixQr : false,
+        }),
       });
-      await onCreated(`${res.createdCount} parcela(s) recorrente(s) criada(s) a partir de ${modelTitle.documentNumber || modelTitle.titleCode}.`);
+      const emitNote = willEmit
+        ? res.emittedCount && res.emittedCount > 0
+          ? ` e ${res.emittedCount} boleto(s) emitido(s) via ${selectedAccount?.bankName || 'Santander'}`
+          : res.emissionErrors?.length
+          ? ` (aviso na emissão: ${res.emissionErrors[0]})`
+          : ''
+        : '';
+      const skipNote =
+        res.skippedDocs && res.skippedDocs.length > 0
+          ? ` (${res.skippedDocs.length} já existente(s) preservada(s))`
+          : '';
+      await onCreated(
+        `${res.createdCount} parcela(s) recorrente(s) criada(s) a partir de ${modelTitle.documentNumber || modelTitle.titleCode}${emitNote}${skipNote}.`
+      );
       onClose();
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Erro ao gerar recorrência.');
@@ -924,7 +1053,7 @@ export const RecurringInstallmentsModal: React.FC<RecurringModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 dark:bg-slate-950/80" onClick={onClose}>
       <div
-        className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden text-xs dark:border-slate-700 dark:bg-slate-900"
+        className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden text-xs dark:border-slate-700 dark:bg-slate-900"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50 dark:border-slate-700 dark:bg-slate-800/70">
@@ -944,16 +1073,29 @@ export const RecurringInstallmentsModal: React.FC<RecurringModalProps> = ({
 
         <div className="p-5 space-y-4">
           {err && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-800 dark:border-red-800/70 dark:bg-red-950/50 dark:text-red-300">{err}</div>}
+
+          {modelHasBoleto && (
+            <div className="rounded-lg border border-blue-200 bg-blue-50/70 px-3 py-2 text-[11px] text-blue-900 dark:border-blue-800/70 dark:bg-blue-950/40 dark:text-blue-200">
+              O título inicial <strong className="font-mono">{modelTitle.documentNumber || modelTitle.titleCode}</strong> já possui boleto associado e será preservado sem nova emissão. Os próximos lançamentos serão numerados a partir do próximo número disponível até a {qty}ª parcela.
+            </div>
+          )}
+
+          {skippedDocs.length > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 text-[11px] text-amber-900 dark:border-amber-800/70 dark:bg-amber-950/40 dark:text-amber-200">
+              Parcela(s) já existente(s) ignorada(s) automaticamente: <strong className="font-mono">{skippedDocs.join(', ')}</strong>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4 items-end">
             <div>
-              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Qtd. Parcelas Futuras (1 a 120) *</label>
+              <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Parcela Final / Qtd. Total (1 a 120) *</label>
               <input
                 type="number"
                 min={1}
                 max={120}
                 value={qty}
                 onChange={(e) => setQty(Math.min(120, Math.max(1, Number(e.target.value || 1))))}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono font-bold dark:border-slate-700"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono font-bold dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               />
             </div>
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5 dark:border-slate-700 dark:bg-slate-800/70">
@@ -963,6 +1105,125 @@ export const RecurringInstallmentsModal: React.FC<RecurringModalProps> = ({
               </div>
             </div>
           </div>
+
+          {isReceber && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 space-y-3 dark:border-slate-700 dark:bg-slate-800/50">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <div className="font-semibold text-slate-900 flex items-center gap-1.5 dark:text-slate-100">
+                    <QrCode className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                    Emissão de Boletos — Conta Corrente
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Selecione a conta corrente para registro dos boletos (Santander selecionado por padrão).
+                  </p>
+                </div>
+
+                {/* Botão com Dropdown de Contas Correntes */}
+                <div className="relative" ref={dropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setBankDropdownOpen((o) => !o)}
+                    className="inline-flex items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-100 min-w-[260px] dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+                  >
+                    <span className="flex items-center gap-2 truncate">
+                      <Landmark className="w-3.5 h-3.5 text-red-600 shrink-0 dark:text-red-400" />
+                      {selectedAccount ? (
+                        <span className="truncate">
+                          {selectedAccount.febrabanCode ? `${selectedAccount.febrabanCode} · ` : ''}
+                          {selectedAccount.bankName}
+                          {selectedAccount.accountNumber ? ` (${selectedAccount.accountNumber})` : ''}
+                        </span>
+                      ) : (
+                        <span>Selecionar Conta Corrente</span>
+                      )}
+                    </span>
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  </button>
+
+                  {bankDropdownOpen && (
+                    <div className="absolute right-0 mt-1.5 w-80 max-h-60 overflow-y-auto rounded-xl border border-slate-200 bg-white py-1.5 shadow-xl z-40 text-xs dark:border-slate-700 dark:bg-slate-900">
+                      {sortedAccounts.length === 0 ? (
+                        <div className="px-3 py-2.5 text-slate-500 dark:text-slate-400">
+                          Nenhuma conta corrente ativa cadastrada.
+                        </div>
+                      ) : (
+                        sortedAccounts.map((acc) => {
+                          const isSelected = selectedAccount?.id === acc.id;
+                          const santApi = acc.apiProvider === 'santander';
+                          return (
+                            <button
+                              key={acc.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedBankAccountId(acc.id);
+                                setEmitBoletos(santApi);
+                                setIncludePixQr(Boolean(acc.santanderSummary?.hybridBoletoPixEnabled ?? true));
+                                setBankDropdownOpen(false);
+                              }}
+                              className={`w-full px-3 py-2 text-left flex items-start justify-between gap-2 transition-colors ${
+                                isSelected
+                                  ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100'
+                                  : 'text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800/70'
+                              }`}
+                            >
+                              <div className="min-w-0">
+                                <div className="font-semibold truncate">
+                                  {acc.febrabanCode ? `${acc.febrabanCode} · ` : ''}
+                                  {acc.bankName}
+                                  {defaultSantanderAccount?.id === acc.id ? ' (Padrão)' : ''}
+                                </div>
+                                <div className="text-[10px] text-slate-500 font-mono tabular-nums dark:text-slate-400">
+                                  Ag {acc.agency || '—'} · Cc {acc.accountNumber || '—'}
+                                  {santApi
+                                    ? acc.santanderSummary?.executionMode === 'live_mtls'
+                                      ? ' · API Santander (mTLS)'
+                                      : ' · API Santander (Homologação)'
+                                    : ' · Sem API de boleto'}
+                                </div>
+                              </div>
+                              {isSelected && <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5 dark:text-emerald-400" />}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-4 pt-1 border-t border-slate-200/80 dark:border-slate-700">
+                <label className="inline-flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={emitBoletos && selectedIsSantanderApi}
+                    disabled={!selectedIsSantanderApi}
+                    onChange={(e) => setEmitBoletos(e.target.checked)}
+                  />
+                  <span className="font-medium">
+                    Emitir boletos automaticamente para os novos lançamentos gerados
+                  </span>
+                </label>
+
+                {emitBoletos && selectedIsSantanderApi && (
+                  <label className="inline-flex items-center gap-2 cursor-pointer text-slate-600 dark:text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={includePixQr}
+                      onChange={(e) => setIncludePixQr(e.target.checked)}
+                    />
+                    <span>Incluir QR Code PIX (Boleto SX)</span>
+                  </label>
+                )}
+
+                {selectedAccount && !selectedIsSantanderApi && (
+                  <span className="text-[11px] text-amber-700 dark:text-amber-300">
+                    Conta sem API Santander vinculada: as parcelas serão vinculadas à conta, sem registro automático de boleto.
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="border border-slate-200 rounded-xl max-h-56 overflow-y-auto dark:border-slate-700">
             <table className="w-full text-left text-[11px]">
@@ -975,19 +1236,35 @@ export const RecurringInstallmentsModal: React.FC<RecurringModalProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {preview.map((p) => (
-                  <tr key={p.num}>
-                    <td className="px-3 py-1.5 font-mono">{p.num}</td>
-                    <td className="px-3 py-1.5 font-mono font-semibold">{p.doc}</td>
-                    <td className="px-3 py-1.5 font-mono">{formatIsoDateToBR(p.dueIso)}</td>
-                    <td className="px-3 py-1.5 text-right font-mono tabular-nums">{formatBRL(p.val)}</td>
+                {previewLoading ? (
+                  <tr>
+                    <td colSpan={4} className="px-3 py-4 text-center text-slate-500 dark:text-slate-400">
+                      Calculando numeração disponível...
+                    </td>
                   </tr>
-                ))}
+                ) : preview.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-3 py-4 text-center text-slate-500 dark:text-slate-400">
+                      Nenhuma nova parcela a gerar para a quantidade selecionada.
+                    </td>
+                  </tr>
+                ) : (
+                  preview.map((p) => (
+                    <tr key={p.installmentNumber} className="hover:bg-slate-100/70 dark:hover:bg-slate-800/70">
+                      <td className="px-3 py-1.5 font-mono">
+                        {p.installmentNumber}/{p.totalInstallments}
+                      </td>
+                      <td className="px-3 py-1.5 font-mono font-semibold">{p.documentNumber}</td>
+                      <td className="px-3 py-1.5 font-mono">{formatIsoDateToBR(p.dueDateIso)}</td>
+                      <td className="px-3 py-1.5 text-right font-mono tabular-nums">{formatBRL(p.amountCents)}</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
-            {qty > 24 && (
+            {previewItems.length > 24 && (
               <div className="px-3 py-1.5 bg-slate-50 text-slate-500 text-center text-[10px] dark:bg-slate-800/70 dark:text-slate-400">
-                ... e mais {qty - 24} parcelas mensais subsequentes.
+                ... e mais {previewItems.length - 24} parcelas mensais subsequentes.
               </div>
             )}
           </div>
@@ -996,11 +1273,17 @@ export const RecurringInstallmentsModal: React.FC<RecurringModalProps> = ({
         <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between dark:border-slate-700 dark:bg-slate-800/70">
           <span className="text-[11px] text-slate-500 dark:text-slate-400">Atalho: Ctrl+Enter para gerar</span>
           <div className="flex gap-2">
-            <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+            <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">
               Cancelar
             </button>
-            <button type="button" disabled={busy} onClick={handleConfirm} className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-500">
-              {busy ? 'Gerando...' : `Gerar ${qty} Parcelas`}
+            <button type="button" disabled={busy || previewItems.length === 0} onClick={handleConfirm} className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500">
+              {busy
+                ? isReceber && emitBoletos && selectedIsSantanderApi
+                  ? 'Gerando e Emitindo Boletos...'
+                  : 'Gerando...'
+                : isReceber && emitBoletos && selectedIsSantanderApi
+                ? `Gerar ${previewItems.length} Parcelas e Emitir Boletos`
+                : `Gerar ${previewItems.length} Parcelas`}
             </button>
           </div>
         </div>
@@ -1074,7 +1357,7 @@ export const ViewChildrenModal: React.FC<ViewChildrenModalProps> = ({ parentTitl
                         onClose();
                         onOpenTitle(ch);
                       }}
-                      className="hover:bg-blue-50/40 cursor-pointer"
+                      className="hover:bg-blue-50/40 dark:hover:bg-slate-800/80 cursor-pointer transition-colors"
                     >
                       <td className="px-3 py-2 font-mono font-semibold text-blue-700 dark:text-blue-300">
                         {ch.documentNumber || ch.titleCode}
@@ -1334,7 +1617,7 @@ export const InvoiceTraceModal: React.FC<InvoiceTraceModalProps> = ({
             <table className="w-full text-left text-[11px]">
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {origins.map((o) => (
-                  <tr key={o.id} onClick={() => { onClose(); onOpenTitle(o); }} className="hover:bg-blue-50/40 cursor-pointer">
+                  <tr key={o.id} onClick={() => { onClose(); onOpenTitle(o); }} className="hover:bg-blue-50/40 dark:hover:bg-slate-800/80 cursor-pointer transition-colors">
                     <td className="px-3 py-2 font-mono font-semibold text-blue-700 dark:text-blue-300">{o.documentNumber || o.titleCode}</td>
                     <td className="px-3 py-2">{o.description}</td>
                     <td className="px-3 py-2 font-mono">{formatIsoDateToBR(o.dueDate)}</td>
@@ -1352,7 +1635,7 @@ export const InvoiceTraceModal: React.FC<InvoiceTraceModalProps> = ({
             <table className="w-full text-left text-[11px]">
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {invoices.map((inv) => (
-                  <tr key={inv.id} onClick={() => { onClose(); onOpenTitle(inv); }} className="hover:bg-blue-50/40 cursor-pointer">
+                  <tr key={inv.id} onClick={() => { onClose(); onOpenTitle(inv); }} className="hover:bg-blue-50/40 dark:hover:bg-slate-800/80 cursor-pointer transition-colors">
                     <td className="px-3 py-2 font-mono font-semibold text-blue-700 dark:text-blue-300">{inv.documentNumber || inv.titleCode}</td>
                     <td className="px-3 py-2 font-mono">{inv.installmentNumber}/{inv.totalInstallments}</td>
                     <td className="px-3 py-2 font-mono">{formatIsoDateToBR(inv.dueDate)}</td>

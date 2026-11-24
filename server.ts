@@ -34,7 +34,9 @@ import {
   documentTypes,
   chartOfAccounts,
   bankAccounts,
+  bankAccountApiConfigs,
   bankMovements,
+  banks,
   unitWhatsappCredentials,
   whatsappThreads,
   whatsappMessages,
@@ -72,6 +74,7 @@ import { registerUnitFilesRoutes } from './src/routes/unitFilesRoutes.ts';
 import { registerBackupRoutes } from './src/routes/backupRoutes.ts';
 import { registerInternalMessagingRoutes } from './src/routes/internalMessagingRoutes.ts';
 import { registerTrainingDocsRoutes } from './src/routes/trainingDocsRoutes.ts';
+import { registerSantanderRoutes } from './src/routes/santanderRoutes.ts';
 import {
   buildUserPermissionSummary,
   evaluateDocumentAccess,
@@ -5316,13 +5319,40 @@ async function startServer() {
     try {
       await ensureInitialSeed();
       const allowedUnits = getAllowedUnitIds(req);
-      const list =
+      const [list, apiConfigs] = await Promise.all([
         allowedUnits === null
-          ? await db.select().from(bankAccounts).orderBy(bankAccounts.bankName)
+          ? db.select().from(bankAccounts).orderBy(bankAccounts.bankName)
           : allowedUnits.length === 0
-          ? []
-          : await db.select().from(bankAccounts).where(inArray(bankAccounts.unitId, allowedUnits)).orderBy(bankAccounts.bankName);
-      res.json({ bankAccounts: list });
+          ? Promise.resolve([])
+          : db.select().from(bankAccounts).where(inArray(bankAccounts.unitId, allowedUnits)).orderBy(bankAccounts.bankName),
+        db.select().from(bankAccountApiConfigs),
+      ]);
+      const cfgMap = new Map(apiConfigs.map((c) => [c.bankAccountId, c]));
+      const enriched = list.map((acc) => {
+        const cfg = cfgMap.get(acc.id);
+        return {
+          ...acc,
+          santanderSummary: cfg
+            ? {
+                configured: true,
+                environment: cfg.environment,
+                executionMode: cfg.executionMode,
+                boletoEnabled: cfg.boletoEnabled,
+                pixEnabled: cfg.pixEnabled,
+                hybridBoletoPixEnabled: cfg.hybridBoletoPixEnabled,
+                covenantCode: cfg.covenantCode,
+                workspaceId: cfg.workspaceId,
+                pixKey: cfg.pixKey,
+                hasClientId: Boolean(cfg.clientId || process.env.SANTANDER_CLIENT_ID),
+                hasClientSecret: Boolean(cfg.clientSecretEncrypted || process.env.SANTANDER_CLIENT_SECRET),
+                hasCertificate: Boolean(cfg.pfxBase64Encrypted || (cfg.certPemEncrypted && cfg.keyPemEncrypted)),
+                lastTestOk: cfg.lastTestOk,
+                lastTestedAt: cfg.lastTestedAt ? new Date(cfg.lastTestedAt).toISOString() : null,
+              }
+            : null,
+        };
+      });
+      res.json({ bankAccounts: enriched });
     } catch (error) {
       res.status(500).json({ error: 'Erro ao carregar contas bancárias.' });
     }
@@ -5330,8 +5360,38 @@ async function startServer() {
 
   app.post('/api/finance/bank-accounts', requireAuth, requireModule('finance'), async (req: AuthRequest, res) => {
     try {
-      const { bankName, agency, accountNumber, accountType, initialBalanceCents, unitId, active } = req.body as any;
-      if (!bankName || !String(bankName).trim()) {
+      const {
+        bankId,
+        febrabanCode,
+        bankName,
+        agency,
+        agencyDigit,
+        accountNumber,
+        accountDigit,
+        accountType,
+        beneficiaryDocument,
+        beneficiaryName,
+        apiProvider,
+        apiIntegrationEnabled,
+        isDefaultBoletoAccount,
+        isDefaultPixAccount,
+        initialBalanceCents,
+        unitId,
+        active,
+      } = req.body as any;
+
+      let resolvedBankName = bankName ? String(bankName).trim() : '';
+      let resolvedFebraban = febrabanCode ? String(febrabanCode).trim() : '';
+      const parsedBankId = bankId ? parsePositiveIntId(bankId) : null;
+      if (parsedBankId) {
+        const [linkedBank] = await db.select().from(banks).where(eq(banks.id, parsedBankId)).limit(1);
+        if (linkedBank) {
+          if (!resolvedBankName) resolvedBankName = linkedBank.name;
+          if (!resolvedFebraban) resolvedFebraban = linkedBank.febrabanCode || linkedBank.code || '';
+        }
+      }
+
+      if (!resolvedBankName) {
         return res.status(400).json({ error: 'Nome do banco é obrigatório.' });
       }
       const parsedBal = initialBalanceCents !== undefined && initialBalanceCents !== null ? parseFiniteNumber(initialBalanceCents) : 0;
@@ -5343,17 +5403,53 @@ async function startServer() {
         return res.status(403).json({ error: 'Unidade inválida ou não autorizada.' });
       }
 
+      const normalizedProvider = apiProvider === 'santander' ? 'santander' : 'none';
+      const defaultBoleto = Boolean(isDefaultBoletoAccount);
+      const defaultPix = Boolean(isDefaultPixAccount);
+
+      if (defaultBoleto) {
+        await db.update(bankAccounts).set({ isDefaultBoletoAccount: false }).where(eq(bankAccounts.unitId, targetUnitId));
+      }
+      if (defaultPix) {
+        await db.update(bankAccounts).set({ isDefaultPixAccount: false }).where(eq(bankAccounts.unitId, targetUnitId));
+      }
+
       const initialBal = Math.round(parsedBal);
       const [created] = await db.insert(bankAccounts).values({
-        bankName: String(bankName).trim(),
+        bankId: parsedBankId,
+        febrabanCode: resolvedFebraban,
+        bankName: resolvedBankName,
         agency: agency ? String(agency).trim() : '',
+        agencyDigit: agencyDigit ? String(agencyDigit).trim() : '',
         accountNumber: accountNumber ? String(accountNumber).trim() : '',
+        accountDigit: accountDigit ? String(accountDigit).trim() : '',
         accountType: accountType || 'corrente',
+        beneficiaryDocument: beneficiaryDocument ? String(beneficiaryDocument).trim() : '',
+        beneficiaryName: beneficiaryName ? String(beneficiaryName).trim() : '',
+        apiProvider: normalizedProvider,
+        apiIntegrationEnabled: normalizedProvider === 'santander' ? apiIntegrationEnabled !== false : false,
+        isDefaultBoletoAccount: defaultBoleto,
+        isDefaultPixAccount: defaultPix,
         initialBalanceCents: initialBal,
         currentBalanceCents: initialBal,
         unitId: targetUnitId,
         active: active !== false,
       }).returning();
+
+      if (normalizedProvider === 'santander') {
+        await db
+          .insert(bankAccountApiConfigs)
+          .values({
+            bankAccountId: created.id,
+            provider: 'santander',
+            environment: 'sandbox',
+            executionMode: 'homologation_offline',
+            pixKey: beneficiaryDocument ? String(beneficiaryDocument).replace(/\D/g, '') : '',
+            pixKeyType: 'CNPJ',
+            updatedBy: req.authUser!.name,
+          })
+          .onConflictDoNothing();
+      }
 
       await db.insert(auditLogs).values({
         userId: req.authUser!.id,
@@ -5361,7 +5457,12 @@ async function startServer() {
         action: 'CREATE_BANK_ACCOUNT',
         entityType: 'bank_account',
         entityId: String(created.id),
-        details: { bankName: created.bankName, accountNumber: created.accountNumber },
+        details: {
+          bankName: created.bankName,
+          accountNumber: created.accountNumber,
+          apiProvider: created.apiProvider,
+          bankId: created.bankId,
+        },
         unitId: req.activeUnitId,
       });
 
@@ -5381,20 +5482,110 @@ async function startServer() {
         return res.status(403).json({ error: 'Sem permissão para alterar conta bancária desta unidade.' });
       }
 
-      const { bankName, agency, accountNumber, accountType, active } = req.body as any;
-      if (!bankName || !String(bankName).trim()) {
+      const {
+        bankId,
+        febrabanCode,
+        bankName,
+        agency,
+        agencyDigit,
+        accountNumber,
+        accountDigit,
+        accountType,
+        beneficiaryDocument,
+        beneficiaryName,
+        apiProvider,
+        apiIntegrationEnabled,
+        isDefaultBoletoAccount,
+        isDefaultPixAccount,
+        active,
+      } = req.body as any;
+
+      let resolvedBankName = bankName ? String(bankName).trim() : '';
+      let resolvedFebraban =
+        febrabanCode !== undefined ? String(febrabanCode).trim() : existing.febrabanCode;
+      const parsedBankId =
+        bankId !== undefined ? (bankId ? parsePositiveIntId(bankId) : null) : existing.bankId;
+      if (parsedBankId) {
+        const [linkedBank] = await db.select().from(banks).where(eq(banks.id, parsedBankId)).limit(1);
+        if (linkedBank) {
+          if (!resolvedBankName) resolvedBankName = linkedBank.name;
+          if (febrabanCode === undefined || !resolvedFebraban) {
+            resolvedFebraban = linkedBank.febrabanCode || linkedBank.code || resolvedFebraban;
+          }
+        }
+      }
+
+      if (!resolvedBankName) {
         return res.status(400).json({ error: 'Nome do banco é obrigatório.' });
       }
 
+      const normalizedProvider =
+        apiProvider !== undefined
+          ? apiProvider === 'santander'
+            ? 'santander'
+            : 'none'
+          : existing.apiProvider;
+      const nextDefaultBoleto =
+        isDefaultBoletoAccount !== undefined ? Boolean(isDefaultBoletoAccount) : existing.isDefaultBoletoAccount;
+      const nextDefaultPix =
+        isDefaultPixAccount !== undefined ? Boolean(isDefaultPixAccount) : existing.isDefaultPixAccount;
+
+      if (nextDefaultBoleto) {
+        if (existing.unitId) {
+          await db.update(bankAccounts).set({ isDefaultBoletoAccount: false }).where(eq(bankAccounts.unitId, existing.unitId));
+        } else {
+          await db.update(bankAccounts).set({ isDefaultBoletoAccount: false });
+        }
+      }
+      if (nextDefaultPix) {
+        if (existing.unitId) {
+          await db.update(bankAccounts).set({ isDefaultPixAccount: false }).where(eq(bankAccounts.unitId, existing.unitId));
+        } else {
+          await db.update(bankAccounts).set({ isDefaultPixAccount: false });
+        }
+      }
+
       const [updated] = await db.update(bankAccounts).set({
-        bankName: String(bankName).trim(),
-        agency: agency ? String(agency).trim() : '',
-        accountNumber: accountNumber ? String(accountNumber).trim() : '',
-        accountType: accountType || 'corrente',
+        bankId: parsedBankId,
+        febrabanCode: resolvedFebraban,
+        bankName: resolvedBankName,
+        agency: agency !== undefined ? String(agency).trim() : existing.agency,
+        agencyDigit: agencyDigit !== undefined ? String(agencyDigit).trim() : existing.agencyDigit,
+        accountNumber: accountNumber !== undefined ? String(accountNumber).trim() : existing.accountNumber,
+        accountDigit: accountDigit !== undefined ? String(accountDigit).trim() : existing.accountDigit,
+        accountType: accountType || existing.accountType || 'corrente',
+        beneficiaryDocument:
+          beneficiaryDocument !== undefined ? String(beneficiaryDocument).trim() : existing.beneficiaryDocument,
+        beneficiaryName:
+          beneficiaryName !== undefined ? String(beneficiaryName).trim() : existing.beneficiaryName,
+        apiProvider: normalizedProvider,
+        apiIntegrationEnabled:
+          normalizedProvider === 'santander'
+            ? apiIntegrationEnabled !== undefined
+              ? Boolean(apiIntegrationEnabled)
+              : true
+            : false,
+        isDefaultBoletoAccount: nextDefaultBoleto,
+        isDefaultPixAccount: nextDefaultPix,
         active: active !== false,
       }).where(eq(bankAccounts.id, id)).returning();
 
       if (!updated) return res.status(404).json({ error: 'Conta bancária não encontrada.' });
+
+      if (normalizedProvider === 'santander') {
+        await db
+          .insert(bankAccountApiConfigs)
+          .values({
+            bankAccountId: updated.id,
+            provider: 'santander',
+            environment: 'sandbox',
+            executionMode: 'homologation_offline',
+            pixKey: updated.beneficiaryDocument ? updated.beneficiaryDocument.replace(/\D/g, '') : '',
+            pixKeyType: 'CNPJ',
+            updatedBy: req.authUser!.name,
+          })
+          .onConflictDoNothing();
+      }
 
       await db.insert(auditLogs).values({
         userId: req.authUser!.id,
@@ -5402,7 +5593,11 @@ async function startServer() {
         action: 'UPDATE_BANK_ACCOUNT',
         entityType: 'bank_account',
         entityId: String(id),
-        details: { bankName: updated.bankName },
+        details: {
+          bankName: updated.bankName,
+          apiProvider: updated.apiProvider,
+          bankId: updated.bankId,
+        },
         unitId: req.activeUnitId,
       });
 
@@ -9428,6 +9623,7 @@ async function startServer() {
   registerUnitFilesRoutes(app, { broadcast, uploadSingleFile: upload.single('file') });
   registerBackupRoutes(app, broadcast);
   registerTrainingDocsRoutes(app);
+  registerSantanderRoutes(app, broadcast);
   startBackupScheduler(broadcast, ensureSqlHostProxySocket);
 
   // Garante resposta JSON em qualquer rota /api inexistente ou erro de middleware (nunca HTML <!doctype>)

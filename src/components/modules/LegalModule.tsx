@@ -963,7 +963,7 @@ export const LegalModule: React.FC<LegalModuleProps> = ({
                           }
                         }}
                         title="Clique para visualizar a linha do tempo · Dois cliques para abrir o processo em análise"
-                        className={`cursor-pointer select-none transition-colors focus-visible:outline-none focus-visible:bg-blue-50 ${
+                        className={`cursor-pointer select-none transition-colors focus-visible:outline-none focus-visible:bg-blue-50 dark:focus-visible:bg-blue-950/50 ${
                           isOpened
                             ? 'bg-blue-50/80 dark:bg-blue-950/50'
                             : isHighlighted

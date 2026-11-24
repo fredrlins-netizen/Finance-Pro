@@ -664,7 +664,21 @@ export const financialTitles = pgTable('financial_titles', {
   accountingType: text('accounting_type').notNull().default('NAO_CONTABIL'), // 'CONTABIL' | 'NAO_CONTABIL'
   boletoProvider: text('boleto_provider').notNull().default('santander'),
   barcode: text('barcode').notNull().default(''),
+  digitableLine: text('digitable_line').notNull().default(''),
   ourNumber: text('our_number').notNull().default(''),
+  santanderNsuCode: text('santander_nsu_code').notNull().default(''),
+  santanderNsuDate: text('santander_nsu_date').notNull().default(''),
+  santanderWorkspaceId: text('santander_workspace_id').notNull().default(''),
+  santanderCovenantCode: text('santander_covenant_code').notNull().default(''),
+  santanderBankSlipId: text('santander_bank_slip_id').notNull().default(''),
+  santanderStatus: text('santander_status').notNull().default(''),
+  pixTxid: text('pix_txid').notNull().default(''),
+  pixCopiaECola: text('pix_copia_e_cola').notNull().default(''),
+  pixLocation: text('pix_location').notNull().default(''),
+  pixStatus: text('pix_status').notNull().default(''),
+  pixChargeType: text('pix_charge_type').notNull().default(''),
+  pixExpiresAt: timestamp('pix_expires_at'),
+  santanderRawJson: jsonb('santander_raw_json').$type<Record<string, unknown>>(),
   receiptDocId: integer('receipt_doc_id').references(() => documentObjects.id),
   collectorId: integer('collector_id').references(() => users.id),
   coverSheetApproved: boolean('cover_sheet_approved').notNull().default(false),
@@ -1112,10 +1126,20 @@ export const communicationArchives = pgTable('communication_archives', {
 
 export const bankAccounts = pgTable('bank_accounts', {
   id: serial('id').primaryKey(),
+  bankId: integer('bank_id').references(() => banks.id, { onDelete: 'set null' }),
+  febrabanCode: text('febraban_code').notNull().default(''),
   bankName: text('bank_name').notNull(),
   agency: text('agency').notNull().default(''),
+  agencyDigit: text('agency_digit').notNull().default(''),
   accountNumber: text('account_number').notNull().default(''),
+  accountDigit: text('account_digit').notNull().default(''),
   accountType: text('account_type').notNull().default('corrente'), // 'corrente' | 'poupanca' | 'caixa'
+  beneficiaryDocument: text('beneficiary_document').notNull().default(''),
+  beneficiaryName: text('beneficiary_name').notNull().default(''),
+  apiProvider: text('api_provider').notNull().default('none'), // 'none' | 'santander'
+  apiIntegrationEnabled: boolean('api_integration_enabled').notNull().default(false),
+  isDefaultBoletoAccount: boolean('is_default_boleto_account').notNull().default(false),
+  isDefaultPixAccount: boolean('is_default_pix_account').notNull().default(false),
   initialBalanceCents: integer('initial_balance_cents').notNull().default(0),
   currentBalanceCents: integer('current_balance_cents').notNull().default(0),
   unitId: integer('unit_id').references(() => units.id),
@@ -1834,5 +1858,88 @@ export const trainingSessions = pgTable('training_sessions', {
   status: text('status').notNull().default('em_andamento'), // 'em_andamento' | 'concluido'
   completedAt: timestamp('completed_at', { withTimezone: true }),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+// =============================================================================
+// INTEGRAÇÃO BANCÁRIA SANTANDER (API Emissão de Boletos v2 + API PIX v2)
+// =============================================================================
+
+export const bankAccountApiConfigs = pgTable('bank_account_api_configs', {
+  id: serial('id').primaryKey(),
+  bankAccountId: integer('bank_account_id')
+    .references(() => bankAccounts.id, { onDelete: 'cascade' })
+    .notNull()
+    .unique(),
+  provider: text('provider').notNull().default('santander'),
+  environment: text('environment').notNull().default('sandbox'), // 'sandbox' | 'production'
+  executionMode: text('execution_mode').notNull().default('homologation_offline'), // 'live_mtls' | 'homologation_offline'
+
+  // OAuth 2.0 + mTLS (Certificado A1)
+  clientId: text('client_id').notNull().default(''),
+  clientSecretEncrypted: text('client_secret_encrypted'),
+  certType: text('cert_type').notNull().default('pfx'), // 'pfx' | 'pem'
+  pfxBase64Encrypted: text('pfx_base64_encrypted'),
+  pfxPasswordEncrypted: text('pfx_password_encrypted'),
+  certPemEncrypted: text('cert_pem_encrypted'),
+  keyPemEncrypted: text('key_pem_encrypted'),
+  certSubject: text('cert_subject').notNull().default(''),
+  certExpiresAt: text('cert_expires_at').notNull().default(''),
+
+  // API Emissão de Boletos (collection_bill_management/v2)
+  boletoEnabled: boolean('boleto_enabled').notNull().default(true),
+  boletoBaseUrlOverride: text('boleto_base_url_override').notNull().default(''),
+  covenantCode: text('covenant_code').notNull().default(''),
+  workspaceId: text('workspace_id').notNull().default(''),
+  workspaceType: text('workspace_type').notNull().default('BILLING'),
+  documentKind: text('document_kind').notNull().default('DUPLICATA_MERCANTIL'),
+  paymentType: text('payment_type').notNull().default('REGISTRO'),
+  walletCode: text('wallet_code').notNull().default('101'),
+  defaultFinePct: text('default_fine_pct').notNull().default('2.00'),
+  defaultInterestPct: text('default_interest_pct').notNull().default('1.00'),
+  defaultProtestDays: integer('default_protest_days').notNull().default(0),
+  defaultWriteOffDays: integer('default_write_off_days').notNull().default(30),
+  hybridBoletoPixEnabled: boolean('hybrid_boleto_pix_enabled').notNull().default(true),
+  boletoWebhookUrl: text('boleto_webhook_url').notNull().default(''),
+  nsuSequence: integer('nsu_sequence').notNull().default(1),
+
+  // API PIX QR Code Generation (trust-pix /api/v2)
+  pixEnabled: boolean('pix_enabled').notNull().default(true),
+  pixBaseUrlOverride: text('pix_base_url_override').notNull().default(''),
+  pixKey: text('pix_key').notNull().default(''),
+  pixKeyType: text('pix_key_type').notNull().default('CNPJ'), // 'CNPJ' | 'CPF' | 'EMAIL' | 'TELEFONE' | 'EVP'
+  pixDefaultChargeType: text('pix_default_charge_type').notNull().default('cobv'), // 'cob' | 'cobv'
+  pixExpirationSeconds: integer('pix_expiration_seconds').notNull().default(3600),
+  pixValidityDaysAfterDue: integer('pix_validity_days_after_due').notNull().default(30),
+  pixBeneficiaryCity: text('pix_beneficiary_city').notNull().default('RECIFE'),
+  pixWebhookUrl: text('pix_webhook_url').notNull().default(''),
+
+  // Diagnóstico de Conexão
+  lastTestedAt: timestamp('last_tested_at', { withTimezone: true }),
+  lastTestOk: boolean('last_test_ok'),
+  lastTestMessage: text('last_test_message').notNull().default(''),
+  updatedBy: text('updated_by').notNull().default(''),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const santanderEmissionLogs = pgTable('santander_emission_logs', {
+  id: serial('id').primaryKey(),
+  bankAccountId: integer('bank_account_id')
+    .references(() => bankAccounts.id, { onDelete: 'cascade' })
+    .notNull(),
+  titleId: integer('title_id').references(() => financialTitles.id, { onDelete: 'set null' }),
+  apiScope: text('api_scope').notNull().default('boleto'), // 'oauth' | 'workspace' | 'boleto' | 'pix' | 'webhook'
+  operation: text('operation').notNull(), // ex: 'POST_BANK_SLIP', 'PUT_COB', 'PUT_COBV', 'PATCH_INSTRUCTION', 'GET_STATUS', 'TEST_OAUTH'
+  environment: text('environment').notNull().default('sandbox'),
+  executionMode: text('execution_mode').notNull().default('homologation_offline'),
+  endpoint: text('endpoint').notNull().default(''),
+  httpStatus: integer('http_status'),
+  ok: boolean('ok').notNull().default(true),
+  externalRef: text('external_ref').notNull().default(''), // nsuCode ou txid
+  requestSummaryJson: jsonb('request_summary_json').$type<Record<string, unknown>>().notNull().default({}),
+  responseSummaryJson: jsonb('response_summary_json').$type<Record<string, unknown>>().notNull().default({}),
+  errorMessage: text('error_message').notNull().default(''),
+  createdByName: text('created_by_name').notNull().default('Sistema'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });

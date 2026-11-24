@@ -448,7 +448,7 @@ export const ReguaCobrancaIviView: React.FC<ReguaCobrancaIviViewProps> = ({ onRe
                   const isEditingThis = editingMsgId === c.titleId;
                   return (
                     <React.Fragment key={c.titleId}>
-                      <tr className={`hover:bg-slate-50/70 dark:hover:bg-slate-800 ${checked ? 'bg-blue-50/25' : ''}`}>
+                      <tr className={`hover:bg-slate-50/70 dark:hover:bg-slate-800 ${checked ? 'bg-blue-50/25 dark:bg-blue-950/40' : ''}`}>
                         <td className="px-3 py-2.5">
                           <input
                             type="checkbox"

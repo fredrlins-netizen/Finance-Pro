@@ -280,7 +280,7 @@ export const FormCatalogContainer: React.FC<FormCatalogContainerProps> = ({
                     key={f.id}
                     onClick={() => setSelectedFormId(f.id)}
                     className={`cursor-pointer transition-colors ${
-                      isSelected ? 'bg-blue-50/70 dark:bg-blue-950/50' : 'hover:bg-slate-50/80'
+                      isSelected ? 'bg-blue-50/70 dark:bg-blue-950/50' : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/70'
                     }`}
                   >
                     <td className="py-2.5 px-4 max-w-md">

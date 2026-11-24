@@ -19,10 +19,14 @@ import {
   Landmark,
   Banknote,
   FolderKanban,
+  KeyRound,
+  Settings2,
 } from 'lucide-react';
 import { apiFetch, formatBRL, formatDateBR } from '../../lib/api.ts';
 import {
   Admission,
+  BankAccount,
+  BankItem,
   Client,
   CollaboratorItem,
   DepartmentItem,
@@ -37,6 +41,7 @@ import { BankMovementManager } from './finance/BankMovementManager.tsx';
 import { BankReconciliationManager } from './finance/BankReconciliationManager.tsx';
 import { FinancialTitlesManager } from './finance/FinancialTitlesManager.tsx';
 import { ReguaCobrancaIviView } from './finance/ReguaCobrancaIviView.tsx';
+import { SantanderApiConfigModal } from './finance/SantanderApiConfigModal.tsx';
 
 interface FinanceModuleProps {
   units: Unit[];
@@ -100,16 +105,28 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
   const [departments, setDepartments] = useState<DepartmentItem[]>([]);
   const [collaborators, setCollaborators] = useState<CollaboratorItem[]>([]);
 
-  // Bank accounts & movements state
-  const [bankAccountsList, setBankAccountsList] = useState<any[]>([]);
+  // Bank accounts, catalog & movements state
+  const [registeredBanks, setRegisteredBanks] = useState<BankItem[]>([]);
+  const [bankAccountsList, setBankAccountsList] = useState<BankAccount[]>([]);
   const [bankMovementsList, setBankMovementsList] = useState<any[]>([]);
   const [bankAccModalOpen, setBankAccModalOpen] = useState(false);
   const [editingBankAccId, setEditingBankAccId] = useState<number | null>(null);
+  const [bankIdInput, setBankIdInput] = useState<string>('');
+  const [bankFebrabanInput, setBankFebrabanInput] = useState('');
   const [bankNameInput, setBankNameInput] = useState('');
   const [bankAgencyInput, setBankAgencyInput] = useState('');
+  const [bankAgencyDigitInput, setBankAgencyDigitInput] = useState('');
   const [bankAccountNumberInput, setBankAccountNumberInput] = useState('');
+  const [bankAccountDigitInput, setBankAccountDigitInput] = useState('');
   const [bankAccountTypeInput, setBankAccountTypeInput] = useState('corrente');
+  const [beneficiaryDocumentInput, setBeneficiaryDocumentInput] = useState('');
+  const [beneficiaryNameInput, setBeneficiaryNameInput] = useState('');
+  const [apiProviderInput, setApiProviderInput] = useState<'none' | 'santander'>('none');
+  const [apiIntegrationEnabledInput, setApiIntegrationEnabledInput] = useState(true);
+  const [isDefaultBoletoInput, setIsDefaultBoletoInput] = useState(false);
+  const [isDefaultPixInput, setIsDefaultPixInput] = useState(false);
   const [bankInitialBalanceReais, setBankInitialBalanceReais] = useState('0.00');
+  const [santanderConfigTarget, setSantanderConfigTarget] = useState<BankAccount | null>(null);
 
   const [bankMovModalOpen, setBankMovModalOpen] = useState(false);
   const [movBankAccountId, setMovBankAccountId] = useState<number>(0);
@@ -178,7 +195,7 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
 
   const load = async () => {
     try {
-      const [finData, suppData, docData, bearData, chartData, bankAccData, bankMovData, cadBootstrap] = await Promise.all([
+      const [finData, suppData, docData, bearData, chartData, bankAccData, bankMovData, cadBootstrap, banksCatalogData] = await Promise.all([
         apiFetch<{
           titles: FinancialTitle[];
           clients: Client[];
@@ -189,11 +206,12 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
         apiFetch<{ documentTypes: any[] }>('/api/finance/document-types'),
         apiFetch<{ bearers: any[] }>('/api/finance/bearers'),
         apiFetch<{ chartOfAccounts: any[] }>('/api/finance/chart-of-accounts'),
-        apiFetch<{ bankAccounts: any[] }>('/api/finance/bank-accounts'),
+        apiFetch<{ bankAccounts: BankAccount[] }>('/api/finance/bank-accounts'),
         apiFetch<{ bankMovements: any[] }>('/api/finance/bank-movements'),
         apiFetch<{ departments?: DepartmentItem[]; collaborators?: CollaboratorItem[] }>('/api/cadastros/bootstrap').catch(
           () => ({ departments: [], collaborators: [] })
         ),
+        apiFetch<{ data?: BankItem[] }>('/api/cadastros/banks').catch(() => ({ data: [] })),
       ]);
       setTitles(finData.titles);
       setClients(finData.clients);
@@ -207,6 +225,7 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
       setBankMovementsList(bankMovData.bankMovements || []);
       setDepartments(cadBootstrap.departments || []);
       setCollaborators(cadBootstrap.collaborators || []);
+      setRegisteredBanks(banksCatalogData.data || []);
     } catch (e) {
       console.error('Finance load error:', e);
     }
@@ -491,14 +510,38 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
     }
   };
 
-  const openBankAccModal = (acc?: any) => {
+  const openBankAccModal = (acc?: BankAccount) => {
     setEditingBankAccId(acc?.id || null);
+    setBankIdInput(acc?.bankId ? String(acc.bankId) : '');
+    setBankFebrabanInput(acc?.febrabanCode || '');
     setBankNameInput(acc?.bankName || '');
     setBankAgencyInput(acc?.agency || '');
+    setBankAgencyDigitInput(acc?.agencyDigit || '');
     setBankAccountNumberInput(acc?.accountNumber || '');
+    setBankAccountDigitInput(acc?.accountDigit || '');
     setBankAccountTypeInput(acc?.accountType || 'corrente');
+    setBeneficiaryDocumentInput(acc?.beneficiaryDocument || '');
+    setBeneficiaryNameInput(acc?.beneficiaryName || '');
+    setApiProviderInput(acc?.apiProvider === 'santander' ? 'santander' : 'none');
+    setApiIntegrationEnabledInput(acc?.apiIntegrationEnabled !== false);
+    setIsDefaultBoletoInput(Boolean(acc?.isDefaultBoletoAccount));
+    setIsDefaultPixInput(Boolean(acc?.isDefaultPixAccount));
     setBankInitialBalanceReais(acc ? (acc.initialBalanceCents / 100).toFixed(2) : '0.00');
     setBankAccModalOpen(true);
+  };
+
+  const handleSelectRegisteredBank = (selectedId: string) => {
+    setBankIdInput(selectedId);
+    const found = registeredBanks.find((b) => String(b.id) === selectedId);
+    if (found) {
+      setBankNameInput(found.name);
+      const feb = found.febrabanCode || found.code || '';
+      setBankFebrabanInput(feb);
+      if (feb === '033' || found.name.toLowerCase().includes('santander')) {
+        setApiProviderInput('santander');
+        setApiIntegrationEnabledInput(true);
+      }
+    }
   };
 
   const handleSaveBankAccount = async (e: React.FormEvent) => {
@@ -507,10 +550,20 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
     try {
       const initialBalanceCents = Math.round(Number(bankInitialBalanceReais) * 100);
       const payload = {
-        bankName: bankNameInput,
-        agency: bankAgencyInput,
-        accountNumber: bankAccountNumberInput,
+        bankId: bankIdInput ? Number(bankIdInput) : null,
+        febrabanCode: bankFebrabanInput.trim(),
+        bankName: bankNameInput.trim(),
+        agency: bankAgencyInput.trim(),
+        agencyDigit: bankAgencyDigitInput.trim(),
+        accountNumber: bankAccountNumberInput.trim(),
+        accountDigit: bankAccountDigitInput.trim(),
         accountType: bankAccountTypeInput,
+        beneficiaryDocument: beneficiaryDocumentInput.trim(),
+        beneficiaryName: beneficiaryNameInput.trim(),
+        apiProvider: apiProviderInput,
+        apiIntegrationEnabled: apiProviderInput === 'santander' ? apiIntegrationEnabledInput : false,
+        isDefaultBoletoAccount: isDefaultBoletoInput,
+        isDefaultPixAccount: isDefaultPixInput,
         initialBalanceCents,
       };
       if (editingBankAccId) {
@@ -815,10 +868,10 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 text-[11px] font-semibold text-slate-500 border-b border-slate-200 dark:bg-slate-800/70 dark:text-slate-400 dark:border-slate-700">
                   <tr>
-                    <th className="px-4 py-3">Banco</th>
-                    <th className="px-4 py-3">Agência</th>
-                    <th className="px-4 py-3">Número da Conta</th>
+                    <th className="px-4 py-3">Banco / Cadastro</th>
+                    <th className="px-4 py-3">Agência / Conta</th>
                     <th className="px-4 py-3">Tipo</th>
+                    <th className="px-4 py-3">Integração API (Boleto &amp; PIX)</th>
                     <th className="px-4 py-3">Saldo Atual</th>
                     <th className="px-4 py-3 text-right">Ações</th>
                   </tr>
@@ -831,49 +884,94 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                       </td>
                     </tr>
                   ) : (
-                    bankAccountsList.map((acc) => (
-                      <tr key={acc.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
-                        <td className="px-4 py-3 font-semibold text-slate-900 dark:text-slate-100">{acc.bankName}</td>
-                        <td className="px-4 py-3 font-mono text-slate-600 dark:text-slate-300">{acc.agency || '—'}</td>
-                        <td className="px-4 py-3 font-mono text-slate-600 dark:text-slate-300">{acc.accountNumber || '—'}</td>
-                        <td className="px-4 py-3 uppercase font-mono text-slate-600 dark:text-slate-300">{acc.accountType}</td>
-                        <td className="px-4 py-3 font-mono font-bold text-slate-900 dark:text-slate-100">
-                          {formatBRL(acc.currentBalanceCents)}
-                        </td>
-                        <td className="px-4 py-3 text-right space-x-2 whitespace-nowrap">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setAuditTarget({
-                                entityType: 'bank_accounts',
-                                entityId: acc.id,
-                                label: `Conta Corrente · ${acc.bankName}`,
-                              })
-                            }
-                            className="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
-                            title="Auditoria da Conta Corrente"
-                          >
-                            <History className="w-3.5 h-3.5 inline" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => openBankAccModal(acc)}
-                            className="text-blue-700 font-semibold hover:underline dark:text-blue-300"
-                          >
-                            Editar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setDeleteTarget({ type: 'bank_accounts', id: acc.id, name: acc.bankName })
-                            }
-                            className="text-red-600 font-semibold hover:underline dark:text-red-400"
-                          >
-                            Excluir
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                    bankAccountsList.map((acc) => {
+                      const isSantander = acc.apiProvider === 'santander' || acc.febrabanCode === '033';
+                      const sum = acc.santanderSummary;
+                      return (
+                        <tr key={acc.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
+                          <td className="px-4 py-3">
+                            <div className="font-semibold text-slate-900 dark:text-slate-100">
+                              {acc.febrabanCode ? `${acc.febrabanCode} · ` : ''}
+                              {acc.bankName}
+                            </div>
+                            {acc.beneficiaryName && (
+                              <div className="text-[11px] text-slate-500 truncate max-w-[220px] dark:text-slate-400">
+                                {acc.beneficiaryName}
+                                {acc.beneficiaryDocument ? ` · ${acc.beneficiaryDocument}` : ''}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 font-mono tabular-nums text-slate-600 dark:text-slate-300">
+                            Ag {acc.agency || '—'}
+                            {acc.agencyDigit ? `-${acc.agencyDigit}` : ''} / CC {acc.accountNumber || '—'}
+                            {acc.accountDigit ? `-${acc.accountDigit}` : ''}
+                          </td>
+                          <td className="px-4 py-3 uppercase font-mono text-slate-600 dark:text-slate-300">{acc.accountType}</td>
+                          <td className="px-4 py-3">
+                            {acc.apiProvider === 'santander' ? (
+                              <div className="space-y-0.5 text-[11px]">
+                                <div className="font-semibold text-emerald-700 dark:text-emerald-300">
+                                  API Banco Santander · {sum?.executionMode === 'live_mtls' ? 'mTLS Real' : 'Homologação'} ({(sum?.environment || 'sandbox').toUpperCase()})
+                                </div>
+                                <div className="font-mono text-slate-500 dark:text-slate-400">
+                                  {sum?.boletoEnabled !== false ? 'Boleto v2' : 'Boleto Off'} ·{' '}
+                                  {sum?.pixEnabled !== false ? 'PIX v2' : 'PIX Off'}
+                                  {acc.isDefaultBoletoAccount ? ' · Padrão Boleto' : ''}
+                                  {acc.isDefaultPixAccount ? ' · Padrão PIX' : ''}
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 dark:text-slate-500">Sem API associada</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 font-mono font-bold tabular-nums text-slate-900 dark:text-slate-100">
+                            {formatBRL(acc.currentBalanceCents)}
+                          </td>
+                          <td className="px-4 py-3 text-right space-x-2.5 whitespace-nowrap">
+                            {isSantander && (
+                              <button
+                                type="button"
+                                onClick={() => setSantanderConfigTarget(acc)}
+                                className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-red-700 hover:bg-red-50 dark:border-slate-700 dark:bg-slate-800 dark:text-red-300 dark:hover:bg-red-950/60"
+                              >
+                                <KeyRound className="w-3 h-3" />
+                                Configurar API Santander
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setAuditTarget({
+                                  entityType: 'bank_accounts',
+                                  entityId: acc.id,
+                                  label: `Conta Corrente · ${acc.bankName}`,
+                                })
+                              }
+                              className="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
+                              title="Auditoria da Conta Corrente"
+                            >
+                              <History className="w-3.5 h-3.5 inline" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openBankAccModal(acc)}
+                              className="text-blue-700 font-semibold hover:underline dark:text-blue-300"
+                            >
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDeleteTarget({ type: 'bank_accounts', id: acc.id, name: acc.bankName })
+                              }
+                              className="text-red-600 font-semibold hover:underline dark:text-red-400"
+                            >
+                              Excluir
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -1353,49 +1451,129 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
       {/* Bank Account Modal */}
       {bankAccModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 dark:bg-slate-950/80">
-          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-2xl space-y-4 dark:bg-slate-900">
+          <div className="w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-xl bg-white p-5 shadow-2xl space-y-4 dark:bg-slate-900 dark:border dark:border-slate-700">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800">
               <h3 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
-                {editingBankAccId ? 'Editar Conta Bancária' : 'Nova Conta Bancária'}
+                {editingBankAccId ? 'Editar Conta Bancária & Integração API' : 'Nova Conta Bancária & Associação API'}
               </h3>
               <button type="button" onClick={() => setBankAccModalOpen(false)}>
                 <X className="w-4 h-4 text-slate-400 dark:text-slate-400" />
               </button>
             </div>
             <form onSubmit={handleSaveBankAccount} className="space-y-3.5 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">
+                    Banco Cadastrado (Associação Cadastros Comuns)
+                  </label>
+                  <select
+                    value={bankIdInput}
+                    onChange={(e) => handleSelectRegisteredBank(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                  >
+                    <option value="">Selecionar banco existente ou informar manualmente...</option>
+                    {registeredBanks.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {(b.febrabanCode || b.code) ? `${b.febrabanCode || b.code} · ` : ''}
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">
+                    Código FEBRABAN
+                  </label>
+                  <input
+                    type="text"
+                    value={bankFebrabanInput}
+                    onChange={(e) => setBankFebrabanInput(e.target.value)}
+                    placeholder="Ex: 033"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                  />
+                </div>
+              </div>
+
               <div>
-                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Nome do Banco *</label>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Nome do Banco / Descrição da Conta *</label>
                 <input
                   type="text"
                   required
                   value={bankNameInput}
                   onChange={(e) => setBankNameInput(e.target.value)}
-                  placeholder="Ex: Santander, Itaú, Banco do Brasil..."
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700"
+                  placeholder="Ex: Banco Santander (Conta Recebimento), Itaú..."
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Agência</label>
                   <input
                     type="text"
                     value={bankAgencyInput}
                     onChange={(e) => setBankAgencyInput(e.target.value)}
-                    placeholder="Ex: 0001"
+                    placeholder="Ex: 3420"
                     className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Conta</label>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Dígito Ag.</label>
+                  <input
+                    type="text"
+                    maxLength={2}
+                    value={bankAgencyDigitInput}
+                    onChange={(e) => setBankAgencyDigitInput(e.target.value)}
+                    placeholder="0"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Número da Conta</label>
                   <input
                     type="text"
                     value={bankAccountNumberInput}
                     onChange={(e) => setBankAccountNumberInput(e.target.value)}
-                    placeholder="Ex: 12345-6"
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700"
+                    placeholder="Ex: 13004819"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Dígito Conta</label>
+                  <input
+                    type="text"
+                    maxLength={2}
+                    value={bankAccountDigitInput}
+                    onChange={(e) => setBankAccountDigitInput(e.target.value)}
+                    placeholder="7"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   />
                 </div>
               </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">CPF/CNPJ Beneficiário</label>
+                  <input
+                    type="text"
+                    value={beneficiaryDocumentInput}
+                    onChange={(e) => setBeneficiaryDocumentInput(e.target.value)}
+                    placeholder="00.000.000/0001-00"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Razão Social / Nome Beneficiário (Cedente)</label>
+                  <input
+                    type="text"
+                    value={beneficiaryNameInput}
+                    onChange={(e) => setBeneficiaryNameInput(e.target.value)}
+                    placeholder="Ex: FinancePro Assessoria LTDA"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                  />
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Tipo de Conta</label>
@@ -1417,10 +1595,83 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
                     disabled={Boolean(editingBankAccId)}
                     value={bankInitialBalanceReais}
                     onChange={(e) => setBankInitialBalanceReais(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   />
                 </div>
               </div>
+
+              {/* Associação API Banco Santander */}
+              <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3.5 space-y-2.5 dark:border-slate-700 dark:bg-slate-800/50">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="font-bold text-slate-900 flex items-center gap-1.5 dark:text-slate-100">
+                    <Settings2 className="w-4 h-4 text-red-600 dark:text-red-400" />
+                    Associação API Bancária para Emissão (Boletos &amp; PIX)
+                  </div>
+                  {editingBankAccId && apiProviderInput === 'santander' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const acc = bankAccountsList.find((b) => b.id === editingBankAccId);
+                        if (acc) {
+                          setBankAccModalOpen(false);
+                          setSantanderConfigTarget(acc);
+                        }
+                      }}
+                      className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-red-700 hover:bg-red-50 dark:border-red-800 dark:bg-slate-900 dark:text-red-300"
+                    >
+                      <KeyRound className="w-3 h-3" />
+                      Abrir Credenciais, Boleto v2 &amp; PIX v2
+                    </button>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">
+                    Provedor de API Associado
+                  </label>
+                  <select
+                    value={apiProviderInput}
+                    onChange={(e) => setApiProviderInput(e.target.value as 'none' | 'santander')}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                  >
+                    <option value="none">Nenhuma integração API</option>
+                    <option value="santander">API Banco Santander (Emissão de Boletos v2 + PIX QR Code v2)</option>
+                  </select>
+                </div>
+
+                {apiProviderInput === 'santander' && (
+                  <div className="flex flex-wrap items-center gap-4 pt-1">
+                    <label className="inline-flex items-center gap-1.5 cursor-pointer font-medium text-slate-700 dark:text-slate-200">
+                      <input
+                        type="checkbox"
+                        checked={apiIntegrationEnabledInput}
+                        onChange={(e) => setApiIntegrationEnabledInput(e.target.checked)}
+                        className="accent-emerald-600"
+                      />
+                      Integração ativa p/ outros módulos
+                    </label>
+                    <label className="inline-flex items-center gap-1.5 cursor-pointer font-medium text-slate-700 dark:text-slate-200">
+                      <input
+                        type="checkbox"
+                        checked={isDefaultBoletoInput}
+                        onChange={(e) => setIsDefaultBoletoInput(e.target.checked)}
+                        className="accent-emerald-600"
+                      />
+                      Conta Padrão Boletos
+                    </label>
+                    <label className="inline-flex items-center gap-1.5 cursor-pointer font-medium text-slate-700 dark:text-slate-200">
+                      <input
+                        type="checkbox"
+                        checked={isDefaultPixInput}
+                        onChange={(e) => setIsDefaultPixInput(e.target.checked)}
+                        className="accent-emerald-600"
+                      />
+                      Conta Padrão PIX
+                    </label>
+                  </div>
+                )}
+              </div>
+
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
@@ -1558,6 +1809,13 @@ export const FinanceModule: React.FC<FinanceModuleProps> = ({
         error={deleteErr}
         onCancel={() => setDeleteTarget(null)}
         onConfirm={handleConfirmDelete}
+      />
+
+      {/* Santander API v2 Config Modal */}
+      <SantanderApiConfigModal
+        account={santanderConfigTarget}
+        onClose={() => setSantanderConfigTarget(null)}
+        onSaved={load}
       />
     </div>
   );

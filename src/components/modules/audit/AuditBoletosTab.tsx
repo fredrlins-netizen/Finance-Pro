@@ -1,16 +1,17 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   AlertCircle,
   Banknote,
-  CheckCircle2,
   Edit3,
   History,
   Loader2,
   Plus,
+  QrCode,
   RotateCcw,
 } from 'lucide-react';
 import { apiFetch, formatBRL, formatDateBR, formatDateTimeBR } from '../../../lib/api.ts';
-import { Admission, AuditLogEntry, FinancialTitle, ModuleId, NavigationIntent } from '../../../types.ts';
+import { Admission, AuditLogEntry, BankAccount, FinancialTitle, ModuleId, NavigationIntent } from '../../../types.ts';
+import { SantanderPaymentModal } from '../finance/SantanderPaymentModal.tsx';
 
 interface AuditBoletosTabProps {
   admission: Admission;
@@ -37,6 +38,9 @@ export const AuditBoletosTab: React.FC<AuditBoletosTabProps> = ({
   onNavigate,
 }) => {
   const [provider, setProvider] = useState('santander');
+  const [santanderAccounts, setSantanderAccounts] = useState<BankAccount[]>([]);
+  const [selectedBankAccountId, setSelectedBankAccountId] = useState<string>('');
+  const [paymentModalTitleId, setPaymentModalTitleId] = useState<number | null>(null);
   const [genMode, setGenMode] = useState<'par_inicial' | 'taxa_adm' | 'primeira_parcela'>('par_inicial');
   const [customAmountReais, setCustomAmountReais] = useState(
     ((admission.initialInstallmentCents || 50000) / 100).toFixed(2)
@@ -53,6 +57,17 @@ export const AuditBoletosTab: React.FC<AuditBoletosTabProps> = ({
   const [editAmountReais, setEditAmountReais] = useState('');
   const [editDueDate, setEditDueDate] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
+
+  useEffect(() => {
+    apiFetch<{ accounts: BankAccount[] }>('/api/santander/accounts')
+      .then((res) => {
+        const list = res.accounts || [];
+        setSantanderAccounts(list);
+        const def = list.find((a) => a.isDefaultBoletoAccount && a.apiIntegrationEnabled) || list[0];
+        if (def) setSelectedBankAccountId(String(def.id));
+      })
+      .catch(() => setSantanderAccounts([]));
+  }, []);
 
   const activeTitles = titles.filter((t) => String(t.status || '').toUpperCase() !== 'CANCELADO');
   const totalBilledCents = activeTitles.reduce((acc, t) => acc + (t.originalValueCents || t.amountCents), 0);
@@ -77,6 +92,7 @@ export const AuditBoletosTab: React.FC<AuditBoletosTabProps> = ({
           body: JSON.stringify({
             mode: genMode,
             boletoProvider: provider,
+            bankAccountId: selectedBankAccountId ? Number(selectedBankAccountId) : undefined,
             amountCents: genMode === 'par_inicial' ? undefined : amountCents,
             dueDate: genMode === 'par_inicial' ? undefined : customDueDate,
             allowDuplicate,
@@ -222,6 +238,17 @@ export const AuditBoletosTab: React.FC<AuditBoletosTabProps> = ({
                         </div>
                       </div>
 
+                      {stUpper !== 'CANCELADO' && (
+                        <button
+                          type="button"
+                          onClick={() => setPaymentModalTitleId(t.id)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 dark:border-red-800 dark:bg-slate-900 dark:text-red-300 dark:hover:bg-red-950/60"
+                        >
+                          <QrCode className="w-3.5 h-3.5" />
+                          Boleto / PIX
+                        </button>
+                      )}
+
                       {isEditable && !isEditing && (
                         <button
                           type="button"
@@ -313,6 +340,22 @@ export const AuditBoletosTab: React.FC<AuditBoletosTabProps> = ({
                 <option value="terceiros">API Terceiros (Cora / Inter)</option>
               </select>
             </div>
+            {provider === 'santander' && santanderAccounts.length > 0 && (
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1 dark:text-slate-200">Conta Corrente Santander</label>
+                <select
+                  value={selectedBankAccountId}
+                  onChange={(e) => setSelectedBankAccountId(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                >
+                  {santanderAccounts.map((acc) => (
+                    <option key={acc.id} value={acc.id}>
+                      {acc.bankName} · Ag {acc.agency || '—'}/CC {acc.accountNumber || '—'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             {genMode !== 'par_inicial' && (
               <>
                 <div>
@@ -491,6 +534,11 @@ export const AuditBoletosTab: React.FC<AuditBoletosTabProps> = ({
           </div>
         )}
       </div>
+      <SantanderPaymentModal
+        titleId={paymentModalTitleId}
+        onClose={() => setPaymentModalTitleId(null)}
+        onUpdated={onRefreshContext}
+      />
     </div>
   );
 };

@@ -36,6 +36,7 @@ import {
 } from '../middleware/auth.ts';
 import { iviDraftCollectionMessage } from '../services/ivi.ts';
 import { dispatchIviSectorNotification } from '../services/internalMessaging.ts';
+import { emitSantanderBoletoForTitle, emitSantanderPixForTitle } from '../services/santander.ts';
 import { getEntityLabel, getEntityTypeAliases, normalizeAuditLogRecord } from '../utils/auditDiff.ts';
 import {
   parseFiniteNumber,
@@ -330,7 +331,33 @@ export function registerFinancialRoutes(
         );
       }
 
-      res.json({ title: created });
+      let finalTitle = created;
+      let santanderWarning: string | undefined;
+      if (scope === 'RECEBER' && (b.emitSantanderBoleto || b.emitSantanderPix)) {
+        try {
+          if (b.emitSantanderBoleto) {
+            const resBol = await emitSantanderBoletoForTitle({
+              titleId: created.id,
+              bankAccountId,
+              actorName: req.authUser?.name || 'Financeiro',
+            });
+            finalTitle = resBol.title;
+          }
+          if (b.emitSantanderPix) {
+            const resPix = await emitSantanderPixForTitle({
+              titleId: created.id,
+              bankAccountId,
+              chargeType: b.pixChargeType === 'cob' ? 'cob' : undefined,
+              actorName: req.authUser?.name || 'Financeiro',
+            });
+            finalTitle = resPix.title;
+          }
+        } catch (emErr) {
+          santanderWarning = emErr instanceof Error ? emErr.message : 'Título salvo, mas emissão Santander falhou.';
+        }
+      }
+
+      res.json({ title: finalTitle, ...(santanderWarning ? { santanderWarning } : {}) });
     } catch (error) {
       console.error('POST /api/financial-titles error:', error);
       const status = error instanceof ValidationError ? error.statusCode : 500;
@@ -1501,10 +1528,147 @@ export function registerFinancialRoutes(
     }
   });
 
-  // 14. Lançamento Recorrente (persistente para RECEBER e PAGAR)
+  async function buildRecurrencePlan(model: typeof financialTitles.$inferSelect, qty: number) {
+    const rawBase = String(model.documentNumber || model.titleCode || '').trim();
+    const modelHasBoleto = Boolean(
+      (model.barcode || '').trim() ||
+        (model.digitableLine || '').trim() ||
+        (model.santanderBankSlipId || '').trim()
+    );
+
+    const slashMatch = rawBase.match(/^(.*)-(\d{1,3})\/(\d{1,3})$/);
+    const dashNumMatch = !slashMatch ? rawBase.match(/^(.*)-(\d{1,3})$/) : null;
+
+    let prefix = rawBase;
+    let startSeq = 0;
+    let padWidth = 2;
+    let useSlashTotal = !modelHasBoleto;
+
+    if (slashMatch) {
+      prefix = slashMatch[1];
+      startSeq = parseInt(slashMatch[2], 10);
+      padWidth = Math.max(2, slashMatch[2].length);
+      useSlashTotal = true;
+    } else if (dashNumMatch) {
+      prefix = dashNumMatch[1];
+      startSeq = parseInt(dashNumMatch[2], 10);
+      padWidth = Math.max(2, dashNumMatch[2].length);
+      useSlashTotal = false;
+    }
+
+    const existingRows = await db
+      .select({
+        documentNumber: financialTitles.documentNumber,
+        status: financialTitles.status,
+      })
+      .from(financialTitles)
+      .where(and(eq(financialTitles.scope, model.scope || 'RECEBER'), eq(financialTitles.unitId, model.unitId)));
+
+    const existingSet = new Set<string>();
+    for (const r of existingRows) {
+      if (normStatusUpper(r.status) === 'CANCELADO') continue;
+      const doc = String(r.documentNumber || '').trim().toUpperCase();
+      if (!doc) continue;
+      existingSet.add(doc);
+      // Also index without /NN suffix so 59-2-02 and 59-2-02/12 both detect existence
+      const baseOnly = doc.replace(/\/\d{1,3}$/, '');
+      existingSet.add(baseOnly);
+    }
+
+    const rangeStart = startSeq + 1;
+    const rangeEnd = startSeq === 0 ? qty : startSeq < qty ? qty : startSeq + qty;
+    const totalInstallments = Math.max(qty, rangeEnd);
+    const padTot = String(totalInstallments).padStart(padWidth, '0');
+
+    const baseAmount = model.originalValueCents > 0 ? model.originalValueCents : model.amountCents;
+    const skippedDocs: string[] = [];
+    const items: Array<{
+      installmentNumber: number;
+      totalInstallments: number;
+      documentNumber: string;
+      dueDate: Date;
+      dueDateIso: string;
+      amountCents: number;
+    }> = [];
+
+    for (let n = rangeStart; n <= rangeEnd; n++) {
+      const padIdx = String(n).padStart(padWidth, '0');
+      const plainDoc = `${prefix}-${padIdx}`;
+      const slashDoc = `${plainDoc}/${padTot}`;
+      const docNum = useSlashTotal ? slashDoc : plainDoc;
+
+      if (existingSet.has(plainDoc.toUpperCase()) || existingSet.has(slashDoc.toUpperCase())) {
+        skippedDocs.push(plainDoc);
+        continue;
+      }
+
+      const monthOffset = startSeq > 0 ? n - startSeq : n;
+      const nextDue = new Date(model.dueDate);
+      nextDue.setMonth(nextDue.getMonth() + monthOffset);
+
+      items.push({
+        installmentNumber: n,
+        totalInstallments,
+        documentNumber: docNum,
+        dueDate: nextDue,
+        dueDateIso: nextDue.toISOString().slice(0, 10),
+        amountCents: baseAmount,
+      });
+    }
+
+    return { modelHasBoleto, startSeq, rangeStart, rangeEnd, totalInstallments, items, skippedDocs };
+  }
+
+  // 13b. Prévia da numeração e parcelas do lançamento recorrente
+  app.get('/api/financial-titles/:id/recurrence-preview', requireAuth, requireFinColl, async (req: AuthRequest, res) => {
+    try {
+      const parentId = parsePositiveIntId(req.params.id);
+      if (!parentId) return res.status(400).json({ error: 'ID do título modelo inválido.' });
+
+      const qtyRaw = parseFiniteNumber(req.query.count) ?? 12;
+      const qty = Math.min(120, Math.max(1, Math.trunc(qtyRaw)));
+
+      const [model] = await db.select().from(financialTitles).where(eq(financialTitles.id, parentId)).limit(1);
+      if (!model) return res.status(404).json({ error: 'Título modelo não encontrado.' });
+      if (!isUnitPermitted(req, model.unitId)) {
+        return res.status(403).json({ error: 'Sem permissão para acessar título desta unidade.' });
+      }
+
+      const plan = await buildRecurrencePlan(model, qty);
+      res.json({
+        modelId: model.id,
+        modelDocumentNumber: model.documentNumber || model.titleCode,
+        modelHasBoleto: plan.modelHasBoleto,
+        skippedDocs: plan.skippedDocs,
+        items: plan.items.map((it) => ({
+          installmentNumber: it.installmentNumber,
+          totalInstallments: it.totalInstallments,
+          documentNumber: it.documentNumber,
+          dueDateIso: it.dueDateIso,
+          amountCents: it.amountCents,
+        })),
+      });
+    } catch (error) {
+      res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao calcular prévia da recorrência.') });
+    }
+  });
+
+  // 14. Lançamento Recorrente (persistente para RECEBER e PAGAR, com emissão opcional de boletos Santander)
   app.post('/api/financial-titles/create-installments', requireAuth, requireFinColl, async (req: AuthRequest, res) => {
     try {
-      const { parentTitleId, count: installmentCount } = (req.body || {}) as { parentTitleId: number; count: number };
+      const {
+        parentTitleId,
+        count: installmentCount,
+        bankAccountId: rawBankAccountId,
+        emitBoletos,
+        includePixQr,
+      } = (req.body || {}) as {
+        parentTitleId: number;
+        count: number;
+        bankAccountId?: number | null;
+        emitBoletos?: boolean;
+        includePixQr?: boolean;
+      };
       const parentId = parsePositiveIntId(parentTitleId);
       if (!parentId) return res.status(400).json({ error: 'ID do título modelo inválido.' });
       const qtyRaw = parseFiniteNumber(installmentCount) ?? 1;
@@ -1518,18 +1682,52 @@ export function registerFinancialRoutes(
         return res.status(400).json({ error: 'Não é possível gerar parcelas a partir de título cancelado.' });
       }
 
+      let resolvedBankAccountId: number | null = model.bankAccountId ?? null;
+      let targetAccount: typeof bankAccounts.$inferSelect | null = null;
+
+      if (rawBankAccountId !== undefined && rawBankAccountId !== null) {
+        const parsedAccId = parsePositiveIntId(rawBankAccountId);
+        if (!parsedAccId) {
+          return res.status(400).json({ error: 'Conta corrente selecionada é inválida.' });
+        }
+        const [acc] = await db.select().from(bankAccounts).where(eq(bankAccounts.id, parsedAccId)).limit(1);
+        if (!acc || !isUnitPermitted(req, acc.unitId)) {
+          return res.status(403).json({ error: 'Conta corrente não encontrada ou sem permissão.' });
+        }
+        resolvedBankAccountId = acc.id;
+        targetAccount = acc;
+      } else if (resolvedBankAccountId) {
+        const [acc] = await db
+          .select()
+          .from(bankAccounts)
+          .where(eq(bankAccounts.id, resolvedBankAccountId))
+          .limit(1);
+        targetAccount = acc || null;
+      }
+
+      const shouldEmitBoletos = Boolean(emitBoletos) && String(model.scope || 'RECEBER').toUpperCase() === 'RECEBER';
+      if (shouldEmitBoletos && targetAccount && targetAccount.apiProvider !== 'santander') {
+        return res.status(400).json({
+          error: `A conta "${targetAccount.bankName}" não possui integração API Santander configurada para emissão automática de boletos.`,
+        });
+      }
+
+      const plan = await buildRecurrencePlan(model, qty);
+      if (plan.items.length === 0) {
+        return res.status(400).json({
+          error:
+            plan.skippedDocs.length > 0
+              ? `Todas as parcelas numeradas (${plan.skippedDocs.join(', ')}) já existem para este título.`
+              : 'Nenhuma nova parcela a gerar para a quantidade informada.',
+        });
+      }
+
       const recurrenceId = crypto.randomUUID();
-      const baseDoc = model.documentNumber || model.titleCode;
-      const baseAmount = model.originalValueCents > 0 ? model.originalValueCents : model.amountCents;
       const createdRows = await db.transaction(async (tx) => {
         const inserted = [];
-        for (let i = 1; i <= qty; i++) {
-          const nextDue = new Date(model.dueDate);
-          nextDue.setMonth(nextDue.getMonth() + i);
-          const padIdx = String(i).padStart(2, '0');
-          const padTot = String(qty).padStart(2, '0');
-          const docNum = `${baseDoc}-${padIdx}/${padTot}`;
-          const code = `${model.scope === 'PAGAR' ? 'PAG' : 'REC'}-REC-${model.id}-${i}-${Date.now().toString().slice(-4)}`;
+        for (let idx = 0; idx < plan.items.length; idx++) {
+          const item = plan.items[idx];
+          const code = `${model.scope === 'PAGAR' ? 'PAG' : 'REC'}-REC-${model.id}-${item.installmentNumber}-${Date.now().toString().slice(-4)}-${idx}`;
 
           const [child] = await tx
             .insert(financialTitles)
@@ -1538,7 +1736,7 @@ export function registerFinancialRoutes(
               scope: model.scope || 'RECEBER',
               titleType: 'PADRAO',
               origin: 'RECORRENCIA',
-              documentNumber: docNum,
+              documentNumber: item.documentNumber,
               description: model.description,
               clientId: model.clientId,
               clientName: model.clientName,
@@ -1548,24 +1746,24 @@ export function registerFinancialRoutes(
               documentTypeId: model.documentTypeId,
               bearerId: model.bearerId,
               departmentId: model.departmentId,
-              bankAccountId: model.bankAccountId,
+              bankAccountId: resolvedBankAccountId,
               sellerId: model.sellerId,
               assignedCollaboratorId: model.assignedCollaboratorId,
-              installmentNumber: i,
-              totalInstallments: qty,
+              installmentNumber: item.installmentNumber,
+              totalInstallments: item.totalInstallments,
               isInitialFee: false,
-              amountCents: baseAmount,
-              originalValueCents: baseAmount,
-              currentBalanceCents: baseAmount,
+              amountCents: item.amountCents,
+              originalValueCents: item.amountCents,
+              currentBalanceCents: item.amountCents,
               issueDate: new Date(),
-              dueDate: nextDue,
-              forecastDate: nextDue,
+              dueDate: item.dueDate,
+              forecastDate: item.dueDate,
               status: 'ABERTO',
               collectionStatus: model.collectionStatus || 'COBRAR',
               accountingType: model.accountingType || 'NAO_CONTABIL',
               parentId: model.id,
               recurrenceId,
-              boletoProvider: model.boletoProvider || 'santander',
+              boletoProvider: targetAccount?.apiProvider === 'santander' ? 'santander' : model.boletoProvider || 'santander',
             })
             .returning();
           inserted.push(child);
@@ -1573,16 +1771,60 @@ export function registerFinancialRoutes(
         return inserted;
       });
 
+      let emittedCount = 0;
+      const emissionErrors: string[] = [];
+      let finalChildren = createdRows;
+
+      // Nunca gera/reemite boleto para o título inicial (model) — apenas para os novos lançamentos gerados
+      if (shouldEmitBoletos && createdRows.length > 0) {
+        const actorName = req.authUser?.name || 'Usuário';
+        const refreshedRows: typeof createdRows = [];
+        for (const child of createdRows) {
+          try {
+            const emitted = await emitSantanderBoletoForTitle({
+              titleId: child.id,
+              bankAccountId: resolvedBankAccountId ?? undefined,
+              includePixQr: includePixQr !== undefined ? Boolean(includePixQr) : undefined,
+              actorName,
+            });
+            emittedCount++;
+            refreshedRows.push(emitted.title || child);
+          } catch (emitErr) {
+            const msg = emitErr instanceof Error ? emitErr.message : 'Erro ao emitir boleto Santander';
+            if (emissionErrors.length < 5) {
+              emissionErrors.push(`${child.documentNumber || child.titleCode}: ${msg}`);
+            }
+            refreshedRows.push(child);
+          }
+        }
+        finalChildren = refreshedRows;
+      }
+
       await writeTitleAudit(
         req,
         'CREATE_RECURRENCE',
         model.scope || 'RECEBER',
         model.id,
-        [{ field: 'Parcelas Recorrentes', from: '0', to: `${qty} parcelas geradas` }],
+        [
+          {
+            field: 'Parcelas Recorrentes',
+            from: model.documentNumber || model.titleCode,
+            to: `${finalChildren.length} parcela(s) gerada(s)${
+              plan.skippedDocs.length > 0 ? ` · ${plan.skippedDocs.length} já existente(s) ignorada(s)` : ''
+            }${emittedCount > 0 ? ` · ${emittedCount} boleto(s) Santander emitido(s)` : ''}`,
+          },
+        ],
         model.unitId
       );
 
-      res.json({ createdCount: createdRows.length, children: createdRows });
+      res.json({
+        createdCount: finalChildren.length,
+        emittedCount,
+        skippedDocs: plan.skippedDocs,
+        modelHadBoleto: plan.modelHasBoleto,
+        emissionErrors,
+        children: finalChildren,
+      });
     } catch (error) {
       console.error('POST /api/financial-titles/create-installments error:', error);
       res.status(500).json({ error: sanitizeErrorMessage(error, 'Erro ao gerar parcelas recorrentes.') });

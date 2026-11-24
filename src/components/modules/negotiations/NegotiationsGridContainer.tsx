@@ -405,7 +405,7 @@ export const NegotiationsGridContainer: React.FC<NegotiationsGridContainerProps>
                 stKey !== 'ENCERRADA';
 
               return (
-                <div key={neg.id} className="p-4 space-y-2.5 bg-white hover:bg-slate-50/60 dark:bg-slate-900">
+                <div key={neg.id} className="p-4 space-y-2.5 bg-white hover:bg-slate-50/60 dark:bg-slate-900 dark:hover:bg-slate-800/70">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <button

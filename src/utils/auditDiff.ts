@@ -41,6 +41,18 @@ const SENSITIVE_FIELD_KEYS = new Set([
   'api_key',
   'clientsecret',
   'client_secret',
+  'clientsecretencrypted',
+  'client_secret_encrypted',
+  'pfxbase64',
+  'pfxbase64encrypted',
+  'pfx_base64_encrypted',
+  'pfxpassword',
+  'pfxpasswordencrypted',
+  'pfx_password_encrypted',
+  'certpemencrypted',
+  'cert_pem_encrypted',
+  'keypemencrypted',
+  'key_pem_encrypted',
 ]);
 
 export const ENTITY_LABELS_PT: Record<string, string> = {
@@ -87,6 +99,8 @@ export const ENTITY_LABELS_PT: Record<string, string> = {
   title_settlements: 'Baixas de Títulos',
   bank_account: 'Contas Correntes',
   bank_accounts: 'Contas Correntes',
+  bank_account_api_config: 'Configuração API Bancária',
+  bank_account_api_configs: 'Configuração API Bancária',
   bank_movement: 'Movimentação Bancária',
   bank_movements: 'Movimentação Bancária',
   collection_case: 'Casos de Cobrança',

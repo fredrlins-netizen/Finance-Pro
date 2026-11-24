@@ -957,7 +957,7 @@ export const BankMovementManager: React.FC<BankMovementManagerProps> = ({
                         rowRefs.current[row.id] = el;
                       }}
                       className={`transition-colors ${
-                        isHighlighted ? 'bg-blue-100/80' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
+                        isHighlighted ? 'bg-blue-100/80 dark:bg-blue-950/60' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                       }`}
                     >
                       <td className="px-3 py-2.5 font-mono text-slate-700 whitespace-nowrap dark:text-slate-200">

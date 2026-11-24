@@ -13,6 +13,7 @@ import {
   Minimize2,
   PanelRightOpen,
   PhoneCall,
+  QrCode,
   RefreshCw,
   Search,
   Trash2,
@@ -67,6 +68,7 @@ import {
   computeTitleFinancialBreakdown,
 } from './CollectionOperationalModals.tsx';
 import { EntityAuditModal } from './cadastros/CadastrosShared.tsx';
+import { SantanderPaymentModal } from './finance/SantanderPaymentModal.tsx';
 
 interface CollectionModuleProps {
   units: Unit[];
@@ -186,6 +188,7 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
   const [sectorAuditOpen, setSectorAuditOpen] = useState(false);
   const [deletingTitle, setDeletingTitle] = useState<FinancialTitle | null>(null);
   const [deleteTitleBusy, setDeleteTitleBusy] = useState(false);
+  const [paymentModalTitleId, setPaymentModalTitleId] = useState<number | null>(null);
 
   const [clientModalState, setClientModalState] = useState<{
     clientId: number;
@@ -1348,7 +1351,7 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                               setSidePanelTitleId((prev) => (prev === t.id ? null : t.id))
                             }
                             className={`transition-colors cursor-pointer ${
-                              isSideOpen ? 'bg-slate-900/[0.04]' : 'hover:bg-slate-50/90 dark:hover:bg-slate-800'
+                              isSideOpen ? 'bg-slate-900/[0.04] dark:bg-slate-800/70' : 'hover:bg-slate-50/90 dark:hover:bg-slate-800'
                             }`}
                           >
                             <td className="py-2.5 pl-3 pr-2">
@@ -1521,6 +1524,15 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
                                       {notesCount > 9 ? '9+' : notesCount}
                                     </span>
                                   )}
+                                </button>
+
+                                <button
+                                  type="button"
+                                  title="Emitir / Consultar Boleto e PIX QR Code Santander"
+                                  onClick={() => setPaymentModalTitleId(t.id)}
+                                  className="p-1.5 rounded-md text-red-700 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/60"
+                                >
+                                  <QrCode className="w-3.5 h-3.5" />
                                 </button>
 
                                 <button
@@ -1869,6 +1881,12 @@ export const CollectionModule: React.FC<CollectionModuleProps> = ({
         onSelectAdmission={(adm) => setAdmissionModalObj(adm)}
         onMessageSent={() => loadOperationalData()}
         onClose={() => setAdmissionModalObj(null)}
+      />
+
+      <SantanderPaymentModal
+        titleId={paymentModalTitleId}
+        onClose={() => setPaymentModalTitleId(null)}
+        onUpdated={() => loadOperationalData()}
       />
     </div>
   );

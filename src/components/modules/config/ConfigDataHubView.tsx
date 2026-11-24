@@ -2656,7 +2656,7 @@ export const ConfigDataHubView: React.FC<ConfigDataHubViewProps> = ({
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                         {visibleRows.map((rr, idx) => (
-                          <tr key={idx} className="hover:bg-slate-50/80">
+                          <tr key={idx} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/70">
                             <td className="px-3 py-2 font-mono text-slate-600 whitespace-nowrap dark:text-slate-300">
                               {rr.sheetName} #{rr.rowNumber}
                             </td>

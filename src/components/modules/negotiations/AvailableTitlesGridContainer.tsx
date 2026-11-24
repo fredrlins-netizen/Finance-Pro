@@ -90,7 +90,7 @@ export const AvailableTitlesGridContainer: React.FC<AvailableTitlesGridContainer
                   <tr
                     key={t.id}
                     onDoubleClick={() => onStartNegotiation(t)}
-                    className="hover:bg-slate-50 transition-colors cursor-pointer"
+                    className="hover:bg-slate-50 dark:hover:bg-slate-800/70 transition-colors cursor-pointer"
                     title="Duplo clique para iniciar negociação"
                   >
                     <td className="px-4 py-2.5 font-mono tabular-nums font-semibold text-slate-700 whitespace-nowrap">
